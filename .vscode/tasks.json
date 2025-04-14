@@ -1,0 +1,14 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "Run tests with coverage",
+            "type": "shell",
+            "command": "pytest --cov=talkpipe --cov-report=html",
+            "group": {
+                "kind": "test",
+                "isDefault": true
+            }
+        }
+    ]
+}

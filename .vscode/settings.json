@@ -1,0 +1,29 @@
+{
+    "python.testing.pytestArgs": [
+        "tests",
+        "-m",
+        "not ddg"
+    ],
+    "python.testing.unittestEnabled": false,
+    "python.testing.pytestEnabled": true,
+    "terminal.integrated.env.osx": {
+        "PYTHONPATH": "${workspaceFolder}/src",
+    },
+    "terminal.integrated.env.linux": {
+        "PYTHONPATH": "${workspaceFolder}/src",
+    },
+    "terminal.integrated.env.windows": {
+        "PYTHONPATH": "${workspaceFolder}/src",
+    },
+    "python.envFile": "${workspaceFolder}/.env",
+    "cSpell.words": [
+        "chatterlang",
+        "checkpointer",
+        "embedder",
+        "langchain",
+        "langgraph",
+        "OLLAMA",
+        "pydantic",
+        "talkpipe"
+    ]
+}

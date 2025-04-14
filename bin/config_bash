@@ -1,0 +1,11 @@
+#!/bin/bash
+
+# Get the directory where the script resides
+SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+
+# Get the directory above the script's directory
+PARENT_DIR="$(dirname "$SCRIPT_DIR")"
+
+# Export the augmented Python path
+export PYTHONPATH="$PARENT_DIR/src:$PYTHONPATH"
+

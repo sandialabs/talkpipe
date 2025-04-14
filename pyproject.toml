@@ -1,0 +1,69 @@
+[build-system]
+requires = ["setuptools", "setuptools_scm"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "talkpipe"
+authors = [
+    {name = "Travis Bauer", email = "tlbauer@sandia.gov"},
+]
+maintainers = [
+    {name = "Travis Bauer", email = "tlbauer@sandia.gov"}
+]
+description = "Python internal and external DSL for writing generative AI analytics"
+readme = "README.md"
+requires-python = ">=3.11"
+keywords = ["ai"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: Apache Software License",
+    "Operating System :: OS Independent",
+]
+dependencies = [
+    'prompt_toolkit',
+    'parsy',
+    'pydantic',
+    'ollama',
+    'pypdf',
+    'numpy',
+    'accelerate',
+    'python-docx',
+    'pandas',
+    'feedparser',
+    'readability-lxml',
+    'lxml[html_clean]',
+    'openai',
+    'fastapi[standard]',
+    'ipywidgets',
+    'pymongo',
+    'umap-learn',
+    'scikit-learn'
+]
+dynamic = ["version"]
+
+[project.optional-dependencies]
+dev = [
+    'pytest',
+    'pytest-mock',
+    'pytest-cov',
+    'mongomock'
+]
+
+[project.scripts]
+chatterlang_server = "talkpipe.app.scriptendpoint:main"
+talkpipe_ref = "talkpipe.app.unit_documentation_analyzer:go"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+# Add package data to include .ico files
+[tool.setuptools.package-data]
+"*" = ["*.ico"]
+"talkpipe.app.static" = ["*.html", "*.txt"]
+
+[tool.setuptools_scm]
+#use defaults
+
+[project.urls]
+Homepage = "https://github.com/sandialabs/talkpipe"
