@@ -2,7 +2,7 @@ import logging
 import time
 import sqlite3
 import feedparser
-from talkpipe import util
+from talkpipe.util.config import get_config
 from talkpipe.pipe import core
 from talkpipe.chatterlang import registry
 from talkpipe.data import html
@@ -150,7 +150,7 @@ def rss_source(url: str, db_path: str = ':memory:', poll_interval_minutes: int =
     """
 
     try:
-        url = url or util.get_config().get("rss_url")
+        url = url or get_config().get("rss_url")
     except Exception as e:
         logger.error(f"Failed to get rss_url from config: {e}")
         raise

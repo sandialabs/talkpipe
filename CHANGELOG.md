@@ -1,6 +1,9 @@
 # Changelog
 
-## 0.4.0
+## 0.4.2
+ - Fixed error in rss.py causing a crash if the URL was specified in the configuration file or environment variable
+
+## 0.4.1
 - Updated syntax so that pipelines in forks can contain more than one segment.  This was an oversight in the original design.
 - Added the mongoInsert and mongoSearch segments
 - Generalized LLM source so that new ones can be registered and used without modifying TalkPipe

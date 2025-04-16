@@ -14,6 +14,7 @@ assignees: ''
 - [ ] Build docker image
 - [ ] Tag repository
 - [ ] Build whl files
+- [ ] Install whl file in new environment and test a script in chatterlang_server
 - [ ] Push to pypi
 - [ ] Push code to repo
 - [ ] Push tags to repo
