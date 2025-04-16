@@ -10,8 +10,9 @@ assignees: ''
 - [ ] Update CHANGELOG
 - [ ] Commit all changes
 - [ ] Ensure unit tests pass in live environment
-- [ ] Tag repository
+- [ ] Merge into master
 - [ ] Build docker image
+- [ ] Tag repository
 - [ ] Build whl files
 - [ ] Push to pypi
 - [ ] Push code to repo
