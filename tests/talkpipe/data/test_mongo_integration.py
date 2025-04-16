@@ -5,8 +5,6 @@ These tests verify that the MongoInsert segment works correctly in a full TalkPi
 
 import pytest
 
-pytestmark = pytest.mark.online
-
 import os
 from pymongo import MongoClient
 import tempfile
@@ -21,7 +19,7 @@ from talkpipe.util.config import get_config
 # Constants for testing
 TEST_DB_NAME = "talkpipe_integration_test"
 TEST_COLLECTION = "integration_collection"
-TEST_CONNECTION_STRING = get_config()["mongo_connection_string"]
+TEST_CONNECTION_STRING = get_config().get("mongo_connection_string", None)
 
 @pytest.mark.online
 class TestMongoInsertIntegration:

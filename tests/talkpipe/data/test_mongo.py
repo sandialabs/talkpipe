@@ -6,8 +6,6 @@ and deleting temporary test databases and collections.
 
 import pytest
 
-pytestmark = pytest.mark.online
-
 import unittest.mock
 import os
 import datetime
@@ -20,9 +18,10 @@ from talkpipe.util.config import get_config
 # Constants for testing
 TEST_DB_NAME = "talkpipe_test_db"
 TEST_COLLECTION = "test_collection"
-TEST_CONNECTION_STRING = get_config()["mongo_connection_string"]
+TEST_CONNECTION_STRING = get_config().get("mongo_connection_string", None)
 
 
+@pytest.mark.online
 class TestMongoInsert:
     """Tests for the MongoInsert segment."""
 

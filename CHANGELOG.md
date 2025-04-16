@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.4.dev
+## 0.4.0
 - Updated syntax so that pipelines in forks can contain more than one segment.  This was an oversight in the original design.
 - Added the mongoInsert and mongoSearch segments
 - Generalized LLM source so that new ones can be registered and used without modifying TalkPipe
