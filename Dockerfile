@@ -1,4 +1,4 @@
-FROM python:3.11
+FROM talkpipe:base
 
 WORKDIR /app
 
@@ -18,9 +18,7 @@ COPY .git/ .git/
 RUN pip install --upgrade pip
 RUN pip install -e .[dev]
 RUN pytest -m "not online" --log-cli-level=DEBUG
-# RUN pip install -e .
-
-# Install the basics of the scientific computing stack for analytics
-RUN pip install numpy pandas matplotlib scikit-learn scipy
+RUN rm -fr .git
+RUN rm -fr tests
 
 CMD ["python", "-m", "talkpipe.app.runscript", "--load_module", "data/custom_module.py", "--env", "TALKPIPE_SCRIPT"]
