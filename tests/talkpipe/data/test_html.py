@@ -4,6 +4,7 @@ import requests
 import urllib.error
 from urllib.robotparser import RobotFileParser
 from talkpipe.data import html
+from testutils import mock_requests_get_completion
 
 def test_htmlToText():
     html_content = """
@@ -203,21 +204,22 @@ def test_downloadURL_exceptions():
             result = html.downloadURL("https://example.com/timeout", fail_on_error=False, timeout=1)
             assert result is None
 
-@pytest.mark.online
-def test_downloadURL():
+def test_downloadURL(mock_requests_get_completion):
+
+
     f = html.downloadURLSegment()
     f = f.asFunction(single_in=True, single_out=True)
     ans = f("http://www.example.com")
     assert ans is not None
     assert len(ans) > 0
-    assert "Example Domain" in ans
+    assert "example" in ans
 
     f = html.downloadURLSegment(field="content")
     f = f.asFunction(single_in=True, single_out=True)
     ans = f({"content": "http://www.example.com"})
     assert ans is not None
     assert len(ans) > 0
-    assert "Example Domain" in ans
+    assert "example" in ans
 
     f = html.downloadURLSegment(field="content", append_as="text")
     f = f.asFunction(single_in=True, single_out=True)
@@ -225,5 +227,5 @@ def test_downloadURL():
     assert "text" in ans
     assert ans["text"] is not None
     assert len(ans["text"]) > 0
-    assert "<title>Example Domain" in ans["text"]
+    assert "<title>Mocked" in ans["text"]
 

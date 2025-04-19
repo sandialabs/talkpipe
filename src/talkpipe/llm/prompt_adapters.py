@@ -59,6 +59,16 @@ class AbstractLLMPromptAdapter(ABC):
         This method is used to execute the chat model with a given input.
         """
 
+    @abstractmethod
+    def is_available(self) -> bool:
+        """Check if the chat model is available.
+
+        This method should be implemented in each subclass to check if 
+        the chat model is available.
+        Returns:
+            bool: True if the model is available, False otherwise.
+        """
+
 
 class OllamaPromptAdapter(AbstractLLMPromptAdapter):
     """Prompt adapter for Ollama
@@ -94,6 +104,22 @@ class OllamaPromptAdapter(AbstractLLMPromptAdapter):
         result = self._output_format.model_validate_json(response.message.content) if self._output_format else response.message.content
         logger.debug(f"Returning response: {result}")
         return result
+    
+    def is_available(self) -> bool:
+        """Check if the chat model is available.
+
+        This method should be implemented in each subclass to check if
+        the chat model is available.
+        Returns:
+            bool: True if the model is available, False otherwise.
+        """
+        try:
+            # Check if the model is available
+            response = ollama.chat(self._model_name, messages=[self._system_message], options={"temperature": self._temperature})
+            return True
+        except Exception as e:
+            logger.error(f"Model {self._model_name} is not available: {e}")
+            return False
 
 
 class OpenAIPromptAdapter(AbstractLLMPromptAdapter):
@@ -131,3 +157,23 @@ class OpenAIPromptAdapter(AbstractLLMPromptAdapter):
         result = self._output_format.model_validate_json(response.choices[0].message.content) if self._output_format else response.choices[0].message.content
         logger.debug(f"Returning response: {result}")
         return result
+    
+    def is_available(self) -> bool:
+        """Check if the chat model is available.
+
+        This method should be implemented in each subclass to check if
+        the chat model is available.
+        Returns:
+            bool: True if the model is available, False otherwise.
+        """
+        try:
+            # Check if the model is available
+            response = self.client.chat.completions.create(
+                model=self._model_name,
+                messages=[self._system_message],
+                temperature=self._temperature
+            )
+            return True
+        except Exception as e:
+            logger.error(f"Model {self._model_name} is not available: {e}")
+            return False

@@ -21,7 +21,7 @@ TEST_COLLECTION = "test_collection"
 TEST_CONNECTION_STRING = get_config().get("mongo_connection_string", None)
 
 
-@pytest.mark.online
+@pytest.mark.usefixtures("requires_mongodb_class")
 class TestMongoInsert:
     """Tests for the MongoInsert segment."""
 

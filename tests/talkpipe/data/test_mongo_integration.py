@@ -21,7 +21,7 @@ TEST_DB_NAME = "talkpipe_integration_test"
 TEST_COLLECTION = "integration_collection"
 TEST_CONNECTION_STRING = get_config().get("mongo_connection_string", None)
 
-@pytest.mark.online
+@pytest.mark.usefixtures("requires_mongodb_class")
 class TestMongoInsertIntegration:
     """Integration tests for MongoInsert in TalkPipe pipelines."""
 
@@ -245,7 +245,7 @@ class TestMongoInsertIntegration:
         assert premium_docs[0]["type"] == "premium"
 
 
-@pytest.mark.online
+@pytest.mark.usefixtures("requires_mongodb_class")
 class TestMongoSearchIntegration:
     """Integration tests for MongoSearch with a real MongoDB."""
     

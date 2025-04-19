@@ -6,8 +6,7 @@ from io import StringIO
 from talkpipe.app import chatcli
 from testutils import monkeypatched_talkpipe_io_prompt
 
-@pytest.mark.online
-def test_run_chat_pipeline(monkeypatch, capsys, monkeypatched_talkpipe_io_prompt, tmp_path):
+def test_run_chat_pipeline(monkeypatch, capsys, monkeypatched_talkpipe_io_prompt, tmp_path, requires_ollama):
     # Mock the parsed arguments
     class MockArgs:
         system_prompt = "You are a helpful and friendly assistant."

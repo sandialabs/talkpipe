@@ -17,7 +17,7 @@ COPY .git/ .git/
 
 RUN pip install --upgrade pip
 RUN pip install -e .[dev]
-RUN pytest -m "not online" --log-cli-level=DEBUG
+RUN pytest --log-cli-level=DEBUG
 RUN rm -fr .git
 RUN rm -fr tests
 

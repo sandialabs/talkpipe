@@ -4,15 +4,90 @@ Provides fixtures for both real MongoDB testing and mocked testing.
 """
 
 import pytest
+import logging
 import os
+from talkpipe.llm.prompt_adapters import OllamaPromptAdapter
+from pymongo import MongoClient
 import mongomock
 import unittest.mock
+
+logger = logging.getLogger(__name__)
 
 # Constants for testing
 TEST_DB_NAME = "talkpipe_test_db"
 TEST_COLLECTION = "test_collection"
 TEST_CONNECTION_STRING = os.environ.get("TALKPIPE_mongo_connection_string")
 
+def pytest_configure(config):
+    """Check if the test is running online."""
+    # Initialize config attributes for service availability
+    config.is_ollama_available = False
+    config.is_mongodb_available = False
+    
+    # Check if Ollama is available
+    opa = OllamaPromptAdapter("llama3.2", temperature=0.0)
+    if opa.is_available():
+        config.is_ollama_available = True
+        logger.warning("Ollama is available.")
+    else:
+        config.is_ollama_available = False
+        logger.warning("Ollama is not available. Skipping tests that require it.")
+    
+    # Check if MongoDB is available
+    try:
+        client = MongoClient(TEST_CONNECTION_STRING, serverSelectionTimeoutMS=2000)
+        client.server_info()  # Will raise if MongoDB is not available
+        config.is_mongodb_available = True
+        logger.warning("MongoDB is available.")
+        client.close()
+    except Exception as e:
+        config.is_mongodb_available = False
+        logger.warning(f"MongoDB is not available: {e}.  Skipping tests that require it.")
+
+@pytest.fixture
+def requires_mongodb(request):
+    """
+    Fixture that skips tests if MongoDB is not available.
+    
+    Usage:
+        def test_something(requires_mongodb):
+            # This test will be skipped if MongoDB is not available
+            ...
+    """
+    if not request.config.is_mongodb_available:
+        pytest.skip("Test requires MongoDB, but MongoDB is not available")
+    return True
+
+
+@pytest.fixture
+def requires_ollama(request):
+    """
+    Fixture that skips tests if Ollama is not available.
+    
+    Usage:
+        def test_something(requires_ollama):
+            # This test will be skipped if Ollama is not available
+            ...
+    """
+    if not request.config.is_ollama_available:
+        pytest.skip("Test requires Ollama with llama3.2, but this model or the server is not available")
+    return True
+
+@pytest.fixture(scope="class")
+def requires_mongodb_class(request):
+    """
+    Class-level fixture that skips all tests in a class if MongoDB is not available.
+    
+    Usage:
+        @pytest.mark.usefixtures("requires_mongodb_class")
+        class TestSomething:
+            def test_one(self):
+                # This test will be skipped if MongoDB is not available
+                ...
+    """
+    if not request.config.is_mongodb_available:
+        pytest.skip("Test class requires MongoDB, but MongoDB is not available")
+    return True
 
 @pytest.fixture(scope="function")
 def mongodb_client():

@@ -23,8 +23,14 @@ def test_invalid_source(monkeypatched_env, patch_get_config):
     with pytest.raises(ValueError):
         LLMPrompt(name="llama3.2", source=None, temperature=0.0)
 
-@pytest.mark.online
-def test_ollamachat():
+def test_is_available(mock_openai_completion, requires_ollama):
+    chat = OllamaPromptAdapter("llama3.2", temperature=0.0)
+    assert chat.is_available() is True
+
+    chat = OpenAIPromptAdapter("llama3.2", temperature=0.0)
+    assert chat.is_available() is True
+
+def test_ollamachat(requires_ollama):
     chat = OllamaPromptAdapter("llama3.2", temperature=0.0)
     assert chat.model_name == "llama3.2"
     assert chat.source == "ollama"
@@ -51,8 +57,7 @@ def test_openai_chat(mock_openai_completion):
     
 
 
-@pytest.mark.online
-def test_chat():
+def test_chat(requires_ollama):
     chat = LLMPrompt(name="llama3.2", source="ollama", temperature=0.0)
 
     # There is an interesting issue here.  You have to deplete the generator before you can get the next response.
@@ -75,8 +80,7 @@ def test_chat():
     response = chat("I just told you my first name?  What is it?")
     assert "inigo" in response.lower()
 
-@pytest.mark.online
-def test_chat_append_as():
+def test_chat_append_as(requires_ollama):
     chat = LLMPrompt(name="llama3.2", source="ollama", append_as="response", temperature=0.0)
     chat = chat.asFunction(single_in=True, single_out=True)
     response = chat({"message": "Hello.  My name is Inigo Montoya.  You killed my father."})
@@ -89,8 +93,7 @@ def test_chat_append_as():
     response = chat("Hello.  My name is Inigo Montoya.  You killed my father.")
     assert isinstance(response, str)
 
-@pytest.mark.online
-def test_chat_property():
+def test_chat_property(requires_ollama):
     chat = LLMPrompt(name="llama3.2", source="ollama", field="message")
     chat = chat.asFunction(single_in=True, single_out=True)
     response = chat({"message": "Say hello", "directive": "Reply in all caps"})
@@ -106,16 +109,14 @@ def test_chat_property():
 class AnAnswer(BaseModel):
     ans: int
 
-@pytest.mark.online
-def test_chat_formatted():
+def test_chat_formatted(requires_ollama):
     chat = LLMPrompt(name="llama3.2", source="ollama", output_format=AnAnswer)
     chat = chat.asFunction(single_in=True, single_out=True)
     response = chat("What is 1+1?")
     assert isinstance(response, AnAnswer)
     assert response.ans == 2
 
-@pytest.mark.online
-def test_llmscore():
+def test_llmscore(requires_ollama):
     system_prompt = """
     "Score the following text according to how relevant it is to anything about canines, 
     where 0 mean unrelated and 10 means highly related."
@@ -145,8 +146,7 @@ def test_llmscore():
     response = llmscore({"assertion":cat_text})
     assert response["canine_similarity"].score < 3
 
-@pytest.mark.online
-def test_llmextractterms():
+def test_llmextractterms(requires_ollama):
     system_prompt="""Extract the names from the following text in lower case."""
     llmextractterms = LlmExtractTerms(system_prompt=system_prompt, multi_turn=False, temperature=0.0)
     llmextractterms = llmextractterms.asFunction(single_in=True, single_out=True)

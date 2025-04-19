@@ -1,7 +1,7 @@
 from typing import Iterable, List
 from unittest.mock import Mock 
 import pytest
-import os
+import os, re
 from collections import namedtuple
 from talkpipe.pipe.io import Prompt  # Import the Prompt source class
 from talkpipe.util.config import get_config
@@ -64,35 +64,70 @@ ChatCompletion = namedtuple("ChatCompletion", [
 
 @pytest.fixture
 def mock_openai_completion(monkeypatch):
-    def mock_create(*args, **kwargs):
-        message = ChatCompletionMessage(
-            content='Functions call themselves,  \nLayers of logic entwined,  \nEndless depth of code.  ',
-            refusal=None,
-            role='assistant',
-            audio=None,
-            function_call=None,
-            tool_calls=None
-        )
-        choice = Choice(finish_reason='stop', index=0, logprobs=None, message=message)
-        usage = CompletionUsage(
+    # Create mock client
+    mock_client = Mock()
+    
+    # Create simplified mock response
+    message = ChatCompletionMessage(
+        content='Functions call themselves, \nLayers of logic entwined, \nEndless depth of code. ',
+        role='assistant',
+        refusal=False,
+        audio=None,
+        function_call=None,
+        tool_calls=None
+    )
+    completion = ChatCompletion(
+        id='chatcmpl-qwertyuiopasdfghjk',
+        choices=[Choice(finish_reason='stop', index=0, message=message, logprobs=None)],
+        created=1733594595,
+        model='gpt-4o-mini-2024-07-18',
+        object='chat.completion',
+        service_tier='default',
+        system_fingerprint='ab_cdefghijkl',
+        usage=CompletionUsage(
             completion_tokens=20,
             prompt_tokens=26,
             total_tokens=46,
             completion_tokens_details=CompletionTokensDetails(0, 0, 0, 0),
             prompt_tokens_details=PromptTokensDetails(0, 0)
         )
-        return ChatCompletion(
-            id='chatcmpl-qwertyuiopasdfghjk',
-            choices=[choice],
-            created=1733594595,
-            model='gpt-4o-mini-2024-07-18',
-            object='chat.completion',
-            service_tier='default',
-            system_fingerprint='ab_cdefghijkl',
-            usage=usage
-        )
-
-    mock_client = Mock()
-    mock_client.beta.chat.completions.parse = mock_create
+    )
+    
+    # Directly attach the mock response to the client
+    mock_client.beta.chat.completions.parse.return_value = completion
+    
+    # Patch the OpenAI constructor
     monkeypatch.setattr("openai.OpenAI", lambda: mock_client)
+    
     return mock_client
+
+is_url = lambda s: isinstance(s, str) and bool(re.match(r'^(https?|ftp)://[^\s/$.?#].[^\s]*$', s))
+
+@pytest.fixture
+def mock_requests_get_completion(monkeypatch):
+    """Mock the requests.get method to return a custom response."""
+    
+    mock_client = Mock()
+
+    class MockResponse:
+        def __init__(self, status_code, text):
+            self.status_code = status_code
+            self.text = text or None
+
+        def json(self):
+            return self.json_data
+
+    def mock_get(*args, **kwargs):
+        if is_url(args[0]):
+            # Simulate a successful response for a valid URL
+            return MockResponse(status_code=200, text="<html><head><title>Mocked</title></head><body>The URL was: %s</body></html>" % args[0])
+        else:
+            # Simulate a failure for non-URL inputs
+            return MockResponse(status_code=404, text=None)
+    
+    mock_client.get.return_value = mock_get
+
+    monkeypatch.setattr("requests.get", mock_get)
+    return mock_get
+
+

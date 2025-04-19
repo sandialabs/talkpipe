@@ -85,8 +85,7 @@ def test_load_jsonl_example(tmpdir):
     assert list(ans.name) == ["Alice", "Bob", "Charlie"]
     assert list(ans.age) == [30, 25, 35]
 
-@pytest.mark.online
-def test_chat_function_example():
+def test_chat_function_example(requires_ollama):
     
     script = """
     | llmPrompt[name="llama3.2", source="ollama", multi_turn=True]  
@@ -123,8 +122,7 @@ def test_chat_function_example():
     assert len(result) == 4
     assert "bob" in result[-1].lower()
     
-@pytest.mark.online
-def test_a_discussion_example(capsys):
+def test_a_discussion_example(requires_ollama, capsys):
 
     script = """
     CONST economist_prompt = "You are an economist debating a proposition.  Reply in one sentence.";
@@ -149,8 +147,7 @@ class Scorer(BaseModel):
     score: float
 
 
-@pytest.mark.online
-def test_a_crawler_example(tmpdir):
+def test_a_crawler_example(requires_ollama):
     data = [
         """{
         "ts_visited": "2024-12-18T01:00:02.585795", 

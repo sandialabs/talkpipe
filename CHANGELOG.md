@@ -2,6 +2,10 @@
 
 ## 0.4.2
  - Fixed error in rss.py causing a crash if the URL was specified in the configuration file or environment variable
+ - Reconfigured the Docker containers so that there is a base container with the pre-requisites and one for talkpipe.
+ This reduces the time needed to build a talkpipe container if the base already exists.
+ - Retooled unit tests to eliminate the "online" fixture, replacing it with something that checks if ollama and mongo are
+ available locally and skipping tests that require them if they are not available.
 
 ## 0.4.1
 - Updated syntax so that pipelines in forks can contain more than one segment.  This was an oversight in the original design.

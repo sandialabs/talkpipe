@@ -1,9 +1,4 @@
 {
-    "python.testing.pytestArgs": [
-        "tests",
-        "-m",
-        "not ddg"
-    ],
     "python.testing.unittestEnabled": false,
     "python.testing.pytestEnabled": true,
     "terminal.integrated.env.osx": {
