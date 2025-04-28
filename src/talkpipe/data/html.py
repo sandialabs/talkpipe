@@ -2,6 +2,7 @@
 
 import logging
 import re
+import gzip
 import urllib.error
 import requests
 import urllib
@@ -97,7 +98,13 @@ def get_robot_parser(domain, timeout=5):
 
     try:
         with urllib.request.urlopen(robots_url, timeout=timeout) as response:
-            content = response.read().decode('utf-8')
+            content = response.read()
+            if content.startswith(b'\x1f\x8b'):
+                # If the content is gzipped, decompress it
+                content = gzip.decompress(content).decode('utf-8')
+            else:
+                # If not gzipped, decode it directly
+                content = content.decode('utf-8')
         
         try:
             rp.parse(content.splitlines())
