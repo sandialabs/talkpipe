@@ -33,7 +33,7 @@ def compile(script: ParsedScript, runtime: RuntimeComponent = None) -> Callable:
     logger.debug("Successfully compiled all pipelines")
     return Script(compiled_pipelines)
 
-def _resolve_parame(params, runtime):
+def _resolve_params(params, runtime):
     """ Resolve the parameters for a segment """
     ans = {k: runtime.const_store[params[k].name] if isinstance(params[k], Identifier) else params[k] for k in params}
     return ans
@@ -57,7 +57,7 @@ def _(pipeline: ParsedPipeline, runtime: RuntimeComponent) -> Pipeline:
             ans = VariableSource(pipeline.input_node.source.name)
             logger.debug(f"Created variable source with name {pipeline.input_node.source.name}")
         else:
-            ans = registry.input_registry.get(pipeline.input_node.source.name)(**_resolve_parame(pipeline.input_node.params, runtime=runtime))
+            ans = registry.input_registry.get(pipeline.input_node.source.name)(**_resolve_params(pipeline.input_node.params, runtime=runtime))
             logger.debug(f"Created registered input {pipeline.input_node.source.name}")
         ans.runtime = runtime
 
@@ -67,7 +67,7 @@ def _(pipeline: ParsedPipeline, runtime: RuntimeComponent) -> Pipeline:
             next_transform = VariableSetSegment(transform.name)
             logger.debug(f"Created variable set segment for {transform.name}")
         elif isinstance(transform, SegmentNode):
-            next_transform = registry.segment_registry.get(transform.operation.name)(**_resolve_parame(transform.params, runtime=runtime))
+            next_transform = registry.segment_registry.get(transform.operation.name)(**_resolve_params(transform.params, runtime=runtime))
             logger.debug(f"Created segment {transform.operation.name}")
         elif isinstance(transform, ForkNode):
             next_transform = compile(transform, runtime)
@@ -216,3 +216,30 @@ class Accum(io.AbstractSegment):
             if self.variable_name:
                 self.runtime.variable_store[self.variable_name].append(item)
             yield item
+
+
+@registry.register_segment(name="snippet")
+class Snippet(io.AbstractSegment):
+    """A segment that loads a chatterlang script from a file and compiles it, after which it
+    functions as a normal segment that can be integrated into a pipeline.
+
+    Args:
+        file (str): The path to the chatterlang script file.
+        runtime (RuntimeComponent, optional): The runtime component to use. Defaults to None.
+    """    
+
+    def __init__(self, script_source: str):
+        super().__init__()
+        self.script_source = script_source
+        self.script = None
+
+    def transform(self, items):
+        if self.script is None:
+            try:
+                with open(self.script_source, "r") as f:
+                    script_text = f.read()
+            except FileNotFoundError:
+                # If file doesn't exist, treat self.script_source as the script content
+                script_text = self.script_source
+            self.script = compile(script_text, self.runtime)
+        yield from self.script(items)

@@ -233,3 +233,39 @@ def test_pipeline_with_comments():
     ans = v_store.variable_store["nums"]
     assert len(ans) == 2
     assert ans == [0, 4]
+
+def test_snippet_script_source():
+    v_store = core.RuntimeComponent()
+    script = compiler.compile(
+        """
+        | snippet[script_source="scale[multiplier=2]"]
+        """, v_store)
+    ans = list(script([0, 2]))
+    assert len(ans) == 2
+    assert ans == [0, 4]
+
+def test_snippet_file_source(tmp_path):
+    v_store = core.RuntimeComponent()
+    with open(tmp_path / "test_snippet.py", "w") as f:
+        f.write("scale[multiplier=2]")
+    # Test the snippet with a file source
+    script = compiler.compile(
+        f"""
+        | snippet[script_source="{tmp_path}/test_snippet.py"]
+        """, v_store)
+    ans = list(script([0, 2]))
+    assert len(ans) == 2
+    assert ans == [0, 4]
+ 
+def test_snippet_multi_use():
+    v_store = core.RuntimeComponent()
+    script = compiler.compile(
+        """
+        CONST subscript = "scale[multiplier=2]"
+        | fork (snippet[script_source=subscript], snippet[script_source=subscript])
+        """, v_store)
+    ans = sorted(list(script([0, 2])))
+    assert len(ans) == 4
+    assert ans == [0, 0, 4, 4]
+
+
