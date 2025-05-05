@@ -1,6 +1,6 @@
 """Math operations for pipe."""
 
-from typing import Iterable, Union
+from typing import Iterable, Union, Callable, Any
 from numpy import random
 from talkpipe.pipe import core
 from talkpipe.chatterlang import registry
@@ -22,20 +22,98 @@ def scale(items: Iterable[Union[int, float]], multiplier: Union[int, float]) -> 
 @registry.register_source(name="range")
 @core.source(lower=0,  upper=10)
 def arange(lower, upper):
-    """Generate a range of integers between lower and upper"""
+    """Generate a range of integers between lower (inclusive) and upper (exclusive)
+
+    This segment wraps the built-in range function, allowing you to specify
+    the lower and upper bounds of the range. The range is inclusive of the
+    lower bound and exclusive of the upper bound.
+
+    Args:
+        lower (int): Lower bound of the range (inclusive)
+        upper (int): Upper bound of the range (exclusive)
+
+    """
     yield from list(range(lower, upper))
 
+
+class AbstractComparisonFilter(core.AbstractSegment):
+    """Abstract base class for comparison segments."""
+
+    def __init__(self, field: str, n: Any, comparator: Callable[[Any, Any], bool]):
+        super().__init__()
+        self.field = field
+        self.n = n
+        self.comparator = comparator
+
+    def transform(self, items: Iterable) -> Iterable:
+        """Filter items based on the comparison."""
+        for item in items:
+            value = extract_property(item, self.field, fail_on_missing=True)
+            if self.comparator(value, self.n):
+                yield item
+
+
+#TODO: rename class to EQ in 0.5.0
+@registry.register_segment(name="eq")
+class eq(AbstractComparisonFilter):
+    """Filter items where a specified field's value equals a number.
+
+    For each item passed in, this segment yields only those where the value of the specified field
+    is equal to the given number n.  
+
+    Args:
+        items: Iterable of items to filter
+        field: String representing the field/property to compare.  Note that
+          an underscore "_" can be used to refer to the item itself.
+        n: Item to compare against
+
+    Yields:
+        Items where the specified field's value equals n
+
+    Raises:
+        AttributeError: If the specified field is missing from any item
+
+    """
+
+    def __init__(self, field: str, n: Any):
+        super().__init__(field, n, lambda x, y: x == y)
+
+#TODO: rename class to NEQ in 0.5.0
+@registry.register_segment(name="neq")
+class neq(AbstractComparisonFilter):
+    """Filter items where a specified field's value does not equal a number.
+
+    For each item passed in, this segment yields only those where the value of the specified field
+    is not equal to the given number n.
+
+    Args:
+        items: Iterable of items to filter
+        field: String representing the field/property to compare.  Note that
+          an underscore "_" can be used to refer to the item itself.
+        n: Item to compare against
+
+    Yields:
+        Items where the specified field's value does not equal n
+
+    Raises:
+        AttributeError: If the specified field is missing from any item
+
+    """
+    def __init__(self, field: str, n: Any):
+        super().__init__(field, n, lambda x, y: x != y)
+
+#TODO: rename class to GT in 0.5.0
 @registry.register_segment("gt")
-@core.segment(field=None, n=None)
-def gt(items, field, n):
+class gt(AbstractComparisonFilter):    
     """Filter items where a specified field's value is greater than a number.
 
-    Takes an iterable of items and yields only those where the value of the specified field
+    For each item passed in, this segment yields only those where the value of the specified field
     is greater than the given number n.
 
     Args:
         items: Iterable of items to filter
-        field: String representing the field/property to compare
+        field: String representing the field/property to compare.  Note that
+          an underscore "_" can be used to refer to the item itself.
         n: Number to compare against
 
     Yields:
@@ -44,25 +122,47 @@ def gt(items, field, n):
     Raises:
         AttributeError: If the specified field is missing from any item
 
-    Example:
-        >>> list(gt([{'value': 5}, {'value': 2}, {'value': 8}], 'value', 4))
-        [{'value': 5}, {'value': 8}]
     """
-    for item in items:
-        if extract_property(item, field, fail_on_missing=True)>n:
-            yield item
+    def __init__(self, field: str, n: Any):
+        super().__init__(field, n, lambda x, y: x > y)
 
+#TODO: rename class to GTE in 0.5.0
+@registry.register_segment(name="gte")
+class gte(AbstractComparisonFilter):
+    """Filter items where a specified field's value is greater than or equal to a number.
+
+    For each item passed in, this segment yields only those where the value of the specified field
+    is greater than or equal to the given number n.
+
+    Args:
+        items: Iterable of items to filter
+        field: String representing the field/property to compare.  Note that
+          an underscore "_" can be used to refer to the item itself.
+        n: Number to compare against
+
+    Yields:
+        Items where the specified field's value is greater than or equal to n
+
+    Raises:
+        AttributeError: If the specified field is missing from any item
+
+    """
+    def __init__(self, field: str, n: Any):
+        super().__init__(field, n, lambda x, y: x >= y)
+
+#TODO: rename class to LT in 0.5.0
 @registry.register_segment("lt")
-@core.segment(field=None, n=None)
-def lt(items, field, n):
+class lt(AbstractComparisonFilter):
     """
     Filters items based on a field value being less than a specified number.
 
-    Yields items where the specified field value is less than the given number n.
+    For each item passed in, this segment yields items where the 
+    specified field value is less than the given number n.
 
     Args:
         items (iterable): An iterable of items to filter
-        field (str): The field/property name to check against
+        field: String representing the field/property to compare.  Note that
+          an underscore "_" can be used to refer to the item itself.
         n (numeric): The number to compare against
 
     Yields:
@@ -71,11 +171,31 @@ def lt(items, field, n):
     Raises:
         AttributeError: If the specified field does not exist on an item (due to fail_on_missing=True)
 
-    Example:
-        >>> items = [{'val': 1}, {'val': 5}, {'val': 3}]
-        >>> list(lt(items, 'val', 4))
-        [{'val': 1}, {'val': 3}]
     """
-    for item in items:
-        if extract_property(item, field, fail_on_missing=True)<n:
-            yield item
+    def __init__(self, field: str, n: Any):
+        super().__init__(field, n, lambda x, y: x < y)
+
+
+#TODO: rename class to LTE in 0.5.0
+@registry.register_segment(name="lte")
+class lte(AbstractComparisonFilter):
+    """Filter items where a specified field's value is less than or equal to a number.
+
+    For each item passed in, this segment yields only those where the value of the specified field
+    is less than or equal to the given number n.
+
+    Args:
+        items: Iterable of items to filter
+        field: String representing the field/property to compare.  Note that
+          an underscore "_" can be used to refer to the item itself.
+        n: Number to compare against
+
+    Yields:
+        Items where the specified field's value is less than or equal to n
+
+    Raises:
+        AttributeError: If the specified field is missing from any item
+
+    """
+    def __init__(self, field: str, n: Any):
+        super().__init__(field, n, lambda x, y: x <= y)

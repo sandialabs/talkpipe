@@ -180,3 +180,4 @@ def test_fork():
     assert len(ps.pipelines[0].transforms[1].branches) == 2
     assert isinstance(ps.pipelines[0].transforms[1].branches[0], parsers.ParsedPipeline)
     assert isinstance(ps.pipelines[0].transforms[1].branches[1], parsers.ParsedPipeline)
+

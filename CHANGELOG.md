@@ -1,11 +1,20 @@
 # Changelog
 
-## 0.4.2
- - Fixed error in rss.py causing a crash if the URL was specified in the configuration file or environment variable
+## 0.4.2 (in progress)
+### New Segments and Source
+ - snippet - lets the script writer either load chatterlang code from a file or provide it as a parameter. 
+ - Abstracted the comparison filter used for gt and lt
+ - Added filters for gte (greater than or equal), lte (less than or equal), eq (equal) and neq (not equal)
+### Improvements
  - Reconfigured the Docker containers so that there is a base container with the pre-requisites and one for talkpipe.
  This reduces the time needed to build a talkpipe container if the base already exists.
  - Retooled unit tests to eliminate the "online" fixture, replacing it with something that checks if ollama and mongo are
  available locally and skipping tests that require them if they are not available.
+### Bug Fixes
+ - Fixed error in rss.py causing a crash if the URL was specified in the configuration file or environment variable
+ - Handled code where robots.txt response is returned compressed.  It now decompresses it rather than erroring out.
+
+
 
 ## 0.4.1
 - Updated syntax so that pipelines in forks can contain more than one segment.  This was an oversight in the original design.

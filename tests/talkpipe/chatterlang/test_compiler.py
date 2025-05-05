@@ -268,4 +268,15 @@ def test_snippet_multi_use():
     assert len(ans) == 4
     assert ans == [0, 0, 4, 4]
 
-
+def test_fork_with_tests():
+    v_store = core.RuntimeComponent()
+    script = compiler.compile(
+        """
+        INPUT FROM range[lower=0, upper=5] | fork (
+            gt[field="_", n=2] | scale[multiplier=2],
+            lte[field="_", n=2]
+        )
+        """, v_store)
+    ans = sorted(list(script()))
+    assert len(ans) == 5
+    assert ans == [0,1,2,6,8]
