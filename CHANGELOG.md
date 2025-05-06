@@ -1,7 +1,7 @@
 # Changelog
 
 ## 0.4.2 (in progress)
-### New Segments and Source
+### New Segments
  - snippet - lets the script writer either load chatterlang code from a file or provide it as a parameter. 
  - Abstracted the comparison filter used for gt and lt
  - Added filters for gte (greater than or equal), lte (less than or equal), eq (equal) and neq (not equal)
