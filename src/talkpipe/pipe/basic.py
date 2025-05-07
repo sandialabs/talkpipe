@@ -1,6 +1,7 @@
 """Standard operations for data processing pipelines."""
 
-from typing import Iterable, Iterator, Union, Optional
+from typing import Iterable, Iterator, Union, Optional, Any
+from types import MappingProxyType
 import logging
 import pickle
 import hashlib
@@ -424,3 +425,101 @@ def fillTemplate(item, template:str, fail_on_missing:bool=True):
     values = {field_name:extract_property(item, field_name, fail_on_missing=fail_on_missing) for field_name in field_names}
     return fill_template(template, values)
 
+@registry.register_segment("lambda")
+class EvalExpression(AbstractSegment):
+    """Evaluate a Python expression on each item in the input stream.
+    
+    This segment pre-compiles the expression during initialization for efficiency 
+    and then applies it to each item during transformation. Expressions are evaluated
+    in a restricted environment for security.
+    
+    The item is available in expressions as 'item'. If the item is a dictionary,
+    its fields can be accessed directly as variables in the expression.
+    
+    Args:
+        expression: The Python expression to evaluate
+        field: If provided, extract this field from each item before evaluating
+        append_as: If provided, append the result to each item under this field name
+        fail_on_error: If True, raises exceptions when evaluation fails. If False, logs errors and returns None
+    """
+    
+    # Set of safe built-ins that can be used in expressions
+    _SAFE_BUILTINS = {
+        'abs': abs, 'all': all, 'any': any, 'bool': bool, 'dict': dict, 
+        'enumerate': enumerate, 'filter': filter, 'float': float, 
+        'frozenset': frozenset, 'int': int, 'isinstance': isinstance, 
+        'issubclass': issubclass, 'len': len, 'list': list, 'map': map, 
+        'max': max, 'min': min, 'ord': ord, 'pow': pow, 'range': range, 
+        'repr': repr, 'reversed': reversed, 'round': round, 
+        'set': set, 'slice': slice, 'sorted': sorted, 'str': str, 
+        'sum': sum, 'tuple': tuple, 'zip': zip
+    }
+    
+    # Create an immutable view of the safe built-ins
+    SAFE_BUILTINS = MappingProxyType(_SAFE_BUILTINS)
+    
+    def __init__(self, 
+                 expression: str,
+                 field: Optional[str] = "_",
+                 append_as: Optional[str] = None,
+                 fail_on_error: bool = True):
+        super().__init__()
+        self.expression = expression
+        self.field = field
+        self.append_as = append_as
+        self.fail_on_error = fail_on_error
+        
+        # Pre-compile the expression for efficiency
+        try:
+            self.compiled_code = compile(expression, '<string>', 'eval')
+            logger.debug(f"Successfully pre-compiled expression: {expression}")
+        except SyntaxError as e:
+            error_msg = f"Invalid expression syntax: {e}"
+            logger.error(error_msg)
+            raise ValueError(error_msg)
+    
+    def _evaluate(self, item: Any) -> Any:
+        """Evaluate the pre-compiled expression on a single item."""
+        # Always make the item available
+        locals_dict = {'item': item}
+        
+        # If item is a dictionary, add its keys as variables for convenience
+        if isinstance(item, dict):
+            locals_dict.update(item)
+        
+        # Evaluate the expression in a restricted environment
+        try:
+            result = eval(self.compiled_code, dict(self.SAFE_BUILTINS), locals_dict)
+            return result
+        except Exception as e:
+            error_msg = f"Error evaluating expression '{self.expression}' on item {item}: {e}"
+            logger.error(error_msg)
+            if self.fail_on_error:
+                raise
+            return None
+    
+    def transform(self, input_iter: Iterable[Any]) -> Iterator[Any]:
+        """Process each item from the input stream."""
+        for item in input_iter:
+            logger.debug(f"Processing input item: {item}")
+            
+            # Extract field value if specified
+            if self.field is not None:
+                value = extract_property(item, self.field)
+                logger.debug(f"Extracted value from field {self.field}: {value}")
+            else:
+                value = item
+                logger.debug(f"Using item directly: {value}")
+            
+            # Evaluate the expression on the value
+            result = self._evaluate(value)
+            logger.debug(f"Evaluation result: {result}")
+            
+            # Handle the result according to append_as
+            if self.append_as is not None and hasattr(item, '__setitem__'):
+                logger.debug(f"Appending result to field {self.append_as}")
+                item[self.append_as] = result
+                yield item
+            else:
+                logger.debug("Yielding result directly")
+                yield result

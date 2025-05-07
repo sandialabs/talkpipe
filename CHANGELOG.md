@@ -1,6 +1,11 @@
 # Changelog
 
-## 0.4.2 (in progress)
+## 0.4.3 (in progress)
+### New Segments 
+ - lambda - lets one write lambda expressions with limited, but common data manipulation segments.  This will
+ eliminate the need for most small, simple segments, even gt, lt, etc.
+
+## 0.4.2 
 ### New Segments
  - snippet - lets the script writer either load chatterlang code from a file or provide it as a parameter. 
  - Abstracted the comparison filter used for gt and lt

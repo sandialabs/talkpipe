@@ -272,3 +272,35 @@ def test_fillTemplate():
     f = basic.fillTemplate(template="Hello {{name}}")
     f = f.asFunction(single_in=True, single_out=True)
     assert f({"name": "World"}) == "Hello {name}"
+
+def test_lambda():
+    f = basic.EvalExpression("item*2")
+    f = f.asFunction()
+    ans = list(f([1, 2, 3]))
+    assert ans == [2, 4, 6]
+
+    f = basic.EvalExpression("len(item)")
+    f = f.asFunction()
+    ans = list(f(["Hello", "World!"]))
+    assert ans == [5, 6]
+
+    f = basic.EvalExpression("item+1", field="x", append_as="y")
+    f = f.asFunction()
+    ans = f([{"x": 1}, {"x": 2}])
+    assert ans == [{"x": 1, "y": 2}, {"x": 2, "y": 3}]
+
+    f = basic.EvalExpression("item+1", field="x")
+    f = f.asFunction()
+    ans = f([{"x": 1}, {"x": 2}])
+    assert ans == [2,3]
+
+    f = basic.EvalExpression("'(TAG) ' +item")
+    f = f.asFunction()
+    ans = f(["Hello", "World!"])
+    assert ans == ["(TAG) Hello", "(TAG) World!"]
+
+    f = basic.EvalExpression("'(LONG) '+item if len(item)>5 else item")
+    f = f.asFunction()
+    ans = f(["Hello", "World!"])
+    assert ans == ["Hello", "(LONG) World!"]
+
