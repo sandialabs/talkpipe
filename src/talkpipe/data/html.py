@@ -10,12 +10,15 @@ from urllib.parse import urlparse
 from urllib.robotparser import RobotFileParser
 from functools import lru_cache
 from html import unescape
-from readability import Document
+from readability import Document 
+from talkpipe.util.config import get_config
 from talkpipe.chatterlang.registry import register_segment
 from talkpipe.pipe import core
 from talkpipe import util
 
 logger = logging.getLogger(__name__)
+
+USER_AGENT_KEY = "user_agent"
 
 def htmlToText(html, cleanText=True):
     """
@@ -118,10 +121,13 @@ def get_robot_parser(domain, timeout=5):
 
     return rp
 
-def can_fetch(url, user_agent="*"):
+def can_fetch(url, user_agent=None):
     """Check if the URL is allowed to be fetched according to robots.txt."""
     parsed_url = urlparse(url)
     domain = f"{parsed_url.scheme}://{parsed_url.netloc}"
+
+    if user_agent is None:
+        user_agent = get_config().get(USER_AGENT_KEY, "*")
 
     try:
         rp = get_robot_parser(domain)
@@ -141,7 +147,7 @@ def can_fetch(url, user_agent="*"):
         logger.warning(f"Error checking can_fetch for {url}. Assuming allowed. Error: {e}")
         return True  # Assume allowed if there's an error during check
 
-def downloadURL(url, fail_on_error=True, user_agent="*", timeout=10):
+def downloadURL(url, fail_on_error=True, user_agent=None, timeout=10):
     """Downloads content from a specified URL with respect to robots.txt rules.
 
     This function attempts to download content from a given URL while checking robots.txt
@@ -171,6 +177,8 @@ def downloadURL(url, fail_on_error=True, user_agent="*", timeout=10):
         '<html>...</html>'
     """
     logger.debug(f"Checking robots.txt permissions for URL: {url}")
+    if user_agent is None:
+        user_agent = get_config().get(USER_AGENT_KEY, "*")
     if not can_fetch(url, user_agent):
         error_message = f"Fetching URL: {url} is disallowed by robots.txt"
         logger.warning(error_message)
@@ -208,7 +216,7 @@ def downloadURL(url, fail_on_error=True, user_agent="*", timeout=10):
 
 @register_segment("downloadURL")
 @core.field_segment()
-def downloadURLSegment(item, fail_on_error=True, timeout=10):
+def downloadURLSegment(item, fail_on_error=True, timeout=10, user_agent=None):
     """Download a URL segment and return its content.
 
     This function is a wrapper around downloadURL that specifically handles URL segments.
@@ -230,4 +238,4 @@ def downloadURLSegment(item, fail_on_error=True, timeout=10):
         an error occurs during download.
     """
     logger.debug(f"Downloading URL: {item}")
-    return downloadURL(item, fail_on_error=fail_on_error, timeout=timeout)
+    return downloadURL(item, fail_on_error=fail_on_error, timeout=timeout, user_agent=user_agent)

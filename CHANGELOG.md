@@ -4,6 +4,7 @@
 ### New Segments 
  - lambda - lets one write lambda expressions with limited, but common data manipulation segments.  This will
  eliminate the need for most small, simple segments, even gt, lt, etc.
+ - Let's the user use custom user-agent strings via a configuration file or environment variables.
 
 ## 0.4.2 
 ### New Segments
