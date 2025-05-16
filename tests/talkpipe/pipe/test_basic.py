@@ -304,3 +304,14 @@ def test_lambda():
     ans = f(["Hello", "World!"])
     assert ans == ["Hello", "(LONG) World!"]
 
+
+def test_lambdaFilter():
+    f = basic.FilterExpression("item>2")
+    f = f.asFunction()
+    ans = list(f([1, 2, 3, 4]))
+    assert ans == [3, 4]
+
+    f = basic.FilterExpression("item>2", field="x")
+    f = f.asFunction()
+    ans = list(f([{"x": 3}, {"x": 2}, {"x": 4}]))
+    assert ans == [{"x": 3}, {"x": 4}]

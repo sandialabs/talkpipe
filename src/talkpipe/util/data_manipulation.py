@@ -1,9 +1,11 @@
+import logging
 import re
 import inspect
+from types import MappingProxyType
 from typing import Any, Set
-
 from talkpipe.util.config import parse_key_value_str
 
+logger = logging.getLogger(__name__)
 
 def get_all_attributes(obj: Any, skip_packages: tuple = ('pydantic',), visited: Set = None,
                       depth: int = 0, max_depth: int = 10) -> list:
@@ -246,3 +248,60 @@ def fill_template(template: str, values: dict) -> str:
     result = result.replace(temp_open, "{").replace(temp_close, "}")
 
     return result
+
+
+def compileLambda(expression: str, fail_on_error: bool = True):
+    """Compile a Python expression into a callable that evaluates safely with a single item parameter.
+
+    Args:
+        expression: Python expression to compile
+        fail_on_error: If True, raises exceptions when evaluation fails. If False, returns None on errors
+
+    Returns:
+        A callable function that takes a single 'item' parameter and returns the evaluated expression result
+    """
+    # Set of safe built-ins that can be used in expressions
+    _SAFE_BUILTINS = {
+        'abs': abs, 'all': all, 'any': any, 'bool': bool, 'dict': dict,
+        'enumerate': enumerate, 'filter': filter, 'float': float,
+        'frozenset': frozenset, 'int': int, 'isinstance': isinstance,
+        'issubclass': issubclass, 'len': len, 'list': list, 'map': map,
+        'max': max, 'min': min, 'ord': ord, 'pow': pow, 'range': range,
+        'repr': repr, 'reversed': reversed, 'round': round,
+        'set': set, 'slice': slice, 'sorted': sorted, 'str': str,
+        'sum': sum, 'tuple': tuple, 'zip': zip
+    }
+
+    # Create an immutable view of the safe built-ins
+    SAFE_BUILTINS = MappingProxyType(_SAFE_BUILTINS)
+
+    # Pre-compile the expression for efficiency
+    try:
+        compiled_code = compile(expression, '<string>', 'eval')
+        logger.debug(f"Successfully pre-compiled expression: {expression}")
+    except SyntaxError as e:
+        error_msg = f"Invalid expression syntax: {e}"
+        logger.error(error_msg)
+        raise ValueError(error_msg)
+
+    def lambda_function(item: Any) -> Any:
+        """Evaluate the pre-compiled expression on a single item."""
+        # Always make the item available
+        locals_dict = {'item': item}
+
+        # If item is a dictionary, add its keys as variables for convenience
+        if isinstance(item, dict):
+            locals_dict.update(item)
+
+        # Evaluate the expression in a restricted environment
+        try:
+            result = eval(compiled_code, dict(SAFE_BUILTINS), locals_dict)
+            return result
+        except Exception as e:
+            error_msg = f"Error evaluating expression '{expression}' on item {item}: {e}"
+            logger.error(error_msg)
+            if fail_on_error:
+                raise
+            return None
+
+    return lambda_function

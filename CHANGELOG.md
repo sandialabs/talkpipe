@@ -1,10 +1,18 @@
 # Changelog
 
-## 0.4.3 (in progress)
+## in development
 ### New Segments 
- - lambda - lets one write lambda expressions with limited, but common data manipulation segments.  This will
- eliminate the need for most small, simple segments, even gt, lt, etc.
- - Let's the user use custom user-agent strings via a configuration file or environment variables.
+ - lambda expression integration
+   - lambda - lets one write lambda expressions with limited, but common data manipulation segments.  This will
+  eliminate the need for most small, simple segments, even gt, lt, etc.
+   - lambdaFilter - filters based on a lambda expression.  Uses the same syntax as lambda.
+
+### Improvements
+ - Added a safe lambda expression compiler to data_manipulation.  Enables only basic data manipulation functionality
+
+ - Use can specify custom user-agent strings via a configuration file or environment variable for web page
+ downloader.
+ - Documentation improvements
 
 ## 0.4.2 
 ### New Segments
