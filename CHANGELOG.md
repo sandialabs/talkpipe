@@ -6,6 +6,7 @@
    - lambda - lets one write lambda expressions with limited, but common data manipulation segments.  This will
   eliminate the need for most small, simple segments, even gt, lt, etc.
    - lambdaFilter - filters based on a lambda expression.  Uses the same syntax as lambda.
+   - readEmail - source for reading email from an IMAP server, along with helper functions
 
 ### Improvements
  - Added a safe lambda expression compiler to data_manipulation.  Enables only basic data manipulation functionality
