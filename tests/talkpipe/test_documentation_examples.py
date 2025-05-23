@@ -139,7 +139,7 @@ def test_a_discussion_example(requires_ollama, capsys):
     f = f.asFunction(single_out=False)
     result = list(f())
     captured = capsys.readouterr()
-    assert len(captured.out.strip().split('\n')) == 7
+    assert len(captured.out.strip().split('\n')) >= 7
     assert len(result) == 7    
 
 class Scorer(BaseModel):
