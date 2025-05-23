@@ -4,7 +4,7 @@ import threading
 import time
 from queue import Empty
 from talkpipe.pipe import core
-from talkpipe.operations.threading import ThreadedQueue, QueueConsumer, threadedSegment
+from talkpipe.operations.thread_ops import ThreadedQueue, QueueConsumer, threadedSegment
 from talkpipe.chatterlang.compiler import compile
 
 
