@@ -4,7 +4,7 @@ from fastapi.testclient import TestClient
 
 # Import the FastAPI app and the global store from your module.
 # Adjust the import path to match your project structure.
-from talkpipe.app import scriptendpoint
+from talkpipe.app import chatterlang_server
 
 # Define a dummy compile function to replace the real compiler.
 def dummy_compile(script):
@@ -28,14 +28,14 @@ def dummy_compile(script):
 @pytest.fixture(autouse=True)
 def patch_compile(monkeypatch):
     # Override both the local reference in the endpoint module and the original import.
-    monkeypatch.setattr(scriptendpoint, "compile", dummy_compile)
+    monkeypatch.setattr(chatterlang_server, "compile", dummy_compile)
     monkeypatch.setattr("talkpipe.chatterlang.compiler.compile", dummy_compile)
     # Clear the global compiled_scripts dict between tests.
-    scriptendpoint.compiled_scripts.clear()
+    chatterlang_server.compiled_scripts.clear()
 
 @pytest.fixture
 def client():
-    return TestClient(scriptendpoint.app)
+    return TestClient(chatterlang_server.app)
 
 def test_compile_non_interactive(client):
     # A non-interactive script: first non-blank non-CONST line does not start with '|'
@@ -74,7 +74,7 @@ def test_compile_error(client, monkeypatch):
     def dummy_compile_error(script):
         raise Exception("dummy compilation failure")
     
-    monkeypatch.setattr(scriptendpoint, "compile", dummy_compile_error)
+    monkeypatch.setattr(chatterlang_server, "compile", dummy_compile_error)
     monkeypatch.setattr("talkpipe.chatterlang.compiler.compile", dummy_compile_error)
     
     script = "some script"
