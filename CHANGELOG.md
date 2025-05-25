@@ -3,14 +3,17 @@
 ## in development
 ### New Segments 
  - lambda expression integration
-   - lambda - lets one write lambda expressions with limited, but common data manipulation segments.  This will
+   - **lambda** - lets one write lambda expressions with limited, but common data manipulation segments.  This will
   eliminate the need for most small, simple segments, even gt, lt, etc.
-   - lambdaFilter - filters based on a lambda expression.  Uses the same syntax as lambda.
-   - readEmail - source for reading email from an IMAP server, along with helper functions
+   - **lambdaFilter** - filters based on a lambda expression.  Uses the same syntax as lambda.
+   - **readEmail** - source for reading email from an IMAP server, along with helper functions
+   - **sign** and **verify** for signing and verifying data.  Also added utility functions for creating keys and associated 
+   functions.
 
 ### Improvements
+ - Broad support for configuration and environment variables.  When a parameter to a segment starts with a dollar sign (e.g. $myval),
+ the system will look first in the current configuration for the key "myval" and then in the OS' environment variables for TALKPIPE_myval.
  - Added a safe lambda expression compiler to data_manipulation.  Enables only basic data manipulation functionality
-
  - Use can specify custom user-agent strings via a configuration file or environment variable for web page
  downloader.
  - Documentation improvements

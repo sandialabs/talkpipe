@@ -5,6 +5,8 @@ from talkpipe.chatterlang import registry
 from talkpipe.pipe import io
 from talkpipe.pipe import basic
 from talkpipe.pipe import core
+import os
+from unittest.mock import patch
 
 def test_pipeline_compiler():
     parsed = parsers.script_parser.parse("firstN")
@@ -280,3 +282,12 @@ def test_fork_with_tests():
     ans = sorted(list(script()))
     assert len(ans) == 5
     assert ans == [0,1,2,6,8]
+
+def test_environment_variable_support():
+    with patch.dict(os.environ, {'TALKPIPE_some_var': 'a,b,c,d'}):
+        f = compiler.compile("""
+            INPUT FROM echo[data=$some_var]
+        """)
+        f = f.asFunction(single_out=False)
+        ans = list(f())
+        assert ans == ['a', 'b', 'c', 'd']

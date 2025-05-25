@@ -2,6 +2,8 @@ import pytest
 from parsy import ParseError
 
 from talkpipe.chatterlang import parsers
+import os
+from unittest import mock
 
 def test_quoted_string():
     assert parsers.quoted_string.parse('"string"') == 'string'
@@ -181,3 +183,19 @@ def test_fork():
     assert isinstance(ps.pipelines[0].transforms[1].branches[0], parsers.ParsedPipeline)
     assert isinstance(ps.pipelines[0].transforms[1].branches[1], parsers.ParsedPipeline)
 
+def test_environmentVariables():
+    
+    # Use mock to patch os.environ
+    with mock.patch.dict(os.environ, {"TALKPIPE_my_string": "Some_String"}):
+        ps = parsers.script_parser.parse('INPUT FROM $my_string | print')
+        assert isinstance(ps, parsers.ParsedScript)
+        assert len(ps.pipelines) == 1
+        assert isinstance(ps.pipelines[0], parsers.ParsedPipeline)
+        assert isinstance(ps.pipelines[0].input_node, parsers.InputNode)
+        assert ps.pipelines[0].input_node.source == "Some_String"
+        assert len(ps.pipelines[0].transforms) == 1
+        assert isinstance(ps.pipelines[0].transforms[0], parsers.SegmentNode)
+        assert ps.pipelines[0].transforms[0].operation == parsers.Identifier("print")
+
+        ps = parsers.script_parser.parse('INPUT FROM somewhere | do_something[key=$my_string]')
+        assert ps.pipelines[0].transforms[0].params['key'] == 'Some_String'

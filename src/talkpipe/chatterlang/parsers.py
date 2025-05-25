@@ -8,6 +8,7 @@ into something that can then be executed.
 from typing import List, Optional, Any, Dict, Union
 from parsy import string, regex, seq, whitespace, generate, line_info
 from dataclasses import dataclass, field
+from talkpipe.util.config import get_config
 
 @dataclass(frozen=True)
 class VariableName:
@@ -18,7 +19,7 @@ class VariableName:
     @property
     def is_variable(self):
         return True
-
+    
 @dataclass(frozen=True)
 class Identifier:
     """An identifier in the pipeline language."""
@@ -131,6 +132,7 @@ identifier = regex(r'[a-zA-Z][a-zA-Z0-9_]*').map(lambda s: Identifier(name=s))
 """A parser for identifiers.  Identifiers are used for operation names, variable names, etc.""" 
 variable = (string('@') >> identifier).map(lambda x: x).map(lambda x: VariableName(name=x.name))
 """A parser for variable names.  Variables are used to store and retrieve data in the pipeline."""
+environmentVariable = (string('$') >> identifier).map(lambda x: get_config()[x.name])
 # quoted_string = regex(r'"[^"]*"').map(lambda s: s[1:-1])
 quoted_string = regex(r'"(?:[^"]|"")*"').map(
     lambda s: s[1:-1].replace('""', '"')
@@ -139,7 +141,7 @@ quoted_string = regex(r'"(?:[^"]|"")*"').map(
 number = regex(r'-?\d+(\.\d+)?').map(lambda s: int(s) if '.' not in s else float(s))
 """A parser for numbers.  Returns both ints and floats."""
 
-parameter = quoted_string | bool_value | number | identifier | variable
+parameter = quoted_string | bool_value | number | identifier | variable | environmentVariable
 """A parser for parameters.  Parameters can be strings, booleans, numbers, or identifiers."""
 
 key_value = seq(
@@ -174,7 +176,7 @@ def constant_definition():
 source = (
     (lexeme('INPUT') >> lexeme('FROM') | lexeme('NEW') >> lexeme('FROM') | lexeme('NEW')) >>
     seq(
-        source=(variable | identifier | quoted_string),
+        source=(variable | identifier | quoted_string | environmentVariable),
         bracket_content=bracket_parser
     )
 ).map(lambda x: InputNode(
