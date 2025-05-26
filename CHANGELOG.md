@@ -10,6 +10,10 @@
   - **sign** and **verify** for signing and verifying data.  Also added utility functions for creating keys and associated 
    functions.
 
+### New Sources
+ - **jsonReceiver** - both a source and an app for opening an endpoint that can receive json and pass it through a 
+ chatterlang script
+
 ### Improvements
  - Broad support for configuration and environment variables.  When a parameter to a segment or source starts with a dollar sign (e.g. $myval),
  the system will look first in the current configuration for the key "myval" and then in the OS' environment variables for TALKPIPE_myval.
@@ -17,6 +21,7 @@
  - Use can specify custom user-agent strings via a configuration file or environment variable for web page
  downloader.
  - Renamed threading.py to thread_ops.py to avoid name collision
+ - Renamed scriptendpoint.py to chatterlang_server.py for clarity
  - Documentation improvements
 
 ## 0.4.2 

@@ -39,7 +39,8 @@ dependencies = [
     'pymongo',
     'umap-learn',
     'scikit-learn',
-    'cryptography'
+    'cryptography',
+    'uvicorn'
 ]
 dynamic = ["version"]
 
@@ -55,6 +56,7 @@ dev = [
 chatterlang_server = "talkpipe.app.chatterlang_server:main"
 talkpipe_ref = "talkpipe.app.unit_documentation_analyzer:go"
 talkpipe_genkeys = "talkpipe.operations.crypto:generate_keys_cli"
+talkpipe_endpoint = "talkpipe.app.apiendpoint"
 
 [tool.setuptools.packages.find]
 where = ["src"]
