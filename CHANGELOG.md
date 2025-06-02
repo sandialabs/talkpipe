@@ -1,7 +1,7 @@
 # Changelog
 
 ## in development
-### New Segments 
+### New Segments and Sources
  - lambda expression integration
    - **lambda** - lets one write lambda expressions with limited, but common data manipulation segments.  This will
   eliminate the need for most small, simple segments, even gt, lt, etc.
@@ -9,8 +9,6 @@
   - **readEmail** - source for reading email from an IMAP server, along with helper functions
   - **sign** and **verify** for signing and verifying data.  Also added utility functions for creating keys and associated 
    functions.
-
-### New Sources
  - **jsonReceiver** - both a source and an app for opening an endpoint that can receive json and pass it through a 
  chatterlang script
 
@@ -23,6 +21,10 @@
  - Renamed threading.py to thread_ops.py to avoid name collision
  - Renamed scriptendpoint.py to chatterlang_server.py for clarity
  - Documentation improvements
+ - Moved code closing mongo connections to the end of the internal loop and out of the del code.  It was causing 
+error when being disposed as python was exiting.
+ - Changed n_iter to max_iter to resolve warning with tsne.
+ - Adjust n_neighbors in umap when larger than the number of points to resolve warning
 
 ## 0.4.2 
 ### New Segments
