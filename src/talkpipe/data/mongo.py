@@ -266,6 +266,13 @@ class MongoSearch(core.AbstractSegment):
             self._collection = self._db[self.collection_name]
                 
         return self._collection
+
+    def _close_connection(self):
+        if self._client is not None:
+            self._client.close()
+            self._client = None
+            self._db = None
+            self._collection = None
     
     def transform(self, input_iter: Iterable[Any]) -> Iterator[Any]:
         """Search the MongoDB collection based on query parameters.
@@ -308,9 +315,6 @@ class MongoSearch(core.AbstractSegment):
             else:
                 for result in cursor:
                     yield result
+
+        self._close_connection()
                 
-    def __del__(self):
-        """Clean up MongoDB client connection when the segment is destroyed."""
-        if self._client:
-            logger.debug("Closing MongoDB connection")
-            self._client.close()
