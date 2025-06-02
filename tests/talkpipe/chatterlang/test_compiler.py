@@ -1,3 +1,5 @@
+import os
+from unittest.mock import patch
 import time
 import numpy as np
 from talkpipe.chatterlang import parsers, compiler
@@ -5,8 +7,7 @@ from talkpipe.chatterlang import registry
 from talkpipe.pipe import io
 from talkpipe.pipe import basic
 from talkpipe.pipe import core
-import os
-from unittest.mock import patch
+from talkpipe.util.config import reset_config
 
 def test_pipeline_compiler():
     parsed = parsers.script_parser.parse("firstN")
@@ -285,6 +286,7 @@ def test_fork_with_tests():
 
 def test_environment_variable_support():
     with patch.dict(os.environ, {'TALKPIPE_some_var': 'a,b,c,d'}):
+        reset_config()
         f = compiler.compile("""
             INPUT FROM echo[data=$some_var]
         """)

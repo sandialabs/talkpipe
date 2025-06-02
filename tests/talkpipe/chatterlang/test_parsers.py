@@ -1,9 +1,10 @@
 import pytest
+import os
+from unittest import mock
 from parsy import ParseError
 
 from talkpipe.chatterlang import parsers
-import os
-from unittest import mock
+from talkpipe.util.config import reset_config
 
 def test_quoted_string():
     assert parsers.quoted_string.parse('"string"') == 'string'
@@ -187,6 +188,7 @@ def test_environmentVariables():
     
     # Use mock to patch os.environ
     with mock.patch.dict(os.environ, {"TALKPIPE_my_string": "Some_String"}):
+        reset_config()
         ps = parsers.script_parser.parse('INPUT FROM $my_string | print')
         assert isinstance(ps, parsers.ParsedScript)
         assert len(ps.pipelines) == 1

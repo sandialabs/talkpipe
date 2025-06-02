@@ -111,6 +111,16 @@ class MongoInsert(core.AbstractSegment):
                 self._collection.create_index(self.create_index, unique=self.unique_index)
                 
         return self._collection
+
+    def _close_connection(self):
+        """Clean up MongoDB client connection when the segment is destroyed."""
+        if self._client:
+            logger.debug("Closing MongoDB connection")
+            self._client.close()
+            self._client = None
+            self._db = None
+            self._collection = None
+
     
     def transform(self, input_iter: Iterable[Any]) -> Iterator[Any]:
         """Insert each item into the MongoDB collection.
@@ -182,11 +192,7 @@ class MongoInsert(core.AbstractSegment):
                 # Continue processing other items despite errors
                 yield item
                 
-    def __del__(self):
-        """Clean up MongoDB client connection when the segment is destroyed."""
-        if self._client:
-            logger.debug("Closing MongoDB connection")
-            self._client.close()
+        self._close_connection()        
 
 @registry.register_segment("mongoSearch")
 class MongoSearch(core.AbstractSegment):

@@ -238,7 +238,7 @@ class TestReduceTSNE:
         assert reducer.perplexity == 30.0
         assert reducer.early_exaggeration == 12.0
         assert reducer.learning_rate == 200.0
-        assert reducer.n_iter == 1000
+        assert reducer.max_iter == 1000
         assert reducer.metric == 'euclidean'
         assert reducer.random_state is None
         assert reducer.tsne_kwargs == {}
@@ -249,7 +249,7 @@ class TestReduceTSNE:
             perplexity=50.0,
             early_exaggeration=15.0,
             learning_rate=150.0,
-            n_iter=2000,
+            max_iter=2000,
             metric='cosine',
             random_state=42,
             method='exact'
@@ -258,7 +258,7 @@ class TestReduceTSNE:
         assert custom_reducer.perplexity == 50.0
         assert custom_reducer.early_exaggeration == 15.0
         assert custom_reducer.learning_rate == 150.0
-        assert custom_reducer.n_iter == 2000
+        assert custom_reducer.max_iter == 2000
         assert custom_reducer.metric == 'cosine'
         assert custom_reducer.random_state == 42
         assert 'method' in custom_reducer.tsne_kwargs
