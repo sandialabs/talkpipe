@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """
 FastAPI JSON Receiver Server
 Receives JSON data via HTTP and processes it with a configurable function
@@ -21,6 +20,8 @@ import threading
 from queue import Queue
 from talkpipe.pipe.core import AbstractSource
 from talkpipe.chatterlang import register_source
+from talkpipe.chatterlang import compile
+from talkpipe.util.config import get_config
 
 logger = logging.getLogger(__name__)
 
@@ -352,9 +353,7 @@ class JSONReceiverSegment(AbstractSource):
             # This will block until data is available
             yield self.queue.get(block=True, timeout=None)
 
-if __name__ == "__main__":
-    from talkpipe.chatterlang import compile
-    from talkpipe.util.config import get_config
+def go():
     
     parser = argparse.ArgumentParser(description='FastAPI JSON Data Receiver')
     parser.add_argument('-p', '--port', type=int, default=9999,
@@ -404,3 +403,5 @@ if __name__ == "__main__":
     # Start the server
     receiver.start(background=False)
 
+if __name__ == "__main__":
+    go()
