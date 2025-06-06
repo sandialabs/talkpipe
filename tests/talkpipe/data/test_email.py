@@ -4,7 +4,7 @@ import smtplib
 
 from talkpipe.data import email
 from talkpipe.chatterlang.compiler import compile
-from talkpipe.util.config import get_config
+from talkpipe.util.config import get_config, reset_config
 from testutils import monkeypatched_env
 import imaplib
 from email.message import EmailMessage
@@ -249,10 +249,10 @@ def test_fetch_email(monkeypatched_imap, monkeypatched_env):
 def test_readEmail(monkeypatched_imap, monkeypatched_env):
     monkeypatched_env({
         "TALKPIPE_imap_server": "imap.server.com",
-        "TALKPIPE_email_username": "username",
+        "TALKPIPE_email_address": "username",
         "TALKPIPE_email_password": "password"
     })
-
+    reset_config()
     get_config(reload=True)
 
     code = """INPUT FROM readEmail[folder="INBOX", limit=2, poll_interval_minutes=-1] """

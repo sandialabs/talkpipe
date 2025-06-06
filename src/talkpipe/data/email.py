@@ -425,7 +425,7 @@ def readEmail(poll_interval_minutes=10, folder='INBOX', mark_as_read=True, limit
     _password = password or config.get("email_password")
     
     if not _imap_server or not _email_address or not _password:
-        error_msg = "Missing configuration for email. Need imap_server, email_address, and email_password."
+        error_msg = "Missing configuration for email. Need imap_server, email_address, and email_password.  Currently have (%s)" % [str((_imap_server, _email_address, "NONE" if _password is None else "Not shown"))]
         logger.error(error_msg)
         raise ValueError(error_msg)
         
