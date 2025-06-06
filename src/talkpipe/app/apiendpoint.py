@@ -319,7 +319,7 @@ class JSONReceiverSegment(AbstractSource):
     def __init__(self, port: int = 9999, host: str = "0.0.0.0", 
                  api_key: str = None, require_auth: bool = False):
         super().__init__()
-        self.port = port
+        self.port = int(port)
         self.host = host
         self.api_key = api_key
         self.require_auth = require_auth
