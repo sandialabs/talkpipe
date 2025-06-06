@@ -25,6 +25,7 @@
 error when being disposed as python was exiting.
  - Changed n_iter to max_iter to resolve warning with tsne.
  - Adjust n_neighbors in umap when larger than the number of points to resolve warning
+ - Added chatterlang_scipt to the package installer so the user can run talkpipe.app.runscript from the commandline
 
 ## 0.4.2 
 ### New Segments
