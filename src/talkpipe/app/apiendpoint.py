@@ -2,7 +2,7 @@
 FastAPI JSON Receiver Server
 Receives JSON data via HTTP and processes it with a configurable function
 """
-
+from typing import Union
 import logging
 import argparse
 from fastapi.responses import FileResponse
@@ -316,7 +316,7 @@ print(response.json())</pre>
 class JSONReceiverSegment(AbstractSource):
     """Segment for receiving JSON data via FastAPI"""
     
-    def __init__(self, port: int = 9999, host: str = "0.0.0.0", 
+    def __init__(self, port: Union[int,str] = 9999, host: str = "0.0.0.0", 
                  api_key: str = None, require_auth: bool = False):
         super().__init__()
         self.port = int(port)
@@ -327,7 +327,7 @@ class JSONReceiverSegment(AbstractSource):
         
         self.receiver = JSONReceiver(
             host=host,
-            port=port,
+            port=self.port,
             api_key=api_key,
             require_auth=require_auth,
             title=f"JSON Receiver Segment (Port {port})",
