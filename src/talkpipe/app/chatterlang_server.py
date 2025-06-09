@@ -1011,7 +1011,7 @@ def main():
 
     print(f"Starting TalkPipe server at http://{args.host}:{args.port}")
     uvicorn.run(
-        "talkpipe.app.scriptendpoint:app",
+        "talkpipe.app.chatterlang_server:app",
         host=args.host,
         port=args.port,
         reload=args.reload
