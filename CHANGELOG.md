@@ -1,6 +1,11 @@
 # Changelog
 
-## in development
+## In Development
+### Improvements
+ - Basic, configurable web app
+
+
+## 0.5.0
 ### New Segments and Sources
  - lambda expression integration
    - **lambda** - lets one write lambda expressions with limited, but common data manipulation segments.  This will
