@@ -668,9 +668,9 @@ class JSONReceiver:
                         'Content-Type': 'application/json'
                     }};
                     
-                    {'''if (document.getElementById('apiKey')?.value) {
-                        headers['X-API-Key'] = document.getElementById('apiKey').value;
-                    }''' if self.require_auth else ''}
+                    {("if (document.getElementById('apiKey')?.value) {" + 
+                      "headers['X-API-Key'] = document.getElementById('apiKey').value;" + 
+                      "}") if self.require_auth else ""}
                     
                     try {{
                         const response = await fetch('/process', {{
@@ -1040,9 +1040,9 @@ class JSONReceiver:
                         'Content-Type': 'application/json'
                     }};
                     
-                    {'''if (document.getElementById('apiKey')?.value) {
-                        headers['X-API-Key'] = document.getElementById('apiKey').value;
-                    }''' if self.require_auth else ''}
+                    {("if (document.getElementById('apiKey')?.value) {" + 
+                      "headers['X-API-Key'] = document.getElementById('apiKey').value;" + 
+                      "}") if self.require_auth else ""}
                     
                     try {{
                         const response = await fetch('/process', {{
@@ -1075,9 +1075,9 @@ class JSONReceiver:
                 
                 async function fetchHistory() {{
                     const headers = {{}};
-                    {'''if (document.getElementById('apiKey')?.value) {
-                        headers['X-API-Key'] = document.getElementById('apiKey').value;
-                    }''' if self.require_auth else ''}
+                    {("if (document.getElementById('apiKey')?.value) {" + 
+                      "headers['X-API-Key'] = document.getElementById('apiKey').value;" + 
+                      "}") if self.require_auth else ""}
                     
                     try {{
                         const response = await fetch('/history?limit=10', {{ headers }});
@@ -1099,9 +1099,9 @@ class JSONReceiver:
                 
                 async function clearHistory() {{
                     const headers = {{}};
-                    {'''if (document.getElementById('apiKey')?.value) {
-                        headers['X-API-Key'] = document.getElementById('apiKey').value;
-                    }''' if self.require_auth else ''}
+                    {("if (document.getElementById('apiKey')?.value) {" + 
+                      "headers['X-API-Key'] = document.getElementById('apiKey').value;" + 
+                      "}") if self.require_auth else ""}
                     
                     try {{
                         await fetch('/history', {{ method: 'DELETE', headers }});
