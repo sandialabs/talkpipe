@@ -1,8 +1,16 @@
 # Changelog
 
 ## In Development
+### New Segments and Sources
+ - writeString - to write items to a file, casting each into a string
+
 ### Improvements
  - Basic, configurable web app
+
+### Improvements
+ - updated writePickle so that it always passes along every item.  Also, 
+   if writing all items, they are not written to a liste, but written
+   one by one into the file.
 
 
 ## 0.5.0

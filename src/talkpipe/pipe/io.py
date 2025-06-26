@@ -138,18 +138,40 @@ def dumpsJsonl(data: Iterable):
 @register_segment('writePickle')
 @segment()
 def writePickle(data, fname: str, first_only: bool = False):
-    """Drains the input stream into a list and then writes the list as a pickle file.
+    """Writes each item into a pickle file. If first_only is True, only the first item is written.
+    In any event, all items are yielded.
 
     Args:
         fname (str): The name of the file to write.
-        first_only (bool): If True, the segment will write only the first item in the input stream,
-            throwing an exception if there is more than one.
-            If False, the segment will write the entire input stream.
+        first_only (bool): If True, only the first item in the input stream is written.
     """
-    everything = list(data)
-    if first_only:
-        assert len(everything) == 1, "first_only is True, but there is more than one item to write"
-        everything = everything[0]
+    first = True
     with open(os.path.expanduser(fname), 'wb') as f:
-        pickle.dump(everything, f)
-    yield everything
+        for item in data:
+            if not first_only or first:
+                pickle.dump(item, f)
+                first = False
+            yield item
+
+@register_segment('writeString')
+@segment()
+def writeString(data, fname: str, new_line = True, first_only: bool = False):
+    """Writes each item into a files after casting it to a string.
+
+    Args:
+        fname (str): The name of the file to write.
+        new_line (bool): If True, a new line will be written after each item.
+        first_only (bool): If True, the segment will write only the first item in the input stream.
+            In any event, all items will be yielded.
+    """
+    first = True
+    with open(os.path.expanduser(fname), 'w') as f:
+        for item in data:
+            if not first_only or first:
+                f.write(str(item))
+                if new_line:
+                    f.write('\n')
+                first = False
+            yield item
+
+
