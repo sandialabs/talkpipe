@@ -11,6 +11,7 @@ from pydantic import BaseModel
 from talkpipe.pipe import core
 from talkpipe.chatterlang import registry
 from talkpipe.chatterlang.compiler import compile
+from talkpipe.util.config import load_module_file
 
 logger = logging.getLogger(__name__)
 
@@ -1005,9 +1006,16 @@ def main():
     parser.add_argument(
         "--reload", action="store_true", help="Enable auto-reload (default: off)"
     )
+    parser.add_argument(
+        "--load_module", action='append', default=[], type=str, help="Path to a custom module file to import before running the script."
+    )
 
     # Add more uvicorn options as needed
     args = parser.parse_args()
+
+    if args.load_module:
+        for module_file in args.load_module:
+            load_module_file(fname=module_file, fail_on_missing=False)
 
     print(f"Starting TalkPipe server at http://{args.host}:{args.port}")
     uvicorn.run(

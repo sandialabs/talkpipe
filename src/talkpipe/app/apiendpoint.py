@@ -5,6 +5,8 @@ Receives JSON data via HTTP and processes it with a configurable function
 from typing import Union
 import logging
 import argparse
+import yaml
+import asyncio
 from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi import FastAPI, HTTPException, Depends, Header
@@ -22,9 +24,8 @@ from talkpipe.pipe.core import AbstractSource
 from talkpipe.chatterlang import register_source
 from talkpipe.chatterlang import compile
 from talkpipe.util.config import get_config
-import yaml
-import asyncio
-import time
+from talkpipe.util.config import load_module_file
+
 
 logger = logging.getLogger(__name__)
 
@@ -1256,9 +1257,15 @@ def go():
                         help='Chatterlang script to run on received data')
     parser.add_argument('--form-config', default=None,
                         help='Path to form configuration file (YAML or JSON) or config variable ($VAR_NAME)')
+    parser.add_argument("--load_module", action='append', default=[], type=str, 
+                        help="Path to a custom module file to import before running the script.")
+
     
     args = parser.parse_args()
     
+    if args.load_module:
+        for module_file in args.load_module:
+            load_module_file(fname=module_file, fail_on_missing=False)
 
     script = None
     if args.script_var and args.script:
