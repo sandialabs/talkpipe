@@ -117,11 +117,6 @@ def each_char(s):
     for c in s:
         yield c
 
-def test_call_func():
-    f = basic.call_func(each_char)
-    ans = list(f(["Hello", "World"]))
-    assert ans == ["H", "e", "l", "l", "o", "W", "o", "r", "l", "d"]
-    
 def test_concat():
     c = basic.concat(fields="a,b")
     c = c.asFunction(single_in=True, single_out=True)
@@ -315,3 +310,15 @@ def test_lambdaFilter():
     f = f.asFunction()
     ans = list(f([{"x": 3}, {"x": 2}, {"x": 4}]))
     assert ans == [{"x": 3}, {"x": 4}]
+
+def test_longestStr():
+    f = basic.longestStr(field_list="x,y")
+    f = f.asFunction(single_in=False, single_out=False)
+    ans = list(f([{"x": "short", "y": "longest", "z":"reallymuchlonger"}, {"x": "longer", "y": "short", "z": "tiny"}]))
+    assert ans == ["longest", "longer"]
+
+    f = basic.longestStr(field_list="x,y", append_as="longest")
+    f = f.asFunction(single_in=False, single_out=False)
+    ans = list(f([{"x": "short", "y": "longest", "z":"reallymuchlonger"}, {"x": "longer", "y": "short", "z": "tiny"}]))
+    assert ans[0]["longest"] == "longest"
+    assert ans[1]["longest"] == "longer"

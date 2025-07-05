@@ -2,15 +2,22 @@
 
 ## In Development
 ### New Segments and Sources
- - writeString - to write items to a file, casting each into a string
+ - **writeString** – writes items to a file, casting each into a string. Optionally, specify the field to write.
+ - **longestStr** – chooses the longest string from among the fields specified. This could be done with a lambda expression,
+  but it is needed often enough, and is awkward enough as a lambda expression, that a separate command was written.
+ - **sleep** – yields each item and then sleeps for the specified number of seconds.
 
 ### Improvements
- - Basic, configurable web app
- - updated writePickle so that it always passes along every item.  Also, 
-   if writing all items, they are not written to a liste, but written
-   one by one into the file.
- - Replaced mocked OpenAI unit test with actual call to OpenAI, contingent
-   upon it being accessible.  Fixed OpenAI prompt adaptor.
+ - Updated apiendpoint to include a user-face web app.  Allows the user to specify a YAML file to define the format expected by 
+   the endpoint.  The user can then go to /stream with their browser and get a form where they can end the data that will be
+   converted into json as sent to the endpoint.  This is in addition to the ability to post to the endpoint directly as before.   
+ - Updated writePickle so that it always passes along every item. Also, 
+  if writing all items, they are not written to a list, but written
+  one by one into the file.
+ - Replaced mocked OpenAI unit test with an actual call to OpenAI, contingent
+  upon it being accessible. Fixed OpenAI prompt adaptor.
+ - Added optional field specifier to writePickle.
+ - Removed call_func. This is superseded by the more flexible lambda.
 
 
 ## 0.5.0

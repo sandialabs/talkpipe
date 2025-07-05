@@ -137,7 +137,7 @@ def dumpsJsonl(data: Iterable):
 
 @register_segment('writePickle')
 @segment()
-def writePickle(data, fname: str, first_only: bool = False):
+def writePickle(data, fname: str, field: Optional[str] = None, first_only: bool = False):
     """Writes each item into a pickle file. If first_only is True, only the first item is written.
     In any event, all items are yielded.
 
@@ -149,13 +149,15 @@ def writePickle(data, fname: str, first_only: bool = False):
     with open(os.path.expanduser(fname), 'wb') as f:
         for item in data:
             if not first_only or first:
+                if field is not None:
+                    item = data_manipulation.extract_property(item, field, fail_on_missing=True)
                 pickle.dump(item, f)
                 first = False
             yield item
 
 @register_segment('writeString')
 @segment()
-def writeString(data, fname: str, new_line = True, first_only: bool = False):
+def writeString(data, fname: str, field: Optional[str] = None, new_line = True, first_only: bool = False):
     """Writes each item into a files after casting it to a string.
 
     Args:
@@ -168,6 +170,8 @@ def writeString(data, fname: str, new_line = True, first_only: bool = False):
     with open(os.path.expanduser(fname), 'w') as f:
         for item in data:
             if not first_only or first:
+                if field is not None:
+                    item = data_manipulation.extract_property(item, field, fail_on_missing=True)
                 f.write(str(item))
                 if new_line:
                     f.write('\n')
