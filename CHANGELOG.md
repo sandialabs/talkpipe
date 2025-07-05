@@ -6,11 +6,11 @@
 
 ### Improvements
  - Basic, configurable web app
-
-### Improvements
  - updated writePickle so that it always passes along every item.  Also, 
    if writing all items, they are not written to a liste, but written
    one by one into the file.
+ - Replaced mocked OpenAI unit test with actual call to OpenAI, contingent
+   upon it being accessible.  Fixed OpenAI prompt adaptor.
 
 
 ## 0.5.0

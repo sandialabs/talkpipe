@@ -1,7 +1,7 @@
 from pydantic import BaseModel
 import pytest
 from talkpipe.llm.prompt_adapters import OllamaPromptAdapter, OpenAIPromptAdapter
-from testutils import mock_openai_completion, monkeypatched_env, patch_get_config
+from testutils import monkeypatched_env, patch_get_config
 from talkpipe.util import config
 
 from talkpipe.llm.chat import LLMPrompt, LlmScore, LlmExtractTerms
@@ -23,11 +23,11 @@ def test_invalid_source(monkeypatched_env, patch_get_config):
     with pytest.raises(ValueError):
         LLMPrompt(name="llama3.2", source=None, temperature=0.0)
 
-def test_is_available(mock_openai_completion, requires_ollama):
+def test_is_available(requires_ollama):
     chat = OllamaPromptAdapter("llama3.2", temperature=0.0)
     assert chat.is_available() is True
 
-    chat = OpenAIPromptAdapter("llama3.2", temperature=0.0)
+    chat = OpenAIPromptAdapter("gpt-4.1-nano", temperature=0.0)
     assert chat.is_available() is True
 
 def test_ollamachat(requires_ollama):
@@ -47,15 +47,38 @@ def test_ollamachat(requires_ollama):
     assert "inigo" not in ans.lower()
 
 
-def test_openai_chat(mock_openai_completion):
-    chat = OpenAIPromptAdapter("fake_gpt", temperature=0.0)
-    assert chat.model_name == "fake_gpt"
+def test_openai_chat(requires_openai):
+    chat = OpenAIPromptAdapter("gpt-4.1-nano", temperature=0.0)
+    assert chat.model_name == "gpt-4.1-nano"
     assert chat.source == "openai"
     ans = chat.execute("Hello.  My name is Inigo Montoya.  You killed my father.  Prepare to die.")
     ans = chat.execute("I just told you my first name?  What is it?")
-    assert "Functions call themselves" in ans
-    
+    assert "inigo" in ans.lower()
 
+class TestOpenAIChatGuidedGeneration(BaseModel):
+    """Test class for OpenAI guided generation."""
+    response: str
+    explanation: str
+
+def test_openai_chat_guided_generation(requires_openai):
+    system_prompt = """
+    "You are a helpful assistant.  Your task is to answer the user's question and provide an explanation for your answer."
+    """
+
+    chat = OpenAIPromptAdapter("gpt-4.1-nano", system_prompt=system_prompt, temperature=0.0, output_format=TestOpenAIChatGuidedGeneration)
+    assert chat.model_name == "gpt-4.1-nano"
+    assert chat.source == "openai"
+
+    response = chat.execute("What is the capital of France?")
+    assert isinstance(response, TestOpenAIChatGuidedGeneration)
+    assert "paris" in response.response.lower() 
+    assert len(response.explanation) > 0
+
+    # Test with a different question
+    response = chat.execute("What is the largest planet in our solar system?")
+    assert isinstance(response, TestOpenAIChatGuidedGeneration)
+    assert "jupiter" in response.response.lower()
+    assert len(response.explanation) > 0
 
 def test_chat(requires_ollama):
     chat = LLMPrompt(name="llama3.2", source="ollama", temperature=0.0)

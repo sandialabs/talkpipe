@@ -31,6 +31,13 @@ def test_run_chat_pipeline(monkeypatch, capsys, monkeypatched_talkpipe_io_prompt
 
     # Verify that the output file was written
     with open(MockArgs.outfile, "rb") as f:
-        output = pickle.load(f)
-        assert isinstance(output, Iterable), f"Expected Iterable output, but got: {output}"
-        assert "bob" in output[-1].lower(), f"Expected 'bob' in output file, but got: {output}"
+        outputs = []
+        while True:
+            try:
+                item = pickle.load(f)
+                assert isinstance(item, str), f"Expected string, but got: {type(item)}"
+                outputs.append(item)
+            except EOFError:
+                break
+        full_output = "".join(outputs).lower()
+        assert "bob" in full_output, f"Expected 'bob' in output file, but got: {full_output}"

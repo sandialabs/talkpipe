@@ -140,21 +140,21 @@ class OpenAIPromptAdapter(AbstractLLMPromptAdapter):
         self._messages.append({"role": "user", "content": prompt})
 
         logger.debug(f"Sending chat request to OpenAI model {self._model_name}")
-        response = self.client.beta.chat.completions.parse(
+        response = self.client.responses.parse(
             model=self._model_name,
-            messages=[self._system_message] + self._messages,
+            input=[self._system_message] + self._messages,
             temperature=self._temperature,
-            response_format=self._output_format
+            text_format=openai.NOT_GIVEN if self._output_format is None else self._output_format
             )
 
         if self._multi_turn:
             logger.debug("Multi-turn enabled, appending assistant response to chat history")
-            self._messages.append({"role": "assistant", "content": response.choices[0].message.content})
+            self._messages.append({"role": "assistant", "content": response.output_text})
         else:
             logger.debug("Single-turn mode, clearing message history")
             self._messages = []
 
-        result = self._output_format.model_validate_json(response.choices[0].message.content) if self._output_format else response.choices[0].message.content
+        result = response.output_parsed if self._output_format else response.output_text
         logger.debug(f"Returning response: {result}")
         return result
     

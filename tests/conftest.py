@@ -6,7 +6,7 @@ Provides fixtures for both real MongoDB testing and mocked testing.
 import pytest
 import logging
 import os
-from talkpipe.llm.prompt_adapters import OllamaPromptAdapter
+from talkpipe.llm.prompt_adapters import OllamaPromptAdapter, OpenAIPromptAdapter
 from pymongo import MongoClient
 import mongomock
 import unittest.mock
@@ -23,10 +23,11 @@ def pytest_configure(config):
     # Initialize config attributes for service availability
     config.is_ollama_available = False
     config.is_mongodb_available = False
+    config.is_openai_available = False
     
     # Check if Ollama is available
-    opa = OllamaPromptAdapter("llama3.2", temperature=0.0)
-    if opa.is_available():
+    ollama_adapter = OllamaPromptAdapter("llama3.2", temperature=0.0)
+    if ollama_adapter.is_available():
         config.is_ollama_available = True
         logger.warning("Ollama is available.")
     else:
@@ -43,6 +44,15 @@ def pytest_configure(config):
     except Exception as e:
         config.is_mongodb_available = False
         logger.warning(f"MongoDB is not available: {e}.  Skipping tests that require it.")
+
+    # Check if OpenAI is available (if needed in future)
+    openai_adapter = OpenAIPromptAdapter("gpt-4.1-nano", temperature=0.0)
+    if openai_adapter.is_available():
+        config.is_openai_available = True
+        logger.warning("OpenAI is available.")
+    else:
+        config.is_openai_available = False
+        logger.warning("OpenAI is not available. Skipping tests that require it.")
 
 @pytest.fixture
 def requires_mongodb(request):
@@ -71,6 +81,20 @@ def requires_ollama(request):
     """
     if not request.config.is_ollama_available:
         pytest.skip("Test requires Ollama with llama3.2, but this model or the server is not available")
+    return True
+
+@pytest.fixture
+def requires_openai(request):
+    """
+    Fixture that skips tests if OpenAI is not available.
+    
+    Usage:
+        def test_something(requires_openai):
+            # This test will be skipped if OpenAI is not available
+            ...
+    """
+    if not request.config.is_openai_available:
+        pytest.skip("Test requires OpenAI, but OpenAI is not available")
     return True
 
 @pytest.fixture(scope="class")
