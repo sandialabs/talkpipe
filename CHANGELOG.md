@@ -1,6 +1,6 @@
 # Changelog
 
-## In Development
+## 0.6.0
 ### New Segments and Sources
  - **writeString** – writes items to a file, casting each into a string. Optionally, specify the field to write.
  - **longestStr** – chooses the longest string from among the fields specified. This could be done with a lambda expression,
@@ -8,16 +8,19 @@
  - **sleep** – yields each item and then sleeps for the specified number of seconds.
 
 ### Improvements
- - Updated apiendpoint to include a user-face web app.  Allows the user to specify a YAML file to define the format expected by 
-   the endpoint.  The user can then go to /stream with their browser and get a form where they can end the data that will be
-   converted into json as sent to the endpoint.  This is in addition to the ability to post to the endpoint directly as before.   
+ - Fixed a bug preventing the OpenAI adapter from working. Removed the OpenAI mockup test and replaced it with a unit test that
+  communicates with OpenAI when the unit test environment is properly configured.
+ - Updated apiendpoint to include a user-facing web app. Allows the user to specify a YAML file to define the format expected by 
+  the endpoint. The user can then go to /stream with their browser and get a form where they can enter the data that will be
+  converted into JSON and sent to the endpoint. This is in addition to the ability to post to the endpoint directly as before.   
  - Updated writePickle so that it always passes along every item. Also, 
   if writing all items, they are not written to a list, but written
   one by one into the file.
- - Replaced mocked OpenAI unit test with an actual call to OpenAI, contingent
-  upon it being accessible. Fixed OpenAI prompt adaptor.
- - Added optional field specifier to writePickle.
- - Removed call_func. This is superseded by the more flexible lambda.
+ - Replaced the mocked OpenAI unit test with an actual call to OpenAI, contingent
+  upon it being accessible. Fixed the OpenAI prompt adapter.
+ - Added an optional field specifier to writePickle.
+ - Added the ability for apiendpoint and chatterlang_server to load custom modules.
+ - Removed **call_func**. This is superseded by the more flexible lambda.
 
 
 ## 0.5.0
