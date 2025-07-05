@@ -46,13 +46,17 @@ def pytest_configure(config):
         logger.warning(f"MongoDB is not available: {e}.  Skipping tests that require it.")
 
     # Check if OpenAI is available (if needed in future)
-    openai_adapter = OpenAIPromptAdapter("gpt-4.1-nano", temperature=0.0)
-    if openai_adapter.is_available():
-        config.is_openai_available = True
-        logger.warning("OpenAI is available.")
-    else:
+    try:
+        openai_adapter = OpenAIPromptAdapter("gpt-4.1-nano", temperature=0.0)
+        if openai_adapter.is_available():
+            config.is_openai_available = True
+            logger.warning("OpenAI is available.")
+        else:
+            config.is_openai_available = False
+            logger.warning("OpenAI is not available. Skipping tests that require it.")
+    except Exception as e:
         config.is_openai_available = False
-        logger.warning("OpenAI is not available. Skipping tests that require it.")
+        logger.warning(f"OpenAI check failed: {e}. Skipping tests that require it.")
 
 @pytest.fixture
 def requires_mongodb(request):
