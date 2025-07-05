@@ -16,6 +16,25 @@ from talkpipe.util.data_manipulation import fill_template
 
 logger = logging.getLogger(__name__)
 
+@registry.register_segment("sleep")
+@segment()
+def sleep(items, seconds: int):
+    """Sleep for a specified number of seconds.
+
+    Args:
+        items (Iterable): An iterable of items to process.
+        seconds (int): The number of seconds to sleep.
+
+    Yields:
+        None: This segment does not yield any items; it simply sleeps.
+    """
+    import time
+    # Yielding None to indicate that this segment does not produce output
+    for item in items:
+        yield item  # Yield the item to maintain the flow of the pipeline
+        time.sleep(seconds)
+
+
 @registry.register_segment(name="firstN")
 class First(AbstractSegment[int, int]):
     """
@@ -166,17 +185,6 @@ def exec(command: str) -> Iterator:
     yield from run_command(command)
 
 
-@registry.register_segment(name="call_func")
-@segment()
-def call_func(item_iter: Iterable, func: callable) -> Iterator:
-    """Call a function on each item in the input stream.
-    
-    Args:
-        func (callable): The function to call on each item
-    """
-    for item in item_iter:
-        yield from func(item)
-
 @registry.register_segment("concat")
 @segment(fields=None, delimiter="\n\n", append_as=None)
 def concat(items, fields, delimiter="\n\n", append_as=None):
@@ -241,6 +249,34 @@ def slice(item, range=None):
 
     modified_data = item[start:end]
     return modified_data
+
+@registry.register_segment("longestStr")
+@segment()
+def longestStr(items, field_list, append_as=None):
+    """Finds the longest string among specified fields in the input item.  If 
+    a field is not present or is not a string, it is ignored.  If two or more
+    fields have the same length, the first one encountered is returned.  If
+    none of the specified fields are present, and emptry string is yielded.
+    Args:
+        items: The input items
+        field_list (str): Comma-separated list of fields to check for longest string
+    Yields:
+        The longest string found in the specified fields of the input items.
+    """
+    fields = parse_key_value_str(field_list)
+    for item in items:
+        longest = ""
+        for field in fields:
+            data = extract_property(item, field, fail_on_missing=False)
+            if data is None:
+                continue
+            if len(str(data)) > len(longest):
+                longest = str(data)
+        if append_as:
+            item[append_as] = longest
+            yield item
+        else:   
+            yield longest
 
 @registry.register_segment("isIn")
 @segment()
