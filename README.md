@@ -1,277 +1,403 @@
 <center><img src="docs/TalkPipe.png" width=500></center>
 
-# Introduction
+**Build and iterate on smarter AI workflows in minutes.**
 
-TalkPipe is a Python toolkit designed for developers who want to build smarter, more efficient workflows that integrate Generative AI. Unlike other tools that put LLMs at the center, TalkPipe treats them as one of many tools in your arsenal. With its "Pipe API" and simple scripting language, ChatterLang, TalkPipe makes it easy to create modular reusable components and assemble them into workflows that fit your needs. TalkPipe helps you focus on solving problems, not wrestling with complexity.  
+TalkPipe is a Python toolkit that makes it easy to create, test, and deploy workflows that integrate Generative AI with your existing tools and data sources. TalkPipe treats LLMs as one tool in your arsenal - letting you build practical solutions that combine AI with data processing, file handling, and more.  
 
-The author of TalkPipe has used the software in a variety of modes, from a continuously running process in a docker container that evaluates research papers, to quick bespoke analytics for exploration in a jupyter notebook, to applications that are run on the command line.
+## What Can You Do With TalkPipe?
 
-## Current Status
-TalkPipe is a feature-rich toolkit already in active use, offering segments for MongoDB, OpenAI-based LLMs, Ollama, web page access, t-SNE, UMAP, and more. While it provides a foundation with a wide array of tools, it is still in its early stages of development. We invite contributors to explore its capabilities, provide feedback, and help shape its evolution.  
+- **Chat with LLMs** - Create multi-turn conversations with OpenAI or Ollama models in just 2 lines of code
+- **Process Documents** - Extract text from PDFs, analyze research papers, score content relevance
+- **Analyze Web Content** - Download web pages (respecting robots.txt), extract readable text, and summarize
+- **Build Data Pipelines** - Chain together data transformations, filtering, and analysis with Unix-like simplicity
+- **Create AI Agents** - Build agents that can debate topics, evaluate streams of documents, or monitor RSS feeds
+- **Deploy Anywhere** - Run in Jupyter notebooks, as Docker containers, or as standalone Python applications
 
-## Technical Details
+## Quick Start
 
-### Versatile and User-Friendly Design
-TalkPipe supports diverse use cases, from long-running processes in Python applications to exploratory data analysis in Jupyter Notebooks or deployment in Docker containers. Users can create custom modules by decorating functions with one of three decorators (@source, @segment, and @field_segment), that can then be integrated into other Python code or registered as part of the TalkPipe API. Core classes can also be extended for greater control, but many of TalkPipe's own sources and segments are implemented using these decorators.  This flexibility allows developers to use TalkPipe functionality alongside independent code, build entire applications within the API, or combine both approaches seamlessly.
-
-### Dual-Language Architecture
-TalkPipe offers a flexible dual-language approach, containing both an internal and external Domain-Specific Language (DSL):
-- **Internal DSL (Pipe API)**: Built with a few straight forward categories of modules and interaction patterns, it includes data sources that inject data and data segments that process it. Fully Pythonic in nature, developers can create new sources and segments by adding decorators to functions, making it simple to integrate with existing applications and repositories.
-- **External DSL (ChatterLang)**: Provides a Unix-like pipe syntax that empowers users to construct complex analytic pipelines with ease, enabling a wide range of workflows and data processing tasks.
-
-### LLM Integration
-At the core of TalkPipe are LLM segments that currently support OpenAI and Ollama APIs.  The library is designed so that more could be added.  These segments enable functionalities such as simple prompting, guided generation, and vector creation. This allows data to flow through LLMs, with their responses seamlessly included in the output. Additionally, vectors can be accumulated into a matrix, which can then be further processed using segments for algorithms like t-SNE and UMAP.  
-
-### Built-in Applications
-- A text command-line interface for interacting with LLMs or creating command-line applications that work with LLMs
-- A lightweight web interface for real-time experimentation with ChatterLang
-- Components designed for integration into Jupyter notebooks for analytic development
-
----
-
-## Influences and Differences
-
-- This software incorporates insights learned from [previous work](https://link.springer.com/chapter/10.1007/978-3-319-41956-5_20) in engineering rapidly adaptable analytics in a platform that is designed to evolve over time.  However this current library is engineered to support the integration of generative AI and is not limited to small data.
-- The syntax for ChatterLang is reminiscent of the syntax in [Waterslide](https://github.com/waterslideLTS/waterslide).  However, TalkPipe is not engineered or designed primarily for a streaming environment (though it can support that).  It is designed especially
-for flexibility and easy of use.  
-
-# Installation directions
-
-```
+Install TalkPipe:
+```bash
 pip install talkpipe
 ```
 
-Independently of the installation, you will also need to have the means of accessing the LLMs 
-that TalkPipe will use.  If, for example, you plan to use Ollama, you'll need to install Ollama 
-on your system.  
-
-# Quick Start - Interactive Chat
-
-Let's say that you want a function that you can provide prompts and get responses for a multi-turn
-conversation.  A simple chatterlang script will accomplish that.  These examples assume that you have ollama
-installed on your system and have pulled the llama3.2 model.
-
+Create a multi-turn chat function in 2 lines:
 ```python
-script = """
-| llmPrompt[name="llama3.2", source="ollama", multi_turn=True]  
-"""
-f = compiler.compile(script)
-f = f.asFunction(single_in=True, single_out=True)
-ans = f("Good afternoon.  My name is Bob!")
-ans = f("What is my name?")
-assert "bob" in ans.lower()
- ```
+from talkpipe.chatterlang import compiler
 
-You can also create the same pipeline directly using the associated class.
+script = '| llmPrompt[name="llama3.2", source="ollama", multi_turn=True]'
+chat = compiler.compile(script).asFunction(single_in=True, single_out=True)
 
-```python
-from talkpipe.llm import chat
-
-f = chat.LLMPrompt(name="llama3.2", source="ollama", multi_turn=True).asFunction(single_in=True, single_out=True)
-ans = f("Good afternoon.  My name is Bob!")
-ans = f("What is my names?")
-assert "bob" in ans.lower()
+response = chat("Hello! My name is Alice.")
+response = chat("What's my name?")  # Will remember context
 ```
 
-Let's make this a little more interesting, printing out each prompt and accumulating the whole conversation.
+# Core Components
 
-```python
-script = """
-| llmPrompt[name="llama3.2", source="ollama", multi_turn=True, pass_prompts=True] | print | accum[reset=False] 
-"""    
-f = compiler.compile(script)
-f = f.asFunction(single_in=True, single_out=False)
-f("Good afternoon.  My name is Bob!")
-result = list(f("What is my name?"))
-assert len(result) == 4
-assert "bob" in result[-1].lower()
-```
+## 1. The Pipe API (Internal DSL)
 
-In this case, you are calling the function multiple times, but it keeps accumulating the results of each run.
-
-Because of the print function, you also see something like the following on stdout:
-
-```
-Good afternoon.  My name is Bob!
-Good afternoon, Bob! It's nice to meet you. Is there something I can help you with today, or would you like to chat for a bit?
-What is my name?
-Your name is Bob. We established that earlier when we introduced ourselves. How's your day going so far, Bob?
-```
-
-For completeness, let's also build that pipeline using the pipe API
+TalkPipe's Pipe API is a Pythonic way to build data pipelines using the `|` operator to chain components:
 
 ```python
 from talkpipe.pipe import io
 from talkpipe.llm import chat
-from talkpipe.chatterlang import compiler
 
-f = chat.LLMPrompt(name="llama3.2", source="ollama", multi_turn=True, pass_prompts=True) | io.Print() | compiler.Accum(reset=False)
-f = f.asFunction(single_in=True, single_out=False)
-f("Good afternoon.  My name is Bob!")
-result = list(f("What is my name?"))
-assert len(result) == 4
-assert "bob" in result[-1].lower()
+# Create a pipeline that prompts for input, gets an LLM response, and prints it
+pipeline = io.Prompt() | chat.LLMPrompt(name="llama3.2") | io.Print()
+pipeline = pipeline.asFunction()
+pipeline()  # Run the interactive pipeline
 ```
 
-The ability to use both the pipe api and chatterlang provide multiple methods to rapidly create and deploy analytics.
+### Creating Custom Components
 
-# Introduction to TalkPipe and ChatterLang
+Add new functionality with simple decorators:
 
-TalkPipe is a Python package designed to define flexible, reusable components that support exploratory data analysis. 
-TalkPipe also provides a pipeline language called ChatterLang, which enables quick creation and composition of analytic workflows.
+```python
+from talkpipe.pipe import core, io
 
-## ChatterLang
+@core.segment()
+def uppercase(items):
+    """Convert each item to uppercase"""
+    for item in items:
+        yield item.upper()
 
-The central concept in ChatterLang is the unit. There are two types of units: sources and segments, analogous to a 
-source that feeds a pipe and the segments of pipes through which data flows. 
+# Use it in a pipeline
+pipeline = io.echo(data="hello,world") | uppercase() | io.Print()
+result = pipeline.asFunction(single_out=False)()
 
-A source, once initialized, returns a generator, acting as a data provider. A segment, once initialized, takes an 
-iterator (typically a generator) as input and returns another generator. Its role is to process each input data item 
-and emit zero or more new data items in response. Segments can also perform tasks such as writing data streams to disk.
-
-ChatterLang supports variables. Each variable serves as a buffer for a stream. When used as a segment, it drains 
-what it receives into a list and then passes along items one by one. When used as a source, it yields the collected 
-items one by one. Variables are prefixed with an @ symbol.
-
-ChatterLang also supports constant declarations, which are particularly useful for defining longer strings, such as 
-prompts, that would be cumbersome to include directly in pipeline definitions.
-
-Pipelines in ChatterLang must begin with a source and always include one or more segments. The pipeline's source 
-declaration starts with "INPUT FROM", "NEW", or "NEW FROM", all of which are equivalent. These multiple options exist 
-for readability and to accommodate user preferences.
-
-Consider the following example, first shown using the Pipe API and then using ChatterLang:
-
-### Example 1 - Hello World
-
-Before discussing the python for using chatterlang, let's use a basic ChatterLang Script.
-
-In this example, "echo" is the source. It takes no input itself. In this case, it has two 
-named parameters, "data" and "delimeter." For this particular source, all the data is 
-included in the parameters. All units, whether sources or segments, use the same format 
-for specifying parameters. The segment "cast" casts every item provided to the specified 
-type. If the item can't be converted, it quietly fails and doesn't yield anything. The 
-final segment, "print," prints each item it receives to stdout.
-
-
-```
-INPUT FROM echo[data="1|2|hello|3", delimiter="|"] | cast[cast_type="int"] | print
+# Output:
+# HELLO
+# WORLD
+# Returns: ['HELLO', 'WORLD']
 ```
 
-In this example, the script
-is compiled into a single pipeline.  That pipeline is an iterator that yields data items,
-processing them one-by-one.  This is an important concept in TalkPipe.  The script isn't 
-"run" at a single time with the results already cached.  Instead, as you draw individual
-items off the iterator, that causes a cascading draw of data through the pipe.  This make
-processing more efficient (both in terms of memory and time), providing real time results
-when needed.
+## 2. ChatterLang (External DSL)
 
-In this case, casting the output of the pipeline call draws all items one-by-one and puts
-the results into a list.
+ChatterLang provides a Unix-like syntax for building pipelines, perfect for rapid prototyping and experimentation:
 
-**Example 1a**
+```
+INPUT FROM echo[data="1,2,hello,3"] | cast[cast_type="int"] | print
+```
+
+### Key ChatterLang Features
+
+- **Variables**: Store intermediate results with `@variable_name`
+- **Constants**: Define reusable values with `CONST name = "value"`
+- **Loops**: Repeat operations with `LOOP n TIMES { ... }`
+- **Multiple Pipelines**: Chain workflows with `;` or newlines
+
+## 3. Built-in Applications
+
+### Interactive Web Interface
+```bash
+chatterlang_server [--port 8080]
+```
+A web UI for writing and testing ChatterLang scripts with real-time execution and logging.
+
+### Command-Line Tools
+- `chatterlang_server` - Start the interactive web interface for experimenting with ChatterLang
+- `chatterlang_script` - Run ChatterLang scripts from files or command line
+- `talkpipe_ref` - Generate documentation for all available sources and segments
+- `talkpipe_endpoint` - Create a customizable user-accessible web interface and REST API from ChatterLang scripts
+
+### Jupyter Integration
+TalkPipe components work seamlessly in Jupyter notebooks for interactive data analysis.
+
+# Detailed Examples
+
+## Example 1: Multi-Agent Debate
+
+Create agents with different perspectives that debate a topic:
+
 ```python
 from talkpipe.chatterlang import compiler
 
-pipeline = compiler.compile('INPUT FROM echo[data="1|2|hello|3", delimiter="|"] | cast[cast_type="int"] | print')
-assert list(pipeline()) == [1, 2, 3]
-```
-
-In ChatterLang, multiple pipelines can be specified on separate lines. In Example 2, the 
-first pipeline stores items in variable 'a', and the second pipeline retrieves and prints 
-those values. While functionally equivalent to a single pipeline, this demonstrates using 
-multiple pipelines in one script:
-
-**Example 1b**
-```
-INPUT FROM echo[data="1,2,hello,3"] | cast[cast_type="int"] | @a;
-INPUT FROM @a | print
-```
-
-In addition to being provided on separate lines (for some applications), pipelines can 
-also be separated by a semicolon, as follows:
-
-**Example 1c**
-```
-INPUT FROM echo[data="1,2,hello,3"] | cast[cast_type="int"] | @a; INPUT FROM @a | print
-```
-
-# Use Cases
-
-## Agent Conversation
-
-```
 script = """
-CONST economist_prompt = "You are an economist debating a proposition.  Reply in one sentence.";
-CONST theologian_prompt="You are a reformed theologian debating a proposition. Reply in one sentence.";
-INPUT FROM echo[data="The US should give free puppies to all children."] | @next_utterance | accum[variable=@conv] | print;
+CONST economist_prompt = "You are an economist. Reply in one sentence.";
+CONST theologian_prompt = "You are a theologian. Reply in one sentence.";
+
+INPUT FROM echo[data="The US should give free puppies to all children."] 
+    | @topic 
+    | accum[variable=@conversation] 
+    | print;
+
 LOOP 3 TIMES {
-    INPUT FROM @next_utterance | llmPrompt[system_prompt=economist_prompt] | @next_utterance | accum[variable=@conv] | print;
-    INPUT FROM @next_utterance | llmPrompt[system_prompt=theologian_prompt] | @next_utterance | accum[variable=@conv] | print;
+    INPUT FROM @topic 
+        | llmPrompt[system_prompt=economist_prompt] 
+        | @topic 
+        | accum[variable=@conversation] 
+        | print;
+    
+    INPUT FROM @topic 
+        | llmPrompt[system_prompt=theologian_prompt] 
+        | @topic 
+        | accum[variable=@conversation] 
+        | print;
 };
-INPUT FROM @conv 
+
+INPUT FROM @conversation
 """
+
+pipeline = compiler.compile(script).asFunction()
+debate = pipeline()  # Watch the debate unfold!
 ```
 
-## Evaluating a Stream of Documents
+## Example 2: Document Stream Evaluation
 
-```python 
-    from talkpipe.chatterlang import compiler
+Score documents based on relevance to a topic:
 
-    data = [
-        """{
-        "ts_visited": "2024-12-18T01:00:02.585795", 
-        "link": "https://en.wikipedia.org/wiki/Dog", 
-        "title": "Dog", 
-        "description": "Dogs have been bred for desired behaviors, sensory capabilities, and physical attributes. Dog breeds vary widely in shape, size, and color. They have the same number of bones (with the exception of the tail), powerful jaws that house around 42 teeth, and well-developed senses of smell, hearing, and sight. Compared to humans, dogs have an inferior visual acuity, a superior sense of smell, and a relatively large olfactory cortex. They perform many roles for humans, such as hunting, herding, pulling loads, protection, companionship, therapy, aiding disabled people, and assisting police and the military. "
-        }""",
+```python
+import pandas as pd
+from talkpipe.chatterlang import compiler
 
-        """{
-        "ts_visited": "2024-12-18T01:00:03.585795", 
-        "link": "https://en.wikipedia.org/wiki/Husky", 
-        "title": "Husky", 
-        "description": "Husky is a general term for a dog used in the polar regions, primarily and specifically for work as sled dogs. It refers to a traditional northern type, notable for its cold-weather tolerance and overall hardiness.[1][2] Modern racing huskies that maintain arctic breed traits (also known as Alaskan huskies) represent an ever-changing crossbreed of the fastest dogs."
-        }""",
+# Sample document data
+documents = [
+    '{"title": "Dog", "description": "Dogs are loyal companions..."}',
+    '{"title": "Cat", "description": "Cats are independent pets..."}',
+    '{"title": "Wolf", "description": "Wolves are wild canines..."}'
+]
 
-        """{
-        "ts_visited": "2024-12-18T01:00:04.585795", 
-        "link": "https://en.wikipedia.org/wiki/Cat", 
-        "title": "Cat", 
-        "description": "The cat (Felis catus), also referred to as the domestic cat, is a small domesticated carnivorous mammal. It is the only domesticated species of the family Felidae. Advances in archaeology and genetics have shown that the domestication of the cat occurred in the Near East around 7500 BC. It is commonly kept as a pet and farm cat, but also ranges freely as a feral cat avoiding human contact. Valued by humans for companionship and its ability to kill vermin, the cat's retractable claws are adapted to killing small prey such as mice and rats. It has a strong, flexible body, quick reflexes, and sharp teeth, and its night vision and sense of smell are well developed. It is a social species, but a solitary hunter and a crepuscular predator. Cat communication includes vocalizations—including meowing, purring, trilling, hissing, growling, and grunting—as well as body language. It can hear sounds too faint or too high in frequency for human ears, such as those made by small mammals. It secretes and perceives pheromones. "
-        }"""
-    ]
+script = """
+CONST scorePrompt = "Rate 1-10 how related to dogs this is:";
 
-    script = """
-    CONST explainPrompt = "Explain whether the content of the title and description fields in the following json is related to canines.";
-    CONST scorePrompt = "On a scale of 1 to 10, how related to canines is the combination of the content in the title, description, and explanation fields?";
-    | loadsJsonl | llmScore[system_prompt=scorePrompt, name="llama3.1", append_as="canine", temperature=0.0] | appendAs[field_list="canine.score:canine_score"] | toDataFrame 
-    """
+| loadsJsonl 
+| llmScore[system_prompt=scorePrompt, name="llama3.2", append_as="dog_relevance"] 
+| appendAs[field_list="dog_relevance.score:relevance_score"] 
+| toDataFrame
+"""
 
-    pipeline = compiler.compile(script).asFunction(single_in=False, single_out=True)
-    df = pipeline(data)
-    assert isinstance(df, pd.DataFrame) 
-    scores = list(df.canine_score)
-    assert all([scores[0] > 7, scores[1] > 7, scores[2] < 3])
+pipeline = compiler.compile(script).asFunction(single_in=False, single_out=True)
+df = pipeline(documents)
+# df now contains relevance scores for each document
 ```
 
-## Interactive Web Interface
+## Example 3: Web Page Analysis
 
-TalkPipe comes with a simple built-in web interface for writing, executing, and testing chatterlang script.  You can start this server using:
+Download and summarize web content:
 
-`
-chatterlang_server [--port xxxx]
-`
+```python
+from talkpipe.chatterlang import compiler
 
-This will start a server and display the url where the server is running.  Visiting that URL will bring up a web page that looks similar to the following window.  In the top, you can type in your ChatterLang script and then click compile.  If this is a script that requires text to the entered by the user, a new text box will appear at the bottom.  You can then enter the text and press enter.  If it does not require interactive input, it will just run the script.
+script = """
+| downloadURL
+| htmlToText
+| llmPrompt[
+    system_prompt="Summarize this article in 3 bullet points",
+    name="llama3.2"
+  ]
+| print
+"""
 
-This first example set up a multi-turn chat bot where you can interactively talk with the LLM.
+analyzer = compiler.compile(script).asFunction(single_in=True)
+analyzer("https://example.com/")
+```
 
-<center><img src="docs/LLMChat.png" width=90%></center>
+## Example 4: Content Evaluation Pipeline
 
-In this next example, you enter a URL.  TalkPipe will download the URL (assuming it does not violate robots.txt), extract the readable text from the downloaded HTML, and summarize it, this time using an LLM.  In this example, note that the examples have been toggled off and the logs are being displayed.  Both can be toggled on and off by clicking their corresponding buttons.  In this example, we have also configured the logger so that detailed debug information about the downloading is taking place.
+Evaluate and filter articles based on relevance scores:
 
-<center><img src="docs/LLMEvaluateWebPage.png" width=90%></center>
+```python
+from talkpipe.chatterlang import compiler
 
+# Sample article data
+articles = [
+    '{"title": "New LLM Model Released", "summary": "AI Company announces new LLM with improved reasoning"}',
+    '{"title": "Smart Home IoT Devices", "summary": "Review of latest Arduino-based home automation"}',
+    '{"title": "Cat Videos Go Viral", "summary": "Funny cats take over social media again"}',
+    '{"title": "RAG Systems in Production", "summary": "How companies deploy retrieval-augmented generation"}',
+]
+
+script = """
+# Define evaluation prompts
+CONST ai_prompt = "Rate 0-10 how relevant this is to AI practitioners. Consider mentions of AI, ML, algorithms, or applications.";
+CONST iot_prompt = "Rate 0-10 how relevant this is to IoT researchers. Consider hardware, sensors, or embedded systems.";
+
+# Process articles
+| loadsJsonl
+| concat[fields="title,summary", append_as="full_text"]
+
+# Score for AI relevance
+| llmScore[system_prompt=ai_prompt, field="full_text", append_as="ai_eval", name="llama3.2"]
+| appendAs[field_list="ai_eval.score:ai_score,ai_eval.explanation:ai_reason"]
+
+# Score for IoT relevance  
+| llmScore[system_prompt=iot_prompt, field="full_text", append_as="iot_eval", name="llama3.2"]
+| appendAs[field_list="iot_eval.score:iot_score,iot_eval.explanation:iot_reason"]
+
+# Find highest score
+| lambda[expression="max(item['ai_score'],item['iot_score'])", append_as="max_score"]
+
+# Filter articles with score > 6
+| gt[field="max_score", n=6]
+
+# Format output
+| toDict[field_list="title,ai_score,iot_score,max_score"]
+| print
+"""
+
+evaluator = compiler.compile(script).asFunction(single_in=False, single_out=False)
+results = evaluator(articles)
+
+# Output shows only relevant articles with their scores:
+# {'title': 'New LLM Model Released', 'ai_score': 9, 'iot_score': 2, 'max_score': 9}
+# {'title': 'Smart Home IoT Devices', 'ai_score': 3, 'iot_score': 9, 'max_score': 9}
+# {'title': 'RAG Systems in Production', 'ai_score': 8, 'iot_score': 2, 'max_score': 8}
+```
+
+# Architecture & Development
+
+## Design Principles
+
+### Dual-Language Architecture
+- **Internal DSL (Pipe API)**: Pure Python for maximum flexibility and IDE support
+- **External DSL (ChatterLang)**: Concise syntax for rapid prototyping
+
+### Streaming Architecture
+TalkPipe uses Python generators throughout, enabling:
+- Memory-efficient processing of large datasets
+- Real-time results as data flows through pipelines
+- Natural integration with streaming data sources
+
+### Extensibility First
+- Simple decorators (`@source`, `@segment`, `@field_segment`) for adding functionality
+- Components are just Python functions - easy to test and debug
+- Mix TalkPipe with any Python code or library
+
+## Project Structure
+
+```
+talkpipe/
+├── app/          # Runnable applications (servers, CLIs)
+├── chatterlang/  # ChatterLang parser, compiler, and components
+├── data/         # Data manipulation and I/O components
+├── llm/          # LLM integrations (OpenAI, Ollama)
+├── operations/   # Algorithms and data processing
+└── pipe/         # Core pipeline infrastructure
+```
+
+## Configuration
+
+TalkPipe uses a flexible configuration system via `~/.talkpipe.toml` or environment variables:
+
+```toml
+# ~/.talkpipe.toml
+default_model_name = "llama3.2"
+default_model_source = "ollama"
+smtp_server = "smtp.gmail.com"
+smtp_port = 587
+```
+
+Environment variables use the `TALKPIPE_` prefix:
+```bash
+export TALKPIPE_email_password="your-password"
+export TALKPIPE_openai_api_key="sk-..."
+```
+
+## Development Guidelines
+
+### Naming Conventions
+- **Classes**: `CamelCase` (e.g., `LLMPrompt`)
+- **Decorated functions**: `camelCase` (e.g., `@segment def extractText`)
+- **ChatterLang names**: `camelCase` (e.g., `llmPrompt`, `toDataFrame`)
+
+### Creating Components
+
+**Sources** generate data:
+```python
+from talkpipe.pipe import core, io
+
+@core.source()
+def fibonacci(n=10):
+    a, b = 0, 1
+    for _ in range(n):
+        yield a
+        a, b = b, a + b
+
+# Use it in a pipeline
+pipeline = fibonacci(n=5) | io.Print()
+result = pipeline.asFunction(single_out=False)()
+
+# Output:
+# 0
+# 1
+# 1
+# 2
+# 3
+# Returns: [0, 1, 1, 2, 3]
+```
+
+**Segments** transform data:
+```python
+@core.segment()
+def multiplyBy(items, factor=2):
+    for item in items:
+        yield item * factor
+
+# Use it to double the Fibonacci numbers
+pipeline = fibonacci(n=5) | multiplyBy(factor=3) | io.Print()
+result = pipeline.asFunction(single_out=False)()
+
+# Output:
+# 0
+# 3
+# 3
+# 6
+# 9
+# Returns: [0, 3, 3, 6, 9]
+```
+
+**Field Segments** provide a convenient way to create 1:1 segments:
+```python
+from datetime import datetime
+from talkpipe.chatterlang import registry
+
+@registry.register_segment("addTimestamp")
+@core.field_segment()
+def addTimestamp(item):
+    # Handle a single item, not an iterable
+    # The decorator handles append_as and field parameters automatically
+    return datetime.now()
+
+# Use it with dictionaries
+data = [{'name': 'Alice'}, {'name': 'Bob'}]
+pipeline = addTimestamp(append_as="timestamp") | io.Print()
+    
+result = pipeline.asFunction(single_in=False, single_out=False)(data)
+
+# Output (timestamps will vary):
+# {'name': 'Alice', 'timestamp': datetime.datetime(2024, 1, 15, 10, 30, 45, 123456)}
+# {'name': 'Bob', 'timestamp': datetime.datetime(2024, 1, 15, 10, 30, 45, 234567)}
+
+# Now it's also available in ChatterLang:
+# script = '| addTimestamp[append_as="timestamp"] | print'
+```
+
+### Best Practices
+
+1. **Units with side effects should pass data through** - e.g., `writeFile` should yield items after writing
+2. **Use descriptive parameter names** with underscores (e.g., `fail_on_error`, `append_as`)
+3. **Handle errors gracefully** - use `fail_on_error` parameter pattern
+4. **Document with docstrings** - they appear in generated documentation
+5. **Test with both APIs** - ensure components work in both Python and ChatterLang
+
+## Roadmap & Contributing
+
+TalkPipe is under active development. Current priorities:
+
+- **Enhanced LLM Support**: Additional providers (Anthropic, Cohere, local models)
+- **Data Connectors**: More database integrations, API clients, file formats
+- **Workflow Features**: Conditional branching, error handling, retry logic
+- **Performance**: Parallel processing, caching, optimization
+- **Developer Tools**: Better debugging, testing utilities, IDE plugins
+
+We welcome contributions! Whether it's new components, bug fixes, documentation, or examples, please check our [GitHub repository](https://github.com/sandialabs/talkpipe) for contribution guidelines.
+
+## Status
+
+TalkPipe is currently in active development. While feature-rich and actively used, APIs may evolve. We follow semantic versioning - minor versions maintain compatibility within the same major version, while major version changes may include breaking changes.
+
+## License
+
+TalkPipe is licensed under the Apache License 2.0. See LICENSE file for details.
 
 # Developer Documentation
 
@@ -355,7 +481,9 @@ After talkpipe is installed, a script called "talkpipe_ref" is avaialble that wi
 
 ### Standard Configuration File Items
 
- Configuration constants can be defined either in ~/.talkpipe.toml or in environment variables.  Any constant defined in an environment variable needs to be prefixed with TALKPIPE_.  So email_password, stored in an environment variable, needs to be TALKPIPE_email_password.
+ Configuration constants can be defined either in ~/.talkpipe.toml or in environment variables.  Any constant defined in an environment variable needs to be prefixed with TALKPIPE_.  So email_password, stored in an environment variable, needs to be TALKPIPE_email_password.  Note that in Chatterlang, any variable stored in the format
+ can be specified as a parameter using $var_name.  This will get dereferenced to 
+ the environment varaible TALKPIPE_var_name or var_name in talkpipe.toml.
 
 * **default_embedding_source** - The default source (e.g. ollama) to be used for creating sentence embeddings.
 * **default_embedding_model_name** - The name of the LLM model to be used for creating sentence embeddings.
