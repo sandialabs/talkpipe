@@ -40,7 +40,8 @@ dependencies = [
     'umap-learn',
     'scikit-learn',
     'cryptography',
-    'uvicorn'
+    'uvicorn',
+    'whoosh'
 ]
 dynamic = ["version"]
 
