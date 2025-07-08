@@ -98,3 +98,44 @@ def test_search_specific_field(temp_index_dir, index_fields, sample_docs):
     results = idx.search("title:test")
     assert len(results) == 0
 
+class SomeDataClass:
+    def __init__(self, title, content, value):
+        self.title = title
+        self.content = content
+        self.value = value
+
+def test_indexWhoosh(temp_index_dir):
+    data = [
+        SomeDataClass("Doc 1", "Content for doc 1", 42),
+        SomeDataClass("Doc 2", "Content for doc 2", 100),
+        SomeDataClass("Doc 3", "Content for doc 3", 7),
+    ]
+    f = compile(f"""| indexWhoosh[field_list="title,content,value", index_path="{temp_index_dir}"]""")
+    results = list(f(data))
+    assert len(results) == len(data)
+
+    idx = WhooshFullTextIndex(temp_index_dir, ["title", "content", "value"])
+    search_results = idx.search("Content")
+    assert len(search_results) == 3
+    assert all(isinstance(r, SearchResult) for r in search_results)
+
+    f = compile(f"""| indexWhoosh[field_list="title,content,value", index_path="{temp_index_dir}", yield_doc=True]""")
+    results = list(f(data))
+    assert len(results) == len(data)
+    assert all([isinstance(r, dict) for r in results])
+    assert all(["doc_id" in r for r in results])
+
+def test_searchWhoosh(temp_index_dir):
+    data = [
+        {"doc_id": str(uuid.uuid4()), "title": "Test Search 1", "content": "This is a test document."},
+        {"doc_id": str(uuid.uuid4()), "title": "Test Search 2", "content": "Another test document."},
+        {"doc_id": str(uuid.uuid4()), "title": "Python Search", "content": "Python is great for testing."},
+    ]
+    f = compile(f"""| indexWhoosh[field_list="title,content", index_path="{temp_index_dir}"]""")
+    list(f(data))  # Index the documents
+
+    # Test searching with yield_doc=True
+    f = compile(f"""| searchWhoosh[index_path="{temp_index_dir}"]""")
+    indexed_docs = list(f(["another"]))
+    assert len(indexed_docs) == 1
+    assert indexed_docs[0].metadata["title"] == "Test Search 2"
