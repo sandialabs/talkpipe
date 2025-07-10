@@ -4,12 +4,12 @@ import uuid
 from whoosh import index
 from whoosh.fields import Schema, TEXT, ID
 from whoosh.qparser import MultifieldParser
-from talkpipe.search.fulltext import AbstractFullTextIndex, SearchResult
 from talkpipe.util.data_manipulation import extract_property
 from talkpipe.pipe import segment
 from talkpipe.chatterlang import register_segment
 from talkpipe.util.data_manipulation import toDict
 from talkpipe.util.config import parse_key_value_str
+from .abstract import AbstractFullTextIndex, SearchResult
 
 class WhooshFullTextIndex(AbstractFullTextIndex):
     def __init__(self, index_path: str, fields: list[str] = None):

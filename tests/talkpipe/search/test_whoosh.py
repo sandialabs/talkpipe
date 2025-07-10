@@ -5,7 +5,7 @@ import uuid
 import pytest
 from talkpipe.util.data_manipulation import toDict
 from talkpipe.search.whoosh import WhooshFullTextIndex, indexWhoosh
-from talkpipe.search.fulltext import SearchResult
+from talkpipe.search.abstract import SearchResult
 from talkpipe.chatterlang import compile
 
 
