@@ -4,7 +4,6 @@ import uuid
 from whoosh import index
 from whoosh.fields import Schema, TEXT, ID
 from whoosh.qparser import MultifieldParser
-from talkpipe.util.data_manipulation import extract_property
 from talkpipe.pipe import segment
 from talkpipe.chatterlang import register_segment
 from talkpipe.util.data_manipulation import toDict

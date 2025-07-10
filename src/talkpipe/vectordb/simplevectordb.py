@@ -1,3 +1,4 @@
+import logging
 import json
 import pickle
 from typing import List, Dict, Any, Tuple, Optional, Union
@@ -7,7 +8,14 @@ import numpy as np
 from sklearn.cluster import KMeans
 import warnings
 import heapq
+from talkpipe.pipe.core import segment
+from talkpipe.pipe import field_segment
+from talkpipe.chatterlang import register_segment
+from talkpipe.util.data_manipulation import extract_property, toDict
 from .abstract import VectorLike, VectorRecord
+from os.path import exists
+
+logger = logging.getLogger(__name__)
 
 class SimpleVectorDB:
     """A simple in-memory vector database with similarity search capabilities"""
@@ -519,3 +527,72 @@ class SimpleVectorDB:
                 self.vectors[vid] = VectorRecord(**record_dict)
             # Invalidate caches after importing
             self._invalidate_caches()
+
+@register_segment("addVector")
+@segment()
+def add_vector(items: str, path, vector_field: str = "_", vector_id: Optional[str] = None, 
+               metadata_field_list: Optional[str] = None, overwrite: bool = False):
+    """
+    Segment to add a vector to the SimpleVectorDB.
+    
+    Args:
+        item: The item containing the vector data.
+        vector_field: The field containing the vector data.
+        vector_id: Optional custom ID for the vector.
+        metadata_field_list: Optional metadata field list.
+        dimension: Expected dimension of the vector (optional).
+
+    Returns:
+        The ID of the added vector.
+    """
+    
+    if path is not None and exists(path) and not overwrite:
+        # Load the vector database from a file
+        db = SimpleVectorDB()
+        db.load(path)
+    else:
+        # Create a new in-memory vector database
+        db = SimpleVectorDB()
+
+    for item in items:
+
+        vector = extract_property(item, vector_field, fail_on_missing=True)
+        if not isinstance(vector, (list, tuple, np.ndarray)):
+            raise ValueError(f"Vector field '{vector_field}' must be a list, tuple, or numpy array")
+        metadata = toDict(item, metadata_field_list, fail_on_missing=False) if metadata_field_list else {}
+        db.add(vector, metadata=metadata, vector_id=vector_id)
+
+        yield item
+
+    if path is not None:
+        # Save the vector database to a file
+        db.save(path)
+
+@register_segment("searchVector")
+@segment()
+def search_vector(items, path: str, vector_field = "_", top_k: int = 5, 
+                  search_metric: str = "cosine", search_method: str = "brute-force"):
+    """    Segment to search for similar vectors in the SimpleVectorDB.
+    Args:
+        vector_field: The field containing the vector data.
+        top_k: Number of top results to return.
+        search_metric: Similarity metric ("cosine" or "euclidean").
+        search_method: Search method ("brute-force", "brute-force-heap", or "k-means").
+        path: Optional path to a saved vector database.
+    Yields:
+        List of tuples containing (vector_id, similarity_score, VectorRecord).
+    """
+    if path is None:
+        logger.warning("No path provided, using in-memory vector database")
+
+    db = SimpleVectorDB()
+    if path is not None and exists(path):
+        db.load(path)
+        
+    for item in items:
+        query_vector = extract_property(item, vector_field, fail_on_missing=True)
+        if not isinstance(query_vector, (list, tuple, np.ndarray)):
+            raise ValueError(f"Query vector must be a list, tuple, or numpy array")
+        results = db.search(query_vector, top_k=top_k, metric=search_metric,
+                            method=search_method)
+        yield results

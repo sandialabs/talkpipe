@@ -2,6 +2,8 @@ import pytest
 import numpy as np
 from talkpipe.vectordb.simplevectordb import SimpleVectorDB
 from talkpipe.vectordb.abstract import VectorRecord
+from unittest import mock
+from talkpipe.vectordb.simplevectordb import SimpleVectorDB, add_vector, search_vector
 
 @pytest.fixture
 def db():
@@ -118,3 +120,61 @@ def test_invalid_metric(db):
     db.add([1,2,3])
     with pytest.raises(ValueError):
         db.search([1,2,3], metric="badmetric")
+
+@pytest.fixture
+def items_list():
+    return [
+        {"vector": [1.0, 2.0, 3.0], "foo": "bar"},
+        {"vector": [4.0, 5.0, 6.0], "foo": "baz"},
+    ]
+
+def test_add_vector_segment_with_path(tmp_path, items_list):
+    # Test add_vector with file path (save/load)
+    path = tmp_path / "db.pkl"
+    seg = add_vector(vector_field="vector", metadata_field_list="foo", path=str(path))
+    results = list(seg(items_list))
+    assert results == items_list
+    # Check file was created and DB can be loaded
+    db = SimpleVectorDB()
+    db.load(str(path))
+    assert db.count() == 2
+
+def test_add_vector_segment_overwrite(tmp_path, items_list):
+    # Test add_vector with overwrite option
+    path = tmp_path / "db.pkl"
+    seg = add_vector(vector_field="vector", metadata_field_list="foo", path=str(path), overwrite=True)
+    results = list(seg([{"vector": [1.0, 2.0, 3.0], "foo": "bar"}]))
+    seg = add_vector(vector_field="vector", metadata_field_list="foo", path=str(path), overwrite=True)
+    results = list(seg(items_list))
+    assert results == items_list
+    # Check file was created and DB can be loaded
+    db = SimpleVectorDB()
+    db.load(str(path))
+    assert db.count() == 2
+
+def test_add_vector_segment_invalid_vector(items_list, tmp_path):
+    path = tmp_path / "db.pkl"
+    bad_items = [{"vector": "not_a_vector"}]
+    seg = add_vector(path=path, vector_field="vector")
+    with pytest.raises(ValueError):
+        list(seg(bad_items))
+
+def test_search_vector_segment_with_path(tmp_path, items_list):
+    # Add vectors and save DB
+    path = tmp_path / "db.pkl"
+    db = SimpleVectorDB()
+    for item in items_list:
+        db.add(item["vector"], {"foo": item["foo"]})
+    db.save(str(path))
+    # Now search using segment with path
+    seg = search_vector(path=str(path), vector_field="vector", top_k=1)
+    results = list(seg([{"vector": [1.0, 2.0, 3.0]}]))
+    assert isinstance(results[0], list)
+    assert len(results[0]) == 1
+    assert results[0][0][2].vector == [1.0, 2.0, 3.0]
+
+def test_search_vector_segment_invalid_query(tmp_path):
+    bad_items = [{"vector": "not_a_vector"}]
+    seg = search_vector(vector_field="vector", path=str(tmp_path / "db.pkl"))
+    with pytest.raises(ValueError):
+        list(seg(bad_items))
