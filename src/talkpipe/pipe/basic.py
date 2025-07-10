@@ -36,34 +36,18 @@ def sleep(items, seconds: int):
 
 
 @registry.register_segment(name="firstN")
-class First(AbstractSegment[int, int]):
-    """
-    Passes on the first N items from the input stream.
-    
-    <pre>
+@segment()
+def firstN(items, n: int = 1):
+    """Yields the first n items from the input stream.
     Args:
-        n (int): The number of items to pass on. Default is 1.
-    <pre>
-    """
-    n: int
-
-    def __init__(self, n: int = 1):
-        super().__init__()
-        self.n = n
-
-    def transform(self, input_iter: Iterable[int]) -> Iterator[int]:
-        """
-        Execute the operation on an iterable input.
-        
-        Args:
-            input_iter (Iterable[int]): Iterable input data
-        
-        Yields:
-            the first n elements of the input iterable
-        """
-        it  = iter(input_iter)
-        for _ in range(self.n):
-            yield next(it)
+        n (int): The number of items to yield.
+    Yields:
+        The first n items from the input stream."""
+    for i, item in enumerate(items):
+        if i < n:
+            yield item
+        else:
+            break
 
 @registry.register_segment(name="describe")
 class DescribeData(AbstractSegment):

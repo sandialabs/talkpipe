@@ -5,21 +5,19 @@ from talkpipe.pipe import basic
 import talkpipe.pipe.io
 from talkpipe.chatterlang import compiler
 
-def test_first_segment():
-    op = basic.First()
-    assert list(op.transform([42, 43, 44])) == [42]
-    assert list(op.transform(range(10))) == [0]
-    with pytest.raises(RuntimeError):
-        list(op.transform([]))
-    with pytest.raises(RuntimeError):
-        list(op.transform(range(0)))
-    with pytest.raises(RuntimeError):
-        list(op.transform(iter([])))
+def test_firstN():
+    f = basic.firstN(n=3)
+    f = f.asFunction(single_in=False, single_out=False)
+    ans = list(f([1, 2, 3, 4, 5]))
+    assert ans == [1, 2, 3]
 
-    op = basic.First(n=3)
-    assert list(op.transform([42, 43, 44])) == [42, 43, 44]
-    assert list(op.transform(range(10))) == [0, 1, 2]
+    f = basic.firstN(n=2)
+    f = f.asFunction(single_in=False, single_out=False)
+    ans = list(f([{"x": 1}, {"x": 2}, {"x": 3}, {"x": 4}]))
+    assert ans == [{"x": 1}, {"x": 2}]
 
+    ans = list(f([{"x": 1}]))
+    assert ans == [{"x": 1}]
 
 def test_print_segment(capsys):
     op = talkpipe.pipe.io.Print()
@@ -27,7 +25,7 @@ def test_print_segment(capsys):
     captured = capsys.readouterr()
     assert captured.out == "42\n43\n44\n"
 
-    pipeline = basic.First() | talkpipe.pipe.io.Print()
+    pipeline = basic.firstN() | talkpipe.pipe.io.Print()
     assert list(pipeline.transform([42, 43, 44])) == [42]
     captured = capsys.readouterr()
     assert captured.out == "42\n"
@@ -322,3 +320,4 @@ def test_longestStr():
     ans = list(f([{"x": "short", "y": "longest", "z":"reallymuchlonger"}, {"x": "longer", "y": "short", "z": "tiny"}]))
     assert ans[0]["longest"] == "longest"
     assert ans[1]["longest"] == "longer"
+
