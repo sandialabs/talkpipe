@@ -58,7 +58,7 @@ class WhooshFullTextIndex(AbstractFullTextIndex):
             with self.ix.writer() as writer:
                 writer.update_document(doc_id=doc_id, **doc_fields)
 
-    def search(self, query: str, limit: int = 10) -> List[SearchResult]:
+    def search(self, query: str, limit: int = 100) -> List[SearchResult]:
         with self.ix.searcher() as searcher:
             parser = MultifieldParser(self.fields, schema=self.ix.schema)
             q = parser.parse(query)
@@ -93,7 +93,6 @@ def indexWhoosh(items, index_path: str, field_list: list[str] = ["_:content"], y
     """Index documents using Whoosh full-text indexing.
 
     Args:
-        items (list[dict]): List of documents to index.
         fields (list[str]): List of fields to index.
         index_path (str): Path to the Whoosh index directory.
         yield_doc (bool): If True, yield each indexed document.  Otherwise yield the original
@@ -110,7 +109,14 @@ def indexWhoosh(items, index_path: str, field_list: list[str] = ["_:content"], y
 
 @register_segment("searchWhoosh")
 @segment()
-def searchWhoosh(queries, index_path: str, limit: int = 10, all_results_at_once: bool = False):
+def searchWhoosh(queries, index_path: str, limit: int = 100, all_results_at_once: bool = False):
+    """Search documents using Whoosh full-text indexing.
+
+    Args:
+        index_path (str): Path to the Whoosh index directory.
+        limit (int): Maximum number of results to return for each query.  Defaults to 100.
+        all_results_at_once (bool): If True, yield all results at once. Otherwise, yield one result at a time.
+    """
     with WhooshFullTextIndex(index_path) as idx:
         for query in queries:
             results = idx.search(query, limit=limit)
