@@ -5,6 +5,28 @@ from talkpipe.pipe import basic
 import talkpipe.pipe.io
 from talkpipe.chatterlang import compiler
 
+def test_progressTicks_basic(capsys):
+    # Should print a tick every 2 items, newline after 4 ticks, no count
+    t = basic.progressTicks(tick="*", tick_count=2, eol_count=4, print_count=False)
+    t = t.asFunction(single_in=False, single_out=False)
+    ans = list(t(range(9)))
+    assert ans == list(range(9))
+    captured = capsys.readouterr()
+    # 9 items, tick every 2: ticks at 2,4,6,8 (4 ticks), newline after 4 ticks
+    assert captured.out.count("*") == 4
+    assert "\n" in captured.out
+
+def test_progressTicks_with_print_count(capsys):
+    # Should print tick and count at end of line
+    t = basic.progressTicks(tick=".", tick_count=1, eol_count=3, print_count=True)
+    t = t.asFunction(single_in=False, single_out=False)
+    ans = list(t(range(6)))
+    assert ans == list(range(6))
+    captured = capsys.readouterr()
+    # Should print 3 dots, then '3', newline, then 3 dots, '6', newline
+    assert captured.out.count(".") == 6
+    assert "3" in captured.out and "6" in captured.out
+
 def test_firstN():
     f = basic.firstN(n=3)
     f = f.asFunction(single_in=False, single_out=False)

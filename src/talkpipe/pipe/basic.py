@@ -34,6 +34,35 @@ def sleep(items, seconds: int):
         yield item  # Yield the item to maintain the flow of the pipeline
         time.sleep(seconds)
 
+@registry.register_segment(name="progressTicks")
+@segment()
+def progressTicks(items, tick: str = ".", tick_count: int = 10, eol_count: Optional[int] = 10, print_count: bool = False):
+    """Prints a tick marks to help visualize progress.
+
+    Prints a tick mark for each tick_count items processed. If eol_count is specified, it will print a new line after every eol_count tick marks.
+    If print_count is True, it will print the total count of items processed at the end of each line and at the end.
+
+    Args:
+        items (Iterable): An iterable of items to process.
+        tick (str): The character to print as a tick mark. Defaults to '.'.
+        tick_count (int): The number of items to process before printing a tick mark. Defaults to 10.
+        eol_count (Optional[int]): The number of tick marks to print before starting a new line. If None, no new line is printed. Defaults to 10.
+        print_count (bool): If True, prints the count of items processed at the end of each line and at the end.
+    Yields:
+        The original items from the input iterable.
+    """
+    count = 0
+    for idx, item in enumerate(items, 1):
+        if idx % tick_count == 0 and idx != 0:
+            print(tick, end="", flush=True)
+            if eol_count and (idx // tick_count) % eol_count == 0:
+                if print_count:
+                    print(f"{idx}", end="", flush=True)
+                print()
+        count = idx
+        yield item
+    if print_count:
+        print(f"\nTotal items processed: {count}")
 
 @registry.register_segment(name="firstN")
 @segment()

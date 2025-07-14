@@ -1,5 +1,26 @@
 # Changelog
 
+## In Progress
+### New Segments and Sources
+ - **progressTicks** – Prints out a tick for every n items seen and a new line for every m ticks.  
+  Especially useful for debugging and marking progress in logs.
+ - **indexWhoosh** and **searchWhoosh** – Added segments for creating and searching Whoosh
+  indices. This provides built-in full-text support in TalkPipe.
+ - **addVector** and **searchVector** – Added segments for creating and searching the simple
+  built-in vector store.
+
+### Improvements
+ - Rewrote firstN to use decorator syntax (making it shorter) and to not throw an exception
+  when there are fewer than N items.
+ - Integrated the Whoosh pure-Python, stand-alone search engine. This is intended for testing,
+  debugging, and smaller stand-alone scenarios. It allows a programmer to work on pipelines that 
+  use full-text search engines without setting up a full search engine server. It can support
+  tens of thousands of smaller documents. A Python class wrapping Whoosh in a TalkPipe-like
+  design pattern is included, as well as segments for indexing and searching.
+ - Added SimpleVectorDB, a pure Python, simple vector database. It allows a programmer to build
+  and debug pipelines requiring simple vector databases. It supports smaller-scale databases
+  that can later be replaced with a separate server.
+
 ## 0.6.0
 ### New Segments and Sources
  - **writeString** – writes items to a file, casting each into a string. Optionally, specify the field to write.
