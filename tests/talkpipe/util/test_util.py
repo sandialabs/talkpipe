@@ -129,6 +129,14 @@ def test_extract_property_with_pydantic():
     y = {"v": x}
     assert data_manipulation.extract_property(y, "v.a") == 1
 
+def test_extract_property_with_missing():
+    x = {"a": 1, "b": 2}
+    assert data_manipulation.extract_property(x, "c", False) == None
+    assert data_manipulation.extract_property(x, "c", False, default="default_value") == "default_value"
+    with pytest.raises(AttributeError):
+        data_manipulation.extract_property(x, "c", True)
+    
+
 def test_parse_key_value_list():
     assert talkpipe.util.config.parse_key_value_str("a:b,c") == {"a": "b", "c": "c"}
     assert talkpipe.util.config.parse_key_value_str("a:b,c:d") == {"a": "b", "c": "d"}

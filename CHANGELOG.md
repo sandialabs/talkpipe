@@ -20,6 +20,7 @@
  - Added SimpleVectorDB, a pure Python, simple vector database. It allows a programmer to build
   and debug pipelines requiring simple vector databases. It supports smaller-scale databases
   that can later be replaced with a separate server.
+- Added default option to extract_property and propagated option to several segments
 
 ## 0.6.0
 ### New Segments and Sources

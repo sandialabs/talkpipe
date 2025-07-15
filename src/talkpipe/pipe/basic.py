@@ -124,7 +124,7 @@ class Cast(AbstractSegment):
 class ToDict(AbstractSegment):
     """Creates a dictionary from the input data."""
 
-    def __init__(self, field_list: str = "_", fail_on_missing: bool = True):
+    def __init__(self, field_list: str = "_", fail_on_missing: bool = True, default: Optional[Any] = None):
         """Convert each item in the input string into a dictionary based on the provided parameter list.
 
         Args:
@@ -392,7 +392,7 @@ class ConfigureLogger(AbstractSegment):
         """
         yield from input_iter
 
-def hash_data(data, algorithm="MD5", field_list="_", use_repr=False, fail_on_missing=True):
+def hash_data(data, algorithm="MD5", field_list="_", use_repr=False, fail_on_missing=True, default=None):
     """Hash a single data item using the specified parameters.
     
     Args:
@@ -407,7 +407,7 @@ def hash_data(data, algorithm="MD5", field_list="_", use_repr=False, fail_on_mis
     """
     hasher = hashlib.new(algorithm)
     for field in field_list:
-        item = extract_property(data, field, fail_on_missing)
+        item = extract_property(data, field, fail_on_missing, default=default)
         if item is None:
             if fail_on_missing:
                 raise ValueError(f"Field {field} value was None")
@@ -459,7 +459,7 @@ class Hash(AbstractSegment):
 
 @registry.register_segment("fillTemplate")
 @field_segment
-def fillTemplate(item, template:str, fail_on_missing:bool=True):
+def fillTemplate(item, template:str, fail_on_missing:bool=True, default: Optional[Any] = ""):
     """Fill a template string with values from the input item.
 
     Args:
@@ -471,7 +471,7 @@ def fillTemplate(item, template:str, fail_on_missing:bool=True):
     """
     assert template is not None
     field_names = extract_template_field_names(template)
-    values = {field_name:extract_property(item, field_name, fail_on_missing=fail_on_missing) for field_name in field_names}
+    values = {field_name:extract_property(item, field_name, fail_on_missing=fail_on_missing, default=default) for field_name in field_names}
     return fill_template(template, values)
 
 @registry.register_segment("lambda")

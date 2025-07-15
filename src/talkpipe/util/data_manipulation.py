@@ -115,7 +115,7 @@ def get_all_attributes(obj: Any, skip_packages: tuple = ('pydantic',), visited: 
     return attributes
 
 
-def extract_property(data: Any, prop_list: str, fail_on_missing=False) -> Any:
+def extract_property(data: Any, prop_list: str, fail_on_missing=False, default=None) -> Any:
     """Extract a property from a nested data structure using dot notation.
 
     Args:
@@ -142,7 +142,7 @@ def extract_property(data: Any, prop_list: str, fail_on_missing=False) -> Any:
             if fail_on_missing:
                 raise AttributeError(f"Property '{prop_name}' not found in the input data of type '{type(data)}'")
             else:
-                return None
+                return default
     return of_interest
 
 
