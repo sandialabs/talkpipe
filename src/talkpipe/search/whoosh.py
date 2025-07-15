@@ -117,11 +117,11 @@ def searchWhoosh(queries, index_path: str, limit: int = 100, all_results_at_once
         limit (int): Maximum number of results to return for each query.  Defaults to 100.
         all_results_at_once (bool): If True, yield all results at once. Otherwise, yield one result at a time.
     """
-    with WhooshFullTextIndex(index_path) as idx:
-        for query in queries:
-            results = idx.search(query, limit=limit)
-            if all_results_at_once:
-                yield results
-            else:
-                for result in results:
-                    yield result
+    idx = WhooshFullTextIndex(index_path)
+    for query in queries:
+        results = idx.search(query, limit=limit)
+        if all_results_at_once:
+            yield results
+        else:
+            for result in results:
+                yield result
