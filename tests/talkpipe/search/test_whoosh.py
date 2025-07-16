@@ -7,6 +7,7 @@ from talkpipe.util.data_manipulation import toDict
 from talkpipe.search.whoosh import WhooshFullTextIndex, indexWhoosh
 from talkpipe.search.abstract import SearchResult
 from talkpipe.chatterlang import compile
+from talkpipe.search.whoosh import WhooshWriter, WhooshSearcher, WhooshIndexError
 
 
 @pytest.fixture
@@ -68,7 +69,7 @@ def test_schema_mismatch_raises(temp_index_dir, index_fields, sample_docs):
     with WhooshFullTextIndex(temp_index_dir, index_fields) as idx:
         idx.add_document(sample_docs[0])
     # Try to open with different fields
-    with pytest.raises(ValueError):
+    with pytest.raises(WhooshIndexError):
         WhooshFullTextIndex(temp_index_dir, ["title", "body"])
 
 def test_context_manager_commits(temp_index_dir, index_fields):
@@ -139,3 +140,65 @@ def test_searchWhoosh(temp_index_dir):
     indexed_docs = list(f(["another"]))
     assert len(indexed_docs) == 1
     assert indexed_docs[0].metadata["title"] == "Test Search 2"
+
+def test_WhooshWriter_context_manager(temp_index_dir, index_fields, sample_docs):
+    # Use context manager to add documents
+    with WhooshWriter(temp_index_dir, index_fields) as idx:
+        for doc in sample_docs:
+            idx.add_document(doc)
+        # Writer should be active inside context
+        assert idx.writer is not None
+    # Writer should be None after context
+    assert idx.writer is None
+    # Documents should be committed
+    idx2 = WhooshFullTextIndex(temp_index_dir, index_fields)
+    results = idx2.search("Python")
+    assert any("Python" in r.metadata["title"] for r in results)
+
+def test_WhooshWriter_commit_and_rollback(temp_index_dir, index_fields):
+    # Test that commit happens on normal exit
+    with WhooshWriter(temp_index_dir, index_fields) as idx:
+        idx.add_document({"title": "CommitDoc", "content": "Should be committed"})
+    
+    idx2 = WhooshFullTextIndex(temp_index_dir, index_fields)
+    results = idx2.search("CommitDoc")
+    assert len(results) == 1  # ✓ Should pass
+    
+    # Test that rollback happens if exception is raised
+    try:
+        with WhooshWriter(temp_index_dir, index_fields) as idx:
+            idx.add_document({"title": "ExceptionDoc", "content": "Should NOT be committed"})
+            raise RuntimeError("Force exit")
+    except RuntimeError:
+        pass
+    
+    idx3 = WhooshFullTextIndex(temp_index_dir, index_fields)
+    results = idx3.search("ExceptionDoc")
+    assert len(results) == 0  # ✓ Should be rolled back
+
+def test_WhooshSearcher_context_manager(temp_index_dir, index_fields, sample_docs):
+    # Add docs first
+    idx = WhooshFullTextIndex(temp_index_dir, index_fields)
+    for doc in sample_docs:
+        idx.add_document(doc)
+    # Use WhooshSearcher to search
+    with WhooshSearcher(temp_index_dir) as idx_search:
+        results = idx_search.search("World")
+        assert any("World" in r.metadata["title"] for r in results)
+        # Index should be open inside context
+        assert hasattr(idx_search, "ix")
+        assert idx_search.ix is not None
+
+def test_WhooshWriter_and_WhooshSearcher_integration(temp_index_dir, index_fields):
+    docs = [
+        {"title": "Integration1", "content": "First doc"},
+        {"title": "Integration2", "content": "Second doc"},
+    ]
+    with WhooshWriter(temp_index_dir, index_fields) as idx:
+        for doc in docs:
+            idx.add_document(doc)
+    with WhooshSearcher(temp_index_dir) as idx_search:
+        results = idx_search.search("Integration*")
+        assert len(results) == 2
+        titles = [r.metadata["title"] for r in results]
+        assert "Integration1" in titles and "Integration2" in titles
