@@ -13,6 +13,10 @@ TalkPipe is a Python toolkit that makes it easy to create, test, and deploy work
 - **Create AI Agents** - Build agents that can debate topics, evaluate streams of documents, or monitor RSS feeds
 - **Deploy Anywhere** - Run in Jupyter notebooks, as Docker containers, or as standalone Python applications
 
+## Structure
+
+<center><img src="docs/talkpipe_diagram.png" width=700></center>
+
 ## Quick Start
 
 Install TalkPipe:
