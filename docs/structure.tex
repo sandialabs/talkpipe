@@ -16,10 +16,11 @@
   font=\sffamily
 ]
 % Key Functionality nodes
-\node[box] (flow)                             {FLOW CONTROL};
-\node[box, below=0cm of flow] (data)          {DATA MANIPULATION};
-\node[box, below=0cm of data] (llm)           {LLM PRIMITIVES};
-\node[box, below=0cm of llm] (store)          {DATA STORAGE\\\scriptsize (e.g., full text indexing\\\scriptsize vector database)};
+\node[box] (flow)                             {FLOW CONTROL\\\scriptsize (e.g. filtering, expressions, conversions)};
+\node[box, below=0cm of flow] (data)          {DATA MANIPULATION\\\scriptsize (e.g. download, html cleaning)};
+\node[box, below=0cm of data] (llm)           {LLM PRIMITIVES\\\scriptsize (e.g. chat, scoring, embedding)};
+\node[box, below=0cm of llm] (store)          {DATA STORAGE\\\scriptsize (e.g. full text indexing, vector database)};
+\node[box, below=0cm of store] (utils)        {UTILS\\\scriptsize (e.g. configuration)};
 
 % Pipe - increased spacing to accommodate label
 \node[box, above=1.2cm of flow] (pipe)        {PIPE\\\scriptsize Internal DSL for composing AI workflows};
@@ -35,12 +36,12 @@
 
 % Docker container background around all (bottom layer)
 \begin{pgfonlayer}{background}
-  \node[dockerlayer, fit=(app)(store)] (docker-bg) {};
+  \node[dockerlayer, fit=(app)(utils)] (docker-bg) {};
 \end{pgfonlayer}
 
 % Key Functionality background box (middle layer)
 \begin{pgfonlayer}{docker}
-  \node[keylayer, fit=(flow)(data)(llm)(store)] (key-bg) {};
+  \node[keylayer, fit=(flow)(data)(llm)(store)(utils)] (key-bg) {};
 \end{pgfonlayer}
 
 % Key Functionality label (main layer - centered at top)

@@ -17,6 +17,42 @@ TalkPipe is a Python toolkit that makes it easy to create, test, and deploy work
 
 <center><img src="docs/talkpipe_diagram.png" width=700></center>
 
+Talkpipe is structured in five layers: Key Functionality, Pipe, ChatterLang, Applications Components, and Docker Containers.
+
+The Key Functionality layer offers foundational utilities and abstractions that ensure consistency across the entire system. It includes configuration management, as well as standardized wrappers for interacting with LLMs, full-text search engines, and a lightweight vector database. These components provide a unified interface for core capabilities, making it easy to integrate advanced AI and search features throughout your workflows.
+
+The Pipe layer serves as TalkPipe's internal domain-specific language (DSL), enabling you to construct sophisticated workflows directly in Python. By instantiating modular classes and chaining them together using the `|` (pipe) operator, you can seamlessly connect sources, segments, and sinks to process data in a clear, readable, and composable manner. This approach leverages Python's native syntax and type checking, allowing for rapid development, easy debugging, and full IDE support. The Pipe layer is ideal for users who prefer programmatic control and want to integrate TalkPipe pipelines into larger Python applications or scripts.
+
+The ChatterLang layer serves as TalkPipe's external domain-specific language (DSL), enabling you to define workflows using concise, human-readable text scripts. These scripts can be compiled directly in Python, producing callable functions that integrate seamlessly with your codebase. ChatterLang also supports specifying workflows via environment variables or command-line arguments, making it easy to configure and automate pipelines in Docker containers, shell scripts, CI/CD pipelines, and other deployment environments. This flexibility empowers both developers and non-developers to create, share, and modify AI-powered workflows without writing Python code, streamlining experimentation and operationalization.
+
+The Application Components layer contains runnable applications that provide user interfaces and automation tools for working with TalkPipe pipelines and ChatterLang scripts. These components are designed to make it easy to interact with TalkPipe from the command line, web browser, or as part of automated workflows.
+
+### Key Applications
+
+- **chatterlang_server**  
+  Launches an interactive web interface for writing, testing, and running ChatterLang scripts. It provides real-time execution, logging, and documentation lookup.
+
+- **chatterlang_script**  
+  Runs ChatterLang scripts from files or directly from the command line, enabling batch processing and automation.
+
+- **talkpipe_ref**  
+  Generates HTML and text documentation for all available sources and segments, making it easy to discover and understand built-in functionality.
+
+- **talkpipe_endpoint**  
+  Exposes ChatterLang pipelines as REST APIs or web forms, allowing you to deploy workflows as web services or user-facing endpoints.
+
+These applications are entry points for different usage scenarios, from interactive development to production deployment.
+
+The Docker layer provides ready-to-use container images for deploying TalkPipe in different environments. It includes:
+
+- **talkpipe-base**  
+  A minimal container image that contains all dependencies required by TalkPipe, but does not install TalkPipe itself. Use this as a foundation for building your own images, custom workflows, or CI/CD jobs where you want to control the installation of TalkPipe or add additional components.
+
+- **chatterlang_script**  
+  An image that installs TalkPipe on top of the base dependencies and runs a talkpipe script.
+
+These containers exist to simplify deployment, ensure consistent environments, and enable rapid experimentation or production use of TalkPipe and ChatterLang across platforms.
+
 ## Quick Start
 
 Install TalkPipe:
