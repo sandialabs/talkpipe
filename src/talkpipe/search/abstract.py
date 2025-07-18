@@ -1,43 +1,64 @@
-from abc import ABC, abstractmethod
-from typing import List, Dict, Any, Optional
-import uuid
-from talkpipe.util.data_manipulation import extract_property
-from whoosh import index
-from whoosh.fields import Schema, TEXT, ID, STORED
-from whoosh.qparser import MultifieldParser
-import os
+from typing import List, Dict, Any, Optional, Tuple, Union, Protocol
+from pydantic import BaseModel
+import numpy as np
 
-class SearchResult:
-    """A single search result."""
-    def __init__(self, doc_id: str, score: float, snippet: Optional[str] = None, metadata: Optional[Dict[str, Any]] = None):
-        self.doc_id = doc_id
-        self.score = score
-        self.snippet = snippet
-        self.metadata = metadata or {}
+# Type aliases
+VectorLike = Union[List[float], np.ndarray]
+Document = Dict[str, str]
+DocID = str
 
-class AbstractFullTextIndex(ABC):
-    """Abstract base class for a full text index."""
+class SearchResult(BaseModel):
+    score: float
+    doc_id: DocID
+    document: Optional[Document] = None
 
-    @abstractmethod
-    def add_document(self, document: dict[str, Any]) -> None:
-        """Add or update a document in the index."""
-        pass
+class DocumentStore(Protocol):
+    """Abstract base class for a document store."""
 
-    @abstractmethod
-    def search(self, query: str, limit: int = 10) -> List[SearchResult]:
-        """Search for documents matching the query."""
-        pass
+    def get_document(self, doc_id: DocID) -> Optional[Document]:
+        """Retrieve a document by ID."""
+        ...
 
-    @abstractmethod
+class TextAddable(Protocol):
+    """Protocol for text addable document stores."""
+
+    def add_document(self, doc: Document, doc_id: Optional[DocID] = None) -> DocID:
+        """Add a new document and return its ID."""
+        ...
+
+class MutableDocumentStore(TextAddable):
+    """Abstract base class for a mutable document store."""
+
+    def update_document(self, doc_id: DocID, doc: Document) -> bool:
+        """Update an existing document by ID."""
+        ...
+
+    def delete_document(self, doc_id: DocID) -> bool:
+        """Delete a document by ID."""
+        ...
+
     def clear(self) -> None:
-        """Remove all documents from the index."""
-        pass
+        """Clear all documents in the store."""
+        ...
 
-    def __enter__(self):
-        """Support context manager for resource management."""
-        return self
+class TextSearchable(Protocol):
+    """Protocol for text searchable document stores."""
 
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        """Support context manager for resource management."""
-        pass
+    def text_search(self, query: str, limit: int = 10) -> List[SearchResult]:
+        """Search for documents matching the query."""
+        ...
+
+class VectorAddable(Protocol):
+    """Protocol for vector addable document stores."""
+
+    def add_vector(self, vector: VectorLike, document: Document, doc_id: Optional[DocID]) -> DocID:
+        """Add a vector to the store."""
+        ...
+
+class VectorSearchable(Protocol):
+    """Protocol for vector searchable document stores."""
+
+    def vector_search(self, vector: VectorLike, limit: int = 10) -> List[SearchResult]:
+        """Search for vectors similar to the given vector"""
+        ...
 

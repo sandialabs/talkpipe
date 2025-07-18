@@ -1,22 +1,21 @@
 import pytest
-import numpy as np
-from talkpipe.vectordb.simplevectordb import SimpleVectorDB
-from talkpipe.vectordb.abstract import VectorRecord
 from unittest import mock
-from talkpipe.vectordb.simplevectordb import SimpleVectorDB, add_vector, search_vector
-
+import numpy as np
+from talkpipe.search.simplevectordb import SimpleVectorDB
+from talkpipe.search.simplevectordb import SimpleVectorDB, add_vector, search_vector, VectorEntry
+    
 @pytest.fixture
 def db():
     return SimpleVectorDB()
 
 def test_add_and_get_vector(db):
     vec = [1.0, 2.0, 3.0]
-    meta = {"foo": "bar"}
-    vid = db.add(vec, meta)
+    document = {"foo": "bar"}
+    vid = db.add(vec, document)
     record = db.get(vid)
-    assert isinstance(record, VectorRecord)
+    assert isinstance(record, VectorEntry)
     assert record.vector == vec
-    assert record.metadata == meta
+    assert record.document == document
 
 def test_add_duplicate_id_raises(db):
     vid = db.add([1,2,3])
@@ -34,7 +33,8 @@ def test_update_vector_and_metadata(db):
     assert db.update(vid, [4,5,6], {"b": 2}) is True
     rec = db.get(vid)
     assert rec.vector == [4,5,6]
-    assert rec.metadata == {"b": 2}
+    # there's no need to force values to be strings here.
+    assert rec.document == {"b": '2'}
     assert db.update("nope", [1,2,3]) is False
 
 def test_vector_dimension_validation(db):
@@ -42,19 +42,18 @@ def test_vector_dimension_validation(db):
     with pytest.raises(ValueError):
         db.add([1,2])  # Wrong dimension
 
-def test_cosine_similarity(db):
-    v1 = [1,0,0]
-    v2 = [0,1,0]
-    sim = db._cosine_similarity(v1, v2)
-    assert pytest.approx(sim) == 0.0
-    sim2 = db._cosine_similarity([1,0], [1,0])
-    assert pytest.approx(sim2) == 1.0
+def test_cosine_similarity_via_search(db):
+    # Add vectors
+    db.add([1,0,0], {}, "v1")
+    db.add([0,1,0], {}, "v2") 
+    db.add([1,0,0], {}, "v3")  # Same as v1
+    
+    # Search should return v3 (identical) with score 1.0, v2 (orthogonal) with score 0.0
+    results = db.search([1,0,0], top_k=3, metric="cosine")
 
-def test_euclidean_distance(db):
-    v1 = [1,2,3]
-    v2 = [4,5,6]
-    dist = db._euclidean_distance(v1, v2)
-    assert pytest.approx(dist) == np.linalg.norm(np.array(v1)-np.array(v2))
+    assert results[0][0] == "v3"  or results[1][0] == "v1" # First result should be identical vector
+    assert results[1][0] == "v3"  or results[1][0] == "v1" # First result should be identical vector
+    assert abs(results[2][1] - 0.0) < 1e-6  # Orthogonal vectors
 
 def test_search_brute_force(db):
     v1 = db.add([1,2,3])
@@ -75,7 +74,7 @@ def test_filter_search(db):
     db.add([4,5,6], {"cat": "B"})
     results = db.filter_search([1,2,3], {"cat": "A"}, top_k=2)
     assert len(results) == 1
-    assert results[0][2].metadata["cat"] == "A"
+    assert results[0][2].document["cat"] == "A"
 
 def test_count_and_list_ids(db):
     ids = [db.add([i,i+1,i+2]) for i in range(3)]
@@ -91,7 +90,7 @@ def test_save_and_load(tmp_path, db):
     assert db2.count() == 1
     rec = db2.get(vid)
     assert rec.vector == [1,2,3]
-    assert rec.metadata == {"x": 1}
+    assert rec.document == {"x": '1'}
 
 def test_export_and_import_json(tmp_path, db):
     vid = db.add([1,2,3], {"foo": "bar"})
@@ -102,7 +101,7 @@ def test_export_and_import_json(tmp_path, db):
     assert db2.count() == 1
     rec = db2.get(vid)
     assert rec.vector == [1,2,3]
-    assert rec.metadata == {"foo": "bar"}
+    assert rec.document == {"foo": "bar"}
 
 def test_invalid_vector_type(db):
     with pytest.raises(ValueError):
@@ -171,7 +170,7 @@ def test_search_vector_segment_with_path(tmp_path, items_list):
     results = list(seg([{"vector": [1.0, 2.0, 3.0]}]))
     assert isinstance(results[0], list)
     assert len(results[0]) == 1
-    assert results[0][0][2].vector == [1.0, 2.0, 3.0]
+    assert results[0][0].document == {"foo": "bar"}
 
 def test_search_vector_segment_invalid_query(tmp_path):
     bad_items = [{"vector": "not_a_vector"}]

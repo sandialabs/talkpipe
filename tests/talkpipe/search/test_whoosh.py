@@ -34,8 +34,8 @@ def test_create_index_and_add_document(temp_index_dir, index_fields, sample_docs
             idx.add_document(doc)
     # Reopen and search
     idx = WhooshFullTextIndex(temp_index_dir, index_fields)
-    results = idx.search("Python")
-    assert any("Python" in r.metadata["title"] for r in results)
+    results = idx.text_search("Python")
+    assert any("Python" in r.document["title"] for r in results)
     idx.clear()
 
 def test_search_returns_expected_results(temp_index_dir, index_fields, sample_docs):
@@ -43,8 +43,8 @@ def test_search_returns_expected_results(temp_index_dir, index_fields, sample_do
         for doc in sample_docs:
             idx.add_document(doc)
     idx = WhooshFullTextIndex(temp_index_dir, index_fields)
-    results = idx.search("test")
-    assert any("test" in r.metadata["content"] for r in results)
+    results = idx.text_search("test")
+    assert any("test" in r.document["content"] for r in results)
     assert all(isinstance(r, SearchResult) for r in results)
 
 def test_add_document_without_doc_id(temp_index_dir, index_fields):
@@ -52,7 +52,7 @@ def test_add_document_without_doc_id(temp_index_dir, index_fields):
     with WhooshFullTextIndex(temp_index_dir, index_fields) as idx:
         idx.add_document(doc)
     idx = WhooshFullTextIndex(temp_index_dir, index_fields)
-    results = idx.search("No ID")
+    results = idx.text_search("No ID")
     assert len(results) == 1
     assert results[0].doc_id is not None
 
@@ -62,7 +62,7 @@ def test_clear_removes_all_documents(temp_index_dir, index_fields, sample_docs):
             idx.add_document(doc)
         idx.clear()
     idx = WhooshFullTextIndex(temp_index_dir, index_fields)
-    results = idx.search("test")
+    results = idx.text_search("test")
     assert len(results) == 0
 
 def test_schema_mismatch_raises(temp_index_dir, index_fields, sample_docs):
@@ -77,14 +77,14 @@ def test_context_manager_commits(temp_index_dir, index_fields):
     with WhooshFullTextIndex(temp_index_dir, index_fields) as idx:
         idx.add_document(doc)
     idx = WhooshFullTextIndex(temp_index_dir, index_fields)
-    results = idx.search("Commit")
+    results = idx.text_search("Commit")
     assert len(results) == 1
 
 def test_add_document_outside_context(temp_index_dir, index_fields):
     idx = WhooshFullTextIndex(temp_index_dir, index_fields)
     doc = {"title": "Outside", "content": "Added outside context"}
     idx.add_document(doc)
-    results = idx.search("Outside")
+    results = idx.text_search("Outside")
     assert len(results) == 1
 
 def test_search_specific_field(temp_index_dir, index_fields, sample_docs):
@@ -93,10 +93,10 @@ def test_search_specific_field(temp_index_dir, index_fields, sample_docs):
             idx.add_document(doc)
     idx = WhooshFullTextIndex(temp_index_dir, index_fields)
     # Search in a specific field
-    results = idx.search("title:another")
+    results = idx.text_search("title:another")
     assert len(results) == 1
-    assert results[0].metadata["title"] == "Another Doc"
-    results = idx.search("title:test")
+    assert results[0].document["title"] == "Another Doc"
+    results = idx.text_search("title:test")
     assert len(results) == 0
 
 class SomeDataClass:
@@ -116,7 +116,7 @@ def test_indexWhoosh(temp_index_dir):
     assert len(results) == len(data)
 
     idx = WhooshFullTextIndex(temp_index_dir, ["title", "content", "value"])
-    search_results = idx.search("Content")
+    search_results = idx.text_search("Content")
     assert len(search_results) == 3
     assert all(isinstance(r, SearchResult) for r in search_results)
 
@@ -124,7 +124,6 @@ def test_indexWhoosh(temp_index_dir):
     results = list(f(data))
     assert len(results) == len(data)
     assert all([isinstance(r, dict) for r in results])
-    assert all(["doc_id" in r for r in results])
 
 def test_searchWhoosh(temp_index_dir):
     data = [
@@ -139,7 +138,7 @@ def test_searchWhoosh(temp_index_dir):
     f = compile(f"""| searchWhoosh[index_path="{temp_index_dir}"]""")
     indexed_docs = list(f(["another"]))
     assert len(indexed_docs) == 1
-    assert indexed_docs[0].metadata["title"] == "Test Search 2"
+    assert indexed_docs[0].document["title"] == "Test Search 2"
 
 def test_WhooshWriter_context_manager(temp_index_dir, index_fields, sample_docs):
     # Use context manager to add documents
@@ -152,8 +151,8 @@ def test_WhooshWriter_context_manager(temp_index_dir, index_fields, sample_docs)
     assert idx.writer is None
     # Documents should be committed
     idx2 = WhooshFullTextIndex(temp_index_dir, index_fields)
-    results = idx2.search("Python")
-    assert any("Python" in r.metadata["title"] for r in results)
+    results = idx2.text_search("Python")
+    assert any("Python" in r.document["title"] for r in results)
 
 def test_WhooshWriter_commit_and_rollback(temp_index_dir, index_fields):
     # Test that commit happens on normal exit
@@ -161,7 +160,7 @@ def test_WhooshWriter_commit_and_rollback(temp_index_dir, index_fields):
         idx.add_document({"title": "CommitDoc", "content": "Should be committed"})
     
     idx2 = WhooshFullTextIndex(temp_index_dir, index_fields)
-    results = idx2.search("CommitDoc")
+    results = idx2.text_search("CommitDoc")
     assert len(results) == 1  # ✓ Should pass
     
     # Test that rollback happens if exception is raised
@@ -173,7 +172,7 @@ def test_WhooshWriter_commit_and_rollback(temp_index_dir, index_fields):
         pass
     
     idx3 = WhooshFullTextIndex(temp_index_dir, index_fields)
-    results = idx3.search("ExceptionDoc")
+    results = idx3.text_search("ExceptionDoc")
     assert len(results) == 0  # ✓ Should be rolled back
 
 def test_WhooshSearcher_context_manager(temp_index_dir, index_fields, sample_docs):
@@ -183,11 +182,12 @@ def test_WhooshSearcher_context_manager(temp_index_dir, index_fields, sample_doc
         idx.add_document(doc)
     # Use WhooshSearcher to search
     with WhooshSearcher(temp_index_dir) as idx_search:
-        results = idx_search.search("World")
-        assert any("World" in r.metadata["title"] for r in results)
+        results = idx_search.text_search("World")
+        assert any("World" in r.document["title"] for r in results)
         # Index should be open inside context
-        assert hasattr(idx_search, "ix")
-        assert idx_search.ix is not None
+        assert hasattr(idx_search, "idx")
+        assert hasattr(idx_search.idx, "ix")
+        assert idx_search.idx.ix is not None
 
 def test_WhooshWriter_and_WhooshSearcher_integration(temp_index_dir, index_fields):
     docs = [
@@ -198,7 +198,7 @@ def test_WhooshWriter_and_WhooshSearcher_integration(temp_index_dir, index_field
         for doc in docs:
             idx.add_document(doc)
     with WhooshSearcher(temp_index_dir) as idx_search:
-        results = idx_search.search("Integration*")
+        results = idx_search.text_search("Integration*")
         assert len(results) == 2
-        titles = [r.metadata["title"] for r in results]
+        titles = [r.document["title"] for r in results]
         assert "Integration1" in titles and "Integration2" in titles

@@ -16,4 +16,4 @@ from talkpipe.operations.matrices import *
 from talkpipe.operations.signatures import *
 from talkpipe.app.apiendpoint import *
 from talkpipe.search.whoosh import *
-from talkpipe.vectordb.simplevectordb import *
+from talkpipe.search.simplevectordb import *
