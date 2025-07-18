@@ -1,6 +1,5 @@
 # Changelog
-
-## In Progress
+## 0.7.0
 ### New Segments and Sources
  - **progressTicks** – Prints out a tick for every n items seen and a new line for every m ticks.  
   Especially useful for debugging and marking progress in logs.
@@ -12,6 +11,10 @@
 ### Improvements
  - Rewrote firstN to use decorator syntax (making it shorter) and to not throw an exception
   when there are fewer than N items.
+ - Created a set of protocols for search engines, both full-text and vector DB-based.  
+  These protocols can be used to write wrappers around different search engines and 
+  vector databases, providing a common API that can then be used in different segments
+  and sources.
  - Integrated the Whoosh pure-Python, stand-alone search engine. This is intended for testing,
   debugging, and smaller stand-alone scenarios. It allows a programmer to work on pipelines that 
   use full-text search engines without setting up a full search engine server. It can support
@@ -20,7 +23,9 @@
  - Added SimpleVectorDB, a pure Python, simple vector database. It allows a programmer to build
   and debug pipelines requiring simple vector databases. It supports smaller-scale databases
   that can later be replaced with a separate server.
-- Added default option to extract_property and propagated option to several segments
+ - Added a default option to extract_property and propagated the option to several segments.
+ - Wrote a conceptual diagram for the library and wrote short descriptions to orient people to 
+  how the library can be used.
 
 ## 0.6.0
 ### New Segments and Sources
