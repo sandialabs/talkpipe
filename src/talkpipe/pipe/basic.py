@@ -2,6 +2,8 @@
 
 from typing import Iterable, Iterator, Union, Optional, Any
 import logging
+import time
+import sys
 import pickle
 import hashlib
 import pandas as pd
@@ -28,7 +30,6 @@ def sleep(items, seconds: int):
     Yields:
         None: This segment does not yield any items; it simply sleeps.
     """
-    import time
     # Yielding None to indicate that this segment does not produce output
     for item in items:
         yield item  # Yield the item to maintain the flow of the pipeline
@@ -54,15 +55,15 @@ def progressTicks(items, tick: str = ".", tick_count: int = 10, eol_count: Optio
     count = 0
     for idx, item in enumerate(items, 1):
         if idx % tick_count == 0 and idx != 0:
-            print(tick, end="", flush=True)
+            print(tick, end="", flush=True, file=sys.stderr)
             if eol_count and (idx // tick_count) % eol_count == 0:
                 if print_count:
-                    print(f"{idx}", end="", flush=True)
-                print()
+                    print(f"{idx}", end="", flush=True, file=sys.stderr)
+                print(file=sys.stderr)
         count = idx
         yield item
     if print_count:
-        print(f"\nTotal items processed: {count}")
+        print(f"\nTotal items processed: {count}", file=sys.stderr)
 
 @registry.register_segment(name="firstN")
 @segment()

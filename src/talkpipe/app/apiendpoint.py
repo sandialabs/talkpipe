@@ -187,13 +187,14 @@ class JSONReceiver:
         self._add_output(output)
         return output
     
-    def _add_output(self, output: str):
-        """Add output to the streaming queue"""
+    def _add_output(self, output: str, message_type: str = "response"):
+        """Add output to the streaming queue with message type"""
         try:
             # Add timestamp to output
             timestamped_output = {
                 "timestamp": datetime.now().isoformat(),
-                "output": output
+                "output": output,
+                "type": message_type  # "response", "user", "error"
             }
             self.output_queue.put(timestamped_output, block=False)
         except:
@@ -203,7 +204,24 @@ class JSONReceiver:
                 self.output_queue.put(timestamped_output, block=False)
             except:
                 pass
-    
+
+    def _add_user_message(self, data: Dict[str, Any]):
+        """Add user message to the streaming queue"""
+        user_message = {
+            "timestamp": datetime.now().isoformat(),
+            "output": json.dumps(data, indent=2),
+            "type": "user"
+        }
+        try:
+            self.output_queue.put(user_message, block=False)
+        except:
+            # Queue is full, remove oldest item
+            try:
+                self.output_queue.get_nowait()
+                self.output_queue.put(user_message, block=False)
+            except:
+                pass
+
     async def _generate_output_stream(self):
         """Generate Server-Sent Events stream"""
         while True:
@@ -216,61 +234,51 @@ class JSONReceiver:
                 yield f": heartbeat\n\n"
             
             await asyncio.sleep(0.1)
-    
+   
     async def _process_json(self, data: Dict[str, Any]) -> DataResponse:
-        """Process incoming JSON data"""
-        import sys
-        from io import StringIO
-        
+        """Process JSON data and return response"""
         try:
-            # Add timestamp
-            data['_received_at'] = datetime.now().isoformat()
+            # Add user message to stream
+            self._add_user_message(data)
+            
+            # Process the data
+            result = self.processor_function(data)
+            
+            # If result is iterable (like a generator), process each item
+            if hasattr(result, '__iter__') and not isinstance(result, (str, bytes, dict)):
+                try:
+                    for item in result:
+                        if item is not None:
+                            self._add_output(str(item), "response")
+                except Exception as e:
+                    self._add_output(f"Error processing iterator: {str(e)}", "error")
+            else:
+                # Single result
+                if result is not None:
+                    self._add_output(str(result), "response")
             
             # Store in history
-            self.history.append(data)
+            self.history.append({
+                "timestamp": datetime.now(),
+                "input": data,
+                "output": str(result) if result is not None else "No output"
+            })
+            
+            # Limit history length
             if len(self.history) > self.history_length:
-                self.history.pop(0)
-            
-            # Capture stdout during processing
-            old_stdout = sys.stdout
-            sys.stdout = captured_output = StringIO()
-            
-            try:
-                # Process with configured function
-                result = self.processor_function(data)
-                
-                # Get captured output
-                output = captured_output.getvalue()
-                if output:
-                    # Split by newlines and add each line to output
-                    for line in output.strip().split('\n'):
-                        if line:
-                            self._add_output(line)
-                
-                # Convert result to string if needed
-                if not isinstance(result, str):
-                    result = str(result)
-                
-                # Add the result itself as output
-                if result and result != output.strip():
-                    self._add_output(f"Result: {result}")
-                
-            finally:
-                sys.stdout = old_stdout
-            
-            logger.info(f"Port {self.port}: Successfully processed data")
+                self.history = self.history[-self.history_length:]
             
             return DataResponse(
                 status="success",
-                message=result,
+                message="Data processed successfully",
                 data=data,
                 timestamp=datetime.now()
             )
-            
         except Exception as e:
-            logger.error(f"Port {self.port}: Error processing data: {str(e)}")
-            self._add_output(f"Error: {str(e)}")
-            raise HTTPException(status_code=500, detail=str(e))
+            error_msg = f"Error processing data: {str(e)}"
+            self._add_output(error_msg, "error")
+            logger.error(f"Port {self.port}: {error_msg}")
+            raise HTTPException(status_code=500, detail=error_msg)
     
     def _get_history(self, limit: int) -> DataHistory:
         """Get processing history"""
@@ -283,7 +291,7 @@ class JSONReceiver:
         logger.info(f"Port {self.port}: History cleared")
         return {"status": "success", "message": "History cleared"}
     
-    def _generate_form_fields_html(self) -> str:
+    def _generate_form_fields(self) -> str:
         """Generate HTML for form fields based on configuration"""
         fields_html = []
         
@@ -339,7 +347,7 @@ class JSONReceiver:
         return "\n".join(fields_html)
     
     def _get_stream_interface(self) -> str:
-        """Generate streaming HTML interface with form and output"""
+        """Generate streaming HTML interface with chat-like layout"""
         position = self.form_config.position
         height = self.form_config.height
         theme = self.form_config.theme
@@ -354,6 +362,9 @@ class JSONReceiver:
             button_hover = "#0052a3"
             output_bg = "#0a0a0a"
             output_text = "#00ff00"
+            user_msg_bg = "#2d4a87"
+            response_msg_bg = "#2d2d2d"
+            error_msg_bg = "#8b2635"
         else:
             bg_color = "#f5f5f5"
             text_color = "#333333"
@@ -363,6 +374,9 @@ class JSONReceiver:
             button_hover = "#0052a3"
             output_bg = "#ffffff"
             output_text = "#333333"
+            user_msg_bg = "#e3f2fd"
+            response_msg_bg = "#f5f5f5"
+            error_msg_bg = "#ffebee"
         
         auth_header = '''
             <div class="auth-section">
@@ -370,6 +384,8 @@ class JSONReceiver:
                 <input type="password" id="apiKey" placeholder="Enter API key">
             </div>
         ''' if self.require_auth else ''
+        
+        form_fields = self._generate_form_fields()
         
         return f'''
         <!DOCTYPE html>
@@ -385,267 +401,315 @@ class JSONReceiver:
                 
                 body {{
                     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-                    background-color: {output_bg};
+                    background-color: {bg_color};
                     color: {text_color};
                     height: 100vh;
                     display: flex;
                     flex-direction: column;
+                }}
+                
+                .header {{
+                    background-color: {input_bg};
+                    border-bottom: 1px solid {border_color};
+                    padding: 1rem;
+                    text-align: center;
+                }}
+                
+                .main-container {{
+                    display: flex;
+                    flex: 1;
                     overflow: hidden;
                 }}
                 
-                .output-section {{
-                    flex: 1;
-                    padding: 20px;
-                    overflow-y: auto;
-                    background-color: {output_bg};
-                    font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
-                }}
-                
-                .output-line {{
-                    color: {output_text};
-                    margin: 2px 0;
-                    padding: 2px 5px;
-                    white-space: pre-wrap;
-                    word-wrap: break-word;
-                }}
-                
-                .output-line.error {{
-                    color: #ff6b6b;
-                }}
-                
-                .output-line .timestamp {{
-                    color: #666;
-                    margin-right: 10px;
-                }}
-                
                 .form-panel {{
-                    height: {height};
-                    background-color: {bg_color};
-                    color: {text_color};
-                    border-top: 2px solid {border_color};
-                    box-shadow: 0 -2px 10px rgba(0,0,0,0.1);
-                    padding: 20px;
+                    width: 350px;
+                    background-color: {input_bg};
+                    border-right: 1px solid {border_color};
+                    padding: 1rem;
                     overflow-y: auto;
                 }}
                 
-                .form-container {{
-                    max-width: 1200px;
-                    margin: 0 auto;
-                }}
-                
-                .form-header {{
+                .chat-panel {{
+                    flex: 1;
                     display: flex;
-                    justify-content: space-between;
-                    align-items: center;
-                    margin-bottom: 20px;
+                    flex-direction: column;
+                    background-color: {output_bg};
                 }}
                 
-                .form-title {{
-                    font-size: 18px;
-                    font-weight: 600;
-                }}
-                
-                .control-buttons {{
+                .chat-messages {{
+                    flex: 1;
+                    padding: 1rem;
+                    overflow-y: auto;
                     display: flex;
-                    gap: 10px;
+                    flex-direction: column;
+                    gap: 0.5rem;
                 }}
                 
-                .control-btn {{
-                    background: none;
-                    border: 1px solid {border_color};
-                    color: {text_color};
-                    cursor: pointer;
-                    padding: 5px 10px;
-                    border-radius: 4px;
-                    font-size: 12px;
+                .message {{
+                    max-width: 70%;
+                    padding: 0.75rem 1rem;
+                    border-radius: 1rem;
+                    margin: 0.25rem 0;
+                    word-wrap: break-word;
+                    position: relative;
                 }}
                 
-                .form-content {{
-                    display: flex;
-                    flex-wrap: wrap;
-                    gap: 15px;
-                    align-items: flex-end;
+                .message.user {{
+                    background-color: {user_msg_bg};
+                    color: white;
+                    align-self: flex-end;
+                    margin-left: auto;
+                }}
+                
+                .message.response {{
+                    background-color: {response_msg_bg};
+                    color: {output_text};
+                    align-self: flex-start;
+                    margin-right: auto;
+                }}
+                
+                .message.error {{
+                    background-color: {error_msg_bg};
+                    color: white;
+                    align-self: flex-start;
+                    margin-right: auto;
+                }}
+                
+                .message-timestamp {{
+                    font-size: 0.75rem;
+                    opacity: 0.7;
+                    margin-bottom: 0.25rem;
+                }}
+                
+                .message-content {{
+                    white-space: pre-wrap;
+                    font-family: 'Segoe UI', system-ui, sans-serif;
+                }}
+                
+                .message.user .message-content {{
+                    font-family: 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', Consolas, 'Courier New', monospace;
+                    font-size: 0.9rem;
                 }}
                 
                 .form-group {{
-                    flex: 1;
-                    min-width: 200px;
+                    margin-bottom: 1rem;
                 }}
                 
                 .form-group label {{
                     display: block;
-                    margin-bottom: 5px;
-                    font-size: 14px;
+                    margin-bottom: 0.5rem;
                     font-weight: 500;
                 }}
                 
                 .form-group input,
-                .form-group select,
-                .form-group textarea {{
+                .form-group textarea,
+                .form-group select {{
                     width: 100%;
-                    padding: 8px 12px;
+                    padding: 0.75rem;
+                    border: 1px solid {border_color};
+                    border-radius: 0.5rem;
                     background-color: {input_bg};
                     color: {text_color};
-                    border: 1px solid {border_color};
-                    border-radius: 4px;
-                    font-size: 14px;
+                    font-size: 1rem;
                 }}
                 
-                .checkbox-group {{
-                    display: flex;
-                    align-items: center;
+                .form-group input:focus,
+                .form-group textarea:focus,
+                .form-group select:focus {{
+                    outline: none;
+                    border-color: {button_bg};
+                    box-shadow: 0 0 0 2px {button_bg}33;
                 }}
                 
-                .checkbox-group label {{
-                    display: flex;
-                    align-items: center;
-                    margin-bottom: 0;
-                }}
-                
-                .checkbox-group input[type="checkbox"] {{
-                    width: auto;
-                    margin-right: 8px;
-                }}
-                
-                .form-actions {{
-                    display: flex;
-                    gap: 10px;
-                    align-items: center;
-                }}
-                
-                button {{
-                    padding: 8px 20px;
+                .submit-btn {{
+                    width: 100%;
+                    padding: 0.75rem;
                     background-color: {button_bg};
                     color: white;
                     border: none;
-                    border-radius: 4px;
+                    border-radius: 0.5rem;
+                    font-size: 1rem;
                     cursor: pointer;
-                    font-size: 14px;
-                    font-weight: 500;
                     transition: background-color 0.2s;
                 }}
                 
-                button:hover {{
+                .submit-btn:hover {{
+                    background-color: {button_hover};
+                }}
+                
+                .submit-btn:disabled {{
+                    background-color: #666;
+                    cursor: not-allowed;
+                }}
+                
+                .controls {{
+                    padding: 1rem;
+                    border-top: 1px solid {border_color};
+                    background-color: {input_bg};
+                    display: flex;
+                    gap: 1rem;
+                    align-items: center;
+                }}
+                
+                .control-btn {{
+                    padding: 0.5rem 1rem;
+                    background-color: {button_bg};
+                    color: white;
+                    border: none;
+                    border-radius: 0.25rem;
+                    cursor: pointer;
+                    font-size: 0.9rem;
+                }}
+                
+                .control-btn:hover {{
                     background-color: {button_hover};
                 }}
                 
                 .status {{
-                    padding: 8px 15px;
-                    border-radius: 4px;
-                    font-size: 14px;
-                    margin-left: 10px;
+                    padding: 0.75rem;
+                    margin: 1rem 0;
+                    border-radius: 0.5rem;
+                    display: none;
                 }}
                 
                 .status.success {{
-                    background-color: #4caf50;
-                    color: white;
+                    background-color: #d4edda;
+                    color: #155724;
+                    border: 1px solid #c3e6cb;
                 }}
                 
                 .status.error {{
-                    background-color: #f44336;
-                    color: white;
+                    background-color: #f8d7da;
+                    color: #721c24;
+                    border: 1px solid #f5c6cb;
                 }}
                 
-                @media (max-width: 768px) {{
-                    .form-content {{
-                        flex-direction: column;
-                    }}
-                    
-                    .form-group {{
-                        min-width: 100%;
-                    }}
+                .auth-section {{
+                    margin-bottom: 1rem;
+                    padding-bottom: 1rem;
+                    border-bottom: 1px solid {border_color};
+                }}
+                
+                .initial-message {{
+                    text-align: center;
+                    padding: 2rem;
+                    color: {text_color};
+                    opacity: 0.6;
+                    font-style: italic;
                 }}
             </style>
         </head>
         <body>
-            <div class="output-section" id="outputSection">
-                <div class="output-line">Waiting for output...</div>
+            <div class="header">
+                <h1>{self.form_config.title}</h1>
+                <p>Send JSON data and view real-time responses</p>
             </div>
             
-            <div class="form-panel" id="formPanel">
-                <div class="form-container">
-                    <div class="form-header">
-                        <h2 class="form-title">{self.form_config.title}</h2>
-                        <div class="control-buttons">
-                            <button class="control-btn" onclick="clearOutput()">Clear Output</button>
-                            <button class="control-btn" onclick="toggleAutoScroll()">Auto-scroll: ON</button>
+            <div class="main-container">
+                <div class="form-panel">
+                    {auth_header}
+                    
+                    <form id="dataForm">
+                        {form_fields}
+                        <button type="submit" class="submit-btn" id="submitBtn">Send Message</button>
+                    </form>
+                    
+                    <div id="status" class="status"></div>
+                </div>
+                
+                <div class="chat-panel">
+                    <div class="chat-messages" id="chatMessages">
+                        <div class="initial-message">
+                            Welcome! Send a message to start the conversation.
                         </div>
                     </div>
                     
-                    <form id="dataForm" onsubmit="submitForm(event)">
-                        {auth_header}
-                        <div class="form-content">
-                            {self._generate_form_fields_html()}
-                            <div class="form-actions">
-                                <button type="submit">Submit</button>
-                                <div id="status" class="status" style="display: none;"></div>
-                            </div>
-                        </div>
-                    </form>
+                    <div class="controls">
+                        <button class="control-btn" onclick="clearChat()">Clear Chat</button>
+                        <button class="control-btn" onclick="toggleAutoScroll()" id="autoScrollBtn">Auto-scroll: ON</button>
+                        <span id="connectionStatus">Connecting...</span>
+                    </div>
                 </div>
             </div>
             
             <script>
-                let autoScroll = true;
                 let eventSource = null;
-                const outputSection = document.getElementById('outputSection');
+                let autoScroll = true;
                 
-                // Initialize SSE connection
                 function initSSE() {{
                     eventSource = new EventSource('/output-stream');
                     
-                    eventSource.onmessage = function(event) {{
-                        const data = JSON.parse(event.data);
-                        addOutput(data.output, data.timestamp);
+                    eventSource.onopen = function(event) {{
+                        document.getElementById('connectionStatus').textContent = 'Connected';
+                        document.getElementById('connectionStatus').style.color = 'green';
                     }};
                     
-                    eventSource.onerror = function(error) {{
-                        console.error('SSE error:', error);
-                        addOutput('Connection error - retrying...', new Date().toISOString(), true);
-                        // Reconnect after error
-                        setTimeout(initSSE, 5000);
+                    eventSource.onmessage = function(event) {{
+                        try {{
+                            const data = JSON.parse(event.data);
+                            addMessage(data.output, data.type || 'response', data.timestamp);
+                        }} catch (e) {{
+                            console.error('Error parsing SSE data:', e);
+                        }}
+                    }};
+                    
+                    eventSource.onerror = function(event) {{
+                        document.getElementById('connectionStatus').textContent = 'Connection error';
+                        document.getElementById('connectionStatus').style.color = 'red';
                     }};
                 }}
                 
-                // Add output line
-                function addOutput(text, timestamp, isError = false) {{
-                    const line = document.createElement('div');
-                    line.className = 'output-line' + (isError ? ' error' : '');
+                function addMessage(content, type, timestamp) {{
+                    const messagesContainer = document.getElementById('chatMessages');
                     
+                    // Remove initial message if it exists
+                    const initialMessage = messagesContainer.querySelector('.initial-message');
+                    if (initialMessage) {{
+                        initialMessage.remove();
+                    }}
+                    
+                    const messageDiv = document.createElement('div');
+                    messageDiv.className = `message ${{type}}`;
+                    
+                    const timestampDiv = document.createElement('div');
+                    timestampDiv.className = 'message-timestamp';
                     const time = new Date(timestamp).toLocaleTimeString();
-                    line.innerHTML = `<span class="timestamp">${{time}}</span>${{escapeHtml(text)}}`;
+                    timestampDiv.textContent = time;
                     
-                    outputSection.appendChild(line);
+                    const contentDiv = document.createElement('div');
+                    contentDiv.className = 'message-content';
+                    contentDiv.textContent = content;
                     
-                    // Remove old lines if too many (keep last 1000)
-                    while (outputSection.children.length > 1000) {{
-                        outputSection.removeChild(outputSection.firstChild);
+                    messageDiv.appendChild(timestampDiv);
+                    messageDiv.appendChild(contentDiv);
+                    
+                    messagesContainer.appendChild(messageDiv);
+                    
+                    // Remove old messages if too many (keep last 1000)
+                    while (messagesContainer.children.length > 1000) {{
+                        messagesContainer.removeChild(messagesContainer.firstChild);
                     }}
                     
                     if (autoScroll) {{
-                        outputSection.scrollTop = outputSection.scrollHeight;
+                        messagesContainer.scrollTop = messagesContainer.scrollHeight;
                     }}
                 }}
                 
-                function escapeHtml(text) {{
-                    const div = document.createElement('div');
-                    div.textContent = text;
-                    return div.innerHTML;
-                }}
-                
-                function clearOutput() {{
-                    outputSection.innerHTML = '<div class="output-line">Output cleared. Waiting for new data...</div>';
+                function clearChat() {{
+                    const messagesContainer = document.getElementById('chatMessages');
+                    messagesContainer.innerHTML = '<div class="initial-message">Chat cleared. Send a message to continue.</div>';
                 }}
                 
                 function toggleAutoScroll() {{
                     autoScroll = !autoScroll;
-                    event.target.textContent = `Auto-scroll: ${{autoScroll ? 'ON' : 'OFF'}}`;
+                    document.getElementById('autoScrollBtn').textContent = `Auto-scroll: ${{autoScroll ? 'ON' : 'OFF'}}`;
                 }}
                 
                 async function submitForm(event) {{
                     event.preventDefault();
                     const form = document.getElementById('dataForm');
                     const status = document.getElementById('status');
+                    const submitBtn = document.getElementById('submitBtn');
                     const formData = new FormData(form);
                     
                     // Build JSON object from form data
@@ -673,6 +737,9 @@ class JSONReceiver:
                       "headers['X-API-Key'] = document.getElementById('apiKey').value;" + 
                       "}") if self.require_auth else ""}
                     
+                    submitBtn.disabled = true;
+                    submitBtn.textContent = 'Sending...';
+                    
                     try {{
                         const response = await fetch('/process', {{
                             method: 'POST',
@@ -685,7 +752,7 @@ class JSONReceiver:
                         status.style.display = 'block';
                         if (response.ok) {{
                             status.className = 'status success';
-                            status.textContent = 'Submitted successfully';
+                            status.textContent = 'Message sent successfully';
                         }} else {{
                             status.className = 'status error';
                             status.textContent = 'Error: ' + result.detail;
@@ -696,18 +763,16 @@ class JSONReceiver:
                         status.textContent = 'Error: ' + error.message;
                     }}
                     
+                    submitBtn.disabled = false;
+                    submitBtn.textContent = 'Send Message';
+                    
                     setTimeout(() => {{
                         status.style.display = 'none';
                     }}, 3000);
                 }}
                 
-                // Handle Enter key to submit form
-                document.getElementById('dataForm').addEventListener('keypress', function(event) {{
-                    if (event.key === 'Enter' && !event.shiftKey && event.target.tagName !== 'TEXTAREA') {{
-                        event.preventDefault();
-                        submitForm(event);
-                    }}
-                }});
+                // Event listeners
+                document.getElementById('dataForm').addEventListener('submit', submitForm);
                 
                 // Initialize SSE on page load
                 initSSE();
@@ -755,6 +820,8 @@ class JSONReceiver:
             </div>
         ''' if self.require_auth else ''
         
+        form_fields = self._generate_form_fields()
+        
         return f'''
         <!DOCTYPE html>
         <html>
@@ -777,148 +844,27 @@ class JSONReceiver:
                 
                 .main-content {{
                     height: calc(100vh - {height});
-                    overflow-y: auto;
-                    padding: 20px;
-                }}
-                
-                .form-panel {{
-                    position: fixed;
-                    {form_style}
-                    background-color: {bg_color};
-                    color: {text_color};
-                    border-top: 2px solid {border_color};
-                    box-shadow: 0 -2px 10px rgba(0,0,0,0.1);
                     padding: 20px;
                     overflow-y: auto;
-                    z-index: 1000;
-                }}
-                
-                .form-container {{
-                    max-width: 1200px;
-                    margin: 0 auto;
-                }}
-                
-                .form-header {{
-                    display: flex;
-                    justify-content: space-between;
-                    align-items: center;
-                    margin-bottom: 20px;
-                }}
-                
-                .form-title {{
-                    font-size: 18px;
-                    font-weight: 600;
-                }}
-                
-                .minimize-btn {{
-                    background: none;
-                    border: none;
-                    color: {text_color};
-                    cursor: pointer;
-                    font-size: 20px;
-                    padding: 5px 10px;
-                }}
-                
-                .form-content {{
-                    display: flex;
-                    flex-wrap: wrap;
-                    gap: 15px;
-                    align-items: flex-end;
-                }}
-                
-                .form-group {{
-                    flex: 1;
-                    min-width: 200px;
-                }}
-                
-                .form-group label {{
-                    display: block;
-                    margin-bottom: 5px;
-                    font-size: 14px;
-                    font-weight: 500;
-                }}
-                
-                .form-group input,
-                .form-group select,
-                .form-group textarea {{
-                    width: 100%;
-                    padding: 8px 12px;
-                    background-color: {input_bg};
-                    color: {text_color};
-                    border: 1px solid {border_color};
-                    border-radius: 4px;
-                    font-size: 14px;
-                }}
-                
-                .checkbox-group {{
-                    display: flex;
-                    align-items: center;
-                }}
-                
-                .checkbox-group label {{
-                    display: flex;
-                    align-items: center;
-                    margin-bottom: 0;
-                }}
-                
-                .checkbox-group input[type="checkbox"] {{
-                    width: auto;
-                    margin-right: 8px;
-                }}
-                
-                .form-actions {{
-                    display: flex;
-                    gap: 10px;
-                    align-items: center;
-                }}
-                
-                button {{
-                    padding: 8px 20px;
-                    background-color: {button_bg};
-                    color: white;
-                    border: none;
-                    border-radius: 4px;
-                    cursor: pointer;
-                    font-size: 14px;
-                    font-weight: 500;
-                    transition: background-color 0.2s;
-                }}
-                
-                button:hover {{
-                    background-color: {button_hover};
-                }}
-                
-                .status {{
-                    padding: 8px 15px;
-                    border-radius: 4px;
-                    font-size: 14px;
-                    margin-left: 10px;
-                }}
-                
-                .status.success {{
-                    background-color: #4caf50;
-                    color: white;
-                }}
-                
-                .status.error {{
-                    background-color: #f44336;
-                    color: white;
+                    background-color: #f8f9fa;
                 }}
                 
                 .info-section {{
                     background-color: white;
                     border-radius: 8px;
-                    padding: 30px;
-                    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+                    padding: 20px;
                     margin-bottom: 20px;
+                    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
                 }}
                 
                 .endpoint-info {{
                     background-color: #f8f9fa;
-                    padding: 15px;
+                    padding: 10px;
                     border-radius: 4px;
                     font-family: monospace;
+                    font-size: 14px;
                     margin: 10px 0;
+                    border: 1px solid #dee2e6;
                 }}
                 
                 .history-section {{
@@ -936,6 +882,133 @@ class JSONReceiver:
                     font-family: monospace;
                     font-size: 12px;
                     white-space: pre-wrap;
+                }}
+                
+                .form-panel {{
+                    position: fixed;
+                    {form_style}
+                    background-color: {input_bg};
+                    border: 1px solid {border_color};
+                    padding: 20px;
+                    box-shadow: 0 -2px 10px rgba(0,0,0,0.1);
+                    overflow-y: auto;
+                }}
+                
+                .form-container {{
+                    display: flex;
+                    flex-direction: column;
+                    height: 100%;
+                }}
+                
+                .form-header {{
+                    margin-bottom: 15px;
+                }}
+                
+                .form-header h3 {{
+                    color: {text_color};
+                    margin: 0;
+                }}
+                
+                .form-content {{
+                    flex: 1;
+                    display: flex;
+                    flex-wrap: wrap;
+                    gap: 15px;
+                    overflow-y: auto;
+                    margin-bottom: 15px;
+                }}
+                
+                .form-group {{
+                    min-width: 200px;
+                    flex: 1;
+                }}
+                
+                .form-group label {{
+                    display: block;
+                    margin-bottom: 5px;
+                    font-weight: 500;
+                    color: {text_color};
+                }}
+                
+                .form-group input,
+                .form-group textarea,
+                .form-group select {{
+                    width: 100%;
+                    padding: 8px 12px;
+                    border: 1px solid {border_color};
+                    border-radius: 4px;
+                    background-color: {input_bg};
+                    color: {text_color};
+                    font-size: 14px;
+                }}
+                
+                .form-group input:focus,
+                .form-group textarea:focus,
+                .form-group select:focus {{
+                    outline: none;
+                    border-color: {button_bg};
+                    box-shadow: 0 0 0 2px {button_bg}33;
+                }}
+                
+                .form-actions {{
+                    display: flex;
+                    gap: 10px;
+                    align-items: center;
+                }}
+                
+                .submit-btn {{
+                    padding: 10px 20px;
+                    background-color: {button_bg};
+                    color: white;
+                    border: none;
+                    border-radius: 4px;
+                    cursor: pointer;
+                    font-size: 14px;
+                    transition: background-color 0.2s;
+                }}
+                
+                .submit-btn:hover {{
+                    background-color: {button_hover};
+                }}
+                
+                .submit-btn:disabled {{
+                    background-color: #6c757d;
+                    cursor: not-allowed;
+                }}
+                
+                .status {{
+                    padding: 8px 12px;
+                    border-radius: 4px;
+                    font-size: 14px;
+                    display: none;
+                }}
+                
+                .status.success {{
+                    background-color: #d4edda;
+                    color: #155724;
+                    border: 1px solid #c3e6cb;
+                }}
+                
+                .status.error {{
+                    background-color: #f8d7da;
+                    color: #721c24;
+                    border: 1px solid #f5c6cb;
+                }}
+                
+                .auth-section {{
+                    margin-bottom: 15px;
+                    padding-bottom: 15px;
+                    border-bottom: 1px solid {border_color};
+                }}
+                
+                .checkbox-group {{
+                    display: flex;
+                    align-items: center;
+                }}
+                
+                .checkbox-group input {{
+                    width: auto;
+                    margin-right: 8px;
                 }}
                 
                 .form-minimized {{
@@ -967,6 +1040,7 @@ class JSONReceiver:
                     <div class="endpoint-info">POST http://{self.host}:{self.port}/process</div>
                     {"<p>Authentication required: Include 'X-API-Key' header</p>" if self.require_auth else ""}
                     <p>View API documentation at: <a href="/docs">/docs</a></p>
+                    <p>View streaming interface at: <a href="/stream">/stream</a></p>
                 </div>
                 
                 <div class="history-section">
@@ -980,44 +1054,30 @@ class JSONReceiver:
             <div class="form-panel" id="formPanel">
                 <div class="form-container">
                     <div class="form-header">
-                        <h2 class="form-title">{self.form_config.title}</h2>
-                        <button class="minimize-btn" onclick="toggleForm()">−</button>
+                        <h3>{self.form_config.title}</h3>
                     </div>
                     
-                    <form id="dataForm" onsubmit="submitForm(event)">
-                        {auth_header}
+                    {auth_header}
+                    
+                    <form id="dataForm">
                         <div class="form-content">
-                            {self._generate_form_fields_html()}
-                            <div class="form-actions">
-                                <button type="submit">Submit</button>
-                                <div id="status" class="status" style="display: none;"></div>
-                            </div>
+                            {form_fields}
+                        </div>
+                        
+                        <div class="form-actions">
+                            <button type="submit" class="submit-btn" id="submitBtn">Submit</button>
+                            <div id="status" class="status"></div>
                         </div>
                     </form>
                 </div>
             </div>
             
             <script>
-                let isMinimized = false;
-                
-                function toggleForm() {{
-                    const panel = document.getElementById('formPanel');
-                    const btn = document.querySelector('.minimize-btn');
-                    isMinimized = !isMinimized;
-                    
-                    if (isMinimized) {{
-                        panel.classList.add('form-minimized');
-                        btn.textContent = '+';
-                    }} else {{
-                        panel.classList.remove('form-minimized');
-                        btn.textContent = '−';
-                    }}
-                }}
-                
                 async function submitForm(event) {{
                     event.preventDefault();
                     const form = document.getElementById('dataForm');
                     const status = document.getElementById('status');
+                    const submitBtn = document.getElementById('submitBtn');
                     const formData = new FormData(form);
                     
                     // Build JSON object from form data
@@ -1045,6 +1105,9 @@ class JSONReceiver:
                       "headers['X-API-Key'] = document.getElementById('apiKey').value;" + 
                       "}") if self.require_auth else ""}
                     
+                    submitBtn.disabled = true;
+                    submitBtn.textContent = 'Submitting...';
+                    
                     try {{
                         const response = await fetch('/process', {{
                             method: 'POST',
@@ -1068,6 +1131,9 @@ class JSONReceiver:
                         status.className = 'status error';
                         status.textContent = 'Error: ' + error.message;
                     }}
+                    
+                    submitBtn.disabled = false;
+                    submitBtn.textContent = 'Submit';
                     
                     setTimeout(() => {{
                         status.style.display = 'none';
@@ -1119,6 +1185,9 @@ class JSONReceiver:
                         submitForm(event);
                     }}
                 }});
+                
+                // Attach event listener to form
+                document.getElementById('dataForm').addEventListener('submit', submitForm);
                 
                 // Load history on page load
                 fetchHistory();

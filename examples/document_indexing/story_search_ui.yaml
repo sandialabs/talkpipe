@@ -1,0 +1,11 @@
+title: "Story Search"
+position: "bottom"
+height: "150px"
+theme: "dark"
+
+fields:
+  - name: query
+    type: text
+    label: "Query"
+    placeholder: "Enter query here"
+    required: true
