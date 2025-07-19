@@ -249,7 +249,6 @@ def fill_template(template: str, values: dict) -> str:
 
     return result
 
-
 def compileLambda(expression: str, fail_on_error: bool = True):
     """Compile a Python expression into a callable that evaluates safely with a single item parameter.
 

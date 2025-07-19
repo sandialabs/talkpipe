@@ -244,24 +244,31 @@ class JSONReceiver:
             # Process the data
             result = self.processor_function(data)
             
+            # Collect all output items for the API response
+            output_items = []
+            
             # If result is iterable (like a generator), process each item
             if hasattr(result, '__iter__') and not isinstance(result, (str, bytes, dict)):
                 try:
                     for item in result:
                         if item is not None:
                             self._add_output(str(item), "response")
+                            output_items.append(item)
                 except Exception as e:
-                    self._add_output(f"Error processing iterator: {str(e)}", "error")
+                    error_msg = f"Error processing iterator: {str(e)}"
+                    self._add_output(error_msg, "error")
+                    output_items.append({"error": error_msg})
             else:
                 # Single result
                 if result is not None:
                     self._add_output(str(result), "response")
+                    output_items.append(result)
             
             # Store in history
             self.history.append({
                 "timestamp": datetime.now(),
                 "input": data,
-                "output": str(result) if result is not None else "No output"
+                "output": output_items if output_items else "No output"
             })
             
             # Limit history length
@@ -271,7 +278,11 @@ class JSONReceiver:
             return DataResponse(
                 status="success",
                 message="Data processed successfully",
-                data=data,
+                data={
+                    "input": data,
+                    "output": output_items,
+                    "count": len(output_items)
+                },
                 timestamp=datetime.now()
             )
         except Exception as e:
