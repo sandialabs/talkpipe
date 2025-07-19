@@ -1,6 +1,6 @@
 """Standard operations for data processing pipelines."""
 
-from typing import Iterable, Iterator, Union, Optional, Any
+from typing import Iterable, Iterator, Union, Optional, Any, Dict
 import logging
 import time
 import sys
@@ -146,45 +146,27 @@ class ToDict(AbstractSegment):
             ans = toDict(data, self.field_list, self.fail_on_missing)
             yield ans
 
-@registry.register_segment("formattedItem")
-class FormattedItem(AbstractSegment):
+def format_item_fields(item: dict, field_mappings: Dict[str, str], 
+                      format_type: str = "auto", wrap_width: int = 80, 
+                      fail_on_missing: bool = False, separator: str = ": ",
+                      field_separator: str = "\n") -> str:
     """
-    Generate formatted output items for specified fields.
-    
-    This segment takes an input item and generates one formatted output item per field
-    specified in the field_list. Each output contains the field name, value, and 
-    formatted display text.
+    Convert a single item's fields to a single "Property: Value" formatted string.
     
     Args:
-        field_list (str): Comma-separated list of field:label pairs. 
-                         Format: "field1:Label1,field2:Label2" or just "field1,field2"
+        item (dict): The input item to format
+        field_mappings (Dict[str, str]): Mapping of field names to display labels
         format_type (str): Type of formatting to apply ("auto", "text", "json", "clean")
         wrap_width (int): Width for text wrapping (default: 80)
         fail_on_missing (bool): Whether to fail if a field is missing (default: False)
-        include_metadata (bool): Whether to include field metadata in output (default: True)
+        separator (str): Separator between property and value (default: ": ")
+        field_separator (str): Separator between different fields (default: "\n")
     
-    Yields:
-        dict: One formatted item per field with keys:
-              - field: The original field name
-              - label: The display label for the field  
-              - value: The raw field value
-              - formatted: The formatted display text
-              - type: The detected value type
+    Returns:
+        str: Single formatted string containing all fields in "Property: Value" format
     """
     
-    def __init__(self, field_list: str, format_type: str = "auto", wrap_width: int = 80, 
-                 fail_on_missing: bool = False, include_metadata: bool = False):
-        super().__init__()
-        self.field_list = field_list
-        self.format_type = format_type
-        self.wrap_width = wrap_width
-        self.fail_on_missing = fail_on_missing
-        self.include_metadata = include_metadata
-        
-        # Parse field mappings
-        self.field_mappings = parse_key_value_str(field_list)
-    
-    def _detect_value_type(self, value: Any) -> str:
+    def _detect_value_type(value: Any) -> str:
         """Detect the type of value for appropriate formatting"""
         if value is None:
             return "null"
@@ -204,19 +186,19 @@ class FormattedItem(AbstractSegment):
         else:
             return "object"
     
-    def _format_value(self, value: Any, value_type: str) -> str:
+    def _format_value(value: Any, value_type: str) -> str:
         """Format a value based on its type and the requested format"""
         if value is None:
             return "(null)"
         
         # Apply format_type override if specified
-        if self.format_type != "auto":
-            if self.format_type == "json":
+        if format_type != "auto":
+            if format_type == "json":
                 return json.dumps(value, indent=2, ensure_ascii=False)
-            elif self.format_type == "text":
-                return self._format_as_text(str(value))
-            elif self.format_type == "clean":
-                return self._clean_text(str(value))
+            elif format_type == "text":
+                return _format_as_text(str(value))
+            elif format_type == "clean":
+                return _clean_text(str(value))
         
         # Auto-formatting based on detected type
         if value_type == "null":
@@ -231,15 +213,15 @@ class FormattedItem(AbstractSegment):
         elif value_type == "text":
             return str(value)
         elif value_type == "long_text":
-            return self._format_as_text(str(value))
+            return _format_as_text(str(value))
         elif value_type == "html":
-            return self._clean_html_text(str(value))
+            return _clean_html_text(str(value))
         elif value_type == "json":
             return json.dumps(value, indent=2, ensure_ascii=False)
         else:
             return str(value)
     
-    def _format_as_text(self, text: str) -> str:
+    def _format_as_text(text: str) -> str:
         """Format text with proper wrapping and paragraph breaks"""
         # Normalize whitespace
         text = re.sub(r'\s+', ' ', text)
@@ -250,72 +232,104 @@ class FormattedItem(AbstractSegment):
         # Wrap lines
         paragraphs = text.split('\n\n')
         wrapped_paragraphs = [
-            textwrap.fill(para, width=self.wrap_width, break_long_words=False)
+            textwrap.fill(para, width=wrap_width, break_long_words=False)
             for para in paragraphs
         ]
         
         return '\n\n'.join(wrapped_paragraphs)
     
-    def _clean_text(self, text: str) -> str:
+    def _clean_text(text: str) -> str:
         """Clean up text by normalizing whitespace"""
         # Replace multiple spaces/newlines with single spaces
         text = re.sub(r'\s+', ' ', text)
         return text.strip()
     
-    def _clean_html_text(self, html: str) -> str:
+    def _clean_html_text(html: str) -> str:
         """Clean HTML and format as readable text"""
         # Basic HTML tag removal (you could use talkpipe's htmlToText here)
         text = re.sub(r'<[^>]+>', '', html)
         text = re.sub(r'\s+', ' ', text)
-        return self._format_as_text(text)
+        return _format_as_text(text)
     
-    def _create_output_item(self, field: str, label: str, value: Any, item: dict) -> dict:
-        """Create a formatted output item"""
-        value_type = self._detect_value_type(value)
-        formatted = self._format_value(value, value_type)
+    # Main formatting logic
+    formatted_fields = []
+    
+    for field, label in field_mappings.items():
+        try:
+            # Extract the field value
+            value = extract_property(item, field, fail_on_missing=fail_on_missing)
+            
+            # Format the value
+            value_type = _detect_value_type(value)
+            formatted_value = _format_value(value, value_type)
+            
+            # Create formatted field string
+            field_string = f"{label}{separator}{formatted_value}"
+            formatted_fields.append(field_string)
+            
+        except Exception as e:
+            if fail_on_missing:
+                raise
+            else:
+                # Add error field
+                error_string = f"{label}{separator}Error: {str(e)}"
+                formatted_fields.append(error_string)
+    
+    # Join all fields into a single string
+    return field_separator.join(formatted_fields)
+
+
+@registry.register_segment("formattedItem")
+class FormattedItem(AbstractSegment):
+    """
+    Generate formatted output for specified fields in "Property: Value" format.
+    
+    This segment takes each input item and generates one formatted string output 
+    containing all specified fields. Each field is in the format "Label: Value".
+    
+    Args:
+        field_list (str): Comma-separated list of field:label pairs. 
+                         Format: "field1:Label1,field2:Label2" or just "field1,field2"
+        format_type (str): Type of formatting to apply ("auto", "text", "json", "clean")
+        wrap_width (int): Width for text wrapping (default: 80)
+        fail_on_missing (bool): Whether to fail if a field is missing (default: False)
+        separator (str): Separator between property and value (default: ": ")
+        field_separator (str): Separator between different fields (default: "\n")
+    
+    Yields:
+        str: One formatted string per input item containing all fields
+    """
+    
+    def __init__(self, field_list: str, format_type: str = "auto", wrap_width: int = 80, 
+                 fail_on_missing: bool = False, separator: str = ": ", 
+                 field_separator: str = "\n"):
+        super().__init__()
+        self.field_list = field_list
+        self.format_type = format_type
+        self.wrap_width = wrap_width
+        self.fail_on_missing = fail_on_missing
+        self.separator = separator
+        self.field_separator = field_separator
         
-        output = {
-            "field": field,
-            "label": label,
-            "value": value,
-            "formatted": formatted
-        }
-        
-        if self.include_metadata:
-            output.update({
-                "type": value_type,
-                "length": len(str(value)) if value is not None else 0,
-                "source_item_keys": list(item.keys()) if isinstance(item, dict) else []
-            })
-        
-        return output
+        # Parse field mappings
+        self.field_mappings = parse_key_value_str(field_list)
 
     def transform(self, input_iter: Iterable) -> Iterator:
-        """Transform each input item into formatted field items"""
+        """Transform each input item into a single formatted string"""
         for item in input_iter:
-            for field, label in self.field_mappings.items():
-                try:
-                    # Extract the field value
-                    value = extract_property(item, field, fail_on_missing=self.fail_on_missing)
-                    
-                    # Create and yield formatted output
-                    formatted_item = self._create_output_item(field, label, value, item)
-                    yield formatted_item
-                    
-                except Exception as e:
-                    if self.fail_on_missing:
-                        raise
-                    else:
-                        # Yield an error item
-                        error_item = {
-                            "field": field,
-                            "label": label,
-                            "value": None,
-                            "formatted": f"Error: {str(e)}",
-                            "type": "error"
-                        }
-                        yield error_item
-
+            # Use the standalone function to format the item
+            formatted_string = format_item_fields(
+                item=item,
+                field_mappings=self.field_mappings,
+                format_type=self.format_type,
+                wrap_width=self.wrap_width,
+                fail_on_missing=self.fail_on_missing,
+                separator=self.separator,
+                field_separator=self.field_separator
+            )
+            
+            # Yield one string per item
+            yield formatted_string
 
 @registry.register_segment("appendAs")
 @field_segment
