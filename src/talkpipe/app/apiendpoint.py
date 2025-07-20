@@ -613,7 +613,6 @@ class JSONReceiver:
         <body>
             <div class="header">
                 <h1>{self.form_config.title}</h1>
-                <p>Send JSON data and view real-time responses</p>
             </div>
             
             <div class="main-container">

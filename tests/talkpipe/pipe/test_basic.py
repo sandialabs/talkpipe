@@ -4,6 +4,7 @@ import pandas as pd
 from talkpipe.pipe import basic
 import talkpipe.pipe.io
 from talkpipe.chatterlang import compiler
+import logging
 
 def test_progressTicks_basic(capsys):
     # Should print a tick every 2 items, newline after 4 ticks, no count
@@ -13,8 +14,8 @@ def test_progressTicks_basic(capsys):
     assert ans == list(range(9))
     captured = capsys.readouterr()
     # 9 items, tick every 2: ticks at 2,4,6,8 (4 ticks), newline after 4 ticks
-    assert captured.out.count("*") == 4
-    assert "\n" in captured.out
+    assert "****\n" in captured.err
+    assert "\n" in captured.err
 
 def test_progressTicks_with_print_count(capsys):
     # Should print tick and count at end of line
@@ -24,8 +25,8 @@ def test_progressTicks_with_print_count(capsys):
     assert ans == list(range(6))
     captured = capsys.readouterr()
     # Should print 3 dots, then '3', newline, then 3 dots, '6', newline
-    assert captured.out.count(".") == 6
-    assert "3" in captured.out and "6" in captured.out
+    assert "...3\n" in captured.err
+    assert "...6\n" in captured.err
 
 def test_firstN():
     f = basic.firstN(n=3)

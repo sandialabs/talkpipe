@@ -6,9 +6,6 @@ import time
 import sys
 import pickle
 import hashlib
-import json
-import textwrap
-import re
 import pandas as pd
 from talkpipe.util.config import configure_logger, parse_key_value_str
 from talkpipe.util.data_manipulation import extract_property, extract_template_field_names, get_all_attributes, toDict
@@ -17,7 +14,7 @@ from talkpipe.util.os import run_command
 from talkpipe.util.data_manipulation import get_type_safely
 from talkpipe.pipe.core import AbstractSegment, source, segment, field_segment
 import talkpipe.chatterlang.registry as registry
-from talkpipe.util.data_manipulation import fill_template
+from talkpipe.util.data_manipulation import fill_template, dict_to_text, toDict
 
 logger = logging.getLogger(__name__)
 
@@ -146,140 +143,7 @@ class ToDict(AbstractSegment):
             ans = toDict(data, self.field_list, self.fail_on_missing)
             yield ans
 
-def format_item_fields(item: dict, field_mappings: Dict[str, str], 
-                      format_type: str = "auto", wrap_width: int = 80, 
-                      fail_on_missing: bool = False, separator: str = ": ",
-                      field_separator: str = "\n") -> str:
-    """
-    Convert a single item's fields to a single "Property: Value" formatted string.
-    
-    Args:
-        item (dict): The input item to format
-        field_mappings (Dict[str, str]): Mapping of field names to display labels
-        format_type (str): Type of formatting to apply ("auto", "text", "json", "clean")
-        wrap_width (int): Width for text wrapping (default: 80)
-        fail_on_missing (bool): Whether to fail if a field is missing (default: False)
-        separator (str): Separator between property and value (default: ": ")
-        field_separator (str): Separator between different fields (default: "\n")
-    
-    Returns:
-        str: Single formatted string containing all fields in "Property: Value" format
-    """
-    
-    def _detect_value_type(value: Any) -> str:
-        """Detect the type of value for appropriate formatting"""
-        if value is None:
-            return "null"
-        elif isinstance(value, bool):
-            return "boolean"
-        elif isinstance(value, (int, float)):
-            return "number"
-        elif isinstance(value, str):
-            if len(value) > 200:
-                return "long_text"
-            elif '<' in value and '>' in value:
-                return "html"
-            else:
-                return "text"
-        elif isinstance(value, (dict, list)):
-            return "json"
-        else:
-            return "object"
-    
-    def _format_value(value: Any, value_type: str) -> str:
-        """Format a value based on its type and the requested format"""
-        if value is None:
-            return "(null)"
-        
-        # Apply format_type override if specified
-        if format_type != "auto":
-            if format_type == "json":
-                return json.dumps(value, indent=2, ensure_ascii=False)
-            elif format_type == "text":
-                return _format_as_text(str(value))
-            elif format_type == "clean":
-                return _clean_text(str(value))
-        
-        # Auto-formatting based on detected type
-        if value_type == "null":
-            return "(null)"
-        elif value_type == "boolean":
-            return "✓ Yes" if value else "✗ No"
-        elif value_type == "number":
-            if isinstance(value, float):
-                return f"{value:.4f}" if abs(value) < 1000 else f"{value:.2e}"
-            else:
-                return f"{value:,}"  # Add thousands separators
-        elif value_type == "text":
-            return str(value)
-        elif value_type == "long_text":
-            return _format_as_text(str(value))
-        elif value_type == "html":
-            return _clean_html_text(str(value))
-        elif value_type == "json":
-            return json.dumps(value, indent=2, ensure_ascii=False)
-        else:
-            return str(value)
-    
-    def _format_as_text(text: str) -> str:
-        """Format text with proper wrapping and paragraph breaks"""
-        # Normalize whitespace
-        text = re.sub(r'\s+', ' ', text)
-        
-        # Add paragraph breaks at sentence boundaries
-        text = re.sub(r'(\. )([A-Z])', r'\1\n\n\2', text)
-        
-        # Wrap lines
-        paragraphs = text.split('\n\n')
-        wrapped_paragraphs = [
-            textwrap.fill(para, width=wrap_width, break_long_words=False)
-            for para in paragraphs
-        ]
-        
-        return '\n\n'.join(wrapped_paragraphs)
-    
-    def _clean_text(text: str) -> str:
-        """Clean up text by normalizing whitespace"""
-        # Replace multiple spaces/newlines with single spaces
-        text = re.sub(r'\s+', ' ', text)
-        return text.strip()
-    
-    def _clean_html_text(html: str) -> str:
-        """Clean HTML and format as readable text"""
-        # Basic HTML tag removal (you could use talkpipe's htmlToText here)
-        text = re.sub(r'<[^>]+>', '', html)
-        text = re.sub(r'\s+', ' ', text)
-        return _format_as_text(text)
-    
-    # Main formatting logic
-    formatted_fields = []
-    
-    for field, label in field_mappings.items():
-        try:
-            # Extract the field value
-            value = extract_property(item, field, fail_on_missing=fail_on_missing)
-            
-            # Format the value
-            value_type = _detect_value_type(value)
-            formatted_value = _format_value(value, value_type)
-            
-            # Create formatted field string
-            field_string = f"{label}{separator}{formatted_value}"
-            formatted_fields.append(field_string)
-            
-        except Exception as e:
-            if fail_on_missing:
-                raise
-            else:
-                # Add error field
-                error_string = f"{label}{separator}Error: {str(e)}"
-                formatted_fields.append(error_string)
-    
-    # Join all fields into a single string
-    return field_separator.join(formatted_fields)
-
-
-@registry.register_segment("formattedItem")
+@registry.register_segment("formatItem")
 class FormattedItem(AbstractSegment):
     """
     Generate formatted output for specified fields in "Property: Value" format.
@@ -300,30 +164,28 @@ class FormattedItem(AbstractSegment):
         str: One formatted string per input item containing all fields
     """
     
-    def __init__(self, field_list: str, format_type: str = "auto", wrap_width: int = 80, 
+    def __init__(self, field_list: str, wrap_width: int = 80, 
                  fail_on_missing: bool = False, separator: str = ": ", 
                  field_separator: str = "\n"):
         super().__init__()
         self.field_list = field_list
-        self.format_type = format_type
+        self.wrap_width = wrap_width
         self.wrap_width = wrap_width
         self.fail_on_missing = fail_on_missing
         self.separator = separator
         self.field_separator = field_separator
         
         # Parse field mappings
-        self.field_mappings = parse_key_value_str(field_list)
+        self.field_list = field_list
 
     def transform(self, input_iter: Iterable) -> Iterator:
         """Transform each input item into a single formatted string"""
         for item in input_iter:
+            d = toDict(item, self.field_list, self.fail_on_missing)
             # Use the standalone function to format the item
-            formatted_string = format_item_fields(
-                item=item,
-                field_mappings=self.field_mappings,
-                format_type=self.format_type,
+            formatted_string = dict_to_text(
+                d,
                 wrap_width=self.wrap_width,
-                fail_on_missing=self.fail_on_missing,
                 separator=self.separator,
                 field_separator=self.field_separator
             )
