@@ -2,12 +2,13 @@
 
 ## Under Development
 ### New Segments and Sources
+ - Added **formatItem** to produce a human readable text representation of various properties of an item.
 
 ### Improvements
  - Added "examples" directory tree with stand-along examples for how to use talkpipe along
    with tutorial documentation.
  - Updated **progressTicks** so it writes to stderr rather than stdout
- - Updated **searchWhoosh** to be a field_segment so that specified fields can be the query
+ - Updated **searchWhoosh** so the user can specify fields to use as the query and whether to attach results or pass them all along.
 
 ## 0.7.0
 ### New Segments and Sources
