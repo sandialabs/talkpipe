@@ -1,0 +1,11 @@
+title: "Story Search by Example"
+position: "bottom"
+height: "150px"
+theme: "dark"
+
+fields:
+  - name: example
+    type: "textarea"
+    label: "Example"
+    placeholder: "Enter example here"
+    required: true
