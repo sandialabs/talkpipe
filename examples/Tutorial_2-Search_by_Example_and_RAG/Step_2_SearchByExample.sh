@@ -7,9 +7,12 @@
 #
 # The pipeline is:
 # 1. Read the example query from the user.
-# 2. Use the `llmEmbed` segment to convert the example into a vector.
-# 3. Use the `searchVector` segment to search the vector index for similar documents.
-# 4. Format the results using `formatItem` and print them.
+# 2. Make a defensive copy of the input data.  This is especially important when
+#    working with the endpoint api because the input data will be sent to the
+#    browser.
+# 3. Use the `llmEmbed` segment to convert the example into a vector.
+# 4. Use the `searchVector` segment to search the vector index for similar documents.
+# 5. Format the results using `formatItem` and print them.
 ###################################################################################
 
 #talkpipe_endpoint --form-config story_by_example_ui.yaml --script "

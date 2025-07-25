@@ -1321,8 +1321,8 @@ class JSONReceiverSegment(AbstractSource):
 def go():
     
     parser = argparse.ArgumentParser(description='FastAPI JSON Data Receiver with Configurable Form')
-    parser.add_argument('-p', '--port', type=int, default=9999,
-                        help='Port to listen on (default: 9999)')
+    parser.add_argument('-p', '--port', type=int, default=2025,
+                        help='Port to listen on (default: 2025)')
     parser.add_argument('-o', '--host', default='0.0.0.0',
                         help='Host to bind to (default: 0.0.0.0)')
     parser.add_argument('--api-key', help='Set API key for authentication')
