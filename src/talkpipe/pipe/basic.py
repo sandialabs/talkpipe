@@ -6,6 +6,7 @@ import time
 import sys
 import pickle
 import hashlib
+import copy
 import pandas as pd
 from talkpipe.util.config import configure_logger, parse_key_value_str
 from talkpipe.util.data_manipulation import extract_property, extract_template_field_names, get_all_attributes, toDict
@@ -633,3 +634,31 @@ class FilterExpression(AbstractSegment):
             # Yield the item if the expression evaluates to True
             if result:
                 yield item
+
+
+@registry.register_segment("copy")
+@segment
+def copy_segment(items):
+    """A segment that creates a shallow copy of each item in the input iterable.
+    
+    This can be used to create a defensive copy of items in the pipline, ensuring that modifications
+    to the items do not affect the original items in the input stream.  
+
+    Args:
+        items (Iterable): An iterable of items to copy.
+    """
+    for item in items:
+        yield copy.copy(item)
+
+@registry.register_segment("deepCopy")
+@segment
+def deep_copy_segment(items):
+    """A segment that creates a deep copy of each item in the input iterable.
+    
+    This can be used to create a defensive copy of items in the pipeline, ensuring that modifications
+    to the items do not affect the original items in the input stream.
+    Args:
+        items (Iterable): An iterable of items to copy.
+    """
+    for item in items:
+        yield copy.deepcopy(item)
