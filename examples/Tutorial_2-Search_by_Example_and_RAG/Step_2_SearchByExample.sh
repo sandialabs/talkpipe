@@ -12,9 +12,10 @@
 # 4. Format the results using `formatItem` and print them.
 ###################################################################################
 
-talkpipe_endpoint --form-config story_by_example_ui.yaml --script "
+#talkpipe_endpoint --form-config story_by_example_ui.yaml --script "
+python -m talkpipe.app.apiendpoint --form-config story_by_example_ui.yaml --script "
+    | copy
     | llmEmbed[field=\"example\", source=\"ollama\", model=\"mxbai-embed-large\", append_as=\"vector\"]
-    | searchVector[path=\"./vector_index\", vector_field=\"vector\"]
-    | formatItem[field_list=\"document.title:Title,document.content:Content,score:Score\"]
-    | print
+    | searchVector[vector_field=\"vector\", path=\"./vector_index\"]
+    | formatItem[field_list=\"document.title:Title, document.content:Content, score:Score\"]
 "
