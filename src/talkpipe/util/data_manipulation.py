@@ -177,8 +177,8 @@ def toDict(data, field_list: str = "_", fail_on_missing: bool = True):
         ans[assignment[1]] = data if assignment[0]=="_" else extract_property(data, assignment[0], fail_on_missing)
     return ans
 
-def dict_to_text(data: dict, wrap_width: int = 80, separator: str = ": ",
-                 field_separator: str = "\n") -> str:
+def dict_to_text(data: dict, wrap_width: int = 80, field_name_separator: str = ": ",
+                 field_separator: str = "\n", item_suffix = "") -> str:
     """
     Convert a dictionary to a formatted string. Each field is separated by the specified field_separator, and
     each property and value is separated by the specified separator.
@@ -197,8 +197,8 @@ def dict_to_text(data: dict, wrap_width: int = 80, separator: str = ": ",
         cleaned_value = str(value).strip()
         if wrap_width > 0:
             cleaned_value = textwrap.fill(cleaned_value, width=wrap_width)
-        output_lines.append(f"{key}{separator}{cleaned_value}")
-    return field_separator.join(output_lines)
+        output_lines.append(f"{key}{field_name_separator}{cleaned_value}")
+    return field_separator.join(output_lines) + item_suffix
 
 
 def extract_template_field_names(template: str) -> list:

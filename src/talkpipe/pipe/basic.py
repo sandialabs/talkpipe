@@ -166,16 +166,16 @@ class FormattedItem(AbstractSegment):
     """
     
     def __init__(self, field_list: str, wrap_width: int = 80, 
-                 fail_on_missing: bool = False, separator: str = ": ", 
-                 field_separator: str = "\n"):
+                 fail_on_missing: bool = False, field_name_separator: str = ": ", 
+                 field_separator: str = "\n", item_suffix: str = ""):
         super().__init__()
         self.field_list = field_list
         self.wrap_width = wrap_width
-        self.wrap_width = wrap_width
+        self.field_name_separator = field_name_separator
         self.fail_on_missing = fail_on_missing
-        self.separator = separator
         self.field_separator = field_separator
-        
+        self.item_suffix = item_suffix
+
         # Parse field mappings
         self.field_list = field_list
 
@@ -187,8 +187,9 @@ class FormattedItem(AbstractSegment):
             formatted_string = dict_to_text(
                 d,
                 wrap_width=self.wrap_width,
-                separator=self.separator,
-                field_separator=self.field_separator
+                field_name_separator=self.field_name_separator,
+                field_separator=self.field_separator,
+                item_suffix=self.item_suffix
             )
             
             # Yield one string per item
