@@ -1350,7 +1350,7 @@ def go():
     if args.script_var and args.script:
         raise ValueError("Cannot specify both --script-var and --script. Use one or the other.")
     if args.script_var:
-        script = get_config(args.script_var)
+        script = get_config()[args.script_var]
         if not script:
             raise ValueError(f"No script found for variable '{args.script_var}' in configuration.")
     else:
@@ -1369,7 +1369,7 @@ def go():
     if args.form_config:
         if args.form_config.startswith('$'):
             # Try to load from config variable
-            config_data = get_config(args.form_config[1:])
+            config_data = get_config()[args.form_config[1:]]
             if config_data:
                 form_config = json.loads(config_data) if isinstance(config_data, str) else config_data
             else:
