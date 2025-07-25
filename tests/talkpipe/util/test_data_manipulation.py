@@ -47,7 +47,7 @@ def test_dict_to_text(item, expected):
 
 def test_dict_to_text_separator_and_field_separator():
     item = {"a": 1, "b": 2}
-    out = data_manipulation.dict_to_text(item, separator=" = ", field_separator=" | ")
+    out = data_manipulation.dict_to_text(item, field_name_separator=" = ", field_separator=" | ")
     assert out == "a = 1 | b = 2"
 
 
