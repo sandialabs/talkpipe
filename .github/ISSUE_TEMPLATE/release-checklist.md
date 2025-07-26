@@ -10,6 +10,8 @@ assignees: ''
 - [ ] Update CHANGELOG
 - [ ] Commit all changes
 - [ ] Ensure unit tests pass in live environment
+- [ ] Run examples in the tutorials
+- [ ] Run examples in the tutorial
 - [ ] Merge into master
 - [ ] Build docker image
 - [ ] Tag repository
