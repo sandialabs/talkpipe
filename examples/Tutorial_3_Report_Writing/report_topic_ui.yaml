@@ -1,0 +1,11 @@
+title: "Report Generation by Topic"
+position: "bottom"
+height: "150px"
+theme: "dark"
+
+fields:
+  - name: topic
+    type: "textarea"
+    label: "Report Topic"
+    placeholder: "Enter the topic you want to generate a report about (e.g., 'artificial intelligence developments', 'quantum computing innovations', 'renewable energy technologies')"
+    required: true
