@@ -34,31 +34,104 @@ This approach serves different organizational needs:
 
 **For Research Teams**: Generate literature reviews, research summaries, and analysis reports from large document collections without manual compilation.
 
-**For Business Intelligence**: Create executive briefings, market analysis reports, and competitive intelligence documents from various data sources.
+**Consulting Firms**: Create detailed analysis reports for teams, executive summaries for clients, and presentation materials for meetings.
 
-**For Consulting**: Produce client reports, recommendations documents, and project summaries that synthesize findings from multiple research phases.
+**Technology Companies**: Produce technical documentation for developers, marketing materials for customers, and strategic briefings for executives.
 
-**For Content Strategy**: Generate comprehensive content briefs, topic analyses, and editorial calendars based on existing content libraries.
+**Government Agencies**: Generate policy briefs for legislators, technical reports for specialists, and public communications for citizens.
 
-Let's explore each step and understand how TalkPipe's pipeline approach makes complex document generation manageable and scalable.
+### From Prototype to Production
+
+**For Small Organizations**: The built-in reporting pipeline might serve as your complete documentation solution, providing professional reports without custom development.
+
+**For Enterprise Deployments**: These pipelines become the foundation for larger document generation systems, with the proven logic extracted and integrated into existing workflows and content management systems.
+
+**For Product Integration**: The modular nature of TalkPipe pipelines makes it straightforward to embed report generation capabilities into existing applications, whether through API integration or direct pipeline embedding.
+
+---
+
+## Learning Outcomes
+
+Working through this tutorial teaches both technical implementation and strategic document generation concepts:
+
+**Technical Skills**:
+- How to structure complex prompts for multi-section document generation
+- How to maintain coherence across longer generated content
+- How to create adaptive formatting for different audiences
+- How to build quality assurance into automated writing pipelines
+
+**Document Strategy**:
+- When automated generation is appropriate vs manual writing
+- How to balance comprehensive coverage with readability
+- How to maintain consistency across multiple document formats
+- How to design templates that scale across different content domains
+
+**Pipeline Architecture**:
+- How to compose complex document workflows from simple segments
+- How to handle different content types and output formats
+- How to integrate retrieval and generation for comprehensive coverage
+- How to build reusable components for document generation
+
+The progression from simple search (Tutorial 1) through interactive Q&A (Tutorial 2) to comprehensive report generation (Tutorial 3) demonstrates how TalkPipe's modular approach enables increasingly sophisticated applications while maintaining clarity and maintainability.
+
+Whether you're building research tools, business intelligence systems, or content generation platforms, this tutorial provides patterns that scale from rapid prototyping to production deployment.
+
+---
+
+## Getting Started
+
+To run this tutorial, you'll need to complete Tutorials 1 and 2 first, as this tutorial builds on the vector index created in Tutorial 2.
+
+**Prerequisites:**
+1. Complete Tutorial 1 (Document Indexing) to generate the synthetic story data
+2. Complete Tutorial 2 (Search by Example and RAG) to create the vector index
+3. Ensure you have Ollama running with the required models:
+   - `mxbai-embed-large` for embeddings
+   - `llama3.2` for text generation
+
+**Running the Tutorial Steps:**
+
+1. **Executive Summary Generation:**
+   ```bash
+   cd Tutorial_3-Report_Writing
+   chmod +x step1.sh
+   ./step1.sh
+   ```
+
+2. **Detailed Analysis Reports:**
+   ```bash
+   chmod +x step2.sh
+   ./step2.sh
+   ```
+
+3. **Multi-Format Report Pipeline:**
+   ```bash
+   chmod +x step3.sh
+   ./step3.sh
+   ```
+
+Each step will start a web server and provide you with a URL to access the reporting interface. Visit the `/stream` endpoint for the user-friendly web interface.
+
+**Example Topics to Try:**
+- "artificial intelligence and machine learning developments"
+- "quantum computing innovations and breakthroughs" 
+- "renewable energy and sustainability technologies"
+- "space exploration and satellite technology"
+- "biotechnology and medical innovations"
+
+The system will retrieve relevant documents from the synthetic story collection and generate reports in your chosen format.
 
 ---
 
 ## Step 1: Executive Summary Generation
-*Creating concise, high-level overviews from retrieved content*
+*Creating professional summaries from retrieved documents*
 
 ### The Challenge
-Executive summaries require a unique balance: they must be comprehensive enough to stand alone while remaining concise enough for busy readers. The challenge is automatically extracting key themes, identifying the most important insights, and presenting them in a logical, readable format.
+Organizations often need executive summaries that distill complex information into concise, actionable overviews. Traditional manual summarization is time-consuming and may miss important connections across multiple documents.
 
-Traditional search systems can find relevant documents, but they can't synthesize multiple sources into coherent executive communication. This step demonstrates how to bridge that gap.
+### The Solution: Structured RAG for Business Communication
 
-### The Solution: Structured Summary Pipeline
-
-Step 1 builds a pipeline that:
-- **Retrieves relevant documents** using the vector search from Tutorial 2
-- **Analyzes content themes** to identify main topics and insights
-- **Generates structured summaries** with key findings, implications, and recommendations
-- **Formats output professionally** for executive consumption
+Step 1 demonstrates how to transform retrieved documents into professional executive summaries using structured prompts.
 
 ```bash
 python -m talkpipe.app.apiendpoint --form-config report_topic_ui.yaml --load_module step_1_extras.py --script "
@@ -66,64 +139,46 @@ python -m talkpipe.app.apiendpoint --form-config report_topic_ui.yaml --load_mod
     | llmEmbed[field=\"topic\", source=\"ollama\", model=\"mxbai-embed-large\", append_as=\"vector\"]
     | searchVector[vector_field=\"vector\", path=\"../Tutorial_2-Search_by_Example_and_RAG/vector_index\", all_results_at_once=True, append_as=\"results\"]
     | executiveSummaryPrompt
-    | llmPrompt[source=\"ollama\", model=\"llama3.2\"]
+    | llmPrompt
 "
 ```
 
-### Understanding the Executive Summary System
+### Understanding the Executive Summary Pipeline
 
-**1. Topic-Driven Retrieval**
+**1. Topic Processing**
 ```
-| llmEmbed[field="topic", source="ollama", model="mxbai-embed-large", append_as="vector"]
-| searchVector[vector_field="vector", path="../Tutorial_2-Search_by_Example_and_RAG/vector_index", all_results_at_once=True, append_as="results"]
+| llmEmbed[field="topic", ...]
 ```
-Unlike question-based RAG, this system starts with broader topics. Users input themes like "artificial intelligence developments" or "quantum computing breakthroughs," and the system retrieves all relevant documents for comprehensive analysis.
+Convert the user's broad topic into a vector for semantic search.
 
-**2. Executive Summary Formatting**
+**2. Document Retrieval**
+```
+| searchVector[..., all_results_at_once=True, append_as="results"]
+```
+Retrieve multiple relevant documents that will inform the summary.
+
+**3. Summary Generation**
 ```
 | executiveSummaryPrompt
+| llmPrompt
 ```
-This custom segment (defined in `step_1_extras.py`) structures the retrieved content into a professional executive summary format with:
-- **Executive Overview** - High-level synthesis of key themes
-- **Key Findings** - Most important insights from the retrieved documents  
-- **Technology Highlights** - Specific innovations or developments mentioned
-- **Strategic Implications** - What these findings mean for decision-makers
+The `executiveSummaryPrompt` segment (defined in `step_1_extras.py`) structures the retrieved content into a professional format with key findings, strategic implications, and recommendations.
 
-**3. Professional Output Generation**
-The LLM prompt generates business-ready summaries that executives can use directly in meetings, strategic planning, or stakeholder communications.
+### Business-Focused Output
 
-### Prototyping and Customization
-
-This approach supports rapid experimentation with different summary styles:
-
-**Different Summary Formats**: Modify the prompt template to generate:
-- Technical briefs for engineering teams
-- Market intelligence reports for business development
-- Research overviews for academic audiences
-- Investment summaries for financial analysis
-
-**Different Content Sources**: Point to different vector indices:
-```bash
-| searchVector[vector_field="vector", path="../custom_research_index", ...]
-```
-
-**Different Depth Levels**: Adjust retrieval parameters:
-```bash
-| searchVector[..., max_results=20, score_threshold=0.7, ...]
-```
-
-**Different Output Formats**: Chain additional segments:
-```bash
-| executiveSummaryPrompt | llmPrompt | convertToMarkdown | saveAsFile
-```
+Unlike simple Q&A, executive summaries require:
+- **Strategic perspective** on the implications of findings
+- **Actionable recommendations** based on the analysis
+- **Professional formatting** appropriate for leadership consumption
+- **Synthesis across sources** rather than isolated facts
 
 ---
 
-## Step 2: Detailed Analysis Reports  
-*Generating comprehensive, multi-section documents*
+## Step 2: Detailed Analysis Reports
+*Comprehensive multi-section documents with in-depth analysis*
 
 ### The Challenge
-While executive summaries provide high-level overviews, many use cases require detailed analysis documents. These reports need multiple sections, in-depth exploration of topics, supporting evidence, and logical argumentation. The challenge is maintaining coherence across longer documents while ensuring comprehensive coverage of complex topics.
+Executive summaries provide overviews, but many stakeholders need detailed analysis documents. These reports need multiple sections, in-depth exploration of topics, supporting evidence, and logical argumentation. The challenge is maintaining coherence across longer documents while ensuring comprehensive coverage of complex topics.
 
 ### The Solution: Multi-Section Report Architecture
 
@@ -134,15 +189,15 @@ python -m talkpipe.app.apiendpoint --form-config report_topic_ui.yaml --load_mod
     | copy
     | llmEmbed[field=\"topic\", source=\"ollama\", model=\"mxbai-embed-large\", append_as=\"vector\"]
     | searchVector[vector_field=\"vector\", path=\"../Tutorial_2-Search_by_Example_and_RAG/vector_index\", all_results_at_once=True, append_as=\"results\"]
-    | generateReportSections
-    | formatDetailedReport
+    | generateReportSectionPrompts
+    | generateDetailedReport
 "
 ```
 
 ### Understanding Multi-Section Report Generation
 
 **1. Section Planning**
-The `generateReportSections` segment analyzes the retrieved content and creates multiple specialized sections:
+The `generateReportSectionPrompts` segment analyzes the retrieved content and creates multiple specialized sections:
 - **Introduction and Background** - Context and overview
 - **Detailed Analysis** - In-depth exploration of key themes
 - **Technology Deep Dive** - Technical details and innovations
@@ -152,7 +207,7 @@ The `generateReportSections` segment analyzes the retrieved content and creates 
 
 **2. Coherent Document Assembly**
 ```
-| formatDetailedReport
+| generateDetailedReport
 ```
 This segment combines individual sections into a professional document with:
 - **Consistent formatting** across all sections
@@ -244,73 +299,56 @@ This multi-format approach addresses common organizational challenges:
 
 ---
 
-## Learning Outcomes
+## File Structure
 
-Working through this tutorial teaches both technical implementation and strategic document generation concepts:
+This tutorial creates the following files:
 
-**Technical Skills**:
-- How to structure complex prompts for multi-section document generation
-- How to maintain coherence across longer generated content
-- How to create adaptive formatting for different audiences
-- How to build quality assurance into automated writing pipelines
+```
+Tutorial_3-Report_Writing/
+├── README.md                      # Main tutorial documentation  
+├── step1.sh                       # Executive summary generation script
+├── step2.sh                       # Detailed multi-section reports
+├── step3.sh                       # Multi-format report generation
+├── step_1_extras.py               # Custom segment for executive summaries
+├── step_2_extras.py               # Custom segments for detailed reports  
+├── step_3_extras.py               # Custom segment for multi-format reports
+├── report_topic_ui.yaml           # UI config for topic-based reporting
+└── multi_format_ui.yaml           # UI config for format selection
+```
 
-**Document Strategy**:
-- When automated generation is appropriate vs manual writing
-- How to balance comprehensive coverage with readability
-- How to maintain consistency across multiple document formats
-- How to design templates that scale across different content domains
+### File Descriptions
 
-**Pipeline Architecture**:
-- How to compose complex document workflows from simple segments
-- How to handle different content types and output formats
-- How to integrate retrieval and generation for comprehensive coverage
-- How to build reusable components for document generation
+**step1.sh**: Creates professional executive summaries using RAG. Builds on Tutorial 2's vector search but focuses on structured business communication rather than Q&A.
 
-The progression from simple search (Tutorial 1) through interactive Q&A (Tutorial 2) to comprehensive report generation (Tutorial 3) demonstrates how TalkPipe's modular approach enables increasingly sophisticated applications while maintaining clarity and maintainability.
+**step2.sh**: Generates comprehensive multi-section reports with introduction, analysis, technology deep-dive, future implications, and recommendations sections.
 
-Whether you're building research tools, business intelligence systems, or content generation platforms, this tutorial provides patterns that scale from rapid prototyping to production deployment.
+**step3.sh**: Creates the same report content in different formats (executive brief, technical report, client summary, research memo, presentation outline) based on user selection.
+
+**step_1_extras.py**: Contains the `executiveSummaryPrompt` segment that structures retrieved content into professional executive summary format with key findings and strategic implications.
+
+**step_2_extras.py**: Contains `generateReportSectionPrompts` and `generateDetailedReport` segments that create multi-section reports by generating individual sections and combining them into cohesive documents.
+
+**step_3_extras.py**: Contains `generateMultiFormatReport` segment that adapts the same source material into different formats optimized for different audiences and use cases.
+
+**report_topic_ui.yaml**: Web interface configuration for topic-based report generation, allowing users to specify broad topics rather than specific questions.
+
+**multi_format_ui.yaml**: Extended web interface that includes both topic selection and format selection, enabling users to choose their preferred report style.
 
 ---
 
-## Getting Started
+## Next Steps
 
-To run this tutorial, you'll need to complete Tutorials 1 and 2 first, as this tutorial builds on the vector index created in Tutorial 2.
+After completing this tutorial, you'll have hands-on experience with:
+- Building sophisticated document generation pipelines
+- Creating custom segments for complex text processing
+- Orchestrating multi-step document workflows
+- Designing user interfaces for content generation systems
 
-**Prerequisites:**
-1. Complete Tutorial 1 (Document Indexing) to generate the synthetic story data
-2. Complete Tutorial 2 (Search by Example and RAG) to create the vector index
-3. Ensure you have Ollama running with the required models:
-   - `mxbai-embed-large` for embeddings
-   - `llama3.2` for text generation
+**Potential Extensions:**
+- **Document Templates**: Create reusable templates for specific report types
+- **Quality Validation**: Add automated checks for consistency and completeness
+- **Multi-Language Support**: Generate reports in different languages
+- **Integration Workflows**: Connect to document management systems or collaboration tools
+- **Advanced Formatting**: Add charts, tables, and visual elements to reports
 
-**Running the Tutorial Steps:**
-
-1. **Executive Summary Generation:**
-   ```bash
-   cd Tutorial_3-Report_Writing
-   chmod +x Step_1_ExecutiveSummary.sh
-   ./Step_1_ExecutiveSummary.sh
-   ```
-
-2. **Detailed Analysis Reports:**
-   ```bash
-   chmod +x Step_2_DetailedAnalysis.sh
-   ./Step_2_DetailedAnalysis.sh
-   ```
-
-3. **Multi-Format Report Pipeline:**
-   ```bash
-   chmod +x Step_3_MultiFormat.sh
-   ./Step_3_MultiFormat.sh
-   ```
-
-Each step will start a web server and provide you with a URL to access the reporting interface. Visit the `/stream` endpoint for the user-friendly web interface.
-
-**Example Topics to Try:**
-- "artificial intelligence and machine learning developments"
-- "quantum computing innovations and breakthroughs" 
-- "renewable energy and sustainability technologies"
-- "space exploration and satellite technology"
-- "biotechnology and medical innovations"
-
-The system will retrieve relevant documents from the synthetic story collection and generate reports in your chosen format.
+The patterns demonstrated in this tutorial provide a foundation for building production-scale document generation systems that can transform how organizations create and maintain their written materials.

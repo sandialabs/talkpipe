@@ -15,6 +15,6 @@
 python -m talkpipe.app.apiendpoint --form-config multi_format_ui.yml --load_module step3_extras.py --script "
     | copy
     | llmEmbed[field=\"topic\", source=\"ollama\", model=\"mxbai-embed-large\", append_as=\"vector\"]
-    | searchVector[vector_field=\"vector\", path=\"../Tutorial_2-Search_by_Example_and_RAG/vector_index\", all_results_at_once=True, append_as=\"results\"]
-    | generateMultiFormatReport
+    | searchVector[vector_field=\"vector\", path=\"../Tutorial_2-Search_by_Example_and_RAG/vector_index\", top_k=10, all_results_at_once=True, append_as=\"results\"]
+    | generateMultiFormatReport[model_source=\"openai\", model_name=\"gpt-4.1\"]
 "
