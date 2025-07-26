@@ -10,13 +10,14 @@ assignees: ''
 - [ ] Update CHANGELOG
 - [ ] Commit all changes
 - [ ] Ensure unit tests pass in live environment
-- [ ] Run examples in the tutorials
-- [ ] Run examples in the tutorial
 - [ ] Merge into master
-- [ ] Build docker image
+- [ ] Build docker images and make sure runnable unit tests pass
+        - docker build -f base-image/Dockerfile . -t talkpipe:base
+        - docker build . -t talkpipe:experimental
 - [ ] Tag repository
 - [ ] Build whl files
 - [ ] Install whl file in new environment and test a script in chatterlang_server
+- [ ] Run examples in the tutorials
 - [ ] Push to pypi
 - [ ] Push code to repo
 - [ ] Push tags to repo
