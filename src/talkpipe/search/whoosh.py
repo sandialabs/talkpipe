@@ -8,9 +8,9 @@ from whoosh import index
 from whoosh.fields import Schema, TEXT, ID
 from whoosh.qparser import MultifieldParser, QueryParserError
 from whoosh.writing import LockError
-from talkpipe.pipe import segment
+from talkpipe.pipe import segment, field_segment
 from talkpipe.chatterlang import register_segment
-from talkpipe.util.data_manipulation import toDict
+from talkpipe.util.data_manipulation import toDict, extract_property
 from talkpipe.util.config import parse_key_value_str
 import time
 
@@ -298,7 +298,7 @@ def indexWhoosh(items, index_path: str, field_list: list[str] = ["_:content"],
 @segment()
 def searchWhoosh(queries, index_path: str, limit: int = 100, 
                  all_results_at_once: bool = False, continue_on_error=True,
-                 reload_seconds: int = 60):
+                 reload_seconds: int = 60, field: str = "_", append_as: Optional[str] = None):
     """Search documents using Whoosh full-text indexing.
 
     Args:
@@ -310,12 +310,19 @@ def searchWhoosh(queries, index_path: str, limit: int = 100,
         reload_seconds (int): If > 0, reload the index if the last search was at least this many seconds ago.
     """
     with WhooshSearcher(index_path, reload_seconds=reload_seconds) as idx:
-        for query in queries:
+        for item in queries:
+            query = extract_property(item, field, fail_on_missing=True)
             try:
                 results = idx.text_search(query, limit=limit)
                 if all_results_at_once:
-                    yield results
+                    if append_as:
+                        item[append_as] = results
+                        yield item
+                    else:
+                        yield results
                 else:
+                    if append_as:
+                        raise ValueError("append_as only works with this segment if all_results_at_once is True.")
                     yield from results
                     
             except Exception as e:

@@ -1,4 +1,20 @@
 # Changelog
+## 0.7.1
+### New Segments and Sources
+ - Added **formatItem** to produce a human-readable text representation of various properties of an item, and added relevant methods to data_manipulation.
+ - Added **copy** and **deepcopy** segments for making copies of data in a pipeline. This is important in situations where you 
+   don't want the original input data to be modified during processing.
+
+### Improvements
+ - Added an "examples" directory with three tutorials, each of which builds on the previous one and contains multiple steps.
+ - Updates to **apiendpoint**:
+  - Changed the default port.
+  - Fixed a bug causing it to be unable to load a script from a file.
+ - Added metric and method options to vector_search in the SimpleVectorDB class and propagated those through to searchVector.
+ - Updated **progressTicks** so it writes to stderr rather than stdout.
+ - Updated **searchWhoosh** so the user can specify fields to use as the query and whether to attach results or pass them all along.
+
+
 ## 0.7.0
 ### New Segments and Sources
  - **progressTicks** – Prints out a tick for every n items seen and a new line for every m ticks.  

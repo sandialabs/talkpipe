@@ -1,6 +1,8 @@
 import logging
 import re
 import inspect
+import json
+import textwrap
 from types import MappingProxyType
 from typing import Any, Set
 from talkpipe.util.config import parse_key_value_str
@@ -175,6 +177,29 @@ def toDict(data, field_list: str = "_", fail_on_missing: bool = True):
         ans[assignment[1]] = data if assignment[0]=="_" else extract_property(data, assignment[0], fail_on_missing)
     return ans
 
+def dict_to_text(data: dict, wrap_width: int = 80, field_name_separator: str = ": ",
+                 field_separator: str = "\n", item_suffix = "") -> str:
+    """
+    Convert a dictionary to a formatted string. Each field is separated by the specified field_separator, and
+    each property and value is separated by the specified separator.
+    Args:
+        data (dict): The input dictionary to format
+        wrap_width (int): Width for text wrapping.  No wrapping if wrap_width is less than 1 (default: 80).
+        separator (str): Separator between property and value (default: ": ")
+        field_separator (str): Separator between different fields (default: "\n")
+    Returns:
+        str: Formatted string containing all fields
+    """
+    if not isinstance(data, dict):
+        raise TypeError("Input data must be a dictionary")
+    output_lines = []
+    for key, value in data.items():
+        cleaned_value = str(value).strip()
+        if wrap_width > 0:
+            cleaned_value = textwrap.fill(cleaned_value, width=wrap_width)
+        output_lines.append(f"{key}{field_name_separator}{cleaned_value}")
+    return field_separator.join(output_lines) + item_suffix
+
 
 def extract_template_field_names(template: str) -> list:
     """
@@ -248,7 +273,6 @@ def fill_template(template: str, values: dict) -> str:
     result = result.replace(temp_open, "{").replace(temp_close, "}")
 
     return result
-
 
 def compileLambda(expression: str, fail_on_error: bool = True):
     """Compile a Python expression into a callable that evaluates safely with a single item parameter.

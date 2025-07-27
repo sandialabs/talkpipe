@@ -1,0 +1,22 @@
+title: "Multi-Format Report Generation"
+position: "bottom"
+height: "200px"
+theme: "dark"
+
+fields:
+  - name: topic
+    type: "textarea"
+    label: "Report Topic"
+    placeholder: "Enter the topic you want to generate a report about (e.g., 'artificial intelligence developments', 'quantum computing innovations')"
+    required: true
+  
+  - name: format
+    type: "select"
+    label: "Report Format"
+    required: true
+    options:
+      - "Executive Brief"
+      - "Technical Report"
+      - "Client Summary"
+      - "Research Memo"
+      - "Presentation Outline"

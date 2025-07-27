@@ -55,6 +55,19 @@ def test_cosine_similarity_via_search(db):
     assert results[1][0] == "v3"  or results[1][0] == "v1" # First result should be identical vector
     assert abs(results[2][1] - 0.0) < 1e-6  # Orthogonal vectors
 
+def test_cosine_similarity_via_vector_search(db):
+    # Add vectors
+    db.add([1,0,0], {}, "v1")
+    db.add([0,1,0], {}, "v2") 
+    db.add([1,0,0], {}, "v3")  # Same as v1
+    
+    # Search should return v3 (identical) with score 1.0, v2 (orthogonal) with score 0.0
+    results = db.vector_search([1,0,0], limit=3, metric="cosine")
+
+    assert results[0].doc_id == "v3"  or results[1].doc_id == "v1" # First result should be identical vector
+    assert results[1].doc_id == "v3"  or results[1].doc_id == "v1" # First result should be identical vector
+    assert abs(results[2].score - 0.0) < 1e-6  # Orthogonal vectors
+
 def test_search_brute_force(db):
     v1 = db.add([1,2,3])
     v2 = db.add([4,5,6])
@@ -166,7 +179,7 @@ def test_search_vector_segment_with_path(tmp_path, items_list):
         db.add(item["vector"], {"foo": item["foo"]})
     db.save(str(path))
     # Now search using segment with path
-    seg = search_vector(path=str(path), vector_field="vector", top_k=1)
+    seg = search_vector(path=str(path), vector_field="vector", top_k=1, all_results_at_once=True)
     results = list(seg([{"vector": [1.0, 2.0, 3.0]}]))
     assert isinstance(results[0], list)
     assert len(results[0]) == 1

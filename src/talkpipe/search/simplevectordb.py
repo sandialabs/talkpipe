@@ -122,10 +122,10 @@ class SimpleVectorDB(DocumentStore, VectorAddable, VectorSearchable):
         return doc_id
 
     # VectorSearchable protocol implementation
-    def vector_search(self, vector: VectorLike, limit: int = 10) -> List[SearchResult]:
+    def vector_search(self, vector: VectorLike, limit: int = 10, metric: str = "cosine", method: str = "brute-force") -> List[SearchResult]:
         """Search for vectors similar to the given vector"""
-        results = self.search(vector, top_k=limit, metric="cosine", method="brute-force")
-        
+        results = self.search(vector, top_k=limit, metric=metric, method=method)
+
         return [SearchResult(
             score=float(score),
             doc_id=vector_id,
@@ -387,6 +387,8 @@ def add_vector(items: str, path, vector_field: str = "_", vector_id: Optional[st
 @register_segment("searchVector")
 @segment()
 def search_vector(items, path: str, vector_field = "_", top_k: int = 5, 
+                  all_results_at_once: bool = False, append_as: Optional[str] = None,
+                  continue_on_error: bool = True,
                   search_metric: str = "cosine", search_method: str = "brute-force"):
     """    Segment to search for similar vectors in the SimpleVectorDB.
     Args:
@@ -409,5 +411,20 @@ def search_vector(items, path: str, vector_field = "_", top_k: int = 5,
         query_vector = extract_property(item, vector_field, fail_on_missing=True)
         if not isinstance(query_vector, (list, tuple, np.ndarray)):
             raise ValueError(f"Query vector must be a list, tuple, or numpy array")
-        results = db.vector_search(query_vector, limit=top_k)
-        yield results
+        try:
+            results = db.vector_search(query_vector, limit=top_k, metric=search_metric, method=search_method)
+            if all_results_at_once:
+                if append_as:
+                    item[append_as] = results
+                    yield item
+                else:
+                    yield results
+            else:
+                if append_as:
+                    raise ValueError("append_as is not supported with all_results_at_once=False")
+                else:
+                    yield from results
+        except Exception as e:
+            logger.error(f"Error during vector search: {e}")
+            if not continue_on_error:
+                raise  

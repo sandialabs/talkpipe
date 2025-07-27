@@ -1,9 +1,12 @@
 """Standard operations for data processing pipelines."""
 
-from typing import Iterable, Iterator, Union, Optional, Any
+from typing import Iterable, Iterator, Union, Optional, Any, Dict
 import logging
+import time
+import sys
 import pickle
 import hashlib
+import copy
 import pandas as pd
 from talkpipe.util.config import configure_logger, parse_key_value_str
 from talkpipe.util.data_manipulation import extract_property, extract_template_field_names, get_all_attributes, toDict
@@ -12,7 +15,7 @@ from talkpipe.util.os import run_command
 from talkpipe.util.data_manipulation import get_type_safely
 from talkpipe.pipe.core import AbstractSegment, source, segment, field_segment
 import talkpipe.chatterlang.registry as registry
-from talkpipe.util.data_manipulation import fill_template
+from talkpipe.util.data_manipulation import fill_template, dict_to_text, toDict
 
 logger = logging.getLogger(__name__)
 
@@ -28,7 +31,6 @@ def sleep(items, seconds: int):
     Yields:
         None: This segment does not yield any items; it simply sleeps.
     """
-    import time
     # Yielding None to indicate that this segment does not produce output
     for item in items:
         yield item  # Yield the item to maintain the flow of the pipeline
@@ -54,15 +56,15 @@ def progressTicks(items, tick: str = ".", tick_count: int = 10, eol_count: Optio
     count = 0
     for idx, item in enumerate(items, 1):
         if idx % tick_count == 0 and idx != 0:
-            print(tick, end="", flush=True)
+            print(tick, end="", flush=True, file=sys.stderr)
             if eol_count and (idx // tick_count) % eol_count == 0:
                 if print_count:
-                    print(f"{idx}", end="", flush=True)
-                print()
+                    print(f"{idx}", end="", flush=True, file=sys.stderr)
+                print(file=sys.stderr)
         count = idx
         yield item
     if print_count:
-        print(f"\nTotal items processed: {count}")
+        print(f"\nTotal items processed: {count}", file=sys.stderr)
 
 @registry.register_segment(name="firstN")
 @segment()
@@ -141,6 +143,57 @@ class ToDict(AbstractSegment):
         for data in input_iter:
             ans = toDict(data, self.field_list, self.fail_on_missing)
             yield ans
+
+@registry.register_segment("formatItem")
+class FormattedItem(AbstractSegment):
+    """
+    Generate formatted output for specified fields in "Property: Value" format.
+    
+    This segment takes each input item and generates one formatted string output 
+    containing all specified fields. Each field is in the format "Label: Value".
+    
+    Args:
+        field_list (str): Comma-separated list of field:label pairs. 
+                         Format: "field1:Label1,field2:Label2" or just "field1,field2"
+        format_type (str): Type of formatting to apply ("auto", "text", "json", "clean")
+        wrap_width (int): Width for text wrapping (default: 80)
+        fail_on_missing (bool): Whether to fail if a field is missing (default: False)
+        separator (str): Separator between property and value (default: ": ")
+        field_separator (str): Separator between different fields (default: "\n")
+    
+    Yields:
+        str: One formatted string per input item containing all fields
+    """
+    
+    def __init__(self, field_list: str, wrap_width: int = 80, 
+                 fail_on_missing: bool = False, field_name_separator: str = ": ", 
+                 field_separator: str = "\n", item_suffix: str = ""):
+        super().__init__()
+        self.field_list = field_list
+        self.wrap_width = wrap_width
+        self.field_name_separator = field_name_separator
+        self.fail_on_missing = fail_on_missing
+        self.field_separator = field_separator
+        self.item_suffix = item_suffix
+
+        # Parse field mappings
+        self.field_list = field_list
+
+    def transform(self, input_iter: Iterable) -> Iterator:
+        """Transform each input item into a single formatted string"""
+        for item in input_iter:
+            d = toDict(item, self.field_list, self.fail_on_missing)
+            # Use the standalone function to format the item
+            formatted_string = dict_to_text(
+                d,
+                wrap_width=self.wrap_width,
+                field_name_separator=self.field_name_separator,
+                field_separator=self.field_separator,
+                item_suffix=self.item_suffix
+            )
+            
+            # Yield one string per item
+            yield formatted_string
 
 @registry.register_segment("appendAs")
 @field_segment
@@ -582,3 +635,31 @@ class FilterExpression(AbstractSegment):
             # Yield the item if the expression evaluates to True
             if result:
                 yield item
+
+
+@registry.register_segment("copy")
+@segment
+def copy_segment(items):
+    """A segment that creates a shallow copy of each item in the input iterable.
+    
+    This can be used to create a defensive copy of items in the pipline, ensuring that modifications
+    to the items do not affect the original items in the input stream.  
+
+    Args:
+        items (Iterable): An iterable of items to copy.
+    """
+    for item in items:
+        yield copy.copy(item)
+
+@registry.register_segment("deepCopy")
+@segment
+def deep_copy_segment(items):
+    """A segment that creates a deep copy of each item in the input iterable.
+    
+    This can be used to create a defensive copy of items in the pipeline, ensuring that modifications
+    to the items do not affect the original items in the input stream.
+    Args:
+        items (Iterable): An iterable of items to copy.
+    """
+    for item in items:
+        yield copy.deepcopy(item)
