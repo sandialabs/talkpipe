@@ -19,5 +19,6 @@ assignees: ''
 - [ ] Install whl file in new environment and test a script in chatterlang_server
 - [ ] Run examples in the tutorials
 - [ ] Push to pypi
+       - twine upload --repository talkpipe dist/*
 - [ ] Push code to repo
 - [ ] Push tags to repo
