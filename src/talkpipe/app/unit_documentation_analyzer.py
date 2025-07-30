@@ -514,7 +514,7 @@ def generate_html(analyzed_items: List[AnalyzedItem], output_file: str) -> None:
                 html_content += f'  <div><pre>{item.docstring}</pre></div>\n'
 
             # Process parameters
-            filtered_params = [p for p in item.parameters if p.name != "self" and p.name != "items" or p.name != "item"]
+            filtered_params = [p for p in item.parameters if p.name not in ["self", "items", "item"]]
             if item.type == "Function" and item.is_segment and len(filtered_params) > 0:
                 filtered_params = filtered_params[1:]
 

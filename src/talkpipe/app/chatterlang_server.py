@@ -119,6 +119,9 @@ def compile_script(request: ScriptRequest):
     if not request.script:
         logging.error("Empty script submitted")
         raise HTTPException(status_code=400, detail="Script content is required")
+    if len(request.script) > 10000:
+        logging.error("Script too long")
+        raise HTTPException(status_code=413, detail="Script is too long, maximum length is 10,000 characters")
     try:
         logging.info("Compiling new script")
         compiled_instance = compile(request.script)

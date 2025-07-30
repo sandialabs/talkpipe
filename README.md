@@ -487,6 +487,12 @@ The following are the main breakdown of the codebase.  These should be considere
 
 These parameter names should behave consistently across all units:
 
+- **item** should be used in field_segment, referring to the item passed to the function.  It will not
+  be a parameter to the segment in ChatterLang.
+
+- **items** are used in segment definitions, referring to the iterable over all the pieces of data in the stream.
+  It will not be a parameter used anywhere as a parameter in ChatterLang.
+
 - **append_as**  
   If used, any processed output is attached to the original data using bracket notation. The original item is then emitted.
 
