@@ -11,7 +11,8 @@
 ###################################################################################
 
 
-chatterlang_script --script "
+#chatterlang_script --script "
+python -m talkpipe.app.runscript --script "
     INPUT FROM \"../Tutorial_1-Document_Indexing/stories.json\"
     | readJsonl 
     | progressTicks[tick_count=1, print_count=True] 

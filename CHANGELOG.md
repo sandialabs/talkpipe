@@ -1,4 +1,13 @@
 # Changelog
+
+## In Development
+### New Segments and Source
+
+### Improvements
+ - **apiendpoint** now has a --display-property parameter that will display a specified property as the user message in the stream interface rather than
+   printing a string version of the whole input json (which is still the default).
+ - Updated tutorial scripts
+
 ## 0.7.1
 ### New Segments and Sources
  - Added **formatItem** to produce a human-readable text representation of various properties of an item, and added relevant methods to data_manipulation.

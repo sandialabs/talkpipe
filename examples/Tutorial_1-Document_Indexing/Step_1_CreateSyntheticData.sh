@@ -17,7 +17,8 @@
 # 6. The output is redirected to a file named "stories.json".
 ###################################################################################
 
-chatterlang_script --script "
+#chatterlang_script --script "
+python -m talkpipe.app.runscript --script "
     LOOP 50 TIMES {
         INPUT FROM \"Write a fictitious five sentence story about technology development in an imaginary country.\" 
         | llmPrompt[multi_turn=False] 

@@ -25,6 +25,7 @@ from talkpipe.chatterlang import register_source
 from talkpipe.chatterlang import compile
 from talkpipe.util.config import get_config
 from talkpipe.util.config import load_module_file
+from talkpipe.util.data_manipulation import extract_property
 
 
 logger = logging.getLogger(__name__)
@@ -72,7 +73,8 @@ class JSONReceiver:
         processor_func: Callable[[Dict[str, Any]], Any] = None,
         title: str = "JSON Data Receiver",
         history_length: int = 1000,
-        form_config: Optional[Dict[str, Any]] = None
+        form_config: Optional[Dict[str, Any]] = None,
+        display_property: Optional[str] = None
     ):
         self.host = host
         self.port = port
@@ -81,7 +83,8 @@ class JSONReceiver:
         self.history = []
         self.title = title
         self.history_length = history_length
-        
+        self.display_property = display_property
+
         # Output streaming queue
         self.output_queue = Queue(maxsize=1000)
         self.output_clients = []
@@ -209,7 +212,7 @@ class JSONReceiver:
         """Add user message to the streaming queue"""
         user_message = {
             "timestamp": datetime.now().isoformat(),
-            "output": json.dumps(data, indent=2),
+            "output": extract_property(data, self.display_property) if self.display_property else json.dumps(data, indent=2),
             "type": "user"
         }
         try:
@@ -1338,8 +1341,9 @@ def go():
                         help='Path to form configuration file (YAML or JSON) or config variable ($VAR_NAME)')
     parser.add_argument("--load_module", action='append', default=[], type=str, 
                         help="Path to a custom module file to import before running the script.")
+    parser.add_argument('--display-property', default=None, 
+                        help='Property of the input json to display in the stream interface as user input.')
 
-    
     args = parser.parse_args()
     
     if args.load_module:
@@ -1386,7 +1390,8 @@ def go():
         require_auth=args.require_auth,
         title=args.title,
         processor_func=compiled_script,
-        form_config=form_config
+        form_config=form_config,
+        display_property=args.display_property
     )
 
     # Start the server

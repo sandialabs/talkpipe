@@ -12,7 +12,8 @@
 # needing to write any code.
 ###################################################################################
 
-talkpipe_endpoint --form-config story_search_ui.yaml --title "Story Search" --script "
+#talkpipe_endpoint --form-config story_search_ui.yaml --title "Story Search" --script "
+python -m talkpipe.app.apiendpoint --form-config story_search_ui.yaml --title \"Story\ Search\" --display-property query --script "
   | searchWhoosh[index_path=\"full_text_index\", field=\"query\"] 
   | formatItem[field_list=\"document.title:Title,document.content:Content,score:Score\"]
 "
