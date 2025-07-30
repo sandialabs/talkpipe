@@ -94,20 +94,20 @@ To run this tutorial, you'll need to complete Tutorials 1 and 2 first, as this t
 1. **Executive Summary Generation:**
    ```bash
    cd Tutorial_3-Report_Writing
-   chmod +x step1.sh
-   ./step1.sh
+   chmod +x Step_1_ExecutiveSummaryGeneration.sh
+   ./Step_1_ExecutiveSummaryGeneration.sh
    ```
 
 2. **Detailed Analysis Reports:**
    ```bash
-   chmod +x step2.sh
-   ./step2.sh
+   chmod +x Step_2_DetailedAnalysisReportGeneration.sh
+   ./Step_2_DetailedAnalysisReportGeneration.sh
    ```
 
 3. **Multi-Format Report Pipeline:**
    ```bash
-   chmod +x step3.sh
-   ./step3.sh
+   chmod +x Step_3_MultiFormatReportGeneration.sh
+   ./Step_3_MultiFormatReportGeneration.sh
    ```
 
 Each step will start a web server and provide you with a URL to access the reporting interface. Visit the `/stream` endpoint for the user-friendly web interface.
