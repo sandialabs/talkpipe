@@ -361,7 +361,7 @@ class JSONReceiver:
         return "\n".join(fields_html)
     
     def _get_stream_interface(self) -> str:
-        """Generate streaming HTML interface with chat-like layout"""
+        """Generate streaming HTML interface with chat-like layout that respects position configuration"""
         position = self.form_config.position
         height = self.form_config.height
         theme = self.form_config.theme
@@ -391,6 +391,59 @@ class JSONReceiver:
             user_msg_bg = "#e3f2fd"
             response_msg_bg = "#f5f5f5"
             error_msg_bg = "#ffebee"
+        
+        # Generate position-specific CSS and classes
+        form_panel_class = "form-panel"
+        if position in ["bottom", "top"]:
+            # Horizontal layouts - form at bottom/top, chat fills remaining space
+            form_panel_class += " horizontal"
+            if position == "bottom":
+                main_container_style = "flex-direction: column;"
+                form_panel_style = f"order: 2; height: {height}; border-top: 1px solid {border_color}; border-right: none;"
+                chat_panel_style = f"order: 1; flex: 1; height: calc(100vh - {height} - 140px);"  # 80px header + 60px controls
+                controls_style = "order: 3;"
+            else:  # top
+                main_container_style = "flex-direction: column;"
+                form_panel_style = f"order: 1; height: {height}; border-bottom: 1px solid {border_color}; border-right: none;"
+                chat_panel_style = f"order: 2; flex: 1; height: calc(100vh - {height} - 140px);"  # 80px header + 60px controls
+                controls_style = "order: 3;"
+            form_panel_width = "width: 100%;"
+            
+        else:
+            # Vertical layouts - form at left/right, chat fills remaining space
+            main_container_style = "flex-direction: row;"
+            form_panel_width = f"width: {height};"  # Use height as width for vertical layouts
+            chat_panel_style = "flex: 1;"
+            controls_style = ""
+            
+            if position == "left":
+                form_panel_style = f"order: 1; border-right: 1px solid {border_color};"
+                chat_panel_style += " order: 2;"
+            else:  # right
+                form_panel_style = f"order: 2; border-left: 1px solid {border_color};"
+                chat_panel_style += " order: 1;"
+        
+        # Generate controls HTML based on position
+        if position in ["bottom", "top"]:
+            # Controls outside chat panel for bottom/top positions
+            chat_controls = ""
+            standalone_controls = '''
+                <div class="controls">
+                    <button class="control-btn" onclick="clearChat()">Clear Chat</button>
+                    <button class="control-btn" onclick="toggleAutoScroll()" id="autoScrollBtn">Auto-scroll: ON</button>
+                    <span id="connectionStatus">Connecting...</span>
+                </div>
+            '''
+        else:
+            # Controls inside chat panel for left/right positions
+            chat_controls = '''
+                    <div class="controls">
+                        <button class="control-btn" onclick="clearChat()">Clear Chat</button>
+                        <button class="control-btn" onclick="toggleAutoScroll()" id="autoScrollBtn">Auto-scroll: ON</button>
+                        <span id="connectionStatus">Connecting...</span>
+                    </div>
+            '''
+            standalone_controls = ""
         
         auth_header = '''
             <div class="auth-section">
@@ -427,27 +480,30 @@ class JSONReceiver:
                     border-bottom: 1px solid {border_color};
                     padding: 1rem;
                     text-align: center;
+                    flex-shrink: 0;
+                    height: 80px;
                 }}
                 
                 .main-container {{
                     display: flex;
                     flex: 1;
                     overflow: hidden;
+                    {main_container_style}
                 }}
                 
                 .form-panel {{
-                    width: 350px;
+                    {form_panel_width}
                     background-color: {input_bg};
-                    border-right: 1px solid {border_color};
                     padding: 1rem;
                     overflow-y: auto;
+                    {form_panel_style}
                 }}
                 
                 .chat-panel {{
-                    flex: 1;
                     display: flex;
                     flex-direction: column;
                     background-color: {output_bg};
+                    {chat_panel_style}
                 }}
                 
                 .chat-messages {{
@@ -547,6 +603,59 @@ class JSONReceiver:
                     transition: background-color 0.2s;
                 }}
                 
+                /* Make submit button narrower for horizontal layouts */
+                .form-panel.horizontal .submit-btn {{
+                    width: auto;
+                    min-width: 120px;
+                    max-width: 200px;
+                    margin: 0 auto;
+                    display: block;
+                }}
+                
+                /* Organize form fields in horizontal layouts */
+                .form-panel.horizontal {{
+                    display: flex;
+                    flex-direction: column;
+                }}
+                
+                .form-panel.horizontal form {{
+                    display: flex;
+                    flex-direction: row;
+                    align-items: flex-end;
+                    gap: 1rem;
+                    flex-wrap: wrap;
+                }}
+                
+                .form-panel.horizontal .form-fields {{
+                    display: flex;
+                    flex-direction: row;
+                    gap: 1rem;
+                    flex-wrap: wrap;
+                    flex: 1;
+                }}
+                
+                .form-panel.horizontal .form-group {{
+                    flex: 1;
+                    min-width: 200px;
+                    margin-bottom: 0;
+                }}
+                
+                .form-panel.horizontal .submit-btn {{
+                    margin: 0;
+                    align-self: flex-end;
+                    height: fit-content;
+                }}
+                
+                .form-panel.horizontal .status {{
+                    width: 100%;
+                    margin: 0.5rem 0 0 0;
+                }}
+                
+                .form-panel.horizontal .auth-section {{
+                    width: 100%;
+                    margin-bottom: 1rem;
+                }}
+                
                 .submit-btn:hover {{
                     background-color: {button_hover};
                 }}
@@ -563,6 +672,10 @@ class JSONReceiver:
                     display: flex;
                     gap: 1rem;
                     align-items: center;
+                    flex-wrap: wrap;
+                    flex-shrink: 0;
+                    height: 60px;
+                    {controls_style}
                 }}
                 
                 .control-btn {{
@@ -611,6 +724,49 @@ class JSONReceiver:
                     opacity: 0.6;
                     font-style: italic;
                 }}
+                
+                /* Responsive adjustments */
+                @media (max-width: 768px) {{
+                    .main-container {{
+                        flex-direction: column !important;
+                    }}
+                    
+                    .form-panel {{
+                        order: 2 !important;
+                        width: 100% !important;
+                        height: {height} !important;
+                        border-right: none !important;
+                        border-left: none !important;
+                        border-top: 1px solid {border_color} !important;
+                        border-bottom: none !important;
+                    }}
+                    
+                    .form-panel form {{
+                        flex-direction: column !important;
+                    }}
+                    
+                    .form-panel .form-fields {{
+                        flex-direction: column !important;
+                    }}
+                    
+                    .form-panel .form-group {{
+                        margin-bottom: 1rem !important;
+                    }}
+                    
+                    .form-panel .submit-btn {{
+                        width: 100% !important;
+                        margin: 0 !important;
+                    }}
+                    
+                    .chat-panel {{
+                        order: 1 !important;
+                        height: calc(100vh - {height} - 140px) !important;
+                    }}
+                    
+                    .controls {{
+                        order: 3 !important;
+                    }}
+                }}
             </style>
         </head>
         <body>
@@ -619,11 +775,13 @@ class JSONReceiver:
             </div>
             
             <div class="main-container">
-                <div class="form-panel">
+                <div class="{form_panel_class}">
                     {auth_header}
                     
                     <form id="dataForm">
-                        {form_fields}
+                        <div class="form-fields">
+                            {form_fields}
+                        </div>
                         <button type="submit" class="submit-btn" id="submitBtn">Send Message</button>
                     </form>
                     
@@ -636,13 +794,9 @@ class JSONReceiver:
                             Welcome! Send a message to start the conversation.
                         </div>
                     </div>
-                    
-                    <div class="controls">
-                        <button class="control-btn" onclick="clearChat()">Clear Chat</button>
-                        <button class="control-btn" onclick="toggleAutoScroll()" id="autoScrollBtn">Auto-scroll: ON</button>
-                        <span id="connectionStatus">Connecting...</span>
-                    </div>
+                    {chat_controls}
                 </div>
+                {standalone_controls}
             </div>
             
             <script>
@@ -660,6 +814,10 @@ class JSONReceiver:
                     eventSource.onmessage = function(event) {{
                         try {{
                             const data = JSON.parse(event.data);
+                            // Skip user messages from server since we display them immediately on client
+                            if (data.type === 'user' && data.output === lastUserMessage) {{
+                                return;
+                            }}
                             addMessage(data.output, data.type || 'response', data.timestamp);
                         }} catch (e) {{
                             console.error('Error parsing SSE data:', e);
@@ -686,8 +844,7 @@ class JSONReceiver:
                     
                     const timestampDiv = document.createElement('div');
                     timestampDiv.className = 'message-timestamp';
-                    const time = new Date(timestamp).toLocaleTimeString();
-                    timestampDiv.textContent = time;
+                    timestampDiv.textContent = new Date(timestamp).toLocaleTimeString();
                     
                     const contentDiv = document.createElement('div');
                     contentDiv.className = 'message-content';
@@ -695,13 +852,7 @@ class JSONReceiver:
                     
                     messageDiv.appendChild(timestampDiv);
                     messageDiv.appendChild(contentDiv);
-                    
                     messagesContainer.appendChild(messageDiv);
-                    
-                    // Remove old messages if too many (keep last 1000)
-                    while (messagesContainer.children.length > 1000) {{
-                        messagesContainer.removeChild(messagesContainer.firstChild);
-                    }}
                     
                     if (autoScroll) {{
                         messagesContainer.scrollTop = messagesContainer.scrollHeight;
@@ -715,8 +866,11 @@ class JSONReceiver:
                 
                 function toggleAutoScroll() {{
                     autoScroll = !autoScroll;
-                    document.getElementById('autoScrollBtn').textContent = `Auto-scroll: ${{autoScroll ? 'ON' : 'OFF'}}`;
+                    const btn = document.getElementById('autoScrollBtn');
+                    btn.textContent = `Auto-scroll: ${{autoScroll ? 'ON' : 'OFF'}}`;
                 }}
+                
+                let lastUserMessage = null; // Track last user message to avoid duplicates
                 
                 async function submitForm(event) {{
                     event.preventDefault();
@@ -728,10 +882,8 @@ class JSONReceiver:
                     // Build JSON object from form data
                     const data = {{}};
                     for (const [key, value] of formData.entries()) {{
-                        // Skip API key field
                         if (key === 'apiKey') continue;
                         
-                        // Handle different input types
                         const input = form.elements[key];
                         if (input.type === 'number') {{
                             data[key] = value ? parseFloat(value) : null;
@@ -742,46 +894,55 @@ class JSONReceiver:
                         }}
                     }}
                     
-                    const headers = {{
-                        'Content-Type': 'application/json'
-                    }};
+                    // Add user message to chat immediately for instant feedback
+                    const displayProperty = '{self.display_property}' || Object.keys(data)[0];
+                    const userMessage = data[displayProperty] || JSON.stringify(data);
+                    lastUserMessage = userMessage; // Store to detect duplicates from server
+                    addMessage(userMessage, 'user', new Date().toISOString());
                     
-                    {("if (document.getElementById('apiKey')?.value) {" + 
-                      "headers['X-API-Key'] = document.getElementById('apiKey').value;" + 
-                      "}") if self.require_auth else ""}
+                    // Clear form
+                    form.reset();
                     
                     submitBtn.disabled = true;
                     submitBtn.textContent = 'Sending...';
                     
                     try {{
+                        const headers = {{'Content-Type': 'application/json'}};
+                        const apiKey = document.getElementById('apiKey')?.value;
+                        if (apiKey) {{
+                            headers['X-API-Key'] = apiKey;
+                        }}
+                        
                         const response = await fetch('/process', {{
                             method: 'POST',
                             headers: headers,
                             body: JSON.stringify(data)
                         }});
                         
-                        const result = await response.json();
-                        
-                        status.style.display = 'block';
-                        if (response.ok) {{
-                            status.className = 'status success';
-                            status.textContent = 'Message sent successfully';
-                        }} else {{
-                            status.className = 'status error';
-                            status.textContent = 'Error: ' + result.detail;
+                        if (!response.ok) {{
+                            throw new Error(`HTTP ${{response.status}}: ${{response.statusText}}`);
                         }}
-                    }} catch (error) {{
+                        
+                        status.textContent = 'Message sent successfully!';
+                        status.className = 'status success';
                         status.style.display = 'block';
+                        
+                        setTimeout(() => {{
+                            status.style.display = 'none';
+                            lastUserMessage = null; // Clear after a delay
+                        }}, 3000);
+                        
+                    }} catch (error) {{
+                        status.textContent = `Error: ${{error.message}}`;
                         status.className = 'status error';
-                        status.textContent = 'Error: ' + error.message;
+                        status.style.display = 'block';
+                        
+                        addMessage(`Error: ${{error.message}}`, 'error', new Date().toISOString());
+                        lastUserMessage = null; // Clear on error
+                    }} finally {{
+                        submitBtn.disabled = false;
+                        submitBtn.textContent = 'Send Message';
                     }}
-                    
-                    submitBtn.disabled = false;
-                    submitBtn.textContent = 'Send Message';
-                    
-                    setTimeout(() => {{
-                        status.style.display = 'none';
-                    }}, 3000);
                 }}
                 
                 // Event listeners

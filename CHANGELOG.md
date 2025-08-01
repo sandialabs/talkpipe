@@ -4,8 +4,9 @@
 ### New Segments and Source
 
 ### Improvements
- - **apiendpoint** now has a --display-property parameter that will display a specified property as the user message in the stream interface rather than
-   printing a string version of the whole input json (which is still the default).
+ - **apiendpoint** 
+    - now has a --display-property parameter that will display a specified property as the user message in the stream interface rather than printing a string version of the whole input json (which is still the default).
+    - Fixed a bug causing /stream to not respect position directives.
  - Updated tutorial scripts and Tutorial 3 script names
  - Updated unit documentation analyzer to properly ignore item and items parameters.  These two terms ("item" and "items") are reserved for the data being
    passed into a segment and should not be used parameters otherwise.
