@@ -4,6 +4,8 @@
 
 TalkPipe is a Python toolkit that makes it easy to create, test, and deploy workflows that integrate Generative AI with your existing tools and data sources. TalkPipe treats LLMs as one tool in your arsenal - letting you build practical solutions that combine AI with data processing, file handling, and more.  
 
+This README introduces TalkPipe at a high level.  See the [complete documentation](docs/README.md) for more detail.
+
 ## What Can You Do With TalkPipe?
 
 - **Chat with LLMs** - Create multi-turn conversations with OpenAI or Ollama models in just 2 lines of code
@@ -283,6 +285,26 @@ results = evaluator(articles)
 # {'title': 'RAG Systems in Production', 'ai_score': 8, 'iot_score': 2, 'max_score': 8}
 ```
 
+# Documentation
+
+For comprehensive documentation, guides, and examples, see the **[docs/](docs/)** directory:
+
+- **[📚 Documentation Hub](docs/)** - Complete documentation index and navigation
+- **[🚀 Getting Started](docs/quickstart.md)** - Installation, concepts, and first pipeline  
+- **[📖 API Reference](docs/api-reference/)** - Complete command and component reference
+- **[📋 How-to Guides](docs/guides/)** - Step-by-step tutorials for common tasks
+- **[🏗️ Architecture](docs/architecture/)** - Technical deep-dives and design concepts
+- **[💡 Examples](docs/examples/)** - Real-world usage examples and patterns
+
+## Quick Reference
+
+| Command | Purpose | Documentation |
+|---------|---------|---------------|
+| `talkpipe_endpoint` | Create web APIs and forms | [📄](docs/api-reference/jsonreceiver.md) |
+| `chatterlang_server` | Interactive web interface | [📄](docs/api-reference/chatterlang-server.md) |
+| `chatterlang_script` | Run scripts from command line | [📄](docs/api-reference/chatterlang-script.md) |
+| `talkpipe_ref` | Generate documentation | [📄](docs/api-reference/talkpipe-ref.md) |
+
 # Architecture & Development
 
 ## Design Principles
@@ -457,12 +479,12 @@ This codebase will use [semantic versioning](https://semver.org/) with the addti
 
 ### Codebase Structure
 
-The following are the main breakdown of the codebase.  These should be considered firm but not strict breakdowns.  Sometimes a source could fit within either operations or data, for exmaple.  
+The following are the main breakdown of the codebase. These should be considered firm but not strict breakdowns. Sometimes a source could fit within either operations or data, for example.  
 
 * **talkpipe.app** - Contains the primary runnable applications. 
   * Example: runscript
 * **talkpipe.operations** - Contains general algorithm implementations.  Associated segments and sources can be included next to the algorithm implementations, but the algorithms themselves should also work stand-alone.
-  * Exmaple: bloom filters
+  * Example: bloom filters
 * **talkpipe.data** - Contain components having to do with complex, type-specific data manipulation.  
   * Example: extracting text from files.
 * **talkpipe.llm** - Contain the abstract classes and implementations for accessing LLMs, both code for accessing specific LLMs and code for doing prompting.
@@ -505,7 +527,7 @@ These parameter names should behave consistently across all units:
   - For example, given `{"X": ["a", "b", ["c", "d"]]}`, the field `"X.2.0"` refers to `"c"`.
 
 - **field_list**
-  Specifies that a list of fields can or shoudl be provided, with each field separated
+  Specifies that a list of fields can or should be provided, with each field separated
   by a comma.  In some cases, each field needs to be mapped to some other name.  In
   those case, the field and name should be separated by a colon.  In field_lists,
   the underscore (_) refers to the item as a whole.  
@@ -523,7 +545,7 @@ on their data.
 The chatterlang_server command starts a web service designed for experimentation.  It also contains links to HTML and text versions
 of all the sources and segments included in TalkPipe.
 
-After talkpipe is installed, a script called "talkpipe_ref" is avaialble that will write an HTML and text file in the current directory, each of which contains the documentation for build-in sources and segments.
+After talkpipe is installed, a script called "talkpipe_ref" is available that will write an HTML and text file in the current directory, each of which contains the documentation for built-in sources and segments.
 
 ### Standard Configuration File Items
 
@@ -537,7 +559,7 @@ After talkpipe is installed, a script called "talkpipe_ref" is avaialble that wi
 * **default_model_source** - The default source (e.g. ollama) to be used in chat
 * **email_password** - Password for the SMTP server
 * **logger_files** - Files to store logs, in the form logger1:fname1,logger2:fname2,...
-* **logger_levels** - Logger levles in the form logger1:level1,logger2:level2
+* **logger_levels** - Logger levels in the form logger1:level1,logger2:level2
 * **recipient_email** - Who should receive a sent email
 * **rss_url** - The default URL used by the rss segment
 * **sender_email** - Who the sender of an email should be
