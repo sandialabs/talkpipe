@@ -18,5 +18,5 @@ python -m talkpipe.app.apiendpoint --form-config report_topic_ui.yml --load_modu
     | llmEmbed[field=\"topic\", source=\"ollama\", model=\"mxbai-embed-large\", append_as=\"vector\"]
     | searchVector[vector_field=\"vector\", path=\"../Tutorial_2-Search_by_Example_and_RAG/vector_index\", all_results_at_once=True, append_as=\"results\"]
     | executiveSummaryPrompt
-    | llmPrompt
+    | llmPrompt[source="ollama", name="llama3.2"]
 "
