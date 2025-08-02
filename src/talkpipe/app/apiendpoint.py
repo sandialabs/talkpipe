@@ -58,7 +58,7 @@ class FormConfig(BaseModel):
     title: str = "Data Input Form"
     fields: List[FormField] = []
     position: str = "bottom"  # bottom, top, left, right
-    height: str = "300px"  # CSS height for the form panel
+    height: str = "150px"  # CSS height for the form panel
     theme: str = "dark"  # dark, light
 
 class JSONReceiver:
@@ -97,8 +97,7 @@ class JSONReceiver:
             self.form_config = FormConfig(
                 title="Data Input Form",
                 fields=[
-                    FormField(name="message", type="text", label="Message", placeholder="Enter message", required=True),
-                    FormField(name="value", type="number", label="Value", placeholder="Enter numeric value")
+                    FormField(name="prompt", type="text", label="Prompt", placeholder="Enter prompt", required=True),
                 ]
             )
         
@@ -241,8 +240,7 @@ class JSONReceiver:
     async def _process_json(self, data: Dict[str, Any]) -> DataResponse:
         """Process JSON data and return response"""
         try:
-            # Add user message to stream
-            self._add_user_message(data)
+            # User message is already added by client for immediate feedback
             
             # Process the data
             result = self.processor_function(data)
