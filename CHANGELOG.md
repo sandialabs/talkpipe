@@ -7,10 +7,12 @@
  - **apiendpoint** 
     - now has a --display-property parameter that will display a specified property as the user message in the stream interface rather than printing a string version of the whole input json (which is still the default).
     - Fixed a bug causing /stream to not respect position directives.
- - Updated tutorial scripts and Tutorial 3 script names
+    - Changed the default form to issue a single text item with the property "prompt."  
+ - Updated tutorial scripts and Tutorial 3 script names.  Moved examples to the docs directory.
  - Updated unit documentation analyzer to properly ignore item and items parameters.  These two terms ("item" and "items") are reserved for the data being
    passed into a segment and should not be used parameters otherwise.
  - Updated chatterlang_server to issue a 413 error when the script is longer than 10K characters (hardcoded)
+ - Added additional more comprehensive documentation.
 
 ## 0.7.1
 ### New Segments and Sources

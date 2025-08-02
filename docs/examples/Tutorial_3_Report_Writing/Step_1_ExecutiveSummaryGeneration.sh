@@ -13,7 +13,7 @@
 # 6. Generate a professional executive summary using the LLM.
 ###################################################################################
 
-python -m talkpipe.app.apiendpoint --form-config report_topic_ui.yaml --load_module step_1_extras.py --display-property topic --script "
+python -m talkpipe.app.apiendpoint --form-config report_topic_ui.yml --load_module step_1_extras.py --display-property topic --script "
     | copy
     | llmEmbed[field=\"topic\", source=\"ollama\", model=\"mxbai-embed-large\", append_as=\"vector\"]
     | searchVector[vector_field=\"vector\", path=\"../Tutorial_2-Search_by_Example_and_RAG/vector_index\", all_results_at_once=True, append_as=\"results\"]
