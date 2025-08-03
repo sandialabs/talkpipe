@@ -23,7 +23,7 @@ from queue import Queue, Empty
 from talkpipe.pipe.core import AbstractSource
 from talkpipe.chatterlang import register_source
 from talkpipe.chatterlang import compile
-from talkpipe.util.config import get_config
+from talkpipe.util.config import get_config, load_script
 from talkpipe.util.config import load_module_file
 from talkpipe.util.data_manipulation import extract_property
 
@@ -1492,10 +1492,8 @@ def go():
                         help='Require API key authentication')
     parser.add_argument('--title', default='JSON Data Receiver',
                         help='Title for the FastAPI application')
-    parser.add_argument('--script-var', default=None, 
-                        help='Configuration key containing script to run')
     parser.add_argument('--script', default=None,
-                        help='Chatterlang script to run on received data')
+                        help='Chatterlang script to run on received data: file path, configuration key, or inline script content')
     parser.add_argument('--form-config', default=None,
                         help='Path to form configuration file (YAML or JSON) or config variable ($VAR_NAME)')
     parser.add_argument("--load_module", action='append', default=[], type=str, 
@@ -1510,14 +1508,8 @@ def go():
             load_module_file(fname=module_file, fail_on_missing=False)
 
     script = None
-    if args.script_var and args.script:
-        raise ValueError("Cannot specify both --script-var and --script. Use one or the other.")
-    if args.script_var:
-        script = get_config()[args.script_var]
-        if not script:
-            raise ValueError(f"No script found for variable '{args.script_var}' in configuration.")
-    else:
-        script = args.script
+    if args.script:
+        script = load_script(args.script)
     
     if script:
         # Compile the Chatterlang script
