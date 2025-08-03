@@ -281,8 +281,8 @@ def test_get_config_nofile(monkeypatch, monkeypatched_env):
 
     cfg = talkpipe.util.config.get_config()
     assert len(cfg) == 1
-    assert "funny_item" in cfg
-    assert cfg["funny_item"] == "silly"
+    assert "FUNNY_ITEM" in cfg
+    assert cfg["FUNNY_ITEM"] == "silly"
 
 
 def test_extract_field_names_basic():

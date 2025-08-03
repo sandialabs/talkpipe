@@ -6,6 +6,7 @@ import sys
 import tomllib
 from logging.handlers import TimedRotatingFileHandler
 from typing import Any, Dict
+from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
@@ -85,7 +86,7 @@ def get_config(reload=False, path="~/.talkpipe.toml", ignore_env=False):
             # Override with environment variables
             for env_var in os.environ:
                 if env_var.startswith('TALKPIPE_'):
-                    config_key = env_var[9:].lower()  # Remove TALKPIPE_ prefix
+                    config_key = env_var[9:]  # Remove TALKPIPE_ prefix
                     _config[config_key] = os.environ[env_var]
                     logger.debug(f"Set {config_key} from environment variable {env_var}")
 
@@ -213,3 +214,48 @@ def load_module_file(fname: str, fail_on_missing=False) -> Optional[Any]:
     except Exception as e:
         # Log or handle specific exceptions as needed
         raise ImportError(f"Error loading module file: {str(e)}") from e
+
+
+def load_script(script_input: str) -> str:
+    """Load a talkpipe script from various sources.
+    
+    This function checks for scripts in the following order:
+    1. Existing file path
+    2. Configuration value (from config file or environment variable)
+    3. Inline script content
+    
+    Args:
+        script_input (str): The script identifier - can be a file path, configuration key, or inline script
+        
+    Returns:
+        str: The script content as a string
+        
+    Raises:
+        ValueError: If script_input is None or empty
+        IOError: If a file path is provided but cannot be read
+        
+    Examples:
+        >>> load_script("/path/to/script.tp")  # Load from file
+        >>> load_script("my_script_key")       # Load from config
+        >>> load_script("print('hello')")      # Inline script
+    """
+    if script_input is None or script_input.strip() == "":
+        raise ValueError("script_input cannot be None or empty")
+    
+    # 1. Check if the script input is an existing file path
+    script_path = Path(script_input)
+    if script_path.is_file():
+        try:
+            with open(script_path, 'r', encoding='utf-8') as f:
+                return f.read()
+        except IOError as e:
+            error_message = f"Failed to read script file {script_path}: {e}"
+            raise IOError(error_message)
+    
+    # 2. Check if the script input can be retrieved from configuration
+    config_data = get_config()
+    if script_input in config_data:
+        return config_data[script_input]
+    
+    # 3. Treat as inline script
+    return script_input

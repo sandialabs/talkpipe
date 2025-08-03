@@ -1,42 +1,38 @@
-"""Run a talkpipe script provided on the command line or environment variable."""
+"""Run a talkpipe script provided on the command line."""
 from typing import Optional
 import logging
 import argparse
-import os
-import sys
 from talkpipe.chatterlang import compiler
 from talkpipe.util import config
-from talkpipe.util.config import load_module_file
+from talkpipe.util.config import load_module_file, load_script
 
 logger = logging.getLogger(__name__)
 
 def main():
-    """Run a talkpipe script from command line arguments or environment variable.
+    """Run a talkpipe script from command line arguments.
 
-    This function parses command line arguments to execute a talkpipe script. It supports loading the script
-    directly via --script argument or from an environment variable via --env. Additional features include
-    loading custom modules and configuring loggers.
+    This function parses command line arguments to execute a talkpipe script. The --script parameter
+    checks for: 1) existing file path, 2) configuration value, 3) inline script content.
+    Additional features include loading custom modules and configuring loggers.
 
     Args:
         None (uses command line arguments)
 
     Command Line Arguments:
-        --script: The talkpipe script to run (optional if --env is provided)
-        --env: Environment variable containing the script (optional if --script is provided)
+        --script: The talkpipe script to run (file path, config key, or inline script)
         --load_module: Path(s) to custom module file(s) to import before running the script (can be specified multiple times)  
         --logger_levels: Logger levels in format 'logger:level,logger:level,...'
         --logger_files: Logger files in format 'logger:file,logger:file,...'
 
     Raises:
-        ValueError: If the specified environment variable is not found
-        ArgumentError: If neither --script nor --env is provided
+        ValueError: If the script cannot be found or loaded
+        ArgumentError: If --script is not provided
         
     Returns:
         None - Executes the compiled script function
     """
-    parser = argparse.ArgumentParser(description='Run a talkpipe script provided on the command line or environment variable.')
-    parser.add_argument('--script', type=str, nargs='?', help='The talkpipe script to run.')
-    parser.add_argument('--env', type=str, help='Environment variable containing the script.')
+    parser = argparse.ArgumentParser(description='Run a talkpipe script provided on the command line.')
+    parser.add_argument('--script', type=str, required=True, help='The talkpipe script to run: file path, configuration key, or inline script content.')
     parser.add_argument("--load_module", action='append', default=[], type=str, help="Path to a custom module file to import before running the script.")
     parser.add_argument("--logger_levels", type=str, help="Logger levels in format 'logger:level,logger:level,...'")
     parser.add_argument("--logger_files", type=str, help="Logger files in format 'logger:file,logger:file,...'")
@@ -47,16 +43,9 @@ def main():
         for module_file in args.load_module:
             load_module_file(fname=module_file, fail_on_missing=False)
 
-    if args.script:
-        script = args.script
-    elif args.env:
-        script = os.environ.get(args.env)
-        if script is None:
-            error_message = f"Environment variable {args.env} not found"
-            print(error_message, file=sys.stderr)
-            raise ValueError(error_message)
-    else:
-        parser.error("Either --script argument or --env must be provided")
+    script_input = args.script
+    
+    script = load_script(script_input)
 
     compiled = compiler.compile(script).asFunction()
     compiled()
