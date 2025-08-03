@@ -13,6 +13,10 @@
    passed into a segment and should not be used parameters otherwise.
  - Updated chatterlang_server to issue a 413 error when the script is longer than 10K characters (hardcoded)
  - Added additional more comprehensive documentation.
+ - Removed the chatcli application.  It is very easy to reproduce it with runscript.
+ - Created load_script function in talkpipe.util.config.  Provides a common way to specify scripts (directly, in a file, 
+   in an entry in the configuration file, or in an environment variable).  This will provide a common experience across the
+   different applications.
 
 ## 0.7.1
 ### New Segments and Sources
