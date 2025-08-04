@@ -15,10 +15,12 @@
 # 5. Format the results using `formatItem` and print them.
 ###################################################################################
 
-#talkpipe_endpoint --form-config story_by_example_ui.yml --script "
-python -m talkpipe.app.apiendpoint --form-config story_by_example_ui.yml --display-property example --script "
+export TALKPIPE_CHATTERLANG_SCRIPT='    
     | copy
-    | llmEmbed[field=\"example\", source=\"ollama\", model=\"mxbai-embed-large\", append_as=\"vector\"]
-    | searchVector[vector_field=\"vector\", path=\"./vector_index\"]
-    | formatItem[field_list=\"document.title:Title, document.content:Content, score:Score\"]
-"
+    | llmEmbed[field="example", source="ollama", model="mxbai-embed-large", append_as="vector"]
+    | searchVector[vector_field="vector", path="./vector_index"]
+    | formatItem[field_list="document.title:Title, document.content:Content, score:Score"]
+'
+
+#talkpipe_endpoint --form-config story_by_example_ui.yml --script "
+python -m talkpipe.app.apiendpoint --form-config story_by_example_ui.yml --display-property example --script CHATTERLANG_SCRIPT

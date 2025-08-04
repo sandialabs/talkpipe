@@ -16,10 +16,12 @@
 # 3. The index is stored in the specified path "./full_text_index".
 ###################################################################################
 
-#chatterlang_script --script "
-python -m talkpipe.app.runscript --script "
-    INPUT FROM \"stories.json\" 
+export TALKPIPE_CHATTERLANG_SCRIPT='
+    INPUT FROM "stories.json" 
     | readJsonl 
     | progressTicks[tick_count=1, print_count=True]
-    | indexWhoosh[index_path=\"./full_text_index\", field_list=\"content,title\", overwrite=True]
-"
+    | indexWhoosh[index_path="./full_text_index", field_list="content,title", overwrite=True]
+'
+
+#chatterlang_script --script "
+python -m talkpipe.app.runscript --script CHATTERLANG_SCRIPT

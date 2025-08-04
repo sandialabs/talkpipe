@@ -35,13 +35,15 @@ Vector embeddings solve this by converting text into high-dimensional mathematic
 ### The Implementation
 
 ```bash
-chatterlang_script --script "
-    INPUT FROM \"../Tutorial_1-Document_Indexing/stories.json\"
+export TALKPIPE_CHATTERLANG_SCRIPT='
+    INPUT FROM "../Tutorial_1-Document_Indexing/stories.json"
     | readJsonl 
     | progressTicks[tick_count=1, print_count=True] 
-    | llmEmbed[field=\"content\", source=\"ollama\", model=\"mxbai-embed-large\", append_as=\"vector\"]
-    | addVector[path=\"./vector_index\", vector_field=\"vector\", metadata_field_list=\"title,content\", overwrite=True]
-"
+    | llmEmbed[field="content", source="ollama", model="mxbai-embed-large", append_as="vector"]
+    | addVector[path="./vector_index", vector_field="vector", metadata_field_list="title,content", overwrite=True]
+'
+
+python -m talkpipe.app.runscript --script CHATTERLANG_SCRIPT
 ```
 
 ### Breaking Down the Pipeline
@@ -95,12 +97,14 @@ Your users don't always know the right keywords. Sometimes they have an example 
 ### The Solution: Semantic Search Interface
 
 ```bash
-python -m talkpipe.app.apiendpoint --form-config story_by_example_ui.yaml --script "
+export TALKPIPE_CHATTERLANG_SCRIPT='    
     | copy
-    | llmEmbed[field=\"example\", source=\"ollama\", model=\"mxbai-embed-large\", append_as=\"vector\"]
-    | searchVector[vector_field=\"vector\", path=\"./vector_index\"]
-    | formatItem[field_list=\"document.title:Title, document.content:Content, score:Score\"]
-"
+    | llmEmbed[field="example", source="ollama", model="mxbai-embed-large", append_as="vector"]
+    | searchVector[vector_field="vector", path="./vector_index"]
+    | formatItem[field_list="document.title:Title, document.content:Content, score:Score"]
+'
+
+python -m talkpipe.app.apiendpoint --form-config story_by_example_ui.yml --display-property example --script CHATTERLANG_SCRIPT
 ```
 
 ### Understanding the Search Pipeline
@@ -164,13 +168,15 @@ Finding relevant documents is helpful, but what users often really want is an an
 ### The RAG Implementation
 
 ```bash
-python -m talkpipe.app.apiendpoint --form-config story_by_example_ui.yaml --load_module step_3_extras.py --script "
+export TALKPIPE_CHATTERLANG_SCRIPT='
     | copy
-    | llmEmbed[field=\"example\", source=\"ollama\", model=\"mxbai-embed-large\", append_as=\"vector\"]
-    | searchVector[vector_field=\"vector\", path=\"./vector_index\", all_results_at_once=True, append_as=\"results\"]
+    | llmEmbed[field="example", source="ollama", model="mxbai-embed-large", append_as="vector"]
+    | searchVector[vector_field="vector", path="./vector_index", all_results_at_once=True, append_as="results"]
     | ragPrompt
-    | llmPrompt
-"
+    | llmPrompt[source="ollama", name="llama3.2"]
+'
+
+python -m talkpipe.app.apiendpoint --form-config story_by_example_ui.yml --load_module step_3_extras.py --display-property example --script CHATTERLANG_SCRIPT
 ```
 
 ### What's Different in the RAG Pipeline

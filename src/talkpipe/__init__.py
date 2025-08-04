@@ -9,7 +9,6 @@ from talkpipe.llm.embedding import *
 from talkpipe.data.extraction import *
 from talkpipe.data.html import *
 from talkpipe.data.mongo import *
-from talkpipe.app.chatcli import *
 from talkpipe.operations.filtering import *
 from talkpipe.operations.transforms import *
 from talkpipe.operations.matrices import *

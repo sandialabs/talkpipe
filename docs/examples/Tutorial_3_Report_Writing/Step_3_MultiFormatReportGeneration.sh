@@ -12,9 +12,11 @@
 # 5. Use the custom `generateMultiFormatReport` segment to create format-specific content.
 ###################################################################################
 
-python -m talkpipe.app.apiendpoint --form-config multi_format_ui.yml --load_module step3_extras.py --display-property topic --script "
+export TALKPIPE_CHATTERLANG_SCRIPT='
     | copy
-    | llmEmbed[field=\"topic\", source=\"ollama\", model=\"mxbai-embed-large\", append_as=\"vector\"]
-    | searchVector[vector_field=\"vector\", path=\"../Tutorial_2-Search_by_Example_and_RAG/vector_index\", top_k=10, all_results_at_once=True, append_as=\"results\"]
-    | generateMultiFormatReport[source=\"ollama\", name=\"llama3.2\"]
-"
+    | llmEmbed[field="topic", source="ollama", model="mxbai-embed-large", append_as="vector"]
+    | searchVector[vector_field="vector", path="../Tutorial_2-Search_by_Example_and_RAG/vector_index", top_k=10, all_results_at_once=True, append_as="results"]
+    | generateMultiFormatReport[source="ollama", name="llama3.2"]
+'
+
+python -m talkpipe.app.apiendpoint --form-config multi_format_ui.yml --load_module step3_extras.py --display-property topic --script CHATTERLANG_SCRIPT

@@ -134,13 +134,15 @@ Organizations often need executive summaries that distill complex information in
 Step 1 demonstrates how to transform retrieved documents into professional executive summaries using structured prompts.
 
 ```bash
-python -m talkpipe.app.apiendpoint --form-config report_topic_ui.yaml --load_module step_1_extras.py --script "
-    | copy
-    | llmEmbed[field=\"topic\", source=\"ollama\", model=\"mxbai-embed-large\", append_as=\"vector\"]
-    | searchVector[vector_field=\"vector\", path=\"../Tutorial_2-Search_by_Example_and_RAG/vector_index\", all_results_at_once=True, append_as=\"results\"]
+export TALKPIPE_CHATTERLANG_SCRIPT='
+    | copy  
+    | llmEmbed[field="topic", source="ollama", model="mxbai-embed-large", append_as="vector"]
+    | searchVector[vector_field="vector", path="../Tutorial_2-Search_by_Example_and_RAG/vector_index", all_results_at_once=True, append_as="results"]
     | executiveSummaryPrompt
-    | llmPrompt
-"
+    | llmPrompt[source="ollama", name="llama3.2"]
+'
+
+python -m talkpipe.app.apiendpoint --form-config report_topic_ui.yml --load_module step_1_extras.py --display-property topic --script CHATTERLANG_SCRIPT
 ```
 
 ### Understanding the Executive Summary Pipeline
@@ -185,13 +187,15 @@ Executive summaries provide overviews, but many stakeholders need detailed analy
 Step 2 creates detailed reports with multiple sections, each generated through specialized prompts and then combined into a cohesive document.
 
 ```bash
-python -m talkpipe.app.apiendpoint --form-config report_topic_ui.yaml --load_module step_2_extras.py --script "
+export TALKPIPE_CHATTERLANG_SCRIPT='
     | copy
-    | llmEmbed[field=\"topic\", source=\"ollama\", model=\"mxbai-embed-large\", append_as=\"vector\"]
-    | searchVector[vector_field=\"vector\", path=\"../Tutorial_2-Search_by_Example_and_RAG/vector_index\", all_results_at_once=True, append_as=\"results\"]
+    | llmEmbed[field="topic", source="ollama", model="mxbai-embed-large", append_as="vector"]
+    | searchVector[vector_field="vector", path="../Tutorial_2-Search_by_Example_and_RAG/vector_index", top_k=10, all_results_at_once=True, append_as="results"]
     | generateReportSectionPrompts
     | generateDetailedReport
-"
+'
+
+python -m talkpipe.app.apiendpoint --form-config report_topic_ui.yml --load_module step_2_extras.py --display-property topic --script CHATTERLANG_SCRIPT
 ```
 
 ### Understanding Multi-Section Report Generation
@@ -245,12 +249,14 @@ Different stakeholders need the same information presented in different ways. Te
 Step 3 creates a sophisticated pipeline that generates multiple report formats from the same underlying research:
 
 ```bash
-python -m talkpipe.app.apiendpoint --form-config multi_format_ui.yaml --load_module step_3_extras.py --script "
+export TALKPIPE_CHATTERLANG_SCRIPT='
     | copy
-    | llmEmbed[field=\"topic\", source=\"ollama\", model=\"mxbai-embed-large\", append_as=\"vector\"]
-    | searchVector[vector_field=\"vector\", path=\"../Tutorial_2-Search_by_Example_and_RAG/vector_index\", all_results_at_once=True, append_as=\"results\"]
-    | generateMultiFormatReport
-"
+    | llmEmbed[field="topic", source="ollama", model="mxbai-embed-large", append_as="vector"]
+    | searchVector[vector_field="vector", path="../Tutorial_2-Search_by_Example_and_RAG/vector_index", top_k=10, all_results_at_once=True, append_as="results"]
+    | generateMultiFormatReport[source="ollama", name="llama3.2"]
+'
+
+python -m talkpipe.app.apiendpoint --form-config multi_format_ui.yml --load_module step3_extras.py --display-property topic --script CHATTERLANG_SCRIPT
 ```
 
 ### Understanding Multi-Format Generation

@@ -12,8 +12,9 @@
 # needing to write any code.
 ###################################################################################
 
+export TALKPIPE_CHATTERLANG_SCRIPT='
+  | searchWhoosh[index_path="full_text_index", field="query"] 
+  | formatItem[field_list="document.title:Title,document.content:Content,score:Score"]
+'
 #talkpipe_endpoint --form-config story_search_ui.yml --title "Story Search" --script "
-python -m talkpipe.app.apiendpoint --form-config story_search_ui.yml --title \"Story\ Search\" --display-property query --script "
-  | searchWhoosh[index_path=\"full_text_index\", field=\"query\"] 
-  | formatItem[field_list=\"document.title:Title,document.content:Content,score:Score\"]
-"
+python -m talkpipe.app.apiendpoint --form-config story_search_ui.yml --title \"Story\ Search\" --display-property query --script CHATTERLANG_SCRIPT

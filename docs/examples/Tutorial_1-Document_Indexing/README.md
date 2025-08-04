@@ -60,15 +60,17 @@ However, for testing and development purposes, we often need synthetic data that
 The first step uses TalkPipe's ChatterLang scripting language to generate 50 fictional stories about technology development. Here's what happens:
 
 ```bash
-chatterlang_script --script "
+export TALKPIPE_CHATTERLANG_SCRIPT='
     LOOP 50 TIMES {
-        INPUT FROM \"Write a fictitious five sentence story about technology development in an imaginary country.\" 
-        | llmPrompt[multi_turn=False] 
-        | toDict[field_list=\"_:content\"] 
-        | llmPrompt[system_prompt=\"Write exactly one title for this story in plain text with no markdown\", field=\"content\", append_as=\"title\", multi_turn=False] 
+        INPUT FROM "Write a fictitious five sentence story about technology development in an imaginary country." 
+        | llmPrompt[source="ollama", name="llama3.2", multi_turn=False] 
+        | toDict[field_list="_:content"] 
+        | llmPrompt[source="ollama", name="llama3.2", system_prompt="Write exactly one title for this story in plain text with no markdown", field="content", append_as="title", multi_turn=False] 
         | dumpsJsonl | print;
     }
-" > stories.json
+'
+
+python -m talkpipe.app.runscript --script CHATTERLANG_SCRIPT > stories.json
 ```
 
 ### Breaking Down the Pipeline
@@ -167,12 +169,14 @@ Think of an index like the index at the back of a book, but much more sophistica
 Step 2 takes our generated stories and creates a searchable index using the Whoosh library:
 
 ```bash
-chatterlang_script --script "
-    INPUT FROM \"stories.json\" 
+export TALKPIPE_CHATTERLANG_SCRIPT='
+    INPUT FROM "stories.json" 
     | readJsonl 
     | progressTicks[tick_count=1, print_count=True]
-    | indexWhoosh[index_path=\"./full_text_index\", field_list=\"content,title\", overwrite=True]
-"
+    | indexWhoosh[index_path="./full_text_index", field_list="content,title", overwrite=True]
+'
+
+python -m talkpipe.app.runscript --script CHATTERLANG_SCRIPT
 ```
 
 ### Understanding the Indexing Pipeline
@@ -282,10 +286,12 @@ Most search implementations require significant custom development, but TalkPipe
 Step 3 creates both an API endpoint and a web interface using a single command:
 
 ```bash
-talkpipe_endpoint --form-config story_search_ui.yaml --title "Story Search" --script "
-  | searchWhoosh[index_path=\"full_text_index\", field=\"query\"] 
-  | formatItem[field_list=\"document.title:Title,document.content:Content,score:Score\"]
-"
+export TALKPIPE_CHATTERLANG_SCRIPT='
+  | searchWhoosh[index_path="full_text_index", field="query"] 
+  | formatItem[field_list="document.title:Title,document.content:Content,score:Score"]
+'
+
+python -m talkpipe.app.apiendpoint --form-config story_search_ui.yml --title "Story Search" --display-property query --script CHATTERLANG_SCRIPT
 ```
 
 ### Understanding the Search System
