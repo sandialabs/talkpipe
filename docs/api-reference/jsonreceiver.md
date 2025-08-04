@@ -54,7 +54,6 @@ python -m talkpipe.app.apiendpoint --port 8080 --script "| llmPrompt | print"
 | `--require-auth` | Require API key authentication | False |
 | `--title` | Title for the web interface | "JSON Data Receiver" |
 | `--script` | ChatterLang script to process data | None |
-| `--script-var` | Config variable containing script | None |
 | `--form-config` | Path to form configuration file | None |
 | `--load-module` | Path to custom module to import | None |
 | `--display-property` | Property to display as user input | None |
@@ -89,6 +88,7 @@ fields:
   label: "Message"
   placeholder: "Enter your message"
   required: true
+  persist: false            # Don't preserve value after submission
 ```
 
 **Number Input:**
@@ -135,6 +135,43 @@ fields:
 - `date` - Date picker
 - `password` - Password input (hidden text)
 
+#### Field Persistence
+
+**Persistent Fields:**
+By default, form fields are cleared after each submission in the streaming interface. Use the `persist` option to preserve field values:
+
+```yaml
+- name: api_model
+  type: select
+  label: "AI Model"
+  persist: true             # Keep selected value after submission
+  options:
+    - "gpt-4"
+    - "claude-3"
+    - "gemini-pro"
+    
+- name: temperature
+  type: number
+  label: "Temperature"
+  min: 0.0
+  max: 2.0
+  default: 0.7
+  persist: true             # Keep temperature setting
+  
+- name: prompt
+  type: textarea
+  label: "Your Prompt"
+  persist: false            # Clear prompt after each submission (default)
+```
+
+**Use Cases for Persistent Fields:**
+- Configuration settings (model selection, parameters)
+- User preferences (output format, language)
+- Context that remains constant across queries
+- API keys or connection settings
+
+**Note:** The regular interface (non-streaming) preserves all field values by default. The `persist` option primarily affects the streaming chat interface.
+
 #### Layout Positions
 
 - `bottom` - Form at bottom, chat above (default)
@@ -157,11 +194,13 @@ fields:
     placeholder: "Describe what you want to generate content about"
     required: true
     rows: 3
+    persist: false          # Clear topic after each generation
     
   - name: style
     type: select
     label: "Writing Style"
     required: true
+    persist: true           # Remember selected style
     options:
       - "Professional"
       - "Casual"
@@ -174,11 +213,13 @@ fields:
     min: 50
     max: 2000
     default: 500
+    persist: true           # Remember word count preference
     
   - name: include_citations
     type: checkbox
     label: "Include citations"
     default: false
+    persist: true           # Remember citation preference
 ```
 
 ## API Usage

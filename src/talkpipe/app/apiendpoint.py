@@ -53,6 +53,7 @@ class FormField(BaseModel):
     min: Optional[Union[int, float]] = None  # For number fields
     max: Optional[Union[int, float]] = None  # For number fields
     rows: Optional[int] = None  # For textarea
+    persist: bool = False  # If True, field values will not be reset after submission
 
 class FormConfig(BaseModel):
     title: str = "Data Input Form"
@@ -310,12 +311,13 @@ class JSONReceiver:
         for field in self.form_config.fields:
             label = field.label or field.name.capitalize()
             required = "required" if field.required else ""
+            persist_attr = 'data-persist="true"' if field.persist else ""
             
             if field.type == "select" and field.options:
                 field_html = f'''
                 <div class="form-group">
                     <label for="{field.name}">{label}:</label>
-                    <select name="{field.name}" id="{field.name}" {required}>
+                    <select name="{field.name}" id="{field.name}" {required} {persist_attr}>
                         <option value="">Choose...</option>
                         {"".join(f'<option value="{opt}">{opt}</option>' for opt in field.options)}
                     </select>
@@ -327,7 +329,7 @@ class JSONReceiver:
                 <div class="form-group">
                     <label for="{field.name}">{label}:</label>
                     <textarea name="{field.name}" id="{field.name}" rows="{rows}" 
-                              placeholder="{field.placeholder or ''}" {required}>{field.default or ''}</textarea>
+                              placeholder="{field.placeholder or ''}" {required} {persist_attr}>{field.default or ''}</textarea>
                 </div>
                 '''
             elif field.type == "checkbox":
@@ -335,7 +337,7 @@ class JSONReceiver:
                 field_html = f'''
                 <div class="form-group checkbox-group">
                     <label>
-                        <input type="checkbox" name="{field.name}" id="{field.name}" {checked}>
+                        <input type="checkbox" name="{field.name}" id="{field.name}" {checked} {persist_attr}>
                         {label}
                     </label>
                 </div>
@@ -350,7 +352,7 @@ class JSONReceiver:
                 <div class="form-group">
                     <label for="{field.name}">{label}:</label>
                     <input type="{field.type}" name="{field.name}" id="{field.name}" 
-                           placeholder="{field.placeholder or ''}" {required} {min_attr} {max_attr} {default_val}>
+                           placeholder="{field.placeholder or ''}" {required} {min_attr} {max_attr} {default_val} {persist_attr}>
                 </div>
                 '''
             
@@ -828,6 +830,20 @@ class JSONReceiver:
                     }};
                 }}
                 
+                function resetFormSelectively(form) {{
+                    const formElements = form.querySelectorAll('input, select, textarea');
+                    formElements.forEach(element => {{
+                        if (!element.hasAttribute('data-persist')) {{
+                            // Reset non-persistent fields
+                            if (element.type === 'checkbox' || element.type === 'radio') {{
+                                element.checked = false;
+                            }} else {{
+                                element.value = '';
+                            }}
+                        }}
+                    }});
+                }}
+                
                 function addMessage(content, type, timestamp) {{
                     const messagesContainer = document.getElementById('chatMessages');
                     
@@ -898,8 +914,8 @@ class JSONReceiver:
                     lastUserMessage = userMessage; // Store to detect duplicates from server
                     addMessage(userMessage, 'user', new Date().toISOString());
                     
-                    // Clear form
-                    form.reset();
+                    // Clear form, but preserve persistent fields
+                    resetFormSelectively(form);
                     
                     submitBtn.disabled = true;
                     submitBtn.textContent = 'Sending...';

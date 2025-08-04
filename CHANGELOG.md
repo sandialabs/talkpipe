@@ -4,19 +4,17 @@
 ### New Segments and Source
 
 ### Improvements
- - **apiendpoint** 
-    - now has a --display-property parameter that will display a specified property as the user message in the stream interface rather than printing a string version of the whole input json (which is still the default).
-    - Fixed a bug causing /stream to not respect position directives.
-    - Changed the default form to issue a single text item with the property "prompt."  
- - Updated tutorial scripts and Tutorial 3 script names.  Moved examples to the docs directory.
- - Updated unit documentation analyzer to properly ignore item and items parameters.  These two terms ("item" and "items") are reserved for the data being
-   passed into a segment and should not be used parameters otherwise.
- - Updated chatterlang_server to issue a 413 error when the script is longer than 10K characters (hardcoded)
- - Added additional more comprehensive documentation.
- - Removed the chatcli application.  It is very easy to reproduce it with runscript.
- - Created load_script function in talkpipe.util.config.  Provides a common way to specify scripts (directly, in a file, 
-   in an entry in the configuration file, or in an environment variable).  This will provide a common experience across the
-   different applications.
+ - **apiendpoint**  
+    - Now has a `--display-property` parameter that will display a specified property as the user message in the stream interface, rather than printing a string version of the whole input JSON (which is still the default).
+    - Fixed a bug causing `/stream` to not respect position directives.
+    - Changed the default form to issue a single text item with the property "prompt."
+    - Added a "persist" option to the UI configuration form to specify fields that will not be cleared after each query.
+ - Updated tutorial scripts and Tutorial 3 script names. Moved examples to the docs directory.
+ - Updated unit documentation analyzer to properly ignore `item` and `items` parameters. These two terms ("item" and "items") are reserved for the data being passed into a segment and should not be used as parameters otherwise.
+ - Updated `chatterlang_server` to issue a 413 error when the script is longer than 10K characters (hardcoded).
+ - Added additional, more comprehensive documentation.
+ - Removed the chatcli application. It is very easy to reproduce with runscript.
+ - Created a `load_script` function in `talkpipe.util.config`. Provides a common way to specify scripts (directly, in a file, in an entry in the configuration file, or in an environment variable). This will provide a consistent experience across the different applications.
 
 ## 0.7.1
 ### New Segments and Sources
