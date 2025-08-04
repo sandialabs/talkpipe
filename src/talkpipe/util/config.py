@@ -255,7 +255,20 @@ def load_script(script_input: str) -> str:
     # 2. Check if the script input can be retrieved from configuration
     config_data = get_config()
     if script_input in config_data:
-        return config_data[script_input]
+        config_value = config_data[script_input]
+        
+        # Check if the config value is a file path
+        config_file_path = Path(config_value)
+        if config_file_path.is_file():
+            try:
+                with open(config_file_path, 'r', encoding='utf-8') as f:
+                    return f.read()
+            except IOError as e:
+                error_message = f"Failed to read script file from config {config_file_path}: {e}"
+                raise IOError(error_message)
+        
+        # If not a file, return the config value as-is
+        return config_value
     
     # 3. Treat as inline script
     return script_input
