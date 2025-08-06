@@ -69,4 +69,4 @@ Consume data at the end of pipelines:
 
 ---
 
-*For conceptual overviews and guides, see the [guides](../guides/) and [architecture](../architecture/) sections. For working examples, see the [examples](../examples/) directory.*
+*For conceptual overviews and guides, see the [guides](../guides/) and [architecture](../architecture/) sections. For working examples, see the [tutorials](../tutorials/) directory.*

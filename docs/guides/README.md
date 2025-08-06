@@ -75,4 +75,4 @@ Integrate TalkPipe with external web services and APIs.
 
 ---
 
-*For complete API reference, see [API Reference](../api-reference/). For conceptual overviews, see [Architecture](../architecture/). For working examples, see the [examples](../examples/) directory.*
+*For complete API reference, see [API Reference](../api-reference/). For conceptual overviews, see [Architecture](../architecture/). For working examples, see the [tutorials](../tutorials/) directory.*

@@ -21,7 +21,7 @@ Both approaches use the same underlying components and can be mixed freely.
 
 ### Using ChatterLang
 
-Create a simple chat interface:
+Create a simple chat interface in python:
 
 ```python
 from talkpipe.chatterlang import compiler
@@ -52,7 +52,7 @@ pipeline_func()  # This will prompt for input interactively
 
 ## Web Interface
 
-Create a web interface for your pipeline:
+Create a web interface for your pipeline from the command line:
 
 ```bash
 # Start a web server with your pipeline
@@ -71,18 +71,18 @@ Open http://localhost:2025/stream in your browser to interact with your pipeline
 - **[chatterlang_server](api-reference/chatterlang-server.md)** - Interactive development environment
 - **[chatterlang_script](api-reference/chatterlang-script.md)** - Run scripts from files
 
-### Explore Examples
+### Explore Tutorials
 
-Check out the [examples directory](examples/) for complete tutorials:
+Check out the [tutorials directory](tutorials/) for complete tutorials:
 - Document indexing and search
 - RAG (Retrieval-Augmented Generation) systems  
 - Multi-format report generation
 
 ### Dive Deeper
 
-- [How-to Guides](guides/) - Step-by-step tutorials
+- [How-to Guides](guides/) - Step-by-step guides for specific applications
 - [Architecture](architecture/) - Technical deep-dives
 - [API Reference](api-reference/) - Complete command reference
 
 
-Ready to build something amazing? Start with the [examples](examples/) or dive into the [guides](guides/) for specific tasks!
+Ready to build something amazing? Start with the [tutorials](tutorials/) or dive into the [guides](guides/) for specific tasks!

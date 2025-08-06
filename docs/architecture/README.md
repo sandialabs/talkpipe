@@ -82,4 +82,4 @@ FastAPI integration for web endpoints and real-time features.
 
 ---
 
-*For practical guidance, see [How-to Guides](../guides/). For API details, see [API Reference](../api-reference/). For working examples, see the [examples](../examples/) directory.*
+*For practical guidance, see [How-to Guides](../guides/). For API details, see [API Reference](../api-reference/). For working examples, see the [tutorials](../tutorials/) directory.*

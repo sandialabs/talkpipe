@@ -48,15 +48,15 @@ python -m talkpipe.app.apiendpoint --port 8080 --script "| llmPrompt | print"
 
 | Argument | Description | Default |
 |----------|-------------|---------|
+| `--script` | ChatterLang script to process data or and environment variable or path to a file containing the script. | None, required |
 | `-p, --port` | Port to listen on | 2025 |
 | `-o, --host` | Host to bind to | 0.0.0.0 |
 | `--api-key` | Set API key for authentication | None |
 | `--require-auth` | Require API key authentication | False |
 | `--title` | Title for the web interface | "JSON Data Receiver" |
-| `--script` | ChatterLang script to process data | None |
-| `--form-config` | Path to form configuration file | None |
+| `--form-config` | Path to form configuration file | None, result is a single text property called "query" |
 | `--load-module` | Path to custom module to import | None |
-| `--display-property` | Property to display as user input | None |
+| `--display-property` | Property to display as user input | None, result is to display the whole JSON input |
 
 ### Form Configuration YAML/JSON Syntax
 
@@ -370,7 +370,7 @@ fields:
 ### Data Processing with Authentication
 
 ```bash
-# Secure data processing endpoint
+# Data processing endpoint
 talkpipe_endpoint --port 3000 \
   --api-key "secure-key-123" \
   --require-auth \
@@ -405,13 +405,12 @@ Store scripts and configs in `~/.talkpipe.toml`:
 
 ```toml
 my_script = "| llmPrompt[system_prompt='You are a helpful assistant'] | print"
-form_config = '{"title": "Assistant", "fields": [{"name": "message", "type": "text"}]}'
 ```
 
 Then reference them:
 
 ```bash
-talkpipe_endpoint --script-var my_script --form-config $form_config
+talkpipe_endpoint --script my_script 
 ```
 
 ## Troubleshooting

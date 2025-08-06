@@ -294,7 +294,7 @@ For comprehensive documentation, guides, and examples, see the **[docs/](docs/)*
 - **[📖 API Reference](docs/api-reference/)** - Complete command and component reference
 - **[📋 How-to Guides](docs/guides/)** - Step-by-step tutorials for common tasks
 - **[🏗️ Architecture](docs/architecture/)** - Technical deep-dives and design concepts
-- **[💡 Examples](docs/examples/)** - Real-world usage examples and patterns
+- **[💡 Tutorials](docs/tutorials/)** - Real-world usage examples and patterns
 
 ## Quick Reference
 
