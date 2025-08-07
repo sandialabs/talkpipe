@@ -22,4 +22,4 @@ export TALKPIPE_CHATTERLANG_SCRIPT='
 '
 
 #talkpipe_endpoint --form-config story_by_example_ui.yml --script "
-python -m talkpipe.app.apiendpoint --form-config story_by_example_ui.yml --load_module step_3_extras.py --display-property example --script CHATTERLANG_SCRIPT
+python -m talkpipe.app.apiendpoint --form-config story_by_example_ui.yml --load-module step_3_extras.py --display-property example --script CHATTERLANG_SCRIPT

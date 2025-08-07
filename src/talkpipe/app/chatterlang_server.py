@@ -1010,7 +1010,7 @@ def main():
         "--reload", action="store_true", help="Enable auto-reload (default: off)"
     )
     parser.add_argument(
-        "--load_module", action='append', default=[], type=str, help="Path to a custom module file to import before running the script."
+        "--load-module", action='append', default=[], type=str, help="Path to a custom module file to import before running the script."
     )
 
     # Add more uvicorn options as needed

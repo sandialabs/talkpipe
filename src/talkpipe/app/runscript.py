@@ -20,7 +20,7 @@ def main():
 
     Command Line Arguments:
         --script: The talkpipe script to run (file path, config key, or inline script)
-        --load_module: Path(s) to custom module file(s) to import before running the script (can be specified multiple times)  
+        --load-module: Path(s) to custom module file(s) to import before running the script (can be specified multiple times)  
         --logger_levels: Logger levels in format 'logger:level,logger:level,...'
         --logger_files: Logger files in format 'logger:file,logger:file,...'
 
@@ -33,7 +33,7 @@ def main():
     """
     parser = argparse.ArgumentParser(description='Run a talkpipe script provided on the command line.')
     parser.add_argument('--script', type=str, required=True, help='The talkpipe script to run: file path, configuration key, or inline script content.')
-    parser.add_argument("--load_module", action='append', default=[], type=str, help="Path to a custom module file to import before running the script.")
+    parser.add_argument("--load-module", action='append', default=[], type=str, help="Path to a custom module file to import before running the script.")
     parser.add_argument("--logger_levels", type=str, help="Logger levels in format 'logger:level,logger:level,...'")
     parser.add_argument("--logger_files", type=str, help="Logger files in format 'logger:file,logger:file,...'")
     args = parser.parse_args()

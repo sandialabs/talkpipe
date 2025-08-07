@@ -19,4 +19,4 @@ export TALKPIPE_CHATTERLANG_SCRIPT='
     | generateMultiFormatReport[source="ollama", name="llama3.2"]
 '
 
-python -m talkpipe.app.apiendpoint --form-config multi_format_ui.yml --load_module step3_extras.py --display-property topic --script CHATTERLANG_SCRIPT
+python -m talkpipe.app.apiendpoint --form-config multi_format_ui.yml --load-module step3_extras.py --display-property topic --script CHATTERLANG_SCRIPT

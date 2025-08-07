@@ -176,7 +176,7 @@ export TALKPIPE_CHATTERLANG_SCRIPT='
     | llmPrompt[source="ollama", name="llama3.2"]
 '
 
-python -m talkpipe.app.apiendpoint --form-config story_by_example_ui.yml --load_module step_3_extras.py --display-property example --script CHATTERLANG_SCRIPT
+python -m talkpipe.app.apiendpoint --form-config story_by_example_ui.yml --load-module step_3_extras.py --display-property example --script CHATTERLANG_SCRIPT
 ```
 
 ### What's Different in the RAG Pipeline

@@ -21,7 +21,7 @@ chatterlang_server [options]
 | `--host` | string | `127.0.0.1` | Server host address |
 | `--port` | integer | `4143` | Server port number |
 | `--reload` | flag | `false` | Enable auto-reload for development |
-| `--load_module` | string | | Path to custom module file to import (can be used multiple times) |
+| `--load-module` | string | | Path to custom module file to import (can be used multiple times) |
 
 ### Examples
 
@@ -36,7 +36,7 @@ chatterlang_server --host 0.0.0.0 --port 8080
 chatterlang_server --reload
 
 # Load custom modules before starting
-chatterlang_server --load_module /path/to/custom_segments.py
+chatterlang_server --load-module /path/to/custom_segments.py
 ```
 
 ## Web Interface Features
@@ -183,7 +183,7 @@ All TalkPipe configuration variables are supported:
 Load custom TalkPipe components before starting the server:
 
 ```bash
-chatterlang_server --load_module ./my_custom_segments.py
+chatterlang_server --load-module ./my_custom_segments.py
 ```
 
 This allows you to:

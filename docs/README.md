@@ -24,7 +24,7 @@ Complete documentation for all TalkPipe commands and components:
 ### 📖 [How-to Guides](guides/)
 Step-by-step tutorials for common tasks:
 - [Creating Web Endpoints](guides/creating-endpoints.md) - Build APIs and web interfaces
-- [Form Configuration](guides/form-configuration.md) - Design custom web forms
+- [Form Configuration](guides/form-configuration.md) - Design custom web forms for talkpipe_endpoint
 - [Authentication & Security](guides/authentication.md) - Secure your endpoints
 
 ### 🏗️ [Architecture](architecture/)

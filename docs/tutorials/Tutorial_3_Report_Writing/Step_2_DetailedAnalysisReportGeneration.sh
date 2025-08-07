@@ -22,4 +22,4 @@ export TALKPIPE_CHATTERLANG_SCRIPT='
     | generateDetailedReport
 '
 
-python -m talkpipe.app.apiendpoint --form-config report_topic_ui.yml --load_module step_2_extras.py --display-property topic --script CHATTERLANG_SCRIPT
+python -m talkpipe.app.apiendpoint --form-config report_topic_ui.yml --load-module step_2_extras.py --display-property topic --script CHATTERLANG_SCRIPT

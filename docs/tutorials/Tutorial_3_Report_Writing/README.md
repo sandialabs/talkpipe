@@ -142,7 +142,7 @@ export TALKPIPE_CHATTERLANG_SCRIPT='
     | llmPrompt[source="ollama", name="llama3.2"]
 '
 
-python -m talkpipe.app.apiendpoint --form-config report_topic_ui.yml --load_module step_1_extras.py --display-property topic --script CHATTERLANG_SCRIPT
+python -m talkpipe.app.apiendpoint --form-config report_topic_ui.yml --load-module step_1_extras.py --display-property topic --script CHATTERLANG_SCRIPT
 ```
 
 ### Understanding the Executive Summary Pipeline
@@ -195,7 +195,7 @@ export TALKPIPE_CHATTERLANG_SCRIPT='
     | generateDetailedReport
 '
 
-python -m talkpipe.app.apiendpoint --form-config report_topic_ui.yml --load_module step_2_extras.py --display-property topic --script CHATTERLANG_SCRIPT
+python -m talkpipe.app.apiendpoint --form-config report_topic_ui.yml --load-module step_2_extras.py --display-property topic --script CHATTERLANG_SCRIPT
 ```
 
 ### Understanding Multi-Section Report Generation
@@ -256,7 +256,7 @@ export TALKPIPE_CHATTERLANG_SCRIPT='
     | generateMultiFormatReport[source="ollama", name="llama3.2"]
 '
 
-python -m talkpipe.app.apiendpoint --form-config multi_format_ui.yml --load_module step3_extras.py --display-property topic --script CHATTERLANG_SCRIPT
+python -m talkpipe.app.apiendpoint --form-config multi_format_ui.yml --load-module step3_extras.py --display-property topic --script CHATTERLANG_SCRIPT
 ```
 
 ### Understanding Multi-Format Generation

@@ -1512,7 +1512,7 @@ def go():
                         help='Chatterlang script to run on received data: file path, configuration key, or inline script content')
     parser.add_argument('--form-config', default=None,
                         help='Path to form configuration file (YAML or JSON) or config variable ($VAR_NAME)')
-    parser.add_argument("--load_module", action='append', default=[], type=str, 
+    parser.add_argument("--load-module", action='append', default=[], type=str, 
                         help="Path to a custom module file to import before running the script.")
     parser.add_argument('--display-property', default=None, 
                         help='Property of the input json to display in the stream interface as user input.')

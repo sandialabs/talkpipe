@@ -21,4 +21,4 @@ export TALKPIPE_CHATTERLANG_SCRIPT='
     | llmPrompt[source="ollama", name="llama3.2"]
 '
 
-python -m talkpipe.app.apiendpoint --form-config report_topic_ui.yml --load_module step_1_extras.py --display-property topic --script CHATTERLANG_SCRIPT
+python -m talkpipe.app.apiendpoint --form-config report_topic_ui.yml --load-module step_1_extras.py --display-property topic --script CHATTERLANG_SCRIPT
