@@ -66,7 +66,7 @@ Create a multi-turn chat function in 2 lines:
 ```python
 from talkpipe.chatterlang import compiler
 
-script = '| llmPrompt[name="llama3.2", source="ollama", multi_turn=True]'
+script = '| llmPrompt[model="llama3.2", source="ollama", multi_turn=True]'
 chat = compiler.compile(script).asFunction(single_in=True, single_out=True)
 
 response = chat("Hello! My name is Alice.")
@@ -84,7 +84,7 @@ from talkpipe.pipe import io
 from talkpipe.llm import chat
 
 # Create a pipeline that prompts for input, gets an LLM response, and prints it
-pipeline = io.Prompt() | chat.LLMPrompt(name="llama3.2") | io.Print()
+pipeline = io.Prompt() | chat.LLMPrompt(model="llama3.2") | io.Print()
 pipeline = pipeline.asFunction()
 pipeline()  # Run the interactive pipeline
 ```
@@ -202,7 +202,7 @@ script = """
 CONST scorePrompt = "Rate 1-10 how related to dogs this is:";
 
 | loadsJsonl 
-| llmScore[system_prompt=scorePrompt, name="llama3.2", append_as="dog_relevance"] 
+| llmScore[system_prompt=scorePrompt, model="llama3.2", append_as="dog_relevance"] 
 | appendAs[field_list="dog_relevance.score:relevance_score"] 
 | toDataFrame
 """
@@ -224,7 +224,7 @@ script = """
 | htmlToText
 | llmPrompt[
     system_prompt="Summarize this article in 3 bullet points",
-    name="llama3.2"
+    model="llama3.2"
   ]
 | print
 """
@@ -258,11 +258,11 @@ CONST iot_prompt = "Rate 0-10 how relevant this is to IoT researchers. Consider 
 | concat[fields="title,summary", append_as="full_text"]
 
 # Score for AI relevance
-| llmScore[system_prompt=ai_prompt, field="full_text", append_as="ai_eval", name="llama3.2"]
+| llmScore[system_prompt=ai_prompt, field="full_text", append_as="ai_eval", model="llama3.2"]
 | appendAs[field_list="ai_eval.score:ai_score,ai_eval.explanation:ai_reason"]
 
 # Score for IoT relevance  
-| llmScore[system_prompt=iot_prompt, field="full_text", append_as="iot_eval", name="llama3.2"]
+| llmScore[system_prompt=iot_prompt, field="full_text", append_as="iot_eval", model="llama3.2"]
 | appendAs[field_list="iot_eval.score:iot_score,iot_eval.explanation:iot_reason"]
 
 # Find highest score

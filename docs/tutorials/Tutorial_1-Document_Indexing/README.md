@@ -63,9 +63,9 @@ The first step uses TalkPipe's ChatterLang scripting language to generate 50 fic
 export TALKPIPE_CHATTERLANG_SCRIPT='
     LOOP 50 TIMES {
         INPUT FROM "Write a fictitious five sentence story about technology development in an imaginary country." 
-        | llmPrompt[source="ollama", name="llama3.2", multi_turn=False] 
+        | llmPrompt[source="ollama", model="llama3.2", multi_turn=False] 
         | toDict[field_list="_:content"] 
-        | llmPrompt[source="ollama", name="llama3.2", system_prompt="Write exactly one title for this story in plain text with no markdown", field="content", append_as="title", multi_turn=False] 
+        | llmPrompt[source="ollama", model="llama3.2", system_prompt="Write exactly one title for this story in plain text with no markdown", field="content", append_as="title", multi_turn=False] 
         | dumpsJsonl | print;
     }
 '
@@ -135,7 +135,7 @@ INPUT FROM "Write a technical specification for a new software feature in 3 para
 
 **Different Structures**: Add more fields like categories, authors, or timestamps
 ```bash
-| llmPrompt[system_prompt="Generate a category for this document", append_as="category"]
+| llmPrompt[model="llama3.2", system_prompt="Generate a category for this document", append_as="category"]
 ```
 
 **Different Volumes**: Adjust the loop count to test with 10 documents or 1,000 documents

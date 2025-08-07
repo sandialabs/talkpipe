@@ -57,7 +57,7 @@ Scripts that start with `|` (pipe) require user input and support multi-turn int
 
 **Example:**
 ```
-| llmPrompt[name="llama3.2", source="ollama", multi_turn=True]
+| llmPrompt[model="llama3.2", source="ollama", multi_turn=True]
 ```
 
 ### Built-in Examples

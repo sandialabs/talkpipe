@@ -5,7 +5,7 @@ from talkpipe.pipe import field_segment
 
 @register_segment("generateMultiFormatReport")
 @field_segment()
-def generate_multi_format_report_segment(item, model_source=None, model_name=None):
+def generate_multi_format_report_segment(item, model_source=None, model=None):
     """
     Segment for generating reports in different formats based on user selection.
     
@@ -120,7 +120,7 @@ def generate_multi_format_report_segment(item, model_source=None, model_name=Non
     selected_prompt = format_prompts[report_format]
     
     # Generate the report using the LLM
-    llm = LLMPrompt(source=model_source, name=model_name)
+    llm = LLMPrompt(source=model_source, model=model_name)
     report_content = list(llm([{'content': selected_prompt}]))[0]
 
     formatted_report = f"""# {report_format}: {topic}

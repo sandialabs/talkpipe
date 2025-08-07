@@ -13,7 +13,7 @@ def test_interactive_widget_initialization():
     assert widget.interactive_input.disabled is True
     
     # Custom initialization
-    test_script = "| llmPrompt[name='test']"
+    test_script = "| llmPrompt[model='test']"
     widget = InteractiveChatterLangWidget(initial_script=test_script, height="400px")
     assert widget.script_editor.value == test_script
     assert widget.script_editor.layout.height == "400px"
@@ -27,7 +27,7 @@ def test_run_interactive_script(monkeypatch):
     monkeypatch.setattr("talkpipe.chatterlang.compiler.compile", mock_compile)
     
     # Create widget with an interactive script (starts with |)
-    widget = InteractiveChatterLangWidget(initial_script="| llmPrompt[name='test']")
+    widget = InteractiveChatterLangWidget(initial_script="| llmPrompt[model='test']")
     widget._run_script(None)
     
     # Assertions for interactive mode

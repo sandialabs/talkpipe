@@ -33,7 +33,7 @@ class LLMPrompt(AbstractSegment):
     error will be raised.
 
     Args:
-        name (str, optional): The name of the model to chat with. Defaults to None.
+        model (str, optional): The name of the model to chat with. Defaults to None.
         source (ModelSource, optional): The source of the model. Defaults to None. Valid values are "openai" and "ollama."
         system_prompt (str, optional): The system prompt for the model. Defaults to "You are a helpful assistant.".
         multi_turn (bool, optional): Whether the chat is multi-turn. Defaults to True.
@@ -46,7 +46,7 @@ class LLMPrompt(AbstractSegment):
 
     def __init__(
             self, 
-            name: str = None, 
+            model: str = None, 
             source: str = None, 
             system_prompt: str = "You are a helpful assistant.", 
             multi_turn: bool = True,
@@ -56,13 +56,13 @@ class LLMPrompt(AbstractSegment):
             temperature: float = 0.5,
             output_format: BaseModel = None):
         super().__init__()
-        logging.debug(f"Initializing LLMPrompt with name={name}, source={source}")
+        logging.debug(f"Initializing LLMPrompt with name={model}, source={source}")
         cfg = get_config()
-        name = name or cfg.get(TALKPIPE_MODEL_NAME, None)
+        model = model or cfg.get(TALKPIPE_MODEL_NAME, None)
         source = source or cfg.get(TALKPIPE_SOURCE, None)
-        logging.debug(f"Resolved model name={name}, source={source}")
+        logging.debug(f"Resolved model name={model}, source={source}")
         
-        if name is None or source is None:
+        if model is None or source is None:
             logging.error("Model name and source must be provided")
             raise ValueError("Model name and source must be provided, specified in the configuration file, or in environment variables.")
 
@@ -70,8 +70,8 @@ class LLMPrompt(AbstractSegment):
             logging.error(f"Unknown source: {source}")
             raise ValueError(f"Unknown source: {source}")
 
-        logging.debug(f"Creating chat model with name: {name}")
-        self.chat = getPromptAdapter(source)(model_name=name, system_prompt=system_prompt, multi_turn=multi_turn, temperature=temperature, output_format=output_format)
+        logging.debug(f"Creating chat model with name: {model}")
+        self.chat = getPromptAdapter(source)(model=model, system_prompt=system_prompt, multi_turn=multi_turn, temperature=temperature, output_format=output_format)
 
         self.pass_prompts = pass_prompts
         self.field = field
@@ -110,7 +110,7 @@ class AbstractLLMGuidedGeneration(LLMPrompt):
     Subclasses must implement the get_output_format method to specify the output format.
     Args:
         system_prompt (str): The system prompt for the LLM.
-        name (str, optional): The name of the model to chat with. Defaults to None.
+        model (str, optional): The name of the model to chat with. Defaults to None.
         source (str, optional): The source of the model. Defaults to None. Valid values are "openai" and "ollama."
         multi_turn (bool, optional): Whether the chat is multi-turn. Defaults to False.
         pass_prompts (bool, optional): Whether to pass the prompts through to the output. Defaults to False.
@@ -128,7 +128,7 @@ class AbstractLLMGuidedGeneration(LLMPrompt):
     def __init__(
             self, 
             system_prompt: str, 
-            name: str = None, 
+            model: str = None, 
             source: str = None, 
             multi_turn: bool = False,
             pass_prompts: bool = False,
@@ -137,7 +137,7 @@ class AbstractLLMGuidedGeneration(LLMPrompt):
             append_as: Optional[str] = None):
         
         super().__init__(
-            name, 
+            model, 
             source=source, 
             system_prompt=system_prompt, 
             multi_turn=multi_turn, 
@@ -183,7 +183,6 @@ class LlmExtractTerms(AbstractLLMGuidedGeneration):
     """
 
     class Terms(BaseModel):
-        explanation: str
         terms: list[str]
 
     @staticmethod

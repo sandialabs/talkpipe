@@ -18,7 +18,7 @@ export TALKPIPE_CHATTERLANG_SCRIPT='
     | llmEmbed[field="topic", source="ollama", model="mxbai-embed-large", append_as="vector"]
     | searchVector[vector_field="vector", path="../Tutorial_2-Search_by_Example_and_RAG/vector_index", top_k=10, all_results_at_once=True, append_as="results"]
     | generateReportSectionPrompts
-    #| generateDetailedReport[model_source="openai", model_name="gpt-4.1"]
+    #| generateDetailedReport[model_source="openai", model="gpt-4.1"]
     | generateDetailedReport
 '
 

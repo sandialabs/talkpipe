@@ -318,7 +318,7 @@ The `/stream` interface provides:
 ```bash
 # Start server with simple chat script
 talkpipe_endpoint --port 8080 \
-  --script "| llmPrompt[name='llama3.2'] | print" \
+  --script "| llmPrompt[model='llama3.2'] | print" \
   --form-config chat.yaml
 ```
 

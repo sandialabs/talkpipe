@@ -13,8 +13,8 @@ class AbstractEmbeddingAdapter:
     _model_name: str
     _source: str
 
-    def __init__(self, model_name: str, source: str):
-        self._model_name = model_name
+    def __init__(self, model: str, source: str):
+        self._model_name = model
         self._source = source
 
     @property
@@ -45,8 +45,8 @@ class AbstractEmbeddingAdapter:
 class OllamaEmbedderAdapter(AbstractEmbeddingAdapter):
     """Embedding adapter for Ollama"""
 
-    def __init__(self, model_name: str):
-        super().__init__(model_name, "ollama")
+    def __init__(self, model: str):
+        super().__init__(model, "ollama")
 
     def execute(self, text: str) -> List[float]:
         response = ollama.embed(

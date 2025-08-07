@@ -27,7 +27,7 @@ Create a simple chat interface in python:
 from talkpipe.chatterlang import compiler
 
 # Define a pipeline that prompts an LLM and prints the response.  Assumed Ollama is installed locally and llama3.2 is downloaded.
-script = '| llmPrompt[name="llama3.2", source="ollama"] | print'
+script = '| llmPrompt[model="llama3.2", source="ollama"] | print'
 chat = compiler.compile(script).asFunction(single_in=True, single_out=True)
 
 # Use it
@@ -43,7 +43,7 @@ from talkpipe.pipe import io
 from talkpipe.llm import chat
 
 # Create pipeline using the | operator
-pipeline = io.Prompt() | chat.LLMPrompt(name="llama3.2", source="ollama") | io.Print()
+pipeline = io.Prompt() | chat.LLMPrompt(model="llama3.2", source="ollama") | io.Print()
 pipeline_func = pipeline.asFunction()
 
 # Run it
@@ -56,7 +56,7 @@ Create a web interface for your pipeline from the command line:
 
 ```bash
 # Start a web server with your pipeline
-talkpipe_endpoint --port 2025 --display-property prompt --script "| llmPrompt[name=\"llama3.2\", source=\"ollama\", field=\"prompt\"]"
+talkpipe_endpoint --port 2025 --display-property prompt --script "| llmPrompt[model=\"llama3.2\", source=\"ollama\", field=\"prompt\"]"
 ```
 
 Note that you may need to change how the double quotes are escaped based on your shell.

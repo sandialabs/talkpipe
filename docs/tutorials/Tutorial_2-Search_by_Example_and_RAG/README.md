@@ -173,7 +173,7 @@ export TALKPIPE_CHATTERLANG_SCRIPT='
     | llmEmbed[field="example", source="ollama", model="mxbai-embed-large", append_as="vector"]
     | searchVector[vector_field="vector", path="./vector_index", all_results_at_once=True, append_as="results"]
     | ragPrompt
-    | llmPrompt[source="ollama", name="llama3.2"]
+    | llmPrompt[source="ollama", model="llama3.2"]
 '
 
 python -m talkpipe.app.apiendpoint --form-config story_by_example_ui.yml --load-module step_3_extras.py --display-property example --script CHATTERLANG_SCRIPT

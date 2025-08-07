@@ -19,14 +19,14 @@ class AbstractLLMPromptAdapter(ABC):
     _messages: list
     _multi_turn: bool
 
-    def __init__(self, model_name: str,
+    def __init__(self, model: str,
                  source: str,
                  system_prompt: str = "You are a helpful assistant.",
                  multi_turn: bool = True,
                  temperature: float = 0.5,
                  output_format: BaseModel = None):
         """Initialize the chat model"""
-        self._model_name = model_name
+        self._model_name = model
         self._source = source
         self._system_message = {"role": "system", "content": system_prompt}
         self._multi_turn = multi_turn
@@ -75,8 +75,8 @@ class OllamaPromptAdapter(AbstractLLMPromptAdapter):
 
     """
 
-    def __init__(self, model_name: str, system_prompt: str = "You are a helpful assistant.", multi_turn: bool = True, temperature: float = 0.5, output_format: BaseModel = None):
-        super().__init__(model_name, "ollama", system_prompt, multi_turn, temperature, output_format)
+    def __init__(self, model: str, system_prompt: str = "You are a helpful assistant.", multi_turn: bool = True, temperature: float = 0.5, output_format: BaseModel = None):
+        super().__init__(model, "ollama", system_prompt, multi_turn, temperature, output_format)
 
     def execute(self, prompt: str) -> str:
         """Execute the chat model.
@@ -127,8 +127,8 @@ class OpenAIPromptAdapter(AbstractLLMPromptAdapter):
 
     """
 
-    def __init__(self, model_name: str, system_prompt: str = "You are a helpful assistant.", multi_turn: bool = True, temperature: float = 0.5, output_format: BaseModel = None):
-        super().__init__(model_name, "openai", system_prompt, multi_turn, temperature, output_format)
+    def __init__(self, model: str, system_prompt: str = "You are a helpful assistant.", multi_turn: bool = True, temperature: float = 0.5, output_format: BaseModel = None):
+        super().__init__(model, "openai", system_prompt, multi_turn, temperature, output_format)
         self.client = openai.OpenAI()
 
     def execute(self, prompt: str) -> str:

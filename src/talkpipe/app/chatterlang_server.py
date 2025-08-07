@@ -65,7 +65,7 @@ EXAMPLE_SCRIPTS = {
         {
             "name": "Simple Chat",
             "description": "Interactive conversation with an LLM",
-            "code": '| llmPrompt[name="llama3.2", source="ollama", multi_turn=True]'
+            "code": '| llmPrompt[model="llama3.2", source="ollama", multi_turn=True]'
         },
         {
             "name": "Agent Conversation",

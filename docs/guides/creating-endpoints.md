@@ -31,7 +31,7 @@ curl -X POST http://localhost:8080/process \
 ```bash
 # Process text through an LLM
 talkpipe_endpoint --port 8080 \
-  --script "| llmPrompt[system_prompt='Summarize this text'] | print"
+  --script "| llmPrompt[model='gpt-4', system_prompt='Summarize this text'] | print"
 ```
 
 ## Form Configuration
@@ -55,7 +55,7 @@ fields:
 
 ```bash
 talkpipe_endpoint --form-config simple-form.yaml \
-  --script "| llmPrompt | print"
+  --script "| llmPrompt[model='gpt-4'] | print"
 ```
 
 ## Advanced Examples
@@ -99,7 +99,7 @@ fields:
 talkpipe_endpoint --form-config analysis-form.yaml \
   --script """
   | lambda[expression="f'{item[\"analysis_type\"]}: {item[\"content\"][:100]}...'", append_as="prompt"]
-  | llmPrompt[field="prompt", system_prompt="Provide the requested analysis in the specified format"]
+  | llmPrompt[model='gpt-4', field="prompt", system_prompt="Provide the requested analysis in the specified format"]
   | print
   """
 ```
@@ -111,7 +111,7 @@ talkpipe_endpoint --port 9000 \
   --script """
   | downloadURL[field="url"]
   | htmlToText  
-  | llmPrompt[system_prompt="Extract key information and create a structured summary"]
+  | llmPrompt[model='gpt-4', system_prompt="Extract key information and create a structured summary"]
   | print
   """ \
   --form-config document-form.yaml
@@ -134,7 +134,7 @@ fields:
 
 ```bash
 talkpipe_endpoint --api-key "your-secret-key" --require-auth \
-  --script "| llmPrompt | print"
+  --script "| llmPrompt[model='gpt-4'] | print"
 ```
 
 Test with authentication:
@@ -151,7 +151,7 @@ curl -X POST http://localhost:2025/process \
 
 Access the streaming interface at `/stream`:
 ```bash
-talkpipe_endpoint --script "| llmPrompt | print"
+talkpipe_endpoint --script "| llmPrompt[model='gpt-4'] | print"
 # Open http://localhost:2025/stream
 ```
 
@@ -166,7 +166,7 @@ Features:
 Control what appears as user input in the stream:
 ```bash
 talkpipe_endpoint --display-property "title" \
-  --script "| llmPrompt[field='content'] | print"
+  --script "| llmPrompt[model='gpt-4', field='content'] | print"
 ```
 
 ## Configuration Management
@@ -175,7 +175,7 @@ talkpipe_endpoint --display-property "title" \
 
 Store scripts in `~/.talkpipe.toml`:
 ```toml
-summarizer_script = "| llmPrompt[system_prompt='Create a concise summary'] | print"
+summarizer_script = "| llmPrompt[model='gpt-4', system_prompt='Create a concise summary'] | print"
 ```
 
 Reference in command:
@@ -196,7 +196,7 @@ talkpipe_endpoint --load-module ./my_segments.py \
 
 ```bash
 talkpipe_endpoint --script """
-| llmPrompt[fail_on_error=false]
+| llmPrompt[model='gpt-4', fail_on_error=false]
 | lambda[expression="item if item else 'Processing failed'"]  
 | print
 """
@@ -226,7 +226,7 @@ FROM python:3.11-slim
 RUN pip install talkpipe
 COPY config.yaml /app/
 WORKDIR /app
-CMD ["talkpipe_endpoint", "--form-config", "config.yaml", "--script", "| llmPrompt | print"]
+CMD ["talkpipe_endpoint", "--form-config", "config.yaml", "--script", "| llmPrompt[model='gpt-4'] | print"]
 ```
 
 ### Reverse Proxy Setup
@@ -246,7 +246,7 @@ location /api/ {
 export TALKPIPE_openai_api_key="sk-..."
 export TALKPIPE_default_model_name="gpt-4"
 
-talkpipe_endpoint --script "| llmPrompt | print"
+talkpipe_endpoint --script "| llmPrompt[model='gpt-4'] | print"
 ```
 
 ## Monitoring and Logging

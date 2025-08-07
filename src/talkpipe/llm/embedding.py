@@ -48,7 +48,7 @@ class LLMEmbed(AbstractSegment):
         if source not in getEmbeddingSources():
             logger.error(f"Source '{source}' is not supported. Supported sources are: {getEmbeddingSources()}")
             raise ValueError(f"Source '{source}' is not supported. Supported sources are: {getEmbeddingSources()}")
-        self.embedder = getEmbeddingAdapter(source)(model_name=model)
+        self.embedder = getEmbeddingAdapter(source)(model=model)
         self.field = field
         self.append_as = append_as
 

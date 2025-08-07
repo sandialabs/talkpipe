@@ -4,6 +4,11 @@
 ### New Segments and Source
 
 ### Improvements
+
+Note that this release introduces some significant API breaking changes with the 0.7.x and earlier releases.
+The software is mostly feature complete for 1.0.0.  These releases will especially focus on making the API
+self-consistent.
+
  - **apiendpoint**  
     - Now has a `--display-property` parameter that will display a specified property as the user message in the stream interface, rather than printing a string version of the whole input JSON (which is still the default).
     - Fixed a bug causing `/stream` to not respect position directives.
@@ -15,6 +20,8 @@
  - Added additional, more comprehensive documentation.
  - Removed the chatcli application. It is very easy to reproduce with runscript.
  - Created a `load_script` function in `talkpipe.util.config`. Provides a common way to specify scripts (directly, in a file, in an entry in the configuration file, or in an environment variable). This will provide a consistent experience across the different applications.
+ - Among all apps, changed --load_module parameter to --load-module for consistency.
+ - Changed parameters that refer to model names to be "model" rather than "name" or "model_name" for consistency.
 
 ## 0.7.1
 ### New Segments and Sources

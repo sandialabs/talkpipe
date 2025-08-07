@@ -88,7 +88,7 @@ def test_load_jsonl_example(tmpdir):
 def test_chat_function_example(requires_ollama):
     
     script = """
-    | llmPrompt[name="llama3.2", source="ollama", multi_turn=True]  
+    | llmPrompt[model="llama3.2", source="ollama", multi_turn=True]  
     """
     f = compiler.compile(script)
     f = f.asFunction(single_in=True, single_out=True)
@@ -98,7 +98,7 @@ def test_chat_function_example(requires_ollama):
     assert isinstance(ans, str)
     assert "bob" in ans.lower()
     
-    f = chat.LLMPrompt(name="llama3.2", source="ollama", multi_turn=True).asFunction(single_in=True, single_out=True)
+    f = chat.LLMPrompt(model="llama3.2", source="ollama", multi_turn=True).asFunction(single_in=True, single_out=True)
     ans = f("Good afternoon.  My name is Bob!")
     assert isinstance(ans, str)
     ans = f("What is my names?")
@@ -106,7 +106,7 @@ def test_chat_function_example(requires_ollama):
     assert "bob" in ans.lower()
 
     script = """
-    | llmPrompt[name="llama3.2", source="ollama", multi_turn=True, pass_prompts=True] | print | accum[reset=False] 
+    | llmPrompt[model="llama3.2", source="ollama", multi_turn=True, pass_prompts=True] | print | accum[reset=False] 
     """    
     f = compiler.compile(script)
     f = f.asFunction(single_in=True, single_out=False)
@@ -115,7 +115,7 @@ def test_chat_function_example(requires_ollama):
     assert len(result) == 4
     assert "bob" in result[-1].lower()
     
-    f = chat.LLMPrompt(name="llama3.2", source="ollama", multi_turn=True, pass_prompts=True) | io.Print() | compiler.Accum(reset=False)
+    f = chat.LLMPrompt(model="llama3.2", source="ollama", multi_turn=True, pass_prompts=True) | io.Print() | compiler.Accum(reset=False)
     f = f.asFunction(single_in=True, single_out=False)
     f("Good afternoon.  My name is Bob!")
     result = list(f("What is my name?"))
@@ -174,7 +174,7 @@ def test_a_crawler_example(requires_ollama):
     script = """
     CONST explainPrompt = "Explain whether the content of the title and description fields in the following json is related to canines.";
     CONST scorePrompt = "On a scale of 1 to 10, how related to canines is the combination of the content in the title, description, and explanation fields?";
-    | loadsJsonl | llmScore[system_prompt=scorePrompt, name="llama3.1", append_as="canine", temperature=0.0] | appendAs[field_list="canine.score:canine_score"] | toDataFrame 
+    | loadsJsonl | llmScore[system_prompt=scorePrompt, model="llama3.1", append_as="canine", temperature=0.0] | appendAs[field_list="canine.score:canine_score"] | toDataFrame 
     """
 
     pipeline = compiler.compile(script).asFunction(single_in=False, single_out=True)
