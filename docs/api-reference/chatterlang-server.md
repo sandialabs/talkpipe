@@ -1,249 +1,464 @@
-# ChatterLang Server
+# ChatterlangServer Documentation
 
-**`chatterlang_server`** - Interactive web interface for writing, testing, and running ChatterLang scripts in real-time.
+ChatterlangServer is TalkPipe's web API endpoint system that allows you to create interactive web interfaces and REST APIs for processing JSON data through ChatterLang pipelines. It provides both a user-friendly web form and a REST API endpoint that can integrate with external systems.
 
 ## Overview
 
-The ChatterLang Server provides a browser-based development environment for TalkPipe's external DSL. It features a rich text editor, real-time script execution, built-in examples, and comprehensive logging capabilities. This tool is perfect for experimenting with ChatterLang syntax, prototyping pipelines, and learning TalkPipe concepts interactively.
+ChatterlangServer creates a FastAPI-based web service that:
+- Accepts JSON data via HTTP POST requests 
+- Processes data through configurable ChatterLang scripts
+- Provides real-time streaming output via Server-Sent Events
+- Offers customizable web forms for user interaction
+- Supports API key authentication for secure access
 
-## Usage
+## Getting Started
 
-### Command Line Interface
+### Using chatterlang_serve Command
 
-```bash
-chatterlang_server [options]
-```
-
-### Command Line Options
-
-| Option | Type | Default | Description |
-|--------|------|---------|-------------|
-| `--host` | string | `127.0.0.1` | Server host address |
-| `--port` | integer | `4143` | Server port number |
-| `--reload` | flag | `false` | Enable auto-reload for development |
-| `--load-module` | string | | Path to custom module file to import (can be used multiple times) |
-
-### Examples
+The `chatterlang_serve` command is the primary way to launch ChatterlangServer:
 
 ```bash
-# Start server with default settings
-chatterlang_server
+# Basic usage - starts server on port 2025
+chatterlang_serve
 
-# Start on custom host and port
-chatterlang_server --host 0.0.0.0 --port 8080
+# Custom port and host
+chatterlang_serve --port 8080 --host localhost
 
-# Enable development mode with auto-reload
-chatterlang_server --reload
+# With authentication
+chatterlang_serve --api-key mysecretkey --require-auth
 
-# Load custom modules before starting
-chatterlang_server --load-module /path/to/custom_segments.py
+# With a ChatterLang script
+chatterlang_serve --script "| llmPrompt | print"
+
+# With form configuration
+chatterlang_serve --form-config config.yaml
 ```
 
-## Web Interface Features
+### Using python -m chatterlang_serve (Legacy)
 
-### Interactive Execution
-The server supports two execution modes:
-
-#### Non-Interactive Scripts
-Scripts that start with `INPUT FROM` or other source commands execute immediately when compiled, displaying all output at once.
-
-**Example:**
-```
-INPUT FROM echo[data="Hello World"] | print
-```
-
-#### Interactive Scripts  
-Scripts that start with `|` (pipe) require user input and support multi-turn interactions.
-
-**Example:**
-```
-| llmPrompt[model="llama3.2", source="ollama", multi_turn=True]
-```
-
-### Built-in Examples
-
-The interface provides categorized example scripts:
-
-#### Basic Examples
-- **Hello World**: Simple data echo and print
-- **Data Transformation**: Type casting and data manipulation
-- **Using Variables**: Variable storage and reuse patterns
-
-#### LLM Examples
-- **Simple Chat**: Single-turn LLM interactions
-- **Agent Conversation**: Multi-agent debate scenarios
-- **Web Page Summarizer**: URL processing and summarization
-
-#### Advanced Examples
-- **Data Analysis Loop**: Iterative data processing with loops
-- **Document Evaluation**: Scoring and relevance assessment
-
-### System Logging
-- **Real-time Logs**: Live system and execution logs
-- **Log Levels**: Color-coded INFO, WARNING, and ERROR messages
-- **Log Management**: Clear and refresh capabilities
-- **Persistent Display**: Logs persist across script executions
-
-## API Endpoints
-
-The server exposes several REST endpoints for programmatic access:
-
-### `GET /`
-Returns the main web interface HTML page.
-
-**Response**: HTML content for the interactive interface
-
-### `POST /compile`
-Compiles a ChatterLang script and prepares it for execution.
-
-**Request Body:**
-```json
-{
-  "script": "INPUT FROM echo[data=\"test\"] | print"
-}
-```
-
-**Response (Non-interactive):**
-```json
-{
-  "id": "uuid-string",
-  "interactive": false,
-  "output": "test"
-}
-```
-
-**Response (Interactive):**
-```json
-{
-  "id": "uuid-string", 
-  "interactive": true
-}
-```
-
-**Error Response:**
-```json
-{
-  "detail": "Compilation error message"
-}
-```
-
-### `POST /go`
-Executes an interactive script with user input.
-
-**Request Body:**
-```json
-{
-  "id": "uuid-from-compile",
-  "user_input": "Hello, how are you?"
-}
-```
-
-**Response**: Streaming text response with script output
-
-### `GET /examples`
-Returns all available example scripts organized by category.
-
-**Response:**
-```json
-{
-  "examples": {
-    "Basic Examples": [
-      {
-        "name": "Hello World",
-        "description": "Simple example to print a message",
-        "code": "INPUT FROM echo[data=\"Hello, ChatterLang World!\"] | print"
-      }
-    ]
-  }
-}
-```
-
-### `GET /logs`
-Retrieves recent system logs.
-
-**Response:**
-```json
-{
-  "logs": [
-    "2024-01-15 10:30:45 - INFO - Script compiled successfully",
-    "2024-01-15 10:30:46 - INFO - Interactive execution started"
-  ]
-}
-```
-
-## Configuration
-
-### Environment Variables
-All TalkPipe configuration variables are supported:
-
-
-## Development Features
-
-### Custom Module Loading
-Load custom TalkPipe components before starting the server:
+You can also run it directly:
 
 ```bash
-chatterlang_server --load-module ./my_custom_segments.py
+python -m talkpipe.app.chatterlang_serve --port 8080 --script "| llmPrompt | print"
 ```
 
-This allows you to:
-- Test custom sources and segments
-- Prototype new functionality
-- Integrate domain-specific components
+## Configuration Options
 
-### Auto-reload Mode
-Enable development mode for automatic server restarts:
+### Command Line Arguments
+
+| Argument | Description | Default |
+|----------|-------------|---------|
+| `--script` | ChatterLang script to process data or and environment variable or path to a file containing the script. | None, required |
+| `-p, --port` | Port to listen on | 2025 |
+| `-o, --host` | Host to bind to | 0.0.0.0 |
+| `--api-key` | Set API key for authentication | None |
+| `--require-auth` | Require API key authentication | False |
+| `--title` | Title for the web interface | "ChatterLang Server" |
+| `--form-config` | Path to form configuration file | None, result is a single text property called "query" |
+| `--load-module` | Path to custom module to import | None |
+| `--display-property` | Property to display as user input | None, result is to display the whole JSON input |
+
+### Form Configuration YAML/JSON Syntax
+
+The form configuration file defines the web interface layout and form fields. It supports both YAML and JSON formats.
+
+#### Basic Structure
+
+```yaml
+title: "My Custom Interface"
+position: "bottom"           # bottom, top, left, right
+height: "200px"             # CSS height value
+theme: "dark"               # dark, light
+
+fields:
+  - name: "field_name"      # Required: JSON property name
+    type: "text"            # Field type (see below)
+    label: "Display Label"  # Optional: display label
+    placeholder: "hint..."  # Optional: placeholder text
+    required: true          # Optional: required field
+    default: "value"        # Optional: default value
+```
+
+#### Field Types
+
+**Text Input:**
+```yaml
+- name: message
+  type: text                # Default type
+  label: "Message"
+  placeholder: "Enter your message"
+  required: true
+  persist: false            # Don't preserve value after submission
+```
+
+**Number Input:**
+```yaml
+- name: count
+  type: number
+  label: "Count"
+  min: 1
+  max: 100
+  default: 10
+```
+
+**Textarea:**
+```yaml
+- name: description
+  type: textarea
+  label: "Description"
+  rows: 4
+  placeholder: "Enter detailed description"
+```
+
+**Select Dropdown:**
+```yaml
+- name: category
+  type: select
+  label: "Category"
+  required: true
+  options:
+    - "Option 1"
+    - "Option 2"
+    - "Option 3"
+```
+
+**Checkbox:**
+```yaml
+- name: enabled
+  type: checkbox
+  label: "Enable feature"
+  default: true
+```
+
+**Other Input Types:**
+- `email` - Email input with validation
+- `date` - Date picker
+- `password` - Password input (hidden text)
+
+#### Field Persistence
+
+**Persistent Fields:**
+By default, form fields are cleared after each submission in the streaming interface. Use the `persist` option to preserve field values:
+
+```yaml
+- name: api_model
+  type: select
+  label: "AI Model"
+  persist: true             # Keep selected value after submission
+  options:
+    - "gpt-4"
+    - "claude-3"
+    - "gemini-pro"
+    
+- name: temperature
+  type: number
+  label: "Temperature"
+  min: 0.0
+  max: 2.0
+  default: 0.7
+  persist: true             # Keep temperature setting
+  
+- name: prompt
+  type: textarea
+  label: "Your Prompt"
+  persist: false            # Clear prompt after each submission (default)
+```
+
+**Use Cases for Persistent Fields:**
+- Configuration settings (model selection, parameters)
+- User preferences (output format, language)
+- Context that remains constant across queries
+- API keys or connection settings
+
+**Note:** The regular interface (non-streaming) preserves all field values by default. The `persist` option primarily affects the streaming chat interface.
+
+#### Layout Positions
+
+- `bottom` - Form at bottom, chat above (default)
+- `top` - Form at top, chat below  
+- `left` - Form on left side, chat on right
+- `right` - Form on right side, chat on left
+
+#### Complete Example
+
+```yaml
+title: "AI Content Generator"
+position: "bottom"
+height: "250px"
+theme: "dark"
+
+fields:
+  - name: topic
+    type: textarea
+    label: "Content Topic"
+    placeholder: "Describe what you want to generate content about"
+    required: true
+    rows: 3
+    persist: false          # Clear topic after each generation
+    
+  - name: style
+    type: select
+    label: "Writing Style"
+    required: true
+    persist: true           # Remember selected style
+    options:
+      - "Professional"
+      - "Casual"
+      - "Technical"
+      - "Creative"
+      
+  - name: word_count
+    type: number
+    label: "Target Word Count"
+    min: 50
+    max: 2000
+    default: 500
+    persist: true           # Remember word count preference
+    
+  - name: include_citations
+    type: checkbox
+    label: "Include citations"
+    default: false
+    persist: true           # Remember citation preference
+```
+
+## API Usage
+
+### REST API Endpoints
+
+**POST /process** - Submit data for processing
+- Content-Type: `application/json`
+- Optional Header: `X-API-Key` (if authentication enabled)
+- Body: JSON object matching your form fields
+
+**GET /history** - Retrieve processing history
+- Optional Query: `?limit=10` 
+- Optional Header: `X-API-Key`
+
+**DELETE /history** - Clear processing history
+- Optional Header: `X-API-Key`
+
+**GET /health** - Health check endpoint
+
+**GET /output-stream** - Server-Sent Events stream for real-time output
+
+### curl Examples
+
+**Basic POST request:**
+```bash
+curl -X POST http://localhost:2025/process \
+  -H "Content-Type: application/json" \
+  -d '{"message": "Hello world", "value": 42}'
+```
+
+**With API key authentication:**
+```bash
+curl -X POST http://localhost:2025/process \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: mysecretkey" \
+  -d '{"topic": "AI developments", "style": "Professional"}'
+```
+
+**Get processing history:**
+```bash
+curl http://localhost:2025/history?limit=5 \
+  -H "X-API-Key: mysecretkey"
+```
+
+**Health check:**
+```bash
+curl http://localhost:2025/health
+```
+
+## Web Interface Workflow
+
+### 1. Access the Interface
+
+Navigate to `http://localhost:2025/` in your browser to access the main interface, or `http://localhost:2025/stream` for the real-time streaming interface.
+
+### 2. Configure Authentication (if enabled)
+
+If authentication is required, enter your API key in the provided field at the top of the form.
+
+### 3. Fill Out the Form
+
+Complete the form fields based on your configuration:
+- **Required fields** are marked and must be filled
+- **Select fields** provide dropdown options
+- **Number fields** enforce min/max constraints
+- **Textarea fields** allow multi-line input
+
+### 4. Submit Data
+
+Click "Submit" or "Send Message" to process your data. The interface will:
+- Validate required fields
+- Send data to the processing endpoint
+- Display success/error status
+- Show real-time output in the streaming interface
+
+### 5. View Results
+
+- **Main interface**: Shows processing history and status messages
+- **Streaming interface**: Real-time chat-like view with user messages and AI responses
+- **Browser developer tools**: Network tab shows raw API responses
+
+### 6. Stream Interface Features
+
+The `/stream` interface provides:
+- **Real-time output**: See results as they're generated
+- **Chat history**: Conversation-style display of interactions
+- **Auto-scroll**: Automatically scrolls to new messages (toggleable)
+- **Clear chat**: Reset the conversation history
+- **Responsive design**: Works on desktop and mobile
+
+## Integration Examples
+
+### Basic AI Chat Interface
 
 ```bash
-chatterlang_server --reload
+# Start server with simple chat script
+chatterlang_serve --port 8080 \
+  --script "| llmPrompt[model='llama3.2'] | print" \
+  --form-config chat.yaml
 ```
 
-**Note**: Only use `--reload` in development environments.
+**chat.yaml:**
+```yaml
+title: "AI Chat Assistant"
+position: "bottom"
+height: "120px"
+theme: "dark"
+fields:
+  - name: message
+    type: textarea
+    label: "Your message"
+    placeholder: "Type your message here..."
+    required: true
+    rows: 2
+```
 
-## Technical Details
+### Document Analysis Pipeline
 
-### Architecture
-- **Backend**: FastAPI with uvicorn ASGI server
-- **Frontend**: Vanilla JavaScript with Server-Sent Events
-- **Streaming**: Real-time output delivery via HTTP streaming
-- **State Management**: In-memory compiled script storage
+```bash
+# Process documents with custom analysis
+chatterlang_serve --port 9000 \
+  --script "| downloadURL | htmlToText | llmPrompt[system_prompt='Summarize this document'] | print" \
+  --form-config analysis.yaml
+```
 
-### Performance Considerations
-- **Script Limits**: Maximum 10,000 characters per script
-- **Memory Usage**: Compiled scripts stored in server memory
-- **Concurrent Users**: Supports multiple simultaneous users
-- **Streaming Output**: Efficient real-time result delivery
+**analysis.yaml:**
+```yaml
+title: "Document Analyzer"
+position: "left"
+height: "400px"
+theme: "light"
+fields:
+  - name: url
+    type: text
+    label: "Document URL"
+    placeholder: "https://example.com/document.html"
+    required: true
+  - name: analysis_type
+    type: select
+    label: "Analysis Type"
+    options:
+      - "Summary"
+      - "Key Points"
+      - "Sentiment Analysis"
+```
 
-### Security
-- **Input Validation**: Script length and content validation
-- **Error Handling**: Safe error message display
-- **Resource Limits**: Automatic cleanup of compiled instances
-- **Local Binding**: Default binding to localhost for security
+### Data Processing with Authentication
+
+```bash
+# Data processing endpoint
+chatterlang_serve --port 3000 \
+  --api-key "secure-key-123" \
+  --require-auth \
+  --script "| toDataFrame | llmScore[system_prompt='Rate this data quality 1-10'] | print"
+```
+
+## Advanced Features
+
+### Custom Display Properties
+
+Use `--display-property` to control what appears as user input in the stream interface:
+
+```bash
+chatterlang_serve --display-property "title" \
+  --script "| llmPrompt | print"
+```
+
+This will show the `title` field value instead of the full JSON in the chat.
+
+### Loading Custom Modules
+
+Import custom Python modules before starting:
+
+```bash
+chatterlang_serve --load-module ./my_segments.py \
+  --script "| myCustomSegment | print"
+```
+
+### Configuration Variables
+
+Store scripts and configs in `~/.talkpipe.toml`:
+
+```toml
+my_script = "| llmPrompt[system_prompt='You are a helpful assistant'] | print"
+```
+
+Then reference them:
+
+```bash
+chatterlang_serve --script my_script 
+```
 
 ## Troubleshooting
 
 ### Common Issues
 
-**Server won't start**
-- Check if port is already in use
-- Verify TalkPipe installation
-- Check for missing dependencies
+**Port already in use:**
+```bash
+# Try a different port
+chatterlang_serve --port 8081
+```
 
-**Scripts fail to compile**
-- Verify ChatterLang syntax
-- Check for missing LLM configurations
-- Review system logs for detailed errors
+**Module not found:**
+```bash
+# Ensure TalkPipe is properly installed
+pip install talkpipe
+```
 
-**Interactive mode not working**
-- Ensure script starts with `|` character
-- Verify LLM connectivity (Ollama/OpenAI)
-- Check API key configuration
+**Authentication errors:**
+- Verify API key matches between client and server
+- Check that `X-API-Key` header is included in requests
 
-**Examples not loading**
+**Form not displaying:**
+- Validate YAML/JSON syntax in form configuration
 - Check browser console for JavaScript errors
-- Verify `/examples` endpoint accessibility
-- Restart server if needed
 
----
+### Logging
 
-*For conceptual information about ChatterLang, see [ChatterLang Architecture](../architecture/chatterlang.md). 
+Enable detailed logging for debugging:
+
+```bash
+export TALKPIPE_logger_levels="talkpipe.app.chatterlang_serve:DEBUG"
+chatterlang_serve --script "| print"
+```
+
+## Security Considerations
+
+- **API Keys**: Use strong, unique API keys for authentication
+- **Network**: Consider running behind a reverse proxy (nginx, Apache)
+- **HTTPS**: Use HTTPS in production environments
+- **CORS**: The server allows all origins by default - restrict in production
+- **Input Validation**: Form fields provide basic validation, but validate data in your scripts
+- **File Access**: Scripts can access the file system - be cautious with user inputs
+
+## Performance Notes
+
+- **Queue Size**: Output queue is limited to 1000 items
+- **History**: Processing history is limited to 1000 entries by default
+- **Connections**: Each streaming client maintains a Server-Sent Events connection
+- **Memory**: Large responses are truncated in the web interface
+- **Concurrency**: FastAPI handles multiple concurrent requests automatically

@@ -13,6 +13,6 @@ from talkpipe.operations.filtering import *
 from talkpipe.operations.transforms import *
 from talkpipe.operations.matrices import *
 from talkpipe.operations.signatures import *
-from talkpipe.app.apiendpoint import *
+from talkpipe.app.chatterlang_serve import *
 from talkpipe.search.whoosh import *
 from talkpipe.search.simplevectordb import *

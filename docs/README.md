@@ -16,8 +16,8 @@ Real-world usage examples and tutorials:
 
 ### 📚 [API Reference](api-reference/)
 Complete documentation for all TalkPipe commands and components:
-- [JSONReceiver / talkpipe_endpoint](api-reference/jsonreceiver.md) - Run a script as an API endpoint and with a customizable web interface
-- [ChatterLang Server](api-reference/chatterlang-server.md) - Interactive web interface for writing and testing scripts interactively
+- [ChatterlangServer / talkpipe_endpoint](api-reference/chatterlang-server.md) - Run a script as an API endpoint and with a customizable web interface
+- [ChatterLang Workbench](api-reference/chatterlang-workbench.md) - Interactive web interface for writing and testing scripts interactively
 - [ChatterLang Script Runner](api-reference/chatterlang-script.md) - Run a script from the command line
 - [Documentation Generator](api-reference/talkpipe-ref.md) - Generate reference documentations for Segments and Sources
 

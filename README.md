@@ -31,7 +31,7 @@ The Application Components layer contains runnable applications that provide use
 
 ### Key Applications
 
-- **chatterlang_server**  
+- **chatterlang_workbench**  
   Launches an interactive web interface for writing, testing, and running ChatterLang scripts. It provides real-time execution, logging, and documentation lookup.
 
 - **chatterlang_script**  
@@ -131,12 +131,12 @@ INPUT FROM echo[data="1,2,hello,3"] | cast[cast_type="int"] | print
 
 ### Interactive Web Interface
 ```bash
-chatterlang_server [--port 8080]
+chatterlang_workbench [--port 8080]
 ```
 A web UI for writing and testing ChatterLang scripts with real-time execution and logging.
 
 ### Command-Line Tools
-- `chatterlang_server` - Start the interactive web interface for experimenting with ChatterLang
+- `chatterlang_workbench` - Start the interactive web interface for experimenting with ChatterLang
 - `chatterlang_script` - Run ChatterLang scripts from files or command line
 - `talkpipe_ref` - Generate documentation for all available sources and segments
 - `talkpipe_endpoint` - Create a customizable user-accessible web interface and REST API from ChatterLang scripts
@@ -300,8 +300,8 @@ For comprehensive documentation, guides, and examples, see the **[docs/](docs/)*
 
 | Command | Purpose | Documentation |
 |---------|---------|---------------|
-| `talkpipe_endpoint` | Create web APIs and forms | [📄](docs/api-reference/jsonreceiver.md) |
-| `chatterlang_server` | Interactive web interface | [📄](docs/api-reference/chatterlang-server.md) |
+| `talkpipe_endpoint` | Create web APIs and forms | [📄](docs/api-reference/chatterlang-server.md) |
+| `chatterlang_workbench` | Interactive web interface | [📄](docs/api-reference/chatterlang-workbench.md) |
 | `chatterlang_script` | Run scripts from command line | [📄](docs/api-reference/chatterlang-script.md) |
 | `talkpipe_ref` | Generate documentation | [📄](docs/api-reference/talkpipe-ref.md) |
 
@@ -482,7 +482,7 @@ This codebase will use [semantic versioning](https://semver.org/) with the addti
 The following are the main breakdown of the codebase. These should be considered firm but not strict breakdowns. Sometimes a source could fit within either operations or data, for example.  
 
 * **talkpipe.app** - Contains the primary runnable applications. 
-  * Example: runscript
+  * Example: chatterlang_script
 * **talkpipe.operations** - Contains general algorithm implementations.  Associated segments and sources can be included next to the algorithm implementations, but the algorithms themselves should also work stand-alone.
   * Example: bloom filters
 * **talkpipe.data** - Contain components having to do with complex, type-specific data manipulation.  
@@ -542,7 +542,7 @@ on their data.
 
 ### Source and Segement Reference
 
-The chatterlang_server command starts a web service designed for experimentation.  It also contains links to HTML and text versions
+The chatterlang_workbench command starts a web service designed for experimentation.  It also contains links to HTML and text versions
 of all the sources and segments included in TalkPipe.
 
 After talkpipe is installed, a script called "talkpipe_ref" is available that will write an HTML and text file in the current directory, each of which contains the documentation for built-in sources and segments.

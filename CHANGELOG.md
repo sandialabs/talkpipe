@@ -9,19 +9,20 @@ Note that this release introduces some significant API breaking changes with the
 The software is mostly feature complete for 1.0.0.  These releases will especially focus on making the API
 self-consistent.
 
- - **apiendpoint**  
+ - **chatterlang_serve**  
     - Now has a `--display-property` parameter that will display a specified property as the user message in the stream interface, rather than printing a string version of the whole input JSON (which is still the default).
     - Fixed a bug causing `/stream` to not respect position directives.
     - Changed the default form to issue a single text item with the property "prompt."
     - Added a "persist" option to the UI configuration form to specify fields that will not be cleared after each query.
  - Updated tutorial scripts and Tutorial 3 script names. Moved examples to the docs directory.
  - Updated unit documentation analyzer to properly ignore `item` and `items` parameters. These two terms ("item" and "items") are reserved for the data being passed into a segment and should not be used as parameters otherwise.
- - Updated `chatterlang_server` to issue a 413 error when the script is longer than 10K characters (hardcoded).
+ - Updated `chatterlang_workbench` to issue a 413 error when the script is longer than 10K characters (hardcoded).
  - Added additional, more comprehensive documentation.
- - Removed the chatcli application. It is very easy to reproduce with runscript.
+ - Removed the chatcli application. It is very easy to reproduce with chatterlang_script.
  - Created a `load_script` function in `talkpipe.util.config`. Provides a common way to specify scripts (directly, in a file, in an entry in the configuration file, or in an environment variable). This will provide a consistent experience across the different applications.
  - Among all apps, changed --load_module parameter to --load-module for consistency.
  - Changed parameters that refer to model names to be "model" rather than "name" or "model_name" for consistency.
+ - Renamed applications for consistency.
 
 ## 0.7.1
 ### New Segments and Sources
@@ -31,7 +32,7 @@ self-consistent.
 
 ### Improvements
  - Added an "examples" directory with three tutorials, each of which builds on the previous one and contains multiple steps.
- - Updates to **apiendpoint**:
+ - Updates to **chatterlang_serve**:
   - Changed the default port.
   - Fixed a bug causing it to be unable to load a script from a file.
  - Added metric and method options to vector_search in the SimpleVectorDB class and propagated those through to searchVector.
@@ -77,7 +78,7 @@ self-consistent.
 ### Improvements
  - Fixed a bug preventing the OpenAI adapter from working. Removed the OpenAI mockup test and replaced it with a unit test that
   communicates with OpenAI when the unit test environment is properly configured.
- - Updated apiendpoint to include a user-facing web app. Allows the user to specify a YAML file to define the format expected by 
+ - Updated chatterlang_serve to include a user-facing web app. Allows the user to specify a YAML file to define the format expected by 
   the endpoint. The user can then go to /stream with their browser and get a form where they can enter the data that will be
   converted into JSON and sent to the endpoint. This is in addition to the ability to post to the endpoint directly as before.   
  - Updated writePickle so that it always passes along every item. Also, 
@@ -86,7 +87,7 @@ self-consistent.
  - Replaced the mocked OpenAI unit test with an actual call to OpenAI, contingent
   upon it being accessible. Fixed the OpenAI prompt adapter.
  - Added an optional field specifier to writePickle.
- - Added the ability for apiendpoint and chatterlang_server to load custom modules.
+ - Added the ability for chatterlang_serve and chatterlang_workbench to load custom modules.
  - Removed **call_func**. This is superseded by the more flexible lambda.
 
 
@@ -109,13 +110,13 @@ self-consistent.
  - Use can specify custom user-agent strings via a configuration file or environment variable for web page
  downloader.
  - Renamed threading.py to thread_ops.py to avoid name collision
- - Renamed scriptendpoint.py to chatterlang_server.py for clarity
+ - Renamed scriptendpoint.py to chatterlang_workbench.py for clarity
  - Documentation improvements
  - Moved code closing mongo connections to the end of the internal loop and out of the del code.  It was causing 
 error when being disposed as python was exiting.
  - Changed n_iter to max_iter to resolve warning with tsne.
  - Adjust n_neighbors in umap when larger than the number of points to resolve warning
- - Added chatterlang_scipt to the package installer so the user can run talkpipe.app.runscript from the commandline
+ - Added chatterlang_scipt to the package installer so the user can run talkpipe.app.chatterlang_script from the commandline
 
 ## 0.4.2 
 ### New Segments
@@ -158,14 +159,14 @@ error when being disposed as python was exiting.
   - write scripts in a text area and compile/execute them.
   - interactive provide text input to the script if the script requires it.
   - the ability to see logging statements emitted.
-  - run the server using a command "chatterlang_server" that is included in the whl file.
+  - run the server using a command "chatterlang_workbench" that is included in the whl file.
   - view documentation for the include sources and segments.  Note that the documentation is rebuilt
   everytime a whl file is generated.
   - view and load various example scripts.
 installed.  This works on at least windows and linux
 - Added comment support for ChatterLang, anything from a hash mark (#) until the end of the line.
 - Added configureLogging segment for configuring logging levels and files from within a script.  This is probably temporary and will be removed before 0.3.0 as a better solution is written.
-- Consolidated the logic around configuring logging, migrating the various ways of specifying the configuration strings from runscript into the configure_logging method itself.
+- Consolidated the logic around configuring logging, migrating the various ways of specifying the configuration strings from chatterlang_script into the configure_logging method itself.
 
 ## 0.2.2 (2025-02-21)
 - The rss segment can get the url to download from the rss_url configuration setting.

@@ -4,14 +4,14 @@ Complete technical reference for all TalkPipe commands, components, and APIs.
 
 ## Command-Line Tools
 
-### [JSONReceiver / talkpipe_endpoint](jsonreceiver.md)
+### [ChatterlangServer / talkpipe_endpoint](chatterlang-server.md)
 Create web APIs and interactive forms for processing JSON data through ChatterLang pipelines.
 - REST API endpoints
 - Configurable web forms  
 - Real-time streaming output
 - Authentication support
 
-### [ChatterLang Server](chatterlang-server.md)
+### [ChatterLang Workbench](chatterlang-server.md)
 Interactive web interface for writing, testing, and running ChatterLang scripts.
 - Real-time script execution
 - Built-in documentation

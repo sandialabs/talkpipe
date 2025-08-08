@@ -22,5 +22,5 @@ export TALKPIPE_CHATTERLANG_SCRIPT='
     | formatItem[field_list="document.title:Title, document.content:Content, score:Score"]
 '
 
-#talkpipe_endpoint --form-config story_by_example_ui.yml --script "
-python -m talkpipe.app.apiendpoint --form-config story_by_example_ui.yml --display-property example --script CHATTERLANG_SCRIPT
+#chatterlang_serve --form-config story_by_example_ui.yml --script "
+python -m talkpipe.app.chatterlang_serve --form-config story_by_example_ui.yml --display-property example --script CHATTERLANG_SCRIPT

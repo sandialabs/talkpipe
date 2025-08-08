@@ -62,8 +62,8 @@ class FormConfig(BaseModel):
     height: str = "150px"  # CSS height for the form panel
     theme: str = "dark"  # dark, light
 
-class JSONReceiver:
-    """JSON Data Receiver Server Class with configurable form UI"""
+class ChatterlangServer:
+    """ChatterLang Server Class with configurable form UI"""
     
     def __init__(
         self,
@@ -72,7 +72,7 @@ class JSONReceiver:
         api_key: str = "your-secret-key-here",
         require_auth: bool = False,
         processor_func: Callable[[Dict[str, Any]], Any] = None,
-        title: str = "JSON Data Receiver",
+        title: str = "ChatterLang Server",
         history_length: int = 1000,
         form_config: Optional[Dict[str, Any]] = None,
         display_property: Optional[str] = None
@@ -1432,8 +1432,8 @@ def load_form_config(config_path: str) -> Dict[str, Any]:
         else:
             raise ValueError(f"Unsupported configuration file format: {path.suffix}")
 
-@register_source("jsonReceiver")
-class JSONReceiverSegment(AbstractSource):
+@register_source("chatterlangServer")
+class ChatterlangServerSegment(AbstractSource):
     """Segment for receiving JSON data via FastAPI with configurable form"""
     
     def __init__(self, port: Union[int,str] = 9999, host: str = "0.0.0.0", 
@@ -1460,7 +1460,7 @@ class JSONReceiverSegment(AbstractSource):
                 # Load from file
                 form_config = load_form_config(form_config)
         
-        self.receiver = JSONReceiver(
+        self.receiver = ChatterlangServer(
             host=host,
             port=self.port,
             api_key=api_key,
@@ -1470,7 +1470,7 @@ class JSONReceiverSegment(AbstractSource):
             form_config=form_config
         )
         self.receiver.start(background=True)
-        logger.info(f"Finished initializing JSONReceiverSegment on port {port}")
+        logger.info(f"Finished initializing ChatterlangServer on port {port}")
 
     def process_data(self, data: Dict[str, Any]) -> str:
         """Process incoming JSON data and add it to the queue"""
@@ -1489,7 +1489,7 @@ class JSONReceiverSegment(AbstractSource):
             return error_msg
         
     def generate(self):
-        print("Starting JSONReceiverSegment generator...")
+        print("Starting ChatterlangServer generator...")
         while True:
             # Wait for data to be available in the queue
             print("Waiting for data...")
@@ -1550,7 +1550,7 @@ def go():
             # Load from file
             form_config = load_form_config(args.form_config)
 
-    receiver = JSONReceiver(
+    receiver = ChatterlangServer(
         host=args.host,
         port=args.port,
         api_key=args.api_key,

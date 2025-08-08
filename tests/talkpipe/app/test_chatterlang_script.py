@@ -2,7 +2,7 @@ import pytest
 import logging
 from unittest.mock import patch
 from talkpipe.util import config  
-from talkpipe.app.runscript import main
+from talkpipe.app.chatterlang_script import main
 
 
 extra_module = """

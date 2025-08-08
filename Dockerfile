@@ -21,4 +21,4 @@ RUN pytest --log-cli-level=DEBUG
 RUN rm -fr .git
 RUN rm -fr tests
 
-CMD ["python", "-m", "talkpipe.app.runscript", "--load-module", "data/custom_module.py", "--env", "TALKPIPE_SCRIPT"]
+CMD ["python", "-m", "talkpipe.app.chatterlang_script", "--load-module", "data/custom_module.py", "--env", "TALKPIPE_SCRIPT"]

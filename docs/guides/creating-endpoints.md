@@ -1,10 +1,10 @@
 # Creating Web Endpoints
 
-Learn how to build web APIs and interactive interfaces using `talkpipe_endpoint`.
+Learn how to build web APIs and interactive interfaces using `chatterlang_serve`.
 
 ## Overview
 
-`talkpipe_endpoint` creates FastAPI-based web services that:
+`chatterlang_serve` creates FastAPI-based web services that:
 - Accept JSON data via HTTP POST requests
 - Process data through ChatterLang pipelines
 - Provide real-time streaming output
@@ -16,7 +16,7 @@ Learn how to build web APIs and interactive interfaces using `talkpipe_endpoint`
 
 ```bash
 # Start a basic endpoint that echoes input
-talkpipe_endpoint --port 8080 --script "| print"
+chatterlang_serve --port 8080 --script "| print"
 ```
 
 Test with curl:
@@ -30,7 +30,7 @@ curl -X POST http://localhost:8080/process \
 
 ```bash
 # Process text through an LLM
-talkpipe_endpoint --port 8080 \
+chatterlang_serve --port 8080 \
   --script "| llmPrompt[model='gpt-4', system_prompt='Summarize this text'] | print"
 ```
 
@@ -54,7 +54,7 @@ fields:
 ```
 
 ```bash
-talkpipe_endpoint --form-config simple-form.yaml \
+chatterlang_serve --form-config simple-form.yaml \
   --script "| llmPrompt[model='gpt-4'] | print"
 ```
 
@@ -96,7 +96,7 @@ fields:
 
 **Corresponding script:**
 ```bash
-talkpipe_endpoint --form-config analysis-form.yaml \
+chatterlang_serve --form-config analysis-form.yaml \
   --script """
   | lambda[expression="f'{item[\"analysis_type\"]}: {item[\"content\"][:100]}...'", append_as="prompt"]
   | llmPrompt[model='gpt-4', field="prompt", system_prompt="Provide the requested analysis in the specified format"]
@@ -107,7 +107,7 @@ talkpipe_endpoint --form-config analysis-form.yaml \
 ### Document Processing Endpoint
 
 ```bash
-talkpipe_endpoint --port 9000 \
+chatterlang_serve --port 9000 \
   --script """
   | downloadURL[field="url"]
   | htmlToText  
@@ -133,7 +133,7 @@ fields:
 ### Enable API Key Authentication
 
 ```bash
-talkpipe_endpoint --api-key "your-secret-key" --require-auth \
+chatterlang_serve --api-key "your-secret-key" --require-auth \
   --script "| llmPrompt[model='gpt-4'] | print"
 ```
 
@@ -151,7 +151,7 @@ curl -X POST http://localhost:2025/process \
 
 Access the streaming interface at `/stream`:
 ```bash
-talkpipe_endpoint --script "| llmPrompt[model='gpt-4'] | print"
+chatterlang_serve --script "| llmPrompt[model='gpt-4'] | print"
 # Open http://localhost:2025/stream
 ```
 
@@ -165,7 +165,7 @@ Features:
 
 Control what appears as user input in the stream:
 ```bash
-talkpipe_endpoint --display-property "title" \
+chatterlang_serve --display-property "title" \
   --script "| llmPrompt[model='gpt-4', field='content'] | print"
 ```
 
@@ -180,13 +180,13 @@ summarizer_script = "| llmPrompt[model='gpt-4', system_prompt='Create a concise 
 
 Reference in command:
 ```bash
-talkpipe_endpoint --script-var summarizer_script
+chatterlang_serve --script-var summarizer_script
 ```
 
 ### Loading Custom Modules
 
 ```bash
-talkpipe_endpoint --load-module ./my_segments.py \
+chatterlang_serve --load-module ./my_segments.py \
   --script "| myCustomProcessor | print"
 ```
 
@@ -195,7 +195,7 @@ talkpipe_endpoint --load-module ./my_segments.py \
 ### Graceful Error Handling
 
 ```bash
-talkpipe_endpoint --script """
+chatterlang_serve --script """
 | llmPrompt[model='gpt-4', fail_on_error=false]
 | lambda[expression="item if item else 'Processing failed'"]  
 | print
@@ -226,7 +226,7 @@ FROM python:3.11-slim
 RUN pip install talkpipe
 COPY config.yaml /app/
 WORKDIR /app
-CMD ["talkpipe_endpoint", "--form-config", "config.yaml", "--script", "| llmPrompt[model='gpt-4'] | print"]
+CMD ["chatterlang_serve", "--form-config", "config.yaml", "--script", "| llmPrompt[model='gpt-4'] | print"]
 ```
 
 ### Reverse Proxy Setup
@@ -246,7 +246,7 @@ location /api/ {
 export TALKPIPE_openai_api_key="sk-..."
 export TALKPIPE_default_model_name="gpt-4"
 
-talkpipe_endpoint --script "| llmPrompt[model='gpt-4'] | print"
+chatterlang_serve --script "| llmPrompt[model='gpt-4'] | print"
 ```
 
 ## Monitoring and Logging
@@ -254,7 +254,7 @@ talkpipe_endpoint --script "| llmPrompt[model='gpt-4'] | print"
 ### Enable Debug Logging
 
 ```bash
-export TALKPIPE_logger_levels="talkpipe.app.apiendpoint:DEBUG"
+export TALKPIPE_logger_levels="talkpipe.app.chatterlang_serve:DEBUG"
 talkpipe_endpoint --script "| print"
 ```
 

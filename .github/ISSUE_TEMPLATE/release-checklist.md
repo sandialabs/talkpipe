@@ -16,7 +16,7 @@ assignees: ''
         - docker build . -t talkpipe:experimental
 - [ ] Tag repository
 - [ ] Build whl files
-- [ ] Install whl file in new environment and test a script in chatterlang_server
+- [ ] Install whl file in new environment and test a script in chatterlang_workbench
 - [ ] Run examples in the tutorials
 - [ ] Push to pypi
        - twine upload --repository talkpipe dist/*

@@ -55,11 +55,11 @@ dev = [
 ]
 
 [project.scripts]
-chatterlang_server = "talkpipe.app.chatterlang_server:main"
-chatterlang_script = "talkpipe.app.runscript:main"
+chatterlang_workbench = "talkpipe.app.chatterlang_workbench:main"
+chatterlang_script = "talkpipe.app.chatterlang_script:main"
 talkpipe_ref = "talkpipe.app.unit_documentation_analyzer:go"
 talkpipe_genkeys = "talkpipe.operations.crypto:generate_keys_cli"
-talkpipe_endpoint = "talkpipe.app.apiendpoint:go"
+chatterlang_serve = "talkpipe.app.chatterlang_serve:go"
 
 [tool.setuptools.packages.find]
 where = ["src"]

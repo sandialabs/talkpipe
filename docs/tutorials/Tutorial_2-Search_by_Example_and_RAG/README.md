@@ -43,7 +43,7 @@ export TALKPIPE_CHATTERLANG_SCRIPT='
     | addVector[path="./vector_index", vector_field="vector", metadata_field_list="title,content", overwrite=True]
 '
 
-python -m talkpipe.app.runscript --script CHATTERLANG_SCRIPT
+python -m talkpipe.app.chatterlang_script --script CHATTERLANG_SCRIPT
 ```
 
 ### Breaking Down the Pipeline
@@ -104,7 +104,7 @@ export TALKPIPE_CHATTERLANG_SCRIPT='
     | formatItem[field_list="document.title:Title, document.content:Content, score:Score"]
 '
 
-python -m talkpipe.app.apiendpoint --form-config story_by_example_ui.yml --display-property example --script CHATTERLANG_SCRIPT
+python -m talkpipe.app.chatterlang_serve --form-config story_by_example_ui.yml --display-property example --script CHATTERLANG_SCRIPT
 ```
 
 ### Understanding the Search Pipeline
@@ -176,7 +176,7 @@ export TALKPIPE_CHATTERLANG_SCRIPT='
     | llmPrompt[source="ollama", model="llama3.2"]
 '
 
-python -m talkpipe.app.apiendpoint --form-config story_by_example_ui.yml --load-module step_3_extras.py --display-property example --script CHATTERLANG_SCRIPT
+python -m talkpipe.app.chatterlang_serve --form-config story_by_example_ui.yml --load-module step_3_extras.py --display-property example --script CHATTERLANG_SCRIPT
 ```
 
 ### What's Different in the RAG Pipeline

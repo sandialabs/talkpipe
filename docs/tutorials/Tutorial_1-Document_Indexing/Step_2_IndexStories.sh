@@ -24,4 +24,4 @@ export TALKPIPE_CHATTERLANG_SCRIPT='
 '
 
 #chatterlang_script --script "
-python -m talkpipe.app.runscript --script CHATTERLANG_SCRIPT
+python -m talkpipe.app.chatterlang_script --script CHATTERLANG_SCRIPT

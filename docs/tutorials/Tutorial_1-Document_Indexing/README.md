@@ -70,7 +70,7 @@ export TALKPIPE_CHATTERLANG_SCRIPT='
     }
 '
 
-python -m talkpipe.app.runscript --script CHATTERLANG_SCRIPT > stories.json
+python -m talkpipe.app.chatterlang_script --script CHATTERLANG_SCRIPT > stories.json
 ```
 
 ### Breaking Down the Pipeline
@@ -176,7 +176,7 @@ export TALKPIPE_CHATTERLANG_SCRIPT='
     | indexWhoosh[index_path="./full_text_index", field_list="content,title", overwrite=True]
 '
 
-python -m talkpipe.app.runscript --script CHATTERLANG_SCRIPT
+python -m talkpipe.app.chatterlang_script --script CHATTERLANG_SCRIPT
 ```
 
 ### Understanding the Indexing Pipeline
@@ -291,14 +291,14 @@ export TALKPIPE_CHATTERLANG_SCRIPT='
   | formatItem[field_list="document.title:Title,document.content:Content,score:Score"]
 '
 
-python -m talkpipe.app.apiendpoint --form-config story_search_ui.yml --title "Story Search" --display-property query --script CHATTERLANG_SCRIPT
+python -m talkpipe.app.chatterlang_serve --form-config story_search_ui.yml --title "Story Search" --display-property query --script CHATTERLANG_SCRIPT
 ```
 
 ### Understanding the Search System
 
 **1. The Endpoint Architecture**
 ```
-talkpipe_endpoint --form-config story_search_ui.yaml --title "Story Search"
+chatterlang_serve --form-config story_search_ui.yaml --title "Story Search"
 ```
 This creates a web server that provides:
 - **An API endpoint** for programmatic access
@@ -325,7 +325,7 @@ This formats the search results for display:
 
 ### How Users Interact with the System
 
-When you run the `talkpipe_endpoint` command, it will start a web server and display the URL to access it. Visiting that URL directly will show you the raw API endpoint interface, while adding `/stream` to the URL will bring up the user-friendly web form interface.
+When you run the `chatterlang_serve` command, it will start a web server and display the URL to access it. Visiting that URL directly will show you the raw API endpoint interface, while adding `/stream` to the URL will bring up the user-friendly web form interface.
 
 **Web Interface Users** can:
 1. Navigate to the `/stream` URL in their browser
@@ -373,7 +373,7 @@ This prototyping pattern works for many different scenarios:
 
 ### From Prototype to Production
 
-**For Small Teams and Projects**: The built-in `talkpipe_endpoint` interface might be your final solution. It provides:
+**For Small Teams and Projects**: The built-in `chatterlang_serve` interface might be your final solution. It provides:
 - **Zero custom development** for basic search functionality
 - **Automatic API generation** for programmatic access
 - **Configuration-driven UI** that non-developers can modify

@@ -191,7 +191,7 @@ def searchElasticsearch(items, url, field="query"):
 While these tutorials showcase TalkPipe's built-in web interfaces, you're not limited to them:
 
 ### Direct API Access
-Every `apiendpoint` automatically creates a JSON API:
+Every `chatterlang_serve` automatically creates a JSON API:
 ```bash
 curl -X POST http://localhost:8080/process \
   -H "Content-Type: application/json" \
