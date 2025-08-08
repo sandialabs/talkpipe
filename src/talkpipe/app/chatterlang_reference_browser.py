@@ -41,11 +41,15 @@ class TalkPipeBrowser:
         self.load_documentation()
     
     def load_documentation(self):
-        """Parse the talkpipe_ref.txt file and load all components."""
+        """Parse the talkpipe_ref.txt or unit-docs.txt file and load all components."""
+        # Try talkpipe_ref.txt first (current directory format)
         txt_file = self.doc_path / "talkpipe_ref.txt"
         if not txt_file.exists():
-            print(f"Error: Could not find talkpipe_ref.txt in {self.doc_path}")
-            sys.exit(1)
+            # Try unit-docs.txt (installation directory format)
+            txt_file = self.doc_path / "unit-docs.txt"
+            if not txt_file.exists():
+                print(f"Error: Could not find talkpipe_ref.txt or unit-docs.txt in {self.doc_path}")
+                sys.exit(1)
         
         with open(txt_file, 'r', encoding='utf-8') as f:
             content = f.read()
@@ -335,27 +339,35 @@ def main():
         if txt_file.exists():
             doc_path = str(current_dir)
         else:
-            # Files don't exist, try to run talkpipe_ref command to create them
-            print("Reference files not found in current directory.")
-            print("Attempting to run 'chatterlang_reference_generator' command to generate them...")
+            # Check installation directory for pre-installed documentation
+            install_dir = Path(__file__).parent / 'static'
+            install_txt_file = install_dir / "unit-docs.txt"
             
-            try:
-                import subprocess
-                result = subprocess.run(['chatterlang_reference_generator'], capture_output=True, text=True, check=True)
-                print("Successfully generated reference files.")
+            if install_txt_file.exists():
+                print("Using pre-installed documentation from installation directory.")
+                doc_path = str(install_dir)
+            else:
+                # Files don't exist, try to run talkpipe_ref command to create them
+                print("Reference files not found in current directory or installation directory.")
+                print("Attempting to run 'chatterlang_reference_generator' command to generate them...")
                 
-                # Check if files were created
-                if txt_file.exists():
-                    doc_path = str(current_dir)
-                else:
-                    print("Error: talkpipe_ref command completed but files were not created")
+                try:
+                    import subprocess
+                    subprocess.run(['chatterlang_reference_generator'], capture_output=True, text=True, check=True)
+                    print("Successfully generated reference files.")
+                    
+                    # Check if files were created
+                    if txt_file.exists():
+                        doc_path = str(current_dir)
+                    else:
+                        print("Error: talkpipe_ref command completed but files were not created")
+                        sys.exit(1)
+                except (subprocess.CalledProcessError, FileNotFoundError) as e:
+                    print(f"Error running talkpipe_ref command: {e}")
+                    print("Please either:")
+                    print("  1. Install TalkPipe and ensure 'talkpipe_ref' is in PATH, or")
+                    print("  2. Provide path to directory containing talkpipe_ref.txt")
                     sys.exit(1)
-            except (subprocess.CalledProcessError, FileNotFoundError) as e:
-                print(f"Error running talkpipe_ref command: {e}")
-                print("Please either:")
-                print("  1. Install TalkPipe and ensure 'talkpipe_ref' is in PATH, or")
-                print("  2. Provide path to directory containing talkpipe_ref.txt")
-                sys.exit(1)
     else:
         if not os.path.exists(args.doc_path):
             print(f"Error: Directory {args.doc_path} does not exist")
