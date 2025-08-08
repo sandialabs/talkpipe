@@ -10,7 +10,7 @@ os.makedirs('src/talkpipe/app/static', exist_ok=True)
 try:
     subprocess.run([
         sys.executable, 
-        'src/talkpipe/app/unit_documentation_analyzer.py',
+        'src/talkpipe/app/chatterlang_reference_generator.py',
         'src',
         'src/talkpipe/app/static/unit-docs.html',
         'src/talkpipe/app/static/unit-docs.txt'

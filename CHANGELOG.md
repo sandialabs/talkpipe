@@ -23,6 +23,8 @@ self-consistent.
  - Among all apps, changed --load_module parameter to --load-module for consistency.
  - Changed parameters that refer to model names to be "model" rather than "name" or "model_name" for consistency.
  - Renamed applications for consistency.
+ - Added a command **chatterlang_reference_browswer** that provides an interactive way to browse the chatterlang sources and segments.
+ - Deleted the jupyter widgets because they have not been useful.
 
 ## 0.7.1
 ### New Segments and Sources
