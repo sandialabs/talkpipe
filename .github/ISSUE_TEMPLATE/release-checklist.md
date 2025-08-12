@@ -12,7 +12,6 @@ assignees: ''
 - [ ] Ensure unit tests pass in live environment
 - [ ] Merge into master
 - [ ] Build docker images and make sure runnable unit tests pass
-        - docker build -f base-image/Dockerfile . -t talkpipe:base
         - docker build . -t talkpipe:experimental
 - [ ] Tag repository
 - [ ] Build whl files

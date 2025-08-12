@@ -1,6 +1,10 @@
-FROM talkpipe:base
+FROM python:3.11
 
+# Set working directory
 WORKDIR /app
+
+# Install the basics of the scientific computing stack for analytics
+RUN pip install numpy pandas matplotlib scikit-learn scipy
 
 COPY . .
 

@@ -70,6 +70,11 @@ with multiple lines and special characters like !@#$%^&*()_+.
     
     def test_load_script_file_not_readable(self):
         """Test IOError when file exists but cannot be read."""
+        # Skip test when running as root (e.g., in Docker builds)
+        # Root can bypass file permission restrictions
+        if os.getuid() == 0:
+            pytest.skip("Test skipped when running as root - root bypasses file permissions")
+            
         with tempfile.NamedTemporaryFile(delete=False) as f:
             temp_path = f.name
         
