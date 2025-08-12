@@ -40,7 +40,7 @@ class LLMPrompt(AbstractSegment):
         pass_prompts (bool, optional): Whether to pass the prompts through to the output. Defaults to False.
         field (str, optional): The field in the input item containing the prompt. Defaults to None.
         append_as (str, optional): The field to append the response to. Defaults to None.
-        temperature (float, optional): The temperature to use for the model. Defaults to 0.5.
+        temperature (float, optional): The temperature to use for the model. If not specified, no temperature parameter will be passed to the model.
         output_format (BaseModel, optional): A class used for guided generation. Defaults to None.
     """
 
@@ -53,7 +53,7 @@ class LLMPrompt(AbstractSegment):
             pass_prompts: bool = False,
             field: Optional[str] = None,
             append_as: Optional[str] = None,
-            temperature: float = 0.5,
+            temperature: float = None,
             output_format: BaseModel = None):
         super().__init__()
         logging.debug(f"Initializing LLMPrompt with name={model}, source={source}")
@@ -115,7 +115,7 @@ class AbstractLLMGuidedGeneration(LLMPrompt):
         multi_turn (bool, optional): Whether the chat is multi-turn. Defaults to False.
         pass_prompts (bool, optional): Whether to pass the prompts through to the output. Defaults to False.
         field (str, optional): The field in the input item containing the prompt. Defaults to None.
-        temperature (float, optional): The temperature to use for the model. Defaults to 0.5.
+        temperature (float, optional): The temperature to use for the model. If not specified, no temperature parameter will be passed to the model.
         append_as (str, optional): The field to append the response to. Defaults to None.
     """
 
@@ -133,7 +133,7 @@ class AbstractLLMGuidedGeneration(LLMPrompt):
             multi_turn: bool = False,
             pass_prompts: bool = False,
             field: Optional[str] = None,
-            temperature: float = 0.5,
+            temperature: float = None,
             append_as: Optional[str] = None):
         
         super().__init__(

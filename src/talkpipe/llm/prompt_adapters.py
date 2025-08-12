@@ -23,7 +23,7 @@ class AbstractLLMPromptAdapter(ABC):
                  source: str,
                  system_prompt: str = "You are a helpful assistant.",
                  multi_turn: bool = True,
-                 temperature: float = 0.5,
+                 temperature: float = None,
                  output_format: BaseModel = None):
         """Initialize the chat model"""
         self._model_name = model
@@ -31,6 +31,7 @@ class AbstractLLMPromptAdapter(ABC):
         self._system_message = {"role": "system", "content": system_prompt}
         self._multi_turn = multi_turn
         self._temperature = temperature
+        self._temperature_explicit = temperature is not None
         self._output_format = output_format
         self._messages = []
 
@@ -75,8 +76,11 @@ class OllamaPromptAdapter(AbstractLLMPromptAdapter):
 
     """
 
-    def __init__(self, model: str, system_prompt: str = "You are a helpful assistant.", multi_turn: bool = True, temperature: float = 0.5, output_format: BaseModel = None):
+    def __init__(self, model: str, system_prompt: str = "You are a helpful assistant.", multi_turn: bool = True, temperature: float = None, output_format: BaseModel = None):
         super().__init__(model, "ollama", system_prompt, multi_turn, temperature, output_format)
+        # Ollama uses 0.5 as default when temperature is not specified
+        if self._temperature is None:
+            self._temperature = 0.5
 
     def execute(self, prompt: str) -> str:
         """Execute the chat model.
@@ -127,7 +131,7 @@ class OpenAIPromptAdapter(AbstractLLMPromptAdapter):
 
     """
 
-    def __init__(self, model: str, system_prompt: str = "You are a helpful assistant.", multi_turn: bool = True, temperature: float = 0.5, output_format: BaseModel = None):
+    def __init__(self, model: str, system_prompt: str = "You are a helpful assistant.", multi_turn: bool = True, temperature: float = None, output_format: BaseModel = None):
         super().__init__(model, "openai", system_prompt, multi_turn, temperature, output_format)
         self.client = openai.OpenAI()
 
@@ -140,12 +144,18 @@ class OpenAIPromptAdapter(AbstractLLMPromptAdapter):
         self._messages.append({"role": "user", "content": prompt})
 
         logger.debug(f"Sending chat request to OpenAI model {self._model_name}")
-        response = self.client.responses.parse(
-            model=self._model_name,
-            input=[self._system_message] + self._messages,
-            temperature=self._temperature,
-            text_format=openai.NOT_GIVEN if self._output_format is None else self._output_format
-            )
+        
+        # Build request parameters, only including temperature if explicitly set
+        request_params = {
+            "model": self._model_name,
+            "input": [self._system_message] + self._messages,
+            "text_format": openai.NOT_GIVEN if self._output_format is None else self._output_format
+        }
+        
+        if self._temperature_explicit:
+            request_params["temperature"] = self._temperature
+            
+        response = self.client.responses.parse(**request_params)
 
         if self._multi_turn:
             logger.debug("Multi-turn enabled, appending assistant response to chat history")
@@ -168,11 +178,15 @@ class OpenAIPromptAdapter(AbstractLLMPromptAdapter):
         """
         try:
             # Check if the model is available
-            response = self.client.chat.completions.create(
-                model=self._model_name,
-                messages=[self._system_message],
-                temperature=self._temperature
-            )
+            request_params = {
+                "model": self._model_name,
+                "messages": [self._system_message]
+            }
+            
+            if self._temperature_explicit:
+                request_params["temperature"] = self._temperature
+                
+            response = self.client.chat.completions.create(**request_params)
             return True
         except Exception as e:
             logger.error(f"Model {self._model_name} is not available: {e}")

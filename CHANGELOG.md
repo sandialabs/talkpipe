@@ -26,6 +26,7 @@ self-consistent.
  - Added a command **chatterlang_reference_browswer** that provides an interactive way to browse the chatterlang sources and segments.
  - Deleted the jupyter widgets because they have not been useful.
  - Removed accelerate and p ypdf as dependencies.  Accelerate is left behind from an earlier version of the library and is no longer necessary.  It resulted in unnecessary bulk.
+ - If not specified, use the default values for temperature and only pass on the temperature parameter if it is explicitly provided.  Not all models take temperature values.
 
 ## 0.7.1
 ### New Segments and Sources
