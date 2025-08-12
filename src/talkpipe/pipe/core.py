@@ -60,14 +60,24 @@ class HasRuntimeComponent:
 
 
 class AbstractSegment(ABC, HasRuntimeComponent, Generic[T, U]):
-    """Common parent of all segments
+    """Abstract base class for all segments in the TalkPipe framework.
     
     A segment is an operation that can be applied to an iterable input,
-    producing an iterable output.  There is no requirement that the input
-    and output types be the same or that the number of inputs and outputs
-    be the same.  This is python, after all :)
+    producing an iterable output. Segments are the building blocks of
+    data processing pipelines in TalkPipe.
     
-    Segments can be chained together to create a pipeline.
+    Key characteristics:
+    - Input and output types can be different (T -> U)
+    - Number of input items may differ from output items
+    - Can be chained together using the | operator
+    - Supports lazy evaluation through iterators
+    
+    Segments can be chained together to create pipelines:
+        pipeline = segment1 | segment2 | segment3
+    
+    Attributes:
+        upstream (List[AbstractSegment]): List of upstream segments
+        downstream (List[AbstractSegment]): List of downstream segments
     """
 
     def __init__(self):
@@ -76,11 +86,40 @@ class AbstractSegment(ABC, HasRuntimeComponent, Generic[T, U]):
     
     @abstractmethod
     def transform(self, input_iter: Iterable[T]) -> Iterator[U]:
-        """This method, implemented by subclasses, are what perform the main operation of the segment.
+        """Transform input items into output items.
         
-        Each implementation should read as many items as necessary from the input_iter and yield 
-        items as appropriate.  It is not required that the number of items emitted be the same as
-        the number of items in the input iterator or that the segment fully drain the input iterator.
+        This is the core method that must be implemented by all segment subclasses.
+        It defines how the segment processes data flowing through the pipeline.
+        
+        Args:
+            input_iter (Iterable[T]): An iterable of input items to process
+            
+        Returns:
+            Iterator[U]: An iterator yielding transformed output items
+            
+        Notes:
+            - The number of output items need not equal the number of input items
+            - The segment may consume only part of the input iterator
+            - Implementation should use yield to produce output lazily
+            - Input iterator may be consumed multiple times if needed
+        
+        Examples:
+            # Simple 1:1 transformation
+            def transform(self, input_iter):
+                for item in input_iter:
+                    yield item.upper()
+                    
+            # Filtering (reducing items)
+            def transform(self, input_iter):
+                for item in input_iter:
+                    if item > 0:
+                        yield item
+                        
+            # Expanding (increasing items)
+            def transform(self, input_iter):
+                for item in input_iter:
+                    yield item
+                    yield item * 2
         """
 
     def registerUpstream(self, upstream: 'AbstractSegment'):
@@ -125,10 +164,28 @@ class AbstractSegment(ABC, HasRuntimeComponent, Generic[T, U]):
         return func
 
 class AbstractSource(ABC, HasRuntimeComponent, Generic[U]):
-    """
-    Abstract base class for creating input generators that can start a pipeline.
+    """Abstract base class for data sources that can start a pipeline.
 
-    An AbstractSource is like a segment, but it does not require an input.
+    Sources are the entry points for data pipelines - they generate data without
+    requiring input from upstream segments. Sources can read from files, databases,
+    APIs, or generate synthetic data.
+    
+    Key characteristics:
+    - No input required (unlike segments)
+    - Can be chained with segments using the | operator
+    - Must implement the generate() method
+    - Supports lazy evaluation through iterators
+    
+    Examples of sources:
+    - File readers (CSV, JSON, text files)
+    - Database queries
+    - API endpoints
+    - Random data generators
+    - User input prompts
+    
+    Attributes:
+        upstream (List): Always empty (sources have no upstream)
+        downstream (List[AbstractSegment]): List of downstream segments
     """
     
     def __init__(self):
@@ -137,7 +194,40 @@ class AbstractSource(ABC, HasRuntimeComponent, Generic[U]):
     
     @abstractmethod
     def generate(self) -> Iterator[U]:
-        """Generate an infinite or finite iterator of outputs."""
+        """Generate data items for the pipeline.
+        
+        This is the core method that must be implemented by all source subclasses.
+        It defines how the source produces data to feed into the pipeline.
+        
+        Returns:
+            Iterator[U]: An iterator yielding data items
+            
+        Notes:
+            - May generate finite or infinite sequences
+            - Should use yield to produce items lazily
+            - Implementation depends on the data source type
+            - May involve I/O operations (files, network, databases)
+        
+        Examples:
+            # File-based source
+            def generate(self):
+                with open(self.filename) as f:
+                    for line in f:
+                        yield line.strip()
+                        
+            # Infinite sequence source
+            def generate(self):
+                counter = 0
+                while True:
+                    yield counter
+                    counter += 1
+                    
+            # API-based source
+            def generate(self):
+                response = requests.get(self.url)
+                for item in response.json():
+                    yield item
+        """
     
     def registerUpstream(self, upstream: 'AbstractSegment'):
         raise RuntimeError("Cannot register an upstream segment for a source.")
