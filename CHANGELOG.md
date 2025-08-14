@@ -12,6 +12,7 @@ Note that this release introduces significant API-breaking changes compared with
   - Fixed a bug causing `/stream` to not respect position directives.
   - The default form now issues a single text item with the property `prompt`.
   - Added a "persist" option to the UI configuration form to specify fields that will not be cleared after each query.
+  - Multi-session support so multiple people can use it at the same time.
 - Updated tutorial scripts and the script names in Tutorial 3. Moved examples to the docs directory.
 - Updated the unit documentation analyzer to ignore `item` and `items` parameters. These terms are reserved for the data passed into a segment and should not be used as parameters otherwise.
 - Updated `chatterlang_workbench` to return a 413 error when a script is longer than 10,000 characters (hard-coded).
