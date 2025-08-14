@@ -11,7 +11,7 @@ Create web APIs and interactive forms for processing JSON data through ChatterLa
 - Real-time streaming output
 - Authentication support
 
-### [ChatterLang Workbench](chatterlang-server.md)
+### [ChatterLang Workbench](chatterlang-workbench.md)
 Interactive web interface for writing, testing, and running ChatterLang scripts.
 - Real-time script execution
 - Built-in documentation
@@ -60,13 +60,8 @@ Transform data within pipelines:
 - `map` - Data transformation
 - `print` - Output display
 
-### Sinks
-Consume data at the end of pipelines:
-- File writers
-- Database connectors
-- Email senders
-- Web API clients
-
 ---
 
 *For conceptual overviews and guides, see the [guides](../guides/) and [architecture](../architecture/) sections. For working examples, see the [tutorials](../tutorials/) directory.*
+
+Last Reviewed: 20250814

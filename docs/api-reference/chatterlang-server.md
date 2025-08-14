@@ -28,18 +28,10 @@ chatterlang_serve --port 8080 --host localhost
 chatterlang_serve --api-key mysecretkey --require-auth
 
 # With a ChatterLang script
-chatterlang_serve --script "| llmPrompt | print"
+chatterlang_serve --script '| lambda[expression="item.upper()", field="prompt"]'
 
 # With form configuration
 chatterlang_serve --form-config config.yaml
-```
-
-### Using python -m chatterlang_serve (Legacy)
-
-You can also run it directly:
-
-```bash
-python -m talkpipe.app.chatterlang_serve --port 8080 --script "| llmPrompt | print"
 ```
 
 ## Configuration Options
@@ -278,7 +270,7 @@ Navigate to `http://localhost:2025/` in your browser to access the main interfac
 
 ### 2. Configure Authentication (if enabled)
 
-If authentication is required, enter your API key in the provided field at the top of the form.
+If authentication is required, enter your API key in the provided field in the form.
 
 ### 3. Fill Out the Form
 
@@ -318,63 +310,7 @@ The `/stream` interface provides:
 ```bash
 # Start server with simple chat script
 chatterlang_serve --port 8080 \
-  --script "| llmPrompt[model='llama3.2'] | print" \
-  --form-config chat.yaml
-```
-
-**chat.yaml:**
-```yaml
-title: "AI Chat Assistant"
-position: "bottom"
-height: "120px"
-theme: "dark"
-fields:
-  - name: message
-    type: textarea
-    label: "Your message"
-    placeholder: "Type your message here..."
-    required: true
-    rows: 2
-```
-
-### Document Analysis Pipeline
-
-```bash
-# Process documents with custom analysis
-chatterlang_serve --port 9000 \
-  --script "| downloadURL | htmlToText | llmPrompt[system_prompt='Summarize this document'] | print" \
-  --form-config analysis.yaml
-```
-
-**analysis.yaml:**
-```yaml
-title: "Document Analyzer"
-position: "left"
-height: "400px"
-theme: "light"
-fields:
-  - name: url
-    type: text
-    label: "Document URL"
-    placeholder: "https://example.com/document.html"
-    required: true
-  - name: analysis_type
-    type: select
-    label: "Analysis Type"
-    options:
-      - "Summary"
-      - "Key Points"
-      - "Sentiment Analysis"
-```
-
-### Data Processing with Authentication
-
-```bash
-# Data processing endpoint
-chatterlang_serve --port 3000 \
-  --api-key "secure-key-123" \
-  --require-auth \
-  --script "| toDataFrame | llmScore[system_prompt='Rate this data quality 1-10'] | print"
+  --script '| llmPrompt[source="ollama", model="llama3.2", field="prompt"]' --display-property prompt 
 ```
 
 ## Advanced Features
@@ -384,8 +320,8 @@ chatterlang_serve --port 3000 \
 Use `--display-property` to control what appears as user input in the stream interface:
 
 ```bash
-chatterlang_serve --display-property "title" \
-  --script "| llmPrompt | print"
+chatterlang_serve --display-property "prompt" \
+  --script "| llmPrompt"
 ```
 
 This will show the `title` field value instead of the full JSON in the chat.
@@ -396,7 +332,7 @@ Import custom Python modules before starting:
 
 ```bash
 chatterlang_serve --load-module ./my_segments.py \
-  --script "| myCustomSegment | print"
+  --script "| myCustomSegment"
 ```
 
 ### Configuration Variables
@@ -404,7 +340,7 @@ chatterlang_serve --load-module ./my_segments.py \
 Store scripts and configs in `~/.talkpipe.toml`:
 
 ```toml
-my_script = "| llmPrompt[system_prompt='You are a helpful assistant'] | print"
+my_script = "| llmPrompt[system_prompt='You are a helpful assistant']"
 ```
 
 Then reference them:
@@ -462,3 +398,5 @@ chatterlang_serve --script "| print"
 - **Connections**: Each streaming client maintains a Server-Sent Events connection
 - **Memory**: Large responses are truncated in the web interface
 - **Concurrency**: FastAPI handles multiple concurrent requests automatically
+
+Last Reviewed: 20250813

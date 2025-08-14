@@ -4,7 +4,7 @@
 
 ## Overview
 
-The ChatterLang Server provides a browser-based development environment for TalkPipe's external DSL. It features a rich text editor, real-time script execution, built-in examples, and comprehensive logging capabilities. This tool is perfect for experimenting with ChatterLang syntax, prototyping pipelines, and learning TalkPipe concepts interactively.
+The ChatterLang Server provides a browser-based development environment for TalkPipe's external DSL. It features a script editor, real-time script execution and built-in examples. This tool is perfect for experimenting with ChatterLang syntax, prototyping pipelines, and learning TalkPipe concepts interactively.
 
 ## Usage
 
@@ -84,93 +84,6 @@ The interface provides categorized example scripts:
 - **Log Management**: Clear and refresh capabilities
 - **Persistent Display**: Logs persist across script executions
 
-## API Endpoints
-
-The server exposes several REST endpoints for programmatic access:
-
-### `GET /`
-Returns the main web interface HTML page.
-
-**Response**: HTML content for the interactive interface
-
-### `POST /compile`
-Compiles a ChatterLang script and prepares it for execution.
-
-**Request Body:**
-```json
-{
-  "script": "INPUT FROM echo[data=\"test\"] | print"
-}
-```
-
-**Response (Non-interactive):**
-```json
-{
-  "id": "uuid-string",
-  "interactive": false,
-  "output": "test"
-}
-```
-
-**Response (Interactive):**
-```json
-{
-  "id": "uuid-string", 
-  "interactive": true
-}
-```
-
-**Error Response:**
-```json
-{
-  "detail": "Compilation error message"
-}
-```
-
-### `POST /go`
-Executes an interactive script with user input.
-
-**Request Body:**
-```json
-{
-  "id": "uuid-from-compile",
-  "user_input": "Hello, how are you?"
-}
-```
-
-**Response**: Streaming text response with script output
-
-### `GET /examples`
-Returns all available example scripts organized by category.
-
-**Response:**
-```json
-{
-  "examples": {
-    "Basic Examples": [
-      {
-        "name": "Hello World",
-        "description": "Simple example to print a message",
-        "code": "INPUT FROM echo[data=\"Hello, ChatterLang World!\"] | print"
-      }
-    ]
-  }
-}
-```
-
-### `GET /logs`
-Retrieves recent system logs.
-
-**Response:**
-```json
-{
-  "logs": [
-    "2024-01-15 10:30:45 - INFO - Script compiled successfully",
-    "2024-01-15 10:30:46 - INFO - Interactive execution started"
-  ]
-}
-```
-
 ## Configuration
 
 ### Environment Variables
@@ -200,26 +113,6 @@ chatterlang_workbench --reload
 
 **Note**: Only use `--reload` in development environments.
 
-## Technical Details
-
-### Architecture
-- **Backend**: FastAPI with uvicorn ASGI server
-- **Frontend**: Vanilla JavaScript with Server-Sent Events
-- **Streaming**: Real-time output delivery via HTTP streaming
-- **State Management**: In-memory compiled script storage
-
-### Performance Considerations
-- **Script Limits**: Maximum 10,000 characters per script
-- **Memory Usage**: Compiled scripts stored in server memory
-- **Concurrent Users**: Supports multiple simultaneous users
-- **Streaming Output**: Efficient real-time result delivery
-
-### Security
-- **Input Validation**: Script length and content validation
-- **Error Handling**: Safe error message display
-- **Resource Limits**: Automatic cleanup of compiled instances
-- **Local Binding**: Default binding to localhost for security
-
 ## Troubleshooting
 
 ### Common Issues
@@ -241,9 +134,10 @@ chatterlang_workbench --reload
 
 **Examples not loading**
 - Check browser console for JavaScript errors
-- Verify `/examples` endpoint accessibility
 - Restart server if needed
 
 ---
 
 *For conceptual information about ChatterLang, see [ChatterLang Architecture](../architecture/chatterlang.md). 
+
+Last Reviewed: 20250814

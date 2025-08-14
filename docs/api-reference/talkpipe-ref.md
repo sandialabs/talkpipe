@@ -118,71 +118,6 @@ Uses Python's Abstract Syntax Tree (AST) parsing for:
 - **Cross-version compatibility** with Python 3.9+ unparse support
 - **Decorator pattern recognition** across different syntax styles
 
-### Example Output Structure
-
-#### HTML Output Features
-```html
-<!DOCTYPE html>
-<html>
-<head>
-    <title>Class and Function Documentation</title>
-    <!-- Responsive CSS styling -->
-</head>
-<body>
-    <div class="container">
-        <h1>Class and Function Documentation</h1>
-        
-        <!-- Table of Contents -->
-        <div class="toc">
-            <table class="toc-table">
-                <tr><td colspan="3">talkpipe.data.email</td></tr>
-                <tr>
-                    <td><a href="#email-reader">EmailReader</a></td>
-                    <td>readEmail</td>
-                    <td>Read emails from IMAP server</td>
-                </tr>
-            </table>
-        </div>
-        
-        <!-- Component Documentation -->
-        <div class="package-header">talkpipe.data.email</div>
-        <div class="class">
-            <h2>Source Class: EmailReader</h2>
-            <p class="talkpipe-name">ChatterLang Name: readEmail</p>
-            <div><pre>Read emails from IMAP server...</pre></div>
-            <h3>Parameters:</h3>
-            <ul class="param-list">
-                <li>server: str</li>
-                <li>username: str</li>
-                <li>password: str = None</li>
-            </ul>
-        </div>
-    </div>
-</body>
-</html>
-```
-
-#### Text Output Structure
-```text
-Class and Function Documentation (Text Version)
-================================================
-
-PACKAGE: talkpipe.data.email
-----------------------------
-
-Source Class: EmailReader
-  ChatterLang Name: readEmail
-  Base Classes: io.AbstractSource
-  Docstring:
-    Read emails from IMAP server with optional filtering.
-    
-    Supports IMAP and IMAPS protocols with authentication.
-  Parameters:
-    server: str
-    username: str
-    password: str = None
-```
-
 ## ChatterLang Reference Browser
 
 **`chatterlang_reference_browser`** - Interactive terminal application for browsing TalkPipe component documentation with search, filtering, and detailed component inspection.
@@ -204,7 +139,7 @@ chatterlang_reference_browser
 
 **Discovery Process**:
 1. Looks for `talkpipe_ref.txt` in current directory
-2. Falls back to `unit-docs.txt` in installation directory  
+2. Falls back to `unit-docs.txt` in installation directory static folder
 3. Attempts to run `chatterlang_reference_generator` to create files
 4. Displays error if documentation cannot be found or generated
 
@@ -410,40 +345,6 @@ chatterlang_reference_browser
 # > show yourNewComponent
 ```
 
-### Integration with Development Tools
-
-#### IDE Integration
-
-**VS Code Task** (`.vscode/tasks.json`):
-```json
-{
-    "version": "2.0.0",
-    "tasks": [
-        {
-            "label": "Browse TalkPipe Documentation", 
-            "type": "shell",
-            "command": "chatterlang_reference_browser",
-            "group": "test",
-            "presentation": {
-                "echo": true,
-                "reveal": "always",
-                "focus": false,
-                "panel": "new"
-            }
-        }
-    ]
-}
-```
-
-#### Shell Aliases
-
-**Bash/Zsh** (`~/.bashrc` or `~/.zshrc`):
-```bash
-alias tpdocs="chatterlang_reference_browser"
-alias tpgen="chatterlang_reference_generator"
-alias tpsearch="chatterlang_reference_browser && talkpipe> search"
-```
-
 ## Error Handling and Troubleshooting
 
 ### Reference Generator Issues
@@ -461,7 +362,7 @@ Error: Cannot find package or directory 'nonexistent_package'
 
 **Solutions**:
 - Verify package installation: `python -c "import package_name"`
-- Check Python version: `python --version` (3.9+ recommended)
+- Check Python version: `python --version` (3.11+ recommended)
 - Validate file encoding: ensure UTF-8 encoding
 
 ### Reference Browser Issues
@@ -485,50 +386,7 @@ Error running talkpipe_ref command: [Errno 2] No such file or directory
 - Manually generate documentation: `chatterlang_reference_generator`
 - Check current directory permissions for file creation
 
-### Performance Considerations
-
-#### Reference Generator
-
-**Large Codebases**:
-- Processing time scales with number of Python files
-- Memory usage depends on AST complexity
-- Network-mounted directories may be slower
-
-**Optimization Tips**:
-- Use specific package names instead of broad directory scans
-- Exclude test directories and build artifacts
-- Run on local file systems when possible
-
-#### Reference Browser
-
-**Large Documentation Sets**:
-- Memory usage scales with number of components
-- Search performance depends on total docstring content
-- Terminal rendering may be slow with very detailed components
-
-**Performance Tips**:
-- Use specific search terms to narrow results
-- Focus on relevant packages using `list <package>`
-- Consider splitting large component sets into multiple documentation files
-
 ## Best Practices
-
-### Documentation Generation
-
-**Regular Updates**:
-```bash
-# Add to pre-commit hook or CI/CD
-chatterlang_reference_generator && git add *.html *.txt
-```
-
-**Version Control**:
-- **Include**: `talkpipe_ref.txt` (for browser compatibility)
-- **Consider excluding**: `talkpipe_ref.html` (large, generated file)
-- **Use .gitignore**:
-  ```
-  talkpipe_ref.html
-  # Keep: talkpipe_ref.txt
-  ```
 
 ### Component Development
 
@@ -578,3 +436,5 @@ def my_segment(item: str, multiplier: int = 1,
 ---
 
 *For ChatterLang script development, see [ChatterLang Script](chatterlang-script.md). For interactive script development, see [ChatterLang Workbench](chatterlang-workbench.md).*
+
+Last Reviewed: 20250814

@@ -92,5 +92,4 @@ chatterlang_script \
 
 *For interactive development and testing of ChatterLang scripts, see [ChatterLang Workbench](chatterlang-workbench.md). For web API integration, see [ChatterLang Server](chatterlang-server.md).*
 
-### History
-* 20250808 - Reviewed
+Last Reviewed: 20250808

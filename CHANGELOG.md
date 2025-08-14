@@ -5,28 +5,26 @@
 
 ### Improvements
 
-Note that this release introduces some significant API breaking changes with the 0.7.x and earlier releases.
-The software is mostly feature complete for 1.0.0.  These releases will especially focus on making the API
-self-consistent.
+Note that this release introduces significant API-breaking changes compared with 0.7.x and earlier releases. The software is largely feature complete for 1.0.0; these releases focus on making the API self-consistent.
 
- - **chatterlang_serve**  
-    - Now has a `--display-property` parameter that will display a specified property as the user message in the stream interface, rather than printing a string version of the whole input JSON (which is still the default).
-    - Fixed a bug causing `/stream` to not respect position directives.
-    - Changed the default form to issue a single text item with the property "prompt."
-    - Added a "persist" option to the UI configuration form to specify fields that will not be cleared after each query.
- - Updated tutorial scripts and Tutorial 3 script names. Moved examples to the docs directory.
- - Updated unit documentation analyzer to properly ignore `item` and `items` parameters. These two terms ("item" and "items") are reserved for the data being passed into a segment and should not be used as parameters otherwise.
- - Updated `chatterlang_workbench` to issue a 413 error when the script is longer than 10K characters (hardcoded).
- - Added additional, more comprehensive documentation.
- - Removed the chatcli application. It is very easy to reproduce with chatterlang_script.
- - Created a `load_script` function in `talkpipe.util.config`. Provides a common way to specify scripts (directly, in a file, in an entry in the configuration file, or in an environment variable). This will provide a consistent experience across the different applications.
- - Among all apps, changed --load_module parameter to --load-module for consistency.
- - Changed parameters that refer to model names to be "model" rather than "name" or "model_name" for consistency.
- - Renamed applications for consistency.
- - Added a command **chatterlang_reference_browswer** that provides an interactive way to browse the chatterlang sources and segments.
- - Deleted the jupyter widgets because they have not been useful.
- - Removed accelerate and p ypdf as dependencies.  Accelerate is left behind from an earlier version of the library and is no longer necessary.  It resulted in unnecessary bulk.
- - If not specified, use the default values for temperature and only pass on the temperature parameter if it is explicitly provided.  Not all models take temperature values.
+- **chatterlang_serve**
+  - Added a `--display-property` parameter to display a specified property as the user message in the stream interface, rather than printing a string version of the whole input JSON (still the default).
+  - Fixed a bug causing `/stream` to not respect position directives.
+  - The default form now issues a single text item with the property `prompt`.
+  - Added a "persist" option to the UI configuration form to specify fields that will not be cleared after each query.
+- Updated tutorial scripts and the script names in Tutorial 3. Moved examples to the docs directory.
+- Updated the unit documentation analyzer to ignore `item` and `items` parameters. These terms are reserved for the data passed into a segment and should not be used as parameters otherwise.
+- Updated `chatterlang_workbench` to return a 413 error when a script is longer than 10,000 characters (hard-coded).
+- Added more comprehensive documentation.
+- Removed the chatcli application; its functionality is easy to reproduce with `chatterlang_script`.
+- Added a `load_script` function in `talkpipe.util.config`, which provides a common way to specify scripts (directly, in a file, in a configuration entry, or via an environment variable) for a consistent experience across applications.
+- Across all apps, changed the `--load_module` parameter to `--load-module` for consistency.
+- Standardized parameters that refer to model names to `model` rather than `name` or `model_name`.
+- Renamed applications for consistency.
+- Added the command `chatterlang_reference_browser`, which provides an interactive way to browse the chatterlang sources and segments.
+- Deleted the Jupyter widgets because they were not useful.
+- Removed `accelerate` and `pypdf` as dependencies. `accelerate` was left over from an earlier version and is no longer necessary; it added unnecessary bulk.
+- When not specified, use default temperature values and pass the temperature parameter only when explicitly provided. Not all models accept a temperature.
 
 ## 0.7.1
 ### New Segments and Sources
