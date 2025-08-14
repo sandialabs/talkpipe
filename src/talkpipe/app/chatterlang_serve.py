@@ -1,6 +1,7 @@
 """
 FastAPI JSON Receiver Server with Configurable Form UI
 Receives JSON data via HTTP and processes it with a configurable function
+Multi-user support with session isolation
 """
 from typing import Union
 import logging
@@ -9,17 +10,18 @@ import yaml
 import asyncio
 from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
-from fastapi import FastAPI, HTTPException, Depends, Header
+from fastapi import FastAPI, HTTPException, Depends, Header, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
 from typing import Optional, List, Any, Dict, Callable
-from datetime import datetime
+from datetime import datetime, timedelta
 import uvicorn
 import json
 from pathlib import Path
 import threading
 from queue import Queue, Empty
+import uuid
 from talkpipe.pipe.core import AbstractSource
 from talkpipe.chatterlang import register_source
 from talkpipe.chatterlang import compile
@@ -29,6 +31,60 @@ from talkpipe.util.data_manipulation import extract_property
 
 
 logger = logging.getLogger(__name__)
+
+# User Session Management
+class UserSession:
+    """Encapsulates per-user session state"""
+    
+    def __init__(self, session_id: str, script_content: str = None, history_length: int = 1000):
+        self.session_id = session_id
+        self.history = []
+        self.history_length = history_length
+        self.output_queue = Queue(maxsize=1000)
+        self.compiled_script = None
+        self.last_activity = datetime.now()
+        
+        # Compile script for this session if provided
+        if script_content:
+            self.compile_script(script_content)
+    
+    def compile_script(self, script_content: str):
+        """Compile a Chatterlang script for this session"""
+        try:
+            from talkpipe.chatterlang import compile as chatterlang_compile
+            self.compiled_script = chatterlang_compile(script_content)
+            self.compiled_script = self.compiled_script.asFunction(single_in=True, single_out=False)
+            logger.info(f"Session {self.session_id}: Script compiled successfully")
+        except Exception as e:
+            logger.error(f"Session {self.session_id}: Error compiling script: {e}")
+            self.compiled_script = None
+    
+    def add_to_history(self, entry: dict):
+        """Add entry to session history"""
+        self.history.append(entry)
+        if len(self.history) > self.history_length:
+            self.history = self.history[-self.history_length:]
+    
+    def add_output(self, output: str, message_type: str = "response"):
+        """Add output to session's output queue"""
+        try:
+            timestamped_output = {
+                "timestamp": datetime.now().isoformat(),
+                "output": output,
+                "type": message_type
+            }
+            self.output_queue.put(timestamped_output, block=False)
+        except:
+            # Queue is full, remove oldest item
+            try:
+                self.output_queue.get_nowait()
+                self.output_queue.put(timestamped_output, block=False)
+            except:
+                pass
+    
+    def update_activity(self):
+        """Update last activity timestamp"""
+        self.last_activity = datetime.now()
 
 # Models
 class DataResponse(BaseModel):
@@ -63,7 +119,7 @@ class FormConfig(BaseModel):
     theme: str = "dark"  # dark, light
 
 class ChatterlangServer:
-    """ChatterLang Server Class with configurable form UI"""
+    """ChatterLang Server Class with configurable form UI and multi-user support"""
     
     def __init__(
         self,
@@ -75,20 +131,21 @@ class ChatterlangServer:
         title: str = "ChatterLang Server",
         history_length: int = 1000,
         form_config: Optional[Dict[str, Any]] = None,
-        display_property: Optional[str] = None
+        display_property: Optional[str] = None,
+        script_content: Optional[str] = None
     ):
         self.host = host
         self.port = port
         self.api_key = api_key
         self.require_auth = require_auth
-        self.history = []
         self.title = title
         self.history_length = history_length
         self.display_property = display_property
-
-        # Output streaming queue
-        self.output_queue = Queue(maxsize=1000)
-        self.output_clients = []
+        self.script_content = script_content
+        
+        # Session management
+        self.sessions: Dict[str, UserSession] = {}
+        self.session_lock = threading.Lock()
         
         # Parse form configuration
         if form_config:
@@ -126,6 +183,75 @@ class ChatterlangServer:
         # Server instance for stopping
         self.server = None
         self.server_thread = None
+        
+        # Start session cleanup task
+        self._start_cleanup_task()
+    
+    def get_or_create_session(self, request: Request, response: Response) -> UserSession:
+        """Get existing session or create new one based on session cookie"""
+        session_id = request.cookies.get("talkpipe_session_id")
+        
+        with self.session_lock:
+            if session_id and session_id in self.sessions:
+                # Update activity for existing session
+                session = self.sessions[session_id]
+                session.update_activity()
+                return session
+            
+            # Create new session
+            session_id = str(uuid.uuid4())
+            session = UserSession(
+                session_id=session_id,
+                script_content=self.script_content,
+                history_length=self.history_length
+            )
+            self.sessions[session_id] = session
+            
+            # Set session cookie (expires in 24 hours)
+            response.set_cookie(
+                key="talkpipe_session_id",
+                value=session_id,
+                max_age=86400,  # 24 hours
+                httponly=True,
+                samesite="lax"
+            )
+            
+            logger.info(f"Created new session: {session_id}")
+            return session
+    
+    def cleanup_expired_sessions(self, max_age_hours: int = 24):
+        """Clean up sessions that haven't been active for max_age_hours"""
+        cutoff_time = datetime.now() - timedelta(hours=max_age_hours)
+        
+        with self.session_lock:
+            expired_sessions = [
+                session_id for session_id, session in self.sessions.items()
+                if session.last_activity < cutoff_time
+            ]
+            
+            for session_id in expired_sessions:
+                del self.sessions[session_id]
+                logger.info(f"Cleaned up expired session: {session_id}")
+    
+    def get_session_by_id(self, session_id: str) -> Optional[UserSession]:
+        """Get session by ID, return None if not found"""
+        with self.session_lock:
+            return self.sessions.get(session_id)
+    
+    def _start_cleanup_task(self):
+        """Start background task to cleanup expired sessions"""
+        def cleanup_worker():
+            while True:
+                try:
+                    self.cleanup_expired_sessions()
+                    threading.Event().wait(300)  # Wait 5 minutes
+                except Exception as e:
+                    logger.error(f"Error in session cleanup: {e}")
+                    threading.Event().wait(60)  # Wait 1 minute on error
+        
+        cleanup_thread = threading.Thread(target=cleanup_worker, daemon=True)
+        cleanup_thread.start()
+        logger.info("Started session cleanup background task")
     
     def _setup_middleware(self):
         """Configure CORS middleware"""
@@ -141,24 +267,41 @@ class ChatterlangServer:
         """Configure all API routes"""
         
         @self.app.get("/", response_class=HTMLResponse)
-        async def root():
+        async def root(request: Request, response: Response):
             return self._get_html_interface()
         
         @self.app.get("/stream", response_class=HTMLResponse)
-        async def stream_page():
+        async def stream_page(request: Request, response: Response):
             return self._get_stream_interface()
         
         @self.app.post("/process", response_model=DataResponse)
-        async def process_json(data: Dict[str, Any], api_key: str = Depends(self._verify_api_key)):
-            return await self._process_json(data)
+        async def process_json(
+            data: Dict[str, Any], 
+            request: Request, 
+            response: Response,
+            api_key: str = Depends(self._verify_api_key)
+        ):
+            session = self.get_or_create_session(request, response)
+            return await self._process_json(data, session)
         
         @self.app.get("/history", response_model=DataHistory)
-        async def get_history(limit: int = 50, api_key: str = Depends(self._verify_api_key)):
-            return self._get_history(limit)
+        async def get_history(
+            request: Request, 
+            response: Response,
+            limit: int = 50, 
+            api_key: str = Depends(self._verify_api_key)
+        ):
+            session = self.get_or_create_session(request, response)
+            return self._get_history(limit, session)
         
         @self.app.delete("/history")
-        async def clear_history(api_key: str = Depends(self._verify_api_key)):
-            return self._clear_history()
+        async def clear_history(
+            request: Request, 
+            response: Response,
+            api_key: str = Depends(self._verify_api_key)
+        ):
+            session = self.get_or_create_session(request, response)
+            return self._clear_history(session)
         
         @self.app.get("/health")
         async def health_check():
@@ -166,13 +309,14 @@ class ChatterlangServer:
         
         @self.app.get("/form-config")
         async def get_form_config():
-            return self.form_config.dict()
+            return self.form_config.model_dump()
         
         @self.app.get("/output-stream")
-        async def output_stream():
+        async def output_stream(request: Request, response: Response):
             """Server-Sent Events endpoint for streaming output"""
+            session = self.get_or_create_session(request, response)
             return StreamingResponse(
-                self._generate_output_stream(),
+                self._generate_output_stream(session),
                 media_type="text/event-stream"
             )
     
@@ -182,55 +326,21 @@ class ChatterlangServer:
             raise HTTPException(status_code=403, detail="Invalid API key")
         return x_api_key
     
-    def _default_print_processor(self, data: Dict[str, Any]) -> str:
+    def _default_print_processor(self, data: Dict[str, Any], session: UserSession) -> str:
         """Default processor function that just prints the data"""
-        logger.info(f"Port {self.port}: Processing data with default handler")
-        logger.info(f"Port {self.port}: Received data: {json.dumps(data, indent=2)}")
+        logger.info(f"Port {self.port} Session {session.session_id}: Processing data with default handler")
+        logger.info(f"Port {self.port} Session {session.session_id}: Received data: {json.dumps(data, indent=2)}")
         output = f"Data received: {data}"
-        self._add_output(output)
+        session.add_output(output)
         return output
     
-    def _add_output(self, output: str, message_type: str = "response"):
-        """Add output to the streaming queue with message type"""
-        try:
-            # Add timestamp to output
-            timestamped_output = {
-                "timestamp": datetime.now().isoformat(),
-                "output": output,
-                "type": message_type  # "response", "user", "error"
-            }
-            self.output_queue.put(timestamped_output, block=False)
-        except:
-            # Queue is full, remove oldest item
-            try:
-                self.output_queue.get_nowait()
-                self.output_queue.put(timestamped_output, block=False)
-            except:
-                pass
 
-    def _add_user_message(self, data: Dict[str, Any]):
-        """Add user message to the streaming queue"""
-        user_message = {
-            "timestamp": datetime.now().isoformat(),
-            "output": extract_property(data, self.display_property) if self.display_property else json.dumps(data, indent=2),
-            "type": "user"
-        }
-        try:
-            self.output_queue.put(user_message, block=False)
-        except:
-            # Queue is full, remove oldest item
-            try:
-                self.output_queue.get_nowait()
-                self.output_queue.put(user_message, block=False)
-            except:
-                pass
-
-    async def _generate_output_stream(self):
-        """Generate Server-Sent Events stream"""
+    async def _generate_output_stream(self, session: UserSession):
+        """Generate Server-Sent Events stream for a specific session"""
         while True:
             try:
-                # Check for new output
-                output = self.output_queue.get(timeout=0.1)
+                # Check for new output in this session's queue
+                output = session.output_queue.get(timeout=0.1)
                 yield f"data: {json.dumps(output)}\n\n"
             except Empty:
                 # Send heartbeat to keep connection alive
@@ -238,13 +348,17 @@ class ChatterlangServer:
             
             await asyncio.sleep(0.1)
    
-    async def _process_json(self, data: Dict[str, Any]) -> DataResponse:
+    async def _process_json(self, data: Dict[str, Any], session: UserSession) -> DataResponse:
         """Process JSON data and return response"""
         try:
-            # User message is already added by client for immediate feedback
+            # Determine which processor to use
+            processor = session.compiled_script if session.compiled_script else self._default_print_processor
             
             # Process the data
-            result = self.processor_function(data)
+            if session.compiled_script:
+                result = processor(data)
+            else:
+                result = processor(data, session)
             
             # Collect all output items for the API response
             output_items = []
@@ -254,28 +368,24 @@ class ChatterlangServer:
                 try:
                     for item in result:
                         if item is not None:
-                            self._add_output(str(item), "response")
+                            session.add_output(str(item), "response")
                             output_items.append(item)
                 except Exception as e:
                     error_msg = f"Error processing iterator: {str(e)}"
-                    self._add_output(error_msg, "error")
+                    session.add_output(error_msg, "error")
                     output_items.append({"error": error_msg})
             else:
                 # Single result
                 if result is not None:
-                    self._add_output(str(result), "response")
+                    session.add_output(str(result), "response")
                     output_items.append(result)
             
-            # Store in history
-            self.history.append({
+            # Store in session history
+            session.add_to_history({
                 "timestamp": datetime.now(),
                 "input": data,
                 "output": output_items if output_items else "No output"
             })
-            
-            # Limit history length
-            if len(self.history) > self.history_length:
-                self.history = self.history[-self.history_length:]
             
             return DataResponse(
                 status="success",
@@ -289,19 +399,19 @@ class ChatterlangServer:
             )
         except Exception as e:
             error_msg = f"Error processing data: {str(e)}"
-            self._add_output(error_msg, "error")
-            logger.error(f"Port {self.port}: {error_msg}")
+            session.add_output(error_msg, "error")
+            logger.error(f"Port {self.port} Session {session.session_id}: {error_msg}")
             raise HTTPException(status_code=500, detail=error_msg)
     
-    def _get_history(self, limit: int) -> DataHistory:
-        """Get processing history"""
-        entries = self.history[-limit:] if limit > 0 else self.history
+    def _get_history(self, limit: int, session: UserSession) -> DataHistory:
+        """Get processing history for a session"""
+        entries = session.history[-limit:] if limit > 0 else session.history
         return DataHistory(entries=entries, count=len(entries))
     
-    def _clear_history(self):
-        """Clear processing history"""
-        self.history.clear()
-        logger.info(f"Port {self.port}: History cleared")
+    def _clear_history(self, session: UserSession):
+        """Clear processing history for a session"""
+        session.history.clear()
+        logger.info(f"Port {self.port} Session {session.session_id}: History cleared")
         return {"status": "success", "message": "History cleared"}
     
     def _generate_form_fields(self) -> str:
@@ -1460,15 +1570,35 @@ class ChatterlangServerSegment(AbstractSource):
                 # Load from file
                 form_config = load_form_config(form_config)
         
+        # Create a custom script that forwards data to our queue
+        script_content = f"""
+        def process_data(data):
+            # This will be replaced by the segment's process_data method
+            return "Data queued for processing"
+        
+        process_data
+        """
+        
         self.receiver = ChatterlangServer(
             host=host,
             port=self.port,
             api_key=api_key,
             require_auth=require_auth,
             title=f"JSON Receiver Segment (Port {port})",
-            processor_func=self.process_data,
-            form_config=form_config
+            form_config=form_config,
+            script_content=script_content
         )
+        
+        # Override the processor for each new session to use our queue
+        original_get_or_create_session = self.receiver.get_or_create_session
+        
+        def patched_get_or_create_session(request, response):
+            session = original_get_or_create_session(request, response)
+            # Replace the compiled script with our custom processor
+            session.compiled_script = lambda data: self.process_data(data)
+            return session
+        
+        self.receiver.get_or_create_session = patched_get_or_create_session
         self.receiver.start(background=True)
         logger.info(f"Finished initializing ChatterlangServer on port {port}")
 
@@ -1477,15 +1607,10 @@ class ChatterlangServerSegment(AbstractSource):
         try:
             self.queue.put(data, block=True, timeout=60)
             result = f"Data received and queued: {data}"
-            # Add to output stream if receiver has the method
-            if hasattr(self.receiver, '_add_output'):
-                self.receiver._add_output(result)
             return result
         except Exception as e:
             logger.error(f"Error processing data: {e}")
             error_msg = f"Error processing data: {str(e)}"
-            if hasattr(self.receiver, '_add_output'):
-                self.receiver._add_output(error_msg)
             return error_msg
         
     def generate(self):
@@ -1523,17 +1648,9 @@ def go():
         for module_file in args.load_module:
             load_module_file(fname=module_file, fail_on_missing=False)
 
-    script = None
+    script_content = None
     if args.script:
-        script = load_script(args.script)
-    
-    if script:
-        # Compile the Chatterlang script
-        compiled_script = compile(script)
-        compiled_script = compiled_script.asFunction(single_in=True, single_out=False)
-    else:
-        # Default processor function if no script is provided
-        compiled_script = None
+        script_content = load_script(args.script)
     
     # Load form configuration if provided
     form_config = None
@@ -1556,9 +1673,9 @@ def go():
         api_key=args.api_key,
         require_auth=args.require_auth,
         title=args.title,
-        processor_func=compiled_script,
         form_config=form_config,
-        display_property=args.display_property
+        display_property=args.display_property,
+        script_content=script_content
     )
 
     # Start the server
