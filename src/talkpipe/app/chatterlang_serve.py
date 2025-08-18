@@ -198,6 +198,18 @@ class ChatterlangServer:
                 session.update_activity()
                 return session
             
+            # If session_id exists but not in memory (after restart), 
+            # recreate the session with the same ID
+            if session_id:
+                session = UserSession(
+                    session_id=session_id,  # Keep the same ID
+                    script_content=self.script_content,
+                    history_length=self.history_length
+                )
+                self.sessions[session_id] = session
+                logger.info(f"Recreated session after restart: {session_id}")
+                return session
+            
             # Create new session
             session_id = str(uuid.uuid4())
             session = UserSession(
@@ -331,7 +343,6 @@ class ChatterlangServer:
         logger.info(f"Port {self.port} Session {session.session_id}: Processing data with default handler")
         logger.info(f"Port {self.port} Session {session.session_id}: Received data: {json.dumps(data, indent=2)}")
         output = f"Data received: {data}"
-        session.add_output(output)
         return output
     
 
@@ -632,6 +643,35 @@ class ChatterlangServer:
                     margin: 0.25rem 0;
                     word-wrap: break-word;
                     position: relative;
+                }}
+                
+                .copy-btn {{
+                    position: absolute;
+                    top: 0.5rem;
+                    right: 0.5rem;
+                    background: rgba(255, 255, 255, 0.1);
+                    border: none;
+                    border-radius: 0.25rem;
+                    color: currentColor;
+                    cursor: pointer;
+                    padding: 0.25rem;
+                    opacity: 0;
+                    transition: opacity 0.2s;
+                    font-size: 0.75rem;
+                    backdrop-filter: blur(10px);
+                }}
+                
+                .message:hover .copy-btn {{
+                    opacity: 1;
+                }}
+                
+                .copy-btn:hover {{
+                    background: rgba(255, 255, 255, 0.2);
+                }}
+                
+                .copy-btn.copied {{
+                    background: rgba(34, 197, 94, 0.2);
+                    color: #22c55e;
                 }}
                 
                 .message.user {{
@@ -976,6 +1016,18 @@ class ChatterlangServer:
                     
                     messageDiv.appendChild(timestampDiv);
                     messageDiv.appendChild(contentDiv);
+                    
+                    // Add copy button for response and error messages
+                    if (type === 'response' || type === 'error') {{
+                        const copyBtn = document.createElement('button');
+                        copyBtn.className = 'copy-btn';
+                        copyBtn.innerHTML = '📋';
+                        copyBtn.title = 'Copy message';
+                        copyBtn.onclick = function() {{
+                            copyToClipboard(content, copyBtn);
+                        }};
+                        messageDiv.appendChild(copyBtn);
+                    }}
                     messagesContainer.appendChild(messageDiv);
                     
                     if (autoScroll) {{
@@ -992,6 +1044,42 @@ class ChatterlangServer:
                     autoScroll = !autoScroll;
                     const btn = document.getElementById('autoScrollBtn');
                     btn.textContent = `Auto-scroll: ${{autoScroll ? 'ON' : 'OFF'}}`;
+                }}
+                
+                function copyToClipboard(text, button) {{
+                    navigator.clipboard.writeText(text).then(function() {{
+                        // Visual feedback
+                        const originalContent = button.innerHTML;
+                        button.innerHTML = '✓';
+                        button.classList.add('copied');
+                        
+                        setTimeout(function() {{
+                            button.innerHTML = originalContent;
+                            button.classList.remove('copied');
+                        }}, 2000);
+                    }}).catch(function(err) {{
+                        console.error('Failed to copy text: ', err);
+                        // Fallback for older browsers
+                        const textArea = document.createElement('textarea');
+                        textArea.value = text;
+                        document.body.appendChild(textArea);
+                        textArea.select();
+                        try {{
+                            document.execCommand('copy');
+                            // Same visual feedback as above
+                            const originalContent = button.innerHTML;
+                            button.innerHTML = '✓';
+                            button.classList.add('copied');
+                            
+                            setTimeout(function() {{
+                                button.innerHTML = originalContent;
+                                button.classList.remove('copied');
+                            }}, 2000);
+                        }} catch (err) {{
+                            console.error('Fallback copy failed: ', err);
+                        }}
+                        document.body.removeChild(textArea);
+                    }});
                 }}
                 
                 let lastUserMessage = null; // Track last user message to avoid duplicates
