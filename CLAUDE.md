@@ -11,8 +11,8 @@ TalkPipe is a Python toolkit that makes it easy to create, test, and deploy work
 ## Development Guidelines 
 pytest unit tests are under tests/
 the code for the library is under src/
-The core pipe external DSL classes and code is under talkpipe/pip
-ChatterLang is an internal DSL and is defined under talkpipe/chatterlang
+The core pipe API classes and code is under talkpipe/pipe
+ChatterLang is an external DSL and is defined under talkpipe/chatterlang
 Other packages in the project other than util include implementations of pipe sources and segments
 Util contains various generally usable utility functions, expecially for basic data manipulation and configuration.
 talkpipe/README.md contains a longer overview
