@@ -29,37 +29,6 @@ Generate HTML and text documentation for all available sources and segments.
 - Custom module documentation
 - Export formats: HTML, text
 
-## Core APIs
-
-### Pipe API (Internal DSL)
-Python-based pipeline construction using the `|` operator.
-- Source and segment decorators
-- Custom component creation
-- Type safety and IDE support
-
-### ChatterLang (External DSL)
-Text-based domain-specific language for defining data processing pipelines.
-- Unix-like syntax
-- Variables and constants
-- Loop constructs
-- Multi-pipeline support
-
-## Component Types
-
-### Sources
-Generate data at the start of pipelines:
-- `echo` - Static data output
-- `jsonReceiver` - Web API data input
-- `rss` - RSS feed processing
-- File readers (CSV, JSON, etc.)
-
-### Segments  
-Transform data within pipelines:
-- `llmPrompt` - LLM interaction
-- `filter` - Data filtering
-- `map` - Data transformation
-- `print` - Output display
-
 ---
 
 *For conceptual overviews and guides, see the [guides](../guides/) and [architecture](../architecture/) sections. For working examples, see the [tutorials](../tutorials/) directory.*
