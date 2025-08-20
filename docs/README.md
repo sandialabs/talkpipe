@@ -1,6 +1,6 @@
 # TalkPipe Documentation
 
-Welcome to the TalkPipe documentation! This directory contains comprehensive guides, API references, and examples for using TalkPipe effectively.
+Welcome to the TalkPipe documentation! This directory contains comprehensive, API references, and examples for using TalkPipe effectively.
 
 ## Quick Navigation
 
@@ -21,16 +21,12 @@ Complete documentation for all TalkPipe commands and components:
 - [ChatterLang Script Runner](api-reference/chatterlang-script.md) - Run a script from the command line
 - [Documentation Generator](api-reference/talkpipe-ref.md) - Generate reference documentations for Segments and Sources
 
-### 📖 [How-to Guides](guides/)
-Step-by-step tutorials for common tasks:
-- [Creating Web Endpoints](guides/creating-endpoints.md) - Build APIs and web interfaces
-- [Form Configuration](guides/form-configuration.md) - Design custom web forms for talkpipe_endpoint
-
 ### 🏗️ [Architecture](architecture/)
 Deep technical documentation:
 - [Pipe API](architecture/pipe-api.md) - Internal DSL and pipeline construction
 - [ChatterLang](architecture/chatterlang.md) - External DSL language reference
 - [Extending TalkPipe](architecture/extending-talkpipe.md) - Creating custom components
+- [Configuration](architecture/configuration.md) - Configuring variables for scripts
 
 
 ## Contributing to Documentation

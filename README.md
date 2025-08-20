@@ -287,12 +287,11 @@ results = evaluator(articles)
 
 # Documentation
 
-For comprehensive documentation, guides, and examples, see the **[docs/](docs/)** directory:
+For comprehensive documentation, and examples, see the **[docs/](docs/)** directory:
 
 - **[📚 Documentation Hub](docs/)** - Complete documentation index and navigation
 - **[🚀 Getting Started](docs/quickstart.md)** - Installation, concepts, and first pipeline  
 - **[📖 API Reference](docs/api-reference/)** - Complete command and component reference
-- **[📋 How-to Guides](docs/guides/)** - Step-by-step tutorials for common tasks
 - **[🏗️ Architecture](docs/architecture/)** - Technical deep-dives and design concepts
 - **[💡 Tutorials](docs/tutorials/)** - Real-world usage examples and patterns
 

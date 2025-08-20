@@ -80,9 +80,8 @@ Check out the [tutorials directory](tutorials/) for complete tutorials:
 
 ### Dive Deeper
 
-- [How-to Guides](guides/) - Step-by-step guides for specific applications
 - [Architecture](architecture/) - Technical deep-dives
 - [API Reference](api-reference/) - Complete command reference
 
 
-Ready to build something amazing? Start with the [tutorials](tutorials/) or dive into the [guides](guides/) for specific tasks!
+Ready to build something amazing? Start with the [tutorials](tutorials/)!

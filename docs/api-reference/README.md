@@ -31,6 +31,6 @@ Generate HTML and text documentation for all available sources and segments.
 
 ---
 
-*For conceptual overviews and guides, see the [guides](../guides/) and [architecture](../architecture/) sections. For working examples, see the [tutorials](../tutorials/) directory.*
+*For conceptual overviews, see the [architecture](../architecture/) sections. For working examples, see the [tutorials](../tutorials/) directory.*
 
 Last Reviewed: 20250814

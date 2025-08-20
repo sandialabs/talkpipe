@@ -43,4 +43,4 @@ How TalkPipe manages configuration across different environments.
 
 ---
 
-*For practical guidance, see [How-to Guides](../guides/). For API details, see [API Reference](../api-reference/). For working examples, see the [tutorials](../tutorials/) directory.*
+*For API details, see [API Reference](../api-reference/). For working examples, see the [tutorials](../tutorials/) directory.*
