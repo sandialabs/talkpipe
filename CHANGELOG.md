@@ -2,7 +2,7 @@
 
 ## In Development
 ### New Segments and Source
-   - **listFiles** segment that takes a path (potentially with wildcards) as input and issues a stream of file paths.
+   - **listFiles** segment that takes a path (potentially with wildcards) as input and issues a stream of file (and optionally directory) paths.
 
 ### Improvements
 
@@ -28,6 +28,8 @@ Note that this release introduces significant API-breaking changes compared with
 - Removed `accelerate` and `pypdf` as dependencies. `accelerate` was left over from an earlier version and is no longer necessary; it added unnecessary bulk.
 - When not specified, use default temperature values and pass the temperature parameter only when explicitly provided. Not all models accept a temperature.
 - Changed readtxt and readdocx to field_segments.
+- Added the ability to add parameters to chatterlang_script using "--" syntax.  So "--PATH /my/path" will result in a contant being added to the script at compile time with the value /my/path.  For example:
+python -m talkpipe.app.chatterlang_script --script "INPUT FROM echo[data=PATH] | listFiles | print" --PATH "~"
 
 ## 0.7.1
 ### New Segments and Sources

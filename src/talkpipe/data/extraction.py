@@ -84,13 +84,14 @@ def readdocx(file_path):
 
 @register_segment("listFiles")
 @segment()
-def listFiles(patterns: Iterable[str], full_path: bool = True):
+def listFiles(patterns: Iterable[str], full_path: bool = True, files_only: bool = False):
     """
     Lists files matching given patterns (potentially with wildcards) and yields their paths.
 
     Args:
         patterns (Iterable[str]): Iterable of file patterns or paths (supports wildcards like *, ?, []).
         full_path (bool): Whether to yield full absolute paths or just filenames.
+        files_only (bool): Whether to include only files (excluding directories).
 
     Yields:
         str: File paths (absolute if full_path=True, filenames if full_path=False).
@@ -112,7 +113,7 @@ def listFiles(patterns: Iterable[str], full_path: bool = True):
         
         for match in sorted(matches):
             path = Path(match)
-            if path.is_file():
+            if path.is_file() or (not files_only and path.is_dir()):
                 if full_path:
                     yield str(path.resolve())
                 else:

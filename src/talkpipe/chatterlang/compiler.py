@@ -26,8 +26,9 @@ def compile(script: ParsedScript, runtime: RuntimeComponent = None) -> Callable:
     """
     logger.debug(f"Compiling script with {len(script.pipelines)} pipelines")
     runtime = runtime or RuntimeComponent()
-    runtime.const_store = script.constants.copy()
-    logger.debug(f"Initialized runtime with {len(script.constants)} constants")
+    # Add script constants without overriding existing runtime constants
+    runtime.add_constants(script.constants, override=False)
+    logger.debug(f"Initialized runtime with {len(runtime.const_store)} constants")
     
     compiled_pipelines = [compile(item, runtime) for item in script.pipelines]
     logger.debug("Successfully compiled all pipelines")

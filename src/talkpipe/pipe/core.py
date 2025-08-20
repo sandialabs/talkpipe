@@ -45,6 +45,21 @@ class RuntimeComponent:
     def const_store(self, value: dict):
         self._const_store = value
     
+    def add_constants(self, constants: dict, override: bool = True):
+        """Add constants to the const_store.
+        
+        Args:
+            constants: Dictionary of constants to add
+            override: If True, new constants override existing ones. 
+                     If False, existing constants are preserved.
+        """
+        if override:
+            self._const_store.update(constants)
+        else:
+            for key, value in constants.items():
+                if key not in self._const_store:
+                    self._const_store[key] = value
+    
 
 class HasRuntimeComponent:
     """A mixin class to add a runtime component to a segment or source."""

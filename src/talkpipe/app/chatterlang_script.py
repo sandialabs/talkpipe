@@ -3,6 +3,7 @@ from typing import Optional
 import logging
 import argparse
 from talkpipe.chatterlang import compiler
+from talkpipe.pipe.core import RuntimeComponent
 from talkpipe.util import config
 from talkpipe.util.config import load_module_file, load_script
 
@@ -36,7 +37,33 @@ def main():
     parser.add_argument("--load-module", action='append', default=[], type=str, help="Path to a custom module file to import before running the script.")
     parser.add_argument("--logger_levels", type=str, help="Logger levels in format 'logger:level,logger:level,...'")
     parser.add_argument("--logger_files", type=str, help="Logger files in format 'logger:file,logger:file,...'")
-    args = parser.parse_args()
+    
+    # Parse known arguments and capture unknown ones as potential constants
+    args, unknown_args = parser.parse_known_args()
+    
+    # Parse unknown arguments as constants (--CONST_NAME value pairs)
+    constants = {}
+    i = 0
+    while i < len(unknown_args):
+        if unknown_args[i].startswith('--') and i + 1 < len(unknown_args):
+            const_name = unknown_args[i][2:]  # Remove '--' prefix
+            const_value = unknown_args[i + 1]
+            
+            # Try to parse value as different types (similar to ChatterLang parameter parsing)
+            if const_value.lower() in ('true', 'false'):
+                constants[const_name] = const_value.lower() == 'true'
+            elif const_value.isdigit() or (const_value.startswith('-') and const_value[1:].isdigit()):
+                constants[const_name] = int(const_value)
+            elif '.' in const_value:
+                try:
+                    constants[const_name] = float(const_value)
+                except ValueError:
+                    constants[const_name] = const_value
+            else:
+                constants[const_name] = const_value
+            i += 2
+        else:
+            i += 1
 
     config.configure_logger(args.logger_levels, logger_files=args.logger_files) 
     if args.load_module:
@@ -47,7 +74,11 @@ def main():
     
     script = load_script(script_input)
 
-    compiled = compiler.compile(script).asFunction()
+    # Create a runtime component with command-line constants
+    runtime = RuntimeComponent()
+    runtime.add_constants(constants, override=True)
+    
+    compiled = compiler.compile(script, runtime).asFunction()
     compiled()
 
 
