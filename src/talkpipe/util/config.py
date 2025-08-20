@@ -53,6 +53,35 @@ def reset_config():
     _config = None
 
 
+def add_config_values(values_dict, override=True):
+    """Add additional configuration values to the current configuration.
+    
+    This function merges additional configuration values into the global
+    configuration. Useful for adding command-line arguments to the config
+    so they're accessible via $key syntax in scripts.
+    
+    Args:
+        values_dict (Dict[str, Any]): Dictionary of key-value pairs to add
+        override (bool): If True, override existing values. If False, only add new keys.
+    
+    Example:
+        >>> add_config_values({'debug': True, 'api_key': 'test-key'})
+        >>> config = get_config()
+        >>> print(config['debug'])  # True
+    """
+    global _config
+    
+    # Ensure config is loaded first
+    if _config is None:
+        get_config()
+    
+    # Merge the values
+    for key, value in values_dict.items():
+        if override or key not in _config:
+            _config[key] = value
+            logger.debug(f"Added config value: {key} = {value}")
+
+
 def get_config(reload=False, path="~/.talkpipe.toml", ignore_env=False):
     """Get the configuration from the config file and environment variables.
     This function reads configuration from a TOML file and environment variables.

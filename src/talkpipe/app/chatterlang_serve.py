@@ -26,7 +26,7 @@ from talkpipe.pipe.core import AbstractSource, RuntimeComponent
 from talkpipe.chatterlang import register_source
 from talkpipe.chatterlang import compile
 from talkpipe.util.config import get_config, load_script
-from talkpipe.util.config import load_module_file, parse_unknown_args
+from talkpipe.util.config import load_module_file, parse_unknown_args, add_config_values
 from talkpipe.util.data_manipulation import extract_property
 
 
@@ -36,7 +36,7 @@ logger = logging.getLogger(__name__)
 class UserSession:
     """Encapsulates per-user session state"""
     
-    def __init__(self, session_id: str, script_content: str = None, history_length: int = 1000, constants: Optional[Dict[str, Any]] = None):
+    def __init__(self, session_id: str, script_content: str = None, history_length: int = 1000):
         self.session_id = session_id
         self.history = []
         self.history_length = history_length
@@ -46,21 +46,15 @@ class UserSession:
         
         # Compile script for this session if provided
         if script_content:
-            self.compile_script(script_content, constants)
+            self.compile_script(script_content)
     
-    def compile_script(self, script_content: str, constants: Optional[Dict[str, Any]] = None):
-        """Compile a Chatterlang script for this session with optional constants"""
+    def compile_script(self, script_content: str):
+        """Compile a Chatterlang script for this session"""
         try:
             from talkpipe.chatterlang import compile as chatterlang_compile
             
-            # Create runtime with constants if provided
-            if constants:
-                runtime = RuntimeComponent()
-                runtime.add_constants(constants, override=True)
-                self.compiled_script = chatterlang_compile(script_content, runtime)
-            else:
-                self.compiled_script = chatterlang_compile(script_content)
-            
+            # Compile script - configuration values are accessible via $key syntax
+            self.compiled_script = chatterlang_compile(script_content)
             self.compiled_script = self.compiled_script.asFunction(single_in=True, single_out=False)
             logger.info(f"Session {self.session_id}: Script compiled successfully")
         except Exception as e:
@@ -140,8 +134,7 @@ class ChatterlangServer:
         history_length: int = 1000,
         form_config: Optional[Dict[str, Any]] = None,
         display_property: Optional[str] = None,
-        script_content: Optional[str] = None,
-        constants: Optional[Dict[str, Any]] = None
+        script_content: Optional[str] = None
     ):
         self.host = host
         self.port = port
@@ -151,7 +144,6 @@ class ChatterlangServer:
         self.history_length = history_length
         self.display_property = display_property
         self.script_content = script_content
-        self.constants = constants or {}
         
         # Session management
         self.sessions: Dict[str, UserSession] = {}
@@ -214,8 +206,7 @@ class ChatterlangServer:
                 session = UserSession(
                     session_id=session_id,  # Keep the same ID
                     script_content=self.script_content,
-                    history_length=self.history_length,
-                    constants=self.constants
+                    history_length=self.history_length
                 )
                 self.sessions[session_id] = session
                 logger.info(f"Recreated session after restart: {session_id}")
@@ -226,8 +217,7 @@ class ChatterlangServer:
             session = UserSession(
                 session_id=session_id,
                 script_content=self.script_content,
-                history_length=self.history_length,
-                constants=self.constants
+                history_length=self.history_length
             )
             self.sessions[session_id] = session
             
@@ -1686,8 +1676,7 @@ class ChatterlangServerSegment(AbstractSource):
             require_auth=require_auth,
             title=f"JSON Receiver Segment (Port {port})",
             form_config=form_config,
-            script_content=script_content,
-            constants={}
+            script_content=script_content
         )
         
         # Override the processor for each new session to use our queue
@@ -1745,8 +1734,13 @@ def go():
 
     args, unknown_args = parser.parse_known_args()
     
-    # Parse unknown arguments as constants using abstracted function
+    # Parse unknown arguments and add to configuration so they're accessible via $key syntax
     constants = parse_unknown_args(unknown_args)
+    
+    # Add command-line constants to the configuration
+    if constants:
+        add_config_values(constants, override=True)
+        print(f"Added command-line values to configuration: {list(constants.keys())}")
     
     if args.load_module:
         for module_file in args.load_module:
@@ -1779,8 +1773,7 @@ def go():
         title=args.title,
         form_config=form_config,
         display_property=args.display_property,
-        script_content=script_content,
-        constants=constants
+        script_content=script_content
     )
 
     # Start the server

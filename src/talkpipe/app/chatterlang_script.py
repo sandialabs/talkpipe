@@ -5,7 +5,7 @@ import argparse
 from talkpipe.chatterlang import compiler
 from talkpipe.pipe.core import RuntimeComponent
 from talkpipe.util import config
-from talkpipe.util.config import load_module_file, load_script, parse_unknown_args
+from talkpipe.util.config import load_module_file, load_script, parse_unknown_args, add_config_values
 
 logger = logging.getLogger(__name__)
 
@@ -41,8 +41,13 @@ def main():
     # Parse known arguments and capture unknown ones as potential constants
     args, unknown_args = parser.parse_known_args()
     
-    # Parse unknown arguments as constants using abstracted function
+    # Parse unknown arguments as configuration values using abstracted function
     constants = parse_unknown_args(unknown_args)
+    
+    # Add command-line constants to the configuration so they're accessible via $key syntax
+    if constants:
+        add_config_values(constants, override=True)
+        logger.info(f"Added command-line values to configuration: {list(constants.keys())}")
 
     config.configure_logger(args.logger_levels, logger_files=args.logger_files) 
     if args.load_module:
@@ -53,11 +58,8 @@ def main():
     
     script = load_script(script_input)
 
-    # Create a runtime component with command-line constants
-    runtime = RuntimeComponent()
-    runtime.add_constants(constants, override=True)
-    
-    compiled = compiler.compile(script, runtime).asFunction()
+    # Compile script - configuration values are now accessible via $key syntax
+    compiled = compiler.compile(script).asFunction()
     compiled()
 
 

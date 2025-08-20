@@ -12,7 +12,7 @@ from talkpipe.pipe import core
 from talkpipe.pipe.core import RuntimeComponent
 from talkpipe.chatterlang import registry
 from talkpipe.chatterlang.compiler import compile
-from talkpipe.util.config import load_module_file, parse_unknown_args
+from talkpipe.util.config import load_module_file, parse_unknown_args, add_config_values
 
 logger = logging.getLogger(__name__)
 
@@ -42,9 +42,6 @@ logging.getLogger().setLevel(logging.INFO)
 
 # Global in-memory store for compiled script instances
 compiled_scripts = {}
-
-# Global constants parsed from command line arguments
-global_constants = {}
 
 # Define example scripts to display in the UI
 EXAMPLE_SCRIPTS = {
@@ -108,10 +105,6 @@ def get_examples():
     """Endpoint to return all example scripts"""
     return JSONResponse(content={"examples": EXAMPLE_SCRIPTS})
 
-@app.get("/constants")
-def get_constants():
-    """Endpoint to return currently available constants"""
-    return JSONResponse(content={"constants": global_constants})
 
 @app.get("/logs")
 async def get_logs():
@@ -134,15 +127,9 @@ def compile_script(request: ScriptRequest):
     try:
         logging.info("Compiling new script")
         
-        # Create runtime with global constants if available
-        if global_constants:
-            runtime = RuntimeComponent()
-            runtime.add_constants(global_constants, override=True)
-            compiled_instance = compile(request.script, runtime)
-            logging.info(f"Script compiled successfully with constants: {list(global_constants.keys())}")
-        else:
-            compiled_instance = compile(request.script)
-            logging.info("Script compiled successfully")
+        # Compile script - configuration values are accessible via $key syntax
+        compiled_instance = compile(request.script)
+        logging.info("Script compiled successfully")
     except Exception as e:
         logging.error(f"Script compilation failed: {str(e)}")
         raise HTTPException(status_code=400, detail=f"Compilation error: {e}")
@@ -1033,15 +1020,13 @@ def main():
     # Add more uvicorn options as needed
     args, unknown_args = parser.parse_known_args()
     
-    # Parse unknown arguments as constants using abstracted function
+    # Parse unknown arguments and add to configuration so they're accessible via $key syntax
     constants = parse_unknown_args(unknown_args)
     
-    # Store constants globally so they can be accessed by the compilation endpoint
-    global global_constants
-    global_constants = constants
-    
+    # Add command-line constants to the configuration
     if constants:
-        print(f"Loaded constants for script compilation: {list(constants.keys())}")
+        add_config_values(constants, override=True)
+        print(f"Added command-line values to configuration: {list(constants.keys())}")
 
     if args.load_module:
         for module_file in args.load_module:
