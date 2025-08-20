@@ -5,7 +5,7 @@ import argparse
 from talkpipe.chatterlang import compiler
 from talkpipe.pipe.core import RuntimeComponent
 from talkpipe.util import config
-from talkpipe.util.config import load_module_file, load_script
+from talkpipe.util.config import load_module_file, load_script, parse_unknown_args
 
 logger = logging.getLogger(__name__)
 
@@ -41,29 +41,8 @@ def main():
     # Parse known arguments and capture unknown ones as potential constants
     args, unknown_args = parser.parse_known_args()
     
-    # Parse unknown arguments as constants (--CONST_NAME value pairs)
-    constants = {}
-    i = 0
-    while i < len(unknown_args):
-        if unknown_args[i].startswith('--') and i + 1 < len(unknown_args):
-            const_name = unknown_args[i][2:]  # Remove '--' prefix
-            const_value = unknown_args[i + 1]
-            
-            # Try to parse value as different types (similar to ChatterLang parameter parsing)
-            if const_value.lower() in ('true', 'false'):
-                constants[const_name] = const_value.lower() == 'true'
-            elif const_value.isdigit() or (const_value.startswith('-') and const_value[1:].isdigit()):
-                constants[const_name] = int(const_value)
-            elif '.' in const_value:
-                try:
-                    constants[const_name] = float(const_value)
-                except ValueError:
-                    constants[const_name] = const_value
-            else:
-                constants[const_name] = const_value
-            i += 2
-        else:
-            i += 1
+    # Parse unknown arguments as constants using abstracted function
+    constants = parse_unknown_args(unknown_args)
 
     config.configure_logger(args.logger_levels, logger_files=args.logger_files) 
     if args.load_module:

@@ -216,6 +216,47 @@ def load_module_file(fname: str, fail_on_missing=False) -> Optional[Any]:
         raise ImportError(f"Error loading module file: {str(e)}") from e
 
 
+def parse_unknown_args(unknown_args):
+    """Parse unknown command line arguments as constants.
+    
+    Processes arguments in the format --CONST_NAME value, attempting to parse
+    the values as appropriate Python types (bool, int, float, str).
+    
+    Args:
+        unknown_args (List[str]): List of unknown command line arguments
+        
+    Returns:
+        Dict[str, Any]: Dictionary mapping constant names to their parsed values
+        
+    Example:
+        >>> parse_unknown_args(['--debug', 'true', '--count', '42', '--name', 'test'])
+        {'debug': True, 'count': 42, 'name': 'test'}
+    """
+    constants = {}
+    i = 0
+    while i < len(unknown_args):
+        if unknown_args[i].startswith('--') and i + 1 < len(unknown_args):
+            const_name = unknown_args[i][2:]  # Remove '--' prefix
+            const_value = unknown_args[i + 1]
+            
+            # Try to parse value as different types (similar to ChatterLang parameter parsing)
+            if const_value.lower() in ('true', 'false'):
+                constants[const_name] = const_value.lower() == 'true'
+            elif const_value.isdigit() or (const_value.startswith('-') and const_value[1:].isdigit()):
+                constants[const_name] = int(const_value)
+            elif '.' in const_value:
+                try:
+                    constants[const_name] = float(const_value)
+                except ValueError:
+                    constants[const_name] = const_value
+            else:
+                constants[const_name] = const_value
+            i += 2
+        else:
+            i += 1
+    return constants
+
+
 def load_script(script_input: str) -> str:
     """Load a talkpipe script from various sources.
     
