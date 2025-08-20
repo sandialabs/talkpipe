@@ -1,14 +1,14 @@
 # TalkPipe Configuration Architecture
 
-This document describes how TalkPipe manages configuration across different environments, including configuration file formats, environment variable handling, precedence rules, and security considerations.
+This document describes how TalkPipe manages configuration across different environments, including configuration file formats, environment variable handling, and precedence rules.
 
 ## Overview
 
 TalkPipe uses a layered configuration system that supports multiple sources with clear precedence rules. Configuration can come from:
 
-1. **Configuration files** (TOML format)
+3. **Command-line arguments** (including unknown arguments that get added to the configuration)
 2. **Environment variables** (with `TALKPIPE_` prefix)
-3. **Command-line arguments** (including unknown arguments as constants)
+1. **Configuration files** (TOML format)
 4. **Default values** (hard-coded in the application)
 
 ## Configuration File Formats
@@ -39,7 +39,6 @@ api_keys = ["key1", "key2", "key3"]
 
 # Custom scripts and modules
 custom_script_path = "/path/to/your/scripts"
-custom_module_path = "/path/to/your/modules"
 
 # Database connections (example)
 mongo_uri = "mongodb://localhost:27017/talkpipe"
@@ -66,16 +65,12 @@ All TalkPipe environment variables use the prefix `TALKPIPE_` followed by the co
 export TALKPIPE_LOGGER_LEVELS="root:INFO,talkpipe:DEBUG"
 export TALKPIPE_LOGGER_FILES="talkpipe:/tmp/talkpipe.log"
 
-# LLM Configuration
-export TALKPIPE_OPENAI_API_KEY="sk-your-api-key"
-export TALKPIPE_OLLAMA_BASE_URL="http://localhost:11434"
-
 # Server Configuration
 export TALKPIPE_DEFAULT_PORT="8080"
 export TALKPIPE_DEFAULT_HOST="127.0.0.1"
 
 # Custom scripts
-export TALKPIPE_WELCOME_SCRIPT="INPUT FROM echo[data='Hello from env!'] | print"
+export TALKPIPE_WELCOME_SCRIPT='INPUT FROM echo[data="Hello from env!"] | print'
 ```
 
 ### Environment Variable Processing
@@ -295,7 +290,7 @@ EOF
    ls -la ~/.talkpipe.toml
    
    # Check TOML syntax
-   python -c "import tomllib; tomllib.load(open('~/.talkpipe.toml', 'rb'))"
+   python -c "import tomllib; print(tomllib.load(open('/path/to/home/.talkpipe.toml', 'rb')))"
    ```
 
 2. **Environment Variables Not Working**
@@ -311,7 +306,7 @@ EOF
 3. **Constants Not Available in Scripts**
    ```bash
    # Check that constants are being parsed
-   python -m talkpipe.app.chatterlang_script --script "test.tp" --debug true --verbose
+   python -m talkpipe.app.chatterlang_script --script "test.tp" --debug true
    ```
 
 ### Configuration Debugging
@@ -361,26 +356,7 @@ Configure logging based on configuration values.
 - `base_level` (str): Default logging level
 - `logger_files` (str): File logging configuration string
 
-## Migration Guide
-
-### Upgrading Configuration Format
-
-When upgrading TalkPipe versions, configuration may need updates:
-
-1. **Backup existing configuration**
-   ```bash
-   cp ~/.talkpipe.toml ~/.talkpipe.toml.backup
-   ```
-
-2. **Check for deprecated keys**
-   - Review changelog for configuration changes
-   - Update deprecated configuration keys
-
-3. **Validate new configuration**
-   ```bash
-   python -c "from talkpipe.util.config import get_config; print(get_config())"
-   ```
-
 This comprehensive configuration system provides flexibility for different deployment scenarios while maintaining security and ease of use.
 
+---
 Last Reviewed: 20250820

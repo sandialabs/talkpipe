@@ -533,4 +533,5 @@ The architecture's layered design—parser, compiler, registry, and applications
 
 Through its integration with web applications, command-line tools, and interactive environments, ChatterLang enables TalkPipe's data processing capabilities to be deployed across diverse use cases and user scenarios.
 
-**Last Reviewed**: 20250817
+---
+Last Reviewed: 20250817

@@ -544,4 +544,6 @@ def data_analysis_example():
 
 The Pipe API provides a flexible, composable foundation for building data processing pipelines. Through its abstract base classes, decorator-based DSL, and advanced constructs like forking and looping, it enables both simple data transformations and complex workflow orchestration while maintaining the simplicity of the Unix pipeline philosophy.
 
+
+---
 Last Reviewed: 20250815

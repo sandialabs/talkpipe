@@ -399,4 +399,5 @@ chatterlang_serve --script "| print"
 - **Memory**: Large responses are truncated in the web interface
 - **Concurrency**: FastAPI handles multiple concurrent requests automatically
 
+---
 Last Reviewed: 20250813
