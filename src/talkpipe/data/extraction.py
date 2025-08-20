@@ -3,62 +3,122 @@
 from typing import Union, Iterable
 from pathlib import PosixPath
 from docx import Document
-from talkpipe.pipe.core import segment, AbstractSegment
-from talkpipe.chatterlang.registry import register_segment
+from talkpipe.pipe.core import segment, AbstractSegment, field_segment
+from talkpipe.chatterlang.registry import register_segment, register_source
 import logging
+from pathlib import Path
+import glob
+import os
 
 @register_segment("readtxt")
-@segment
-def readtxt(items: Iterable[str]):
+@field_segment()
+def readtxt(file_path):
     """
-    Reads text files from given file paths and yields their contents.
+    Reads text files from given file paths or directories and yields their contents.
+
+    If an item is a directory, it will scan the directory (recursively by default)
+    and read all .txt files.
 
     Args:
-        file_paths (Iterable[str]): An iterable containing paths to text files to be read.
+        items (Iterable[str]): Iterable of file or directory paths.
+        recursive (bool): Whether to scan directories recursively for .txt files.
 
     Yields:
         str: The contents of each text file.
 
     Raises:
-        FileNotFoundError: If a file path does not exist.
+        FileNotFoundError: If a path does not exist.
         IOError: If there is an error reading any of the files.
-
-    Example:
-        >>> files = ['file1.txt', 'file2.txt']
-        >>> for content in readtxt(files):
-        ...     print(content)
     """
-    for file_path in items:
-        logging.info(f"Reading text file: {file_path}")
-        with open(file_path, "r") as file:
-            yield file.read()
+
+    p = Path(file_path)
+
+    if not p.exists():
+        logging.error(f"Path does not exist: {file_path}")
+        raise FileNotFoundError(f"Path does not exist: {file_path}")
+
+    if p.is_file():
+        logging.info(f"Reading text file: {p}")
+        with p.open("r") as file:
+            return file.read()
+    else:
+        logging.error(f"Unsupported path type: {file_path}")
+        raise FileNotFoundError(f"Unsupported path type: {file_path}")
         
 @register_segment("readdocx")
-@segment
-def readdocx(items: Iterable[str]):
+@field_segment()
+def readdocx(file_path):
     """Read and extract text from Microsoft Word (.docx) files.
 
-    This function takes an iterable of file paths to .docx documents and yields the
-    extracted text content from each document, with paragraphs joined by spaces.
+    If an item is a directory, it will scan the directory (recursively by default)
+    and read all .docx files.
+
+    Args:
+        items (Iterable[str]): Iterable of file or directory paths.
+        recursive (bool): Whether to scan directories recursively for .docx files.
 
     Yields:
         str: The full text content of each document with paragraphs joined by spaces
 
     Raises:
-        Exception: If there are issues reading the .docx files
+        FileNotFoundError: If a path does not exist.
+        IOError: If there is an error reading any of the files.
 
-    Example:
-        >>> paths = ['doc1.docx', 'doc2.docx']
-        >>> for text in readdocx(paths):
-        ...     print(text)
     """
-    for file_path in items:
-        logging.info(f"Reading docx file: {file_path}")
-        doc = Document(file_path)
+    p = Path(file_path)
+
+    if not p.exists():
+        logging.error(f"Path does not exist: {file_path}")
+        raise FileNotFoundError(f"Path does not exist: {file_path}")
+
+    if p.is_file():
+        logging.info(f"Reading docx file: {p}")
+        doc = Document(p)
         full_text = []
         for para in doc.paragraphs:
             full_text.append(para.text)
-        yield " ".join(full_text)
+        return " ".join(full_text)
+    else:
+        logging.error(f"Unsupported path type: {file_path}")
+        raise FileNotFoundError(f"Unsupported path type: {file_path}")
+
+@register_segment("listFiles")
+@segment()
+def listFiles(patterns: Iterable[str], full_path: bool = True):
+    """
+    Lists files matching given patterns (potentially with wildcards) and yields their paths.
+
+    Args:
+        patterns (Iterable[str]): Iterable of file patterns or paths (supports wildcards like *, ?, []).
+        full_path (bool): Whether to yield full absolute paths or just filenames.
+
+    Yields:
+        str: File paths (absolute if full_path=True, filenames if full_path=False).
+
+
+    Raises:
+        None: This function does not raise exceptions for non-matching patterns.
+    """
+    for pattern in patterns:
+        expanded_pattern = os.path.expanduser(pattern)
+        
+        # If no wildcard is provided and the path is a directory, add implied "/*"
+        path = Path(expanded_pattern)
+        if path.is_dir() and not any(char in expanded_pattern for char in ['*', '?', '[']):
+            expanded_pattern = os.path.join(expanded_pattern, '*')
+        
+        logging.info(f"Searching for files matching pattern: {expanded_pattern}")
+        matches = glob.glob(expanded_pattern, recursive=True)
+        
+        for match in sorted(matches):
+            path = Path(match)
+            if path.is_file():
+                if full_path:
+                    yield str(path.resolve())
+                else:
+                    yield path.name
+            else:
+                logging.debug(f"Skipping non-file: {match}")
 
 @register_segment("extract")
 class FileExtractor(AbstractSegment):

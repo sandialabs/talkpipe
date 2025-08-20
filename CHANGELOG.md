@@ -2,6 +2,7 @@
 
 ## In Development
 ### New Segments and Source
+   - **listFiles** segment that takes a path (potentially with wildcards) as input and issues a stream of file paths.
 
 ### Improvements
 
@@ -26,6 +27,7 @@ Note that this release introduces significant API-breaking changes compared with
 - Deleted the Jupyter widgets because they were not useful.
 - Removed `accelerate` and `pypdf` as dependencies. `accelerate` was left over from an earlier version and is no longer necessary; it added unnecessary bulk.
 - When not specified, use default temperature values and pass the temperature parameter only when explicitly provided. Not all models accept a temperature.
+- Changed readtxt and readdocx to field_segments.
 
 ## 0.7.1
 ### New Segments and Sources
