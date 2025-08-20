@@ -51,7 +51,7 @@ def test_main_with_extra_module(capsys, tmp_path):
 
 
 def test_main_with_constant_injection(capsys):
-    test_script = """INPUT FROM echo[data=TEST] | print"""
+    test_script = """INPUT FROM echo[data=$TEST] | print"""
     
     with patch('argparse.ArgumentParser.parse_known_args') as mock_args:
         # Mock the return value of parse_known_args to simulate --script "INPUT FROM echo[data=TEST] | print" --TEST "hello"

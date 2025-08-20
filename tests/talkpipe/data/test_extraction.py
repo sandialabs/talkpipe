@@ -111,7 +111,7 @@ def test_listFiles(tmp_path):
     assert exact_file == ["data.json"]
     
     # Test directory without wildcard (should add implied "/*")
-    dir_files = list(listFiles(full_path=False)([str(tmp_path)]))
+    dir_files = list(listFiles(full_path=False, files_only=True)([str(tmp_path)]))
     assert len(dir_files) == 4  # Should find all files in root directory
     assert set(dir_files) == {"file1.txt", "file2.txt", "file3.py", "data.json"}
 
