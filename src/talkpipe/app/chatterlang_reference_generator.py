@@ -57,11 +57,21 @@ def _extract_chatterlang_name(decorator: ast.Call) -> Optional[str]:
     Extract a string passed to @register_segment(...) or @register_source(...),
     either as the first positional argument or via name="..." keyword.
     """
-    if decorator.args and isinstance(decorator.args[0], ast.Str):
-        return decorator.args[0].s
+    if decorator.args:
+        arg = decorator.args[0]
+        # Handle both old ast.Str and new ast.Constant
+        if isinstance(arg, ast.Constant) and isinstance(arg.value, str):
+            return arg.value
+        elif hasattr(ast, 'Str') and isinstance(arg, ast.Str):
+            return arg.s
+    
     for kw in decorator.keywords or []:
-        if kw.arg == 'name' and isinstance(kw.value, ast.Str):
-            return kw.value.s
+        if kw.arg == 'name':
+            # Handle both old ast.Str and new ast.Constant
+            if isinstance(kw.value, ast.Constant) and isinstance(kw.value.value, str):
+                return kw.value.value
+            elif hasattr(ast, 'Str') and isinstance(kw.value, ast.Str):
+                return kw.value.s
     return None
 
 def build_param_specs(args_list: List[ast.arg], defaults_list: List[ast.expr]) -> List[ParamSpec]:
@@ -130,7 +140,7 @@ def analyze_function(node: ast.FunctionDef, filename: str, package_name: str) ->
                 elif func.id == 'field_segment':  # New: detect field_segment
                     is_field_segment = True
             elif isinstance(func, ast.Attribute):
-                # e.g. @registry.register_segment("foo")
+                # e.g. @registry.register_segment("foo") or @core.segment()
                 if func.attr == 'register_segment':
                     is_segment = True
                     extracted = _extract_chatterlang_name(decorator)
@@ -141,6 +151,12 @@ def analyze_function(node: ast.FunctionDef, filename: str, package_name: str) ->
                     extracted = _extract_chatterlang_name(decorator)
                     if extracted:
                         chatterlang_name = extracted
+                elif func.attr == 'segment':  # e.g. @core.segment()
+                    is_segment = True
+                elif func.attr == 'source':  # e.g. @core.source()
+                    is_source = True
+                elif func.attr == 'field_segment':  # e.g. @core.field_segment()
+                    is_field_segment = True
         elif isinstance(decorator, ast.Name):
             # e.g. @segment or @source or @field_segment
             if decorator.id == 'segment':
@@ -212,6 +228,12 @@ def analyze_class(node: ast.ClassDef, filename: str, package_name: str) -> Optio
                     extracted = _extract_chatterlang_name(decorator)
                     if extracted:
                         chatterlang_name = extracted
+                elif func.attr == 'segment':  # e.g. @core.segment()
+                    decorator_type = 'segment'
+                elif func.attr == 'source':  # e.g. @core.source()
+                    decorator_type = 'source'  
+                elif func.attr == 'field_segment':  # e.g. @core.field_segment()
+                    decorator_type = 'field_segment'
 
     if not decorator_type:
         # Not a segment, source, or field_segment class

@@ -1,4 +1,4 @@
-# ChatterLang Server
+# ChatterLang Workbench
 
 **`chatterlang_workbench`** - Interactive web interface for writing, testing, and running ChatterLang scripts in real-time.
 

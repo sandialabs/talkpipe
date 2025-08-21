@@ -68,7 +68,7 @@ Open http://localhost:2025/stream in your browser to interact with your pipeline
 ### Learn the Tools
 
 - **[talkpipe_endpoint](api-reference/chatterlang-server.md)** - Create web APIs and forms
-- **[chatterlang_workbench](api-reference/chatterlang-server.md)** - Interactive development environment
+- **[chatterlang_workbench](api-reference/chatterlang-workbench.md)** - Interactive development environment
 - **[chatterlang_script](api-reference/chatterlang-script.md)** - Run scripts from files
 
 ### Explore Tutorials
