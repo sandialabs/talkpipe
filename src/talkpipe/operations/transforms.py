@@ -108,14 +108,25 @@ class MakeLists(AbstractSegment):
         self.ignoreNone = ignoreNone
 
     def transform(self, input_iter):
-        """Create a matrix from the input iterator.  
+        """Collect items (or a field from each item) into lists (batches).
 
-        Each item in the input iterator is a vector. The matrix is created by stacking 
-        the vectors vertically.  num_vectors is not None, then the matrix will be emitted
-        after all items have been received.  If it is an integer, then the matrix will be emitted
-        after num_vectors icreateMatrixtems have been received.  If cumulative is False, the matrix will be
-        reset after it is emitted.  If True, the matrix will be cumulative and will not be reset.
-        Note that cumulative has no effect if num_vectors is None. 
+        Behavior:
+        - field: If field == "_", each original item is collected. Otherwise the value
+          of that field (via extract_property) is collected.
+        - ignoreNone: If True, items whose extracted value is None are skipped.
+        - num_items is None: All (remaining) collected values are yielded once at the end.
+        - num_items is an int:
+            * Values are accumulated and a list is yielded every time the count
+              reaches a multiple of num_items.
+            * cumulative = False: the accumulator is cleared after each yield (fixed-size batches).
+            * cumulative = True: the accumulator is NOT cleared, so each yielded list
+              grows (sliding cumulative window snapshots).
+              (cumulative has no effect when num_items is None.)
+        The transform always yields lists (copies) so downstream code can safely mutate.
+
+        Common use: When each extracted item is a numeric vector, the yielded list
+        can be turned into a matrix (e.g. np.stack(batch)) by downstream code.
+
         """
 
         assert self.num_items is None or self.num_items > 0, "num_vectors must be None or a positive integer"

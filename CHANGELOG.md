@@ -1,35 +1,36 @@
 # Changelog
 
-## In Development
-### New Segments and Source
-   - **listFiles** segment that takes a path (potentially with wildcards) as input and issues a stream of file (and optionally directory) paths.
+## 0.8.0
+### New Segments and Sources
+- **listFiles** – Takes a path (optionally with wildcards) and emits a stream of file paths (and optionally directory paths).
 
 ### Improvements
 
-Note that this release introduces significant API-breaking changes compared with 0.7.x and earlier releases. The software is largely feature complete for 1.0.0; these releases focus on making the API self-consistent.
+Note that this release introduces significant API-breaking changes compared with 0.7.x and earlier releases. The software is largely feature-complete for 1.0.0; these releases focus on making the API self-consistent.
 
-- **chatterlang_serve**
+- chatterlang_serve
   - Added a `--display-property` parameter to display a specified property as the user message in the stream interface, rather than printing a string version of the whole input JSON (still the default).
   - Fixed a bug causing `/stream` to not respect position directives.
   - The default form now issues a single text item with the property `prompt`.
   - Added a "persist" option to the UI configuration form to specify fields that will not be cleared after each query.
-  - Multi-session support so multiple people can use it at the same time.
-  - Added ability to specify configuration values on the command line that are available to the script (also noted below)
-- Added the ability to add parameters to chatterlang_script, chatterlang_workbench, and chatterlang_serve using "--" syntax.  So "--PATH /my/path" will result in the value being added to the configuration /my/path.  For example: python -m talkpipe.app.chatterlang_script --script "INPUT FROM echo[data=$MYPATH] | listFiles | print" --MYPATH "~"
-- Updated tutorial scripts and the script names in Tutorial 3. Moved examples to the docs directory.
+  - Added multi-session support so multiple people can use it at the same time.
+  - Added the ability to specify configuration values on the command line that are available to the script (also noted below).
+- Added the ability to pass parameters to `chatterlang_script`, `chatterlang_workbench`, and `chatterlang_serve` using the `--` syntax. For example, `--PATH /my/path` will add the value to the configuration at `/my/path`. Example: `python -m talkpipe.app.chatterlang_script --script "INPUT FROM echo[data=$MYPATH] | listFiles | print" --MYPATH "~"`
+- Updated the tutorial scripts and the script names in Tutorial 3; moved the examples to the docs directory.
 - Updated the unit documentation analyzer to ignore `item` and `items` parameters. These terms are reserved for the data passed into a segment and should not be used as parameters otherwise.
-- Updated `chatterlang_workbench` to return a 413 error when a script is longer than 10,000 characters (hard-coded).
+- Updated `chatterlang_workbench` to return a 413 error when a script is longer than 10,000 characters (hard-coded limit).
 - Added more comprehensive documentation.
-- Removed the chatcli application; its functionality is easy to reproduce with `chatterlang_script`.
+- Removed the `chatcli` application; its functionality is easy to reproduce with `chatterlang_script`.
 - Added a `load_script` function in `talkpipe.util.config`, which provides a common way to specify scripts (directly, in a file, in a configuration entry, or via an environment variable) for a consistent experience across applications.
 - Across all apps, changed the `--load_module` parameter to `--load-module` for consistency.
 - Standardized parameters that refer to model names to `model` rather than `name` or `model_name`.
 - Renamed applications for consistency.
-- Added the command `chatterlang_reference_browser`, which provides an interactive way to browse the chatterlang sources and segments.
+- Added the command `chatterlang_reference_browser`, which provides an interactive way to browse the ChatterLang sources and segments.
 - Deleted the Jupyter widgets because they were not useful.
 - Removed `accelerate` and `pypdf` as dependencies. `accelerate` was left over from an earlier version and is no longer necessary; it added unnecessary bulk.
-- When not specified, use default temperature values and pass the temperature parameter only when explicitly provided. Not all models accept a temperature.
-- Changed readtxt and readdocx to field_segments.
+- When not specified, use default temperature values, and pass the temperature parameter only when explicitly provided; not all models accept a temperature.
+- Changed `readtxt` and `readdocx` to `field_segments`.
+- Improved unit-test coverage.
 
 ## 0.7.1
 ### New Segments and Sources

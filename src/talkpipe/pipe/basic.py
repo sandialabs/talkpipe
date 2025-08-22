@@ -22,36 +22,46 @@ logger = logging.getLogger(__name__)
 @registry.register_segment("sleep")
 @segment()
 def sleep(items, seconds: int):
-    """Sleep for a specified number of seconds.
-
+    """Sleep for a specified number of seconds between processing each item.
+    
+    This segment introduces a delay between processing each item in the pipeline.
+    Useful for rate limiting, testing timing-sensitive code, or simulating slow operations.
+    
+    ChatterLang Usage:
+        sleep[seconds=1]
+        
     Args:
         items (Iterable): An iterable of items to process.
-        seconds (int): The number of seconds to sleep.
+        seconds (int): The number of seconds to sleep after processing each item.
 
     Yields:
-        None: This segment does not yield any items; it simply sleeps.
+        Any: Each input item unchanged after the sleep delay.
     """
-    # Yielding None to indicate that this segment does not produce output
     for item in items:
-        yield item  # Yield the item to maintain the flow of the pipeline
-        time.sleep(seconds)
+        yield item  # Pass through the item unchanged
+        time.sleep(seconds)  # Sleep after yielding to maintain pipeline flow
 
 @registry.register_segment(name="progressTicks")
 @segment()
 def progressTicks(items, tick: str = ".", tick_count: int = 10, eol_count: Optional[int] = 10, print_count: bool = False):
-    """Prints a tick marks to help visualize progress.
+    """Display progress indicators while processing items in the pipeline.
 
-    Prints a tick mark for each tick_count items processed. If eol_count is specified, it will print a new line after every eol_count tick marks.
-    If print_count is True, it will print the total count of items processed at the end of each line and at the end.
+    Prints tick marks to stderr to visualize processing progress without interfering 
+    with the main data stream. Useful for monitoring long-running pipelines.
 
+    ChatterLang Usage:
+        progressTicks[tick="*", tick_count=100, eol_count=10, print_count=true]
+        
     Args:
         items (Iterable): An iterable of items to process.
         tick (str): The character to print as a tick mark. Defaults to '.'.
-        tick_count (int): The number of items to process before printing a tick mark. Defaults to 10.
-        eol_count (Optional[int]): The number of tick marks to print before starting a new line. If None, no new line is printed. Defaults to 10.
-        print_count (bool): If True, prints the count of items processed at the end of each line and at the end.
+        tick_count (int): Number of items to process before printing a tick mark. Defaults to 10.
+        eol_count (Optional[int]): Number of tick marks before starting a new line. 
+                                  If None, no new line is printed. Defaults to 10.
+        print_count (bool): If True, prints the count of items processed at line ends.
+        
     Yields:
-        The original items from the input iterable.
+        Any: The original items from the input iterable, unchanged.
     """
     count = 0
     for idx, item in enumerate(items, 1):
@@ -70,10 +80,19 @@ def progressTicks(items, tick: str = ".", tick_count: int = 10, eol_count: Optio
 @segment()
 def firstN(items, n: int = 1):
     """Yields the first n items from the input stream.
+    
+    Useful for sampling data, testing pipelines with limited data, or implementing
+    pagination-like functionality.
+    
+    ChatterLang Usage:
+        firstN[n=5]
+        
     Args:
-        n (int): The number of items to yield.
+        items (Iterable): An iterable of items to process.
+        n (int): The number of items to yield. Defaults to 1.
+        
     Yields:
-        The first n items from the input stream."""
+        Any: The first n items from the input stream."""
     for i, item in enumerate(items):
         if i < n:
             yield item
@@ -247,7 +266,21 @@ class ToList(AbstractSegment):
 @registry.register_source(name="exec")
 @source()
 def exec(command: str) -> Iterator:
-    """Execute a command and yields each line passed to stdout as an item."""
+    """Execute a shell command and yield each line from stdout as a data item.
+    
+    This source allows you to integrate shell commands into TalkPipe pipelines,
+    streaming the output line by line for further processing.
+    
+    ChatterLang Usage:
+        input exec[command="ls -la"]
+        input exec[command="find /path -name '*.txt'"]
+        
+    Args:
+        command (str): The shell command to execute.
+        
+    Yields:
+        str: Each line from the command's stdout output.
+    """
     yield from run_command(command)
 
 
