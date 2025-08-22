@@ -10,7 +10,7 @@
 # 3. The embeddings are stored in a vector index at the specified path.
 ###################################################################################
 
-export TALKPIPE_CHATTERLANG_SCRIPT = '
+export TALKPIPE_CHATTERLANG_SCRIPT='
     INPUT FROM "../Tutorial_1-Document_Indexing/stories.json"
     | readJsonl 
     | progressTicks[tick_count=1, print_count=True] 

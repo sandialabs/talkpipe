@@ -18,9 +18,8 @@
 export TALKPIPE_CHATTERLANG_SCRIPT='    
     | copy
     | llmEmbed[field="example", source="ollama", model="mxbai-embed-large", append_as="vector"]
-    | searchVector[vector_field="vector", path="./vector_index"]
+    | searchVector[vector_field="vector", path="./vector_index", top_k=10]
     | formatItem[field_list="document.title:Title, document.content:Content, score:Score"]
 '
 
-#chatterlang_serve --form-config story_by_example_ui.yml --script "
-python -m talkpipe.app.chatterlang_serve --form-config story_by_example_ui.yml --display-property example --script CHATTERLANG_SCRIPT
+chatterlang_serve --form-config story_by_example_ui.yml --display-property example --script CHATTERLANG_SCRIPT

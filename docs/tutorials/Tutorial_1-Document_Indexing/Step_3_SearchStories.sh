@@ -16,5 +16,4 @@ export TALKPIPE_CHATTERLANG_SCRIPT='
   | searchWhoosh[index_path="full_text_index", field="query"] 
   | formatItem[field_list="document.title:Title,document.content:Content,score:Score"]
 '
-#chatterlang_serve --form-config story_search_ui.yml --title "Story Search" --script "
-python -m talkpipe.app.chatterlang_serve --form-config story_search_ui.yml --title \"Story\ Search\" --display-property query --script CHATTERLANG_SCRIPT
+chatterlang_serve --form-config story_search_ui.yml --title \"Story\ Search\" --display-property query --script CHATTERLANG_SCRIPT

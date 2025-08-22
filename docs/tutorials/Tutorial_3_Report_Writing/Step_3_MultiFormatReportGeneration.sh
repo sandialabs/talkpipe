@@ -16,7 +16,7 @@ export TALKPIPE_CHATTERLANG_SCRIPT='
     | copy
     | llmEmbed[field="topic", source="ollama", model="mxbai-embed-large", append_as="vector"]
     | searchVector[vector_field="vector", path="../Tutorial_2-Search_by_Example_and_RAG/vector_index", top_k=10, all_results_at_once=True, append_as="results"]
-    | generateMultiFormatReport[source="ollama", name="llama3.2"]
+    | generateMultiFormatReport[source="ollama", model="llama3.2"]
 '
 
-python -m talkpipe.app.chatterlang_serve --form-config multi_format_ui.yml --load-module step3_extras.py --display-property topic --script CHATTERLANG_SCRIPT
+chatterlang_serve --form-config multi_format_ui.yml --load-module step3_extras.py --display-property topic --script CHATTERLANG_SCRIPT

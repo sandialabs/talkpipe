@@ -117,7 +117,7 @@ def generate_report_sections_segment(item):
 
 @register_segment("generateDetailedReport")
 @field_segment()
-def format_detailed_report_segment(item, model=None, model_source=None, multi_turn=True):
+def format_detailed_report_segment(item, model=None, source=None, multi_turn=True):
     """
     Segment for formatting individual sections into a cohesive detailed report.
     
@@ -129,7 +129,7 @@ def format_detailed_report_segment(item, model=None, model_source=None, multi_tu
     source_titles = extract_property(item, "source_titles", fail_on_missing=True)
     
     # Generate each section using the LLM
-    llm = LLMPrompt(model=model_name, source=model_source, multi_turn=multi_turn, system_prompt="You are a professional report writer.")
+    llm = LLMPrompt(model=model, source=source, multi_turn=multi_turn, system_prompt="You are a professional report writer.")
     llm = llm.asFunction(single_in=True, single_out=True)
     sections_content = {}
 
