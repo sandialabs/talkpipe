@@ -313,29 +313,35 @@ def load_script(script_input: str) -> str:
         raise ValueError("script_input cannot be None or empty")
     
     # 1. Check if the script input is an existing file path
-    script_path = Path(script_input)
-    if script_path.is_file():
-        try:
-            with open(script_path, 'r', encoding='utf-8') as f:
-                return f.read()
-        except IOError as e:
-            error_message = f"Failed to read script file {script_path}: {e}"
-            raise IOError(error_message)
-    
+    try:
+        script_path = Path(script_input)
+        if script_path.is_file():
+            try:
+                with open(script_path, 'r', encoding='utf-8') as f:
+                    return f.read()
+            except IOError as e:
+                error_message = f"Failed to read script file {script_path}: {e}"
+                raise IOError(error_message)
+    except OSError as e:
+        logger.warning(f"Script could not be opened as a file {script_input[0:25]}...: {e}")
+
     # 2. Check if the script input can be retrieved from configuration
     config_data = get_config()
     if script_input in config_data:
         config_value = config_data[script_input]
         
-        # Check if the config value is a file path
-        config_file_path = Path(config_value)
-        if config_file_path.is_file():
-            try:
-                with open(config_file_path, 'r', encoding='utf-8') as f:
-                    return f.read()
-            except IOError as e:
-                error_message = f"Failed to read script file from config {config_file_path}: {e}"
-                raise IOError(error_message)
+        try:
+            # Check if the config value is a file path
+            config_file_path = Path(config_value)
+            if config_file_path.is_file():
+                try:
+                    with open(config_file_path, 'r', encoding='utf-8') as f:
+                        return f.read()
+                except IOError as e:
+                    error_message = f"Failed to read script file from config {config_file_path}: {e}"
+                    raise IOError(error_message)
+        except OSError as e:
+            logger.warning(f"Config value {script_input[0:25]}... could not be opened as a file: {e}")
         
         # If not a file, return the config value as-is
         return config_value
