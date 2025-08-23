@@ -1,4 +1,7 @@
-FROM python:3.11
+FROM python:3.11-slim
+
+# Create a non-root user
+RUN groupadd -r talkpipe && useradd -r -g talkpipe talkpipe
 
 # Set working directory
 WORKDIR /app
@@ -24,5 +27,11 @@ RUN pip install -e .[dev]
 RUN pytest --log-cli-level=DEBUG
 RUN rm -fr .git
 RUN rm -fr tests
+
+# Change ownership of the app directory to the talkpipe user
+RUN chown -R talkpipe:talkpipe /app
+
+# Switch to the non-root user
+USER talkpipe
 
 CMD ["python", "-m", "talkpipe.app.chatterlang_script", "--load-module", "data/custom_module.py", "--script", "TALKPIPE_SCRIPT"]
