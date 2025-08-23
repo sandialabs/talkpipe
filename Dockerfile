@@ -2,6 +2,7 @@ FROM python:3.11-slim
 
 # Create a non-root user
 RUN groupadd -r talkpipe && useradd -r -g talkpipe talkpipe
+RUN  apt-get update && apt-get install -y git
 
 # Set working directory
 WORKDIR /app
