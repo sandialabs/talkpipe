@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.8.1
+### Improvements
+- change --env to --script in Dockerfile.  This was a change in 0.8.0.
+- updated Dockerfile so that the app will not run as root.
+
 ## 0.8.0
 ### New Segments and Sources
 - **listFiles** – Takes a path (optionally with wildcards) and emits a stream of file paths (and optionally directory paths).
