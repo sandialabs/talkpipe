@@ -21,14 +21,14 @@ class LLMEmbed(AbstractSegment):
     Attributes:
         embedder: The embedding adapter instance that performs the actual embedding.
         field: Optional field name to extract text from structured input.
-        append_as: Optional field name to append embeddings to the original item.
+        set_as: Optional field name to append embeddings to the original item.
     """
     def __init__(
             self, 
             model: str = None, 
             source: str = None,
             field: Optional[str] = None,
-            append_as: Optional[str] = None,
+            set_as: Optional[str] = None,
             ):
         """Initialize the embedding segment with the specified parameters.
         
@@ -36,7 +36,7 @@ class LLMEmbed(AbstractSegment):
             model: The name of the embedding model to use. If None, uses the default from config.
             source: The source of the embedding model (e.g., 'ollama'). If None, uses the default from config.
             field: If provided, extract text from this field in the input items.
-            append_as: If provided, append embeddings to input items under this field name.
+            set_as: If provided, append embeddings to input items under this field name.
         
         Raises:
             ValueError: If the specified source is not supported.
@@ -50,7 +50,7 @@ class LLMEmbed(AbstractSegment):
             raise ValueError(f"Source '{source}' is not supported. Supported sources are: {getEmbeddingSources()}")
         self.embedder = getEmbeddingAdapter(source)(model=model)
         self.field = field
-        self.append_as = append_as
+        self.set_as = set_as
 
     def transform(self, input_iter):
         """Transform input items by creating embeddings.
@@ -59,7 +59,7 @@ class LLMEmbed(AbstractSegment):
             input_iter: Iterator of input items to process.
             
         Yields:
-            If append_as is specified, yields the original items with embeddings added.
+            If set_as is specified, yields the original items with embeddings added.
             Otherwise, yields the embeddings directly.
         """
         for item in input_iter:
@@ -75,9 +75,9 @@ class LLMEmbed(AbstractSegment):
             ans = self.embedder.execute(str(text))
             logger.debug(f"Received embedding: {ans}")
 
-            if self.append_as is not None:
-                logger.debug(f"Appending embedding to field {self.append_as}")
-                item[self.append_as] = ans
+            if self.set_as is not None:
+                logger.debug(f"Appending embedding to field {self.set_as}")
+                item[self.set_as] = ans
                 yield item
             else:
                 logger.debug("Yielding embedding directly")

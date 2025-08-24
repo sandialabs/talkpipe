@@ -88,8 +88,8 @@ def test_MakeDictSegment():
     mdt = basic.ToDict(field_list="_,2:middle", fail_on_missing=True)
     assert list(mdt.transform([[3,4,5,6,7]])) == [{"original": [3,4,5,6,7], "middle": 5}]
 
-def test_appendAs():
-    aa = basic.appendAs(field_list="a:A,b,c.2:D")
+def test_setAs():
+    aa = basic.setAs(field_list="a:A,b,c.2:D")
     aa = aa.asFunction(single_in=True, single_out=True)
     ans = aa({"a": 1, "b": 2, "c": [3,4,5]})
     assert ans == {"a": 1, "b": 2, "c": [3,4,5], "A": 1, "D": 5}
@@ -192,7 +192,7 @@ def test_slice():
     ans = s({"x": "abcdef"})
     assert ans == "ab"
 
-    s = basic.slice(field="x", range=":2", append_as="y")
+    s = basic.slice(field="x", range=":2", set_as="y")
     s = s.asFunction(single_in=True, single_out=True)
     ans = s({"x": "abcdef"})
     assert ans == {"x": "abcdef", "y": "ab"}
@@ -264,7 +264,7 @@ def test_hash_segment():
     assert s({"a": 1, "b":2}) == s({"a": 1, "c":3})
     
     h = basic.hash_data(1)
-    s = basic.Hash(append_as="hash", field_list="a")
+    s = basic.Hash(set_as="hash", field_list="a")
     s = s.asFunction(single_in=True, single_out=True)
     assert s({"a": 1}) == {"a": 1, "hash": h}
 
@@ -281,7 +281,7 @@ def test_fillTemplate():
     f = f.asFunction(single_in=True, single_out=True)
     assert f({"name": "World"}) == "Hello World"
 
-    f = basic.fillTemplate(template="Hello {name}", append_as="greeting")
+    f = basic.fillTemplate(template="Hello {name}", set_as="greeting")
     f = f.asFunction(single_in=True, single_out=True)
     assert f({"name": "World"}) == {"name": "World", "greeting": "Hello World"}
 
@@ -300,7 +300,7 @@ def test_lambda():
     ans = list(f(["Hello", "World!"]))
     assert ans == [5, 6]
 
-    f = basic.EvalExpression("item+1", field="x", append_as="y")
+    f = basic.EvalExpression("item+1", field="x", set_as="y")
     f = f.asFunction()
     ans = f([{"x": 1}, {"x": 2}])
     assert ans == [{"x": 1, "y": 2}, {"x": 2, "y": 3}]
@@ -338,7 +338,7 @@ def test_longestStr():
     ans = list(f([{"x": "short", "y": "longest", "z":"reallymuchlonger"}, {"x": "longer", "y": "short", "z": "tiny"}]))
     assert ans == ["longest", "longer"]
 
-    f = basic.longestStr(field_list="x,y", append_as="longest")
+    f = basic.longestStr(field_list="x,y", set_as="longest")
     f = f.asFunction(single_in=False, single_out=False)
     ans = list(f([{"x": "short", "y": "longest", "z":"reallymuchlonger"}, {"x": "longer", "y": "short", "z": "tiny"}]))
     assert ans[0]["longest"] == "longest"

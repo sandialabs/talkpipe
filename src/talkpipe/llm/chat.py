@@ -39,7 +39,7 @@ class LLMPrompt(AbstractSegment):
         multi_turn (bool, optional): Whether the chat is multi-turn. Defaults to True.
         pass_prompts (bool, optional): Whether to pass the prompts through to the output. Defaults to False.
         field (str, optional): The field in the input item containing the prompt. Defaults to None.
-        append_as (str, optional): The field to append the response to. Defaults to None.
+        set_as (str, optional): The field to append the response to. Defaults to None.
         temperature (float, optional): The temperature to use for the model. If not specified, no temperature parameter will be passed to the model.
         output_format (BaseModel, optional): A class used for guided generation. Defaults to None.
     """
@@ -52,7 +52,7 @@ class LLMPrompt(AbstractSegment):
             multi_turn: bool = True,
             pass_prompts: bool = False,
             field: Optional[str] = None,
-            append_as: Optional[str] = None,
+            set_as: Optional[str] = None,
             temperature: float = None,
             output_format: BaseModel = None):
         super().__init__()
@@ -75,7 +75,7 @@ class LLMPrompt(AbstractSegment):
 
         self.pass_prompts = pass_prompts
         self.field = field
-        self.append_as = append_as
+        self.set_as = set_as
 
     def transform(self, input_iter: Iterable) -> Iterator:
         for item in input_iter:
@@ -95,9 +95,9 @@ class LLMPrompt(AbstractSegment):
             ans = self.chat.execute(str(prompt))
             logger.debug(f"Received response: {ans}")
             
-            if self.append_as is not None:
-                logger.debug(f"Appending response to field {self.append_as}")
-                item[self.append_as] = ans
+            if self.set_as is not None:
+                logger.debug(f"Appending response to field {self.set_as}")
+                item[self.set_as] = ans
                 yield item
             else:
                 logger.debug("Yielding response directly")
@@ -116,7 +116,7 @@ class AbstractLLMGuidedGeneration(LLMPrompt):
         pass_prompts (bool, optional): Whether to pass the prompts through to the output. Defaults to False.
         field (str, optional): The field in the input item containing the prompt. Defaults to None.
         temperature (float, optional): The temperature to use for the model. If not specified, no temperature parameter will be passed to the model.
-        append_as (str, optional): The field to append the response to. Defaults to None.
+        set_as (str, optional): The field to append the response to. Defaults to None.
     """
 
     @staticmethod
@@ -134,7 +134,7 @@ class AbstractLLMGuidedGeneration(LLMPrompt):
             pass_prompts: bool = False,
             field: Optional[str] = None,
             temperature: float = None,
-            append_as: Optional[str] = None):
+            set_as: Optional[str] = None):
         
         super().__init__(
             model, 
@@ -143,7 +143,7 @@ class AbstractLLMGuidedGeneration(LLMPrompt):
             multi_turn=multi_turn, 
             pass_prompts=pass_prompts, 
             field=field, 
-            append_as=append_as, 
+            set_as=set_as, 
             temperature=temperature, 
             output_format=self.__class__.get_output_format())
         
@@ -205,7 +205,7 @@ class LlmScore(AbstractLLMGuidedGeneration):
     - temperature (float, optional):
          Sampling temperature; often set low (e.g., 0.0–0.3) to encourage
          deterministic, reproducible scoring.
-    - append_as (str, optional):
+    - set_as (str, optional):
          If specified, the output will be appended as this field in the
          final response.
 

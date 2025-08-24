@@ -14,7 +14,7 @@ export TALKPIPE_CHATTERLANG_SCRIPT='
     INPUT FROM "../Tutorial_1-Document_Indexing/stories.json"
     | readJsonl 
     | progressTicks[tick_count=1, print_count=True] 
-    | llmEmbed[field="content", source="ollama", model="mxbai-embed-large", append_as="vector"]
+    | llmEmbed[field="content", source="ollama", model="mxbai-embed-large", set_as="vector"]
     | addVector[path="./vector_index", vector_field="vector", metadata_field_list="title,content", overwrite=True]
 '
 

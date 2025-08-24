@@ -182,7 +182,7 @@ pipeline = data_source | scale(multiplier=3)
 Creates segments that process specific fields and optionally append results:
 
 ```python
-@field_segment(field="text", append_as="word_count")
+@field_segment(field="text", set_as="word_count")
 def count_words(text):
     return len(text.split())
 

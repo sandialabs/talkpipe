@@ -103,8 +103,8 @@ def test_chat(requires_ollama):
     response = chat("I just told you my first name?  What is it?")
     assert "inigo" in response.lower()
 
-def test_chat_append_as(requires_ollama):
-    chat = LLMPrompt(model="llama3.2", source="ollama", append_as="response", temperature=0.0)
+def test_chat_set_as(requires_ollama):
+    chat = LLMPrompt(model="llama3.2", source="ollama", set_as="response", temperature=0.0)
     chat = chat.asFunction(single_in=True, single_out=True)
     response = chat({"message": "Hello.  My name is Inigo Montoya.  You killed my father."})
     assert isinstance(response, dict)
@@ -159,7 +159,7 @@ def test_llmscore(requires_ollama):
     response = llmscore(cat_text)
     assert response.score < 3
 
-    llmscore = LlmScore(system_prompt=system_prompt, field="assertion", append_as="canine_similarity", temperature=0.0, model="llama3.2", source="ollama")
+    llmscore = LlmScore(system_prompt=system_prompt, field="assertion", set_as="canine_similarity", temperature=0.0, model="llama3.2", source="ollama")
     llmscore = llmscore.asFunction(single_in=True, single_out=True)
     response = llmscore({"assertion":dog_text})
     assert isinstance(response, dict)

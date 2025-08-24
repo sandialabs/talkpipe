@@ -273,7 +273,7 @@ class SignSegment(core.AbstractSegment):
     """
     
     def __init__(self, private_key, message_field="_", password=None,
-                 append_as=None, encode_signature=True):
+                 set_as=None, encode_signature=True):
         """
         Initialize the sign segment.
         
@@ -281,19 +281,19 @@ class SignSegment(core.AbstractSegment):
             private_key: Private key path, PEM content, or RSAPrivateKey object
             message_field (str): Field containing the message to sign. Defaults to "_" (the whole item)
             password: Password for encrypted private key
-            append_as (str): Field to store the signature in. If None, returns just the signature
+            set_as (str): Field to store the signature in. If None, returns just the signature
             encode_signature (bool): Whether to base64-encode the signature
         
         Raises:
             ValueError: If invalid parameters are provided
         """
         super().__init__()
-        if message_field == "_" and append_as is not None:
-            raise ValueError("The message_field cannot be '_' if append_as is specified, because appending the signature would change the signature of the data. Choose a field to sign.")
+        if message_field == "_" and set_as is not None:
+            raise ValueError("The message_field cannot be '_' if set_as is specified, because appending the signature would change the signature of the data. Choose a field to sign.")
         
         self.private_key_actual = acquire_private_key(private_key, password=password)
         self.message_field = message_field
-        self.append_as = append_as
+        self.set_as = set_as
         self.encode_signature = encode_signature
         
     def process_item(self, item):
@@ -316,10 +316,10 @@ class SignSegment(core.AbstractSegment):
                 signature = base64.b64encode(signature).decode('utf-8')
             
             # Return signature or append to item
-            if self.append_as is None:
+            if self.set_as is None:
                 return signature
             else:
-                item[self.append_as] = signature
+                item[self.set_as] = signature
                 return item
             
         except Exception as e:
@@ -348,7 +348,7 @@ class VerifySegment(core.AbstractSegment):
     """
     
     def __init__(self, public_key, message_field="_", 
-                 signature_field="signature", append_as=None):
+                 signature_field="signature", set_as=None):
         """
         Initialize the verify segment.
         
@@ -356,7 +356,7 @@ class VerifySegment(core.AbstractSegment):
             public_key: Public key path, PEM content, or RSAPublicKey object
             message_field (str): Field containing the original message. Defaults to "_" (the whole item)
             signature_field (str): Field containing the signature. Defaults to "signature"
-            append_as (str): Field to store the verification result in. If None, returns just the result
+            set_as (str): Field to store the verification result in. If None, returns just the result
         
         Raises:
             ValueError: If invalid parameters are provided
@@ -368,7 +368,7 @@ class VerifySegment(core.AbstractSegment):
         self.public_key_actual = acquire_public_key(public_key)
         self.message_field = message_field
         self.signature_field = signature_field
-        self.append_as = append_as
+        self.set_as = set_as
         
     def process_item(self, item):
         """Process a single item by verifying its signature.
@@ -393,17 +393,17 @@ class VerifySegment(core.AbstractSegment):
             verified = verify_signature(self.public_key_actual, message, signature)
             
             # Return result or append to item
-            if self.append_as is None:
+            if self.set_as is None:
                 return verified
             else:
-                item[self.append_as] = verified
+                item[self.set_as] = verified
                 return item
                 
         except Exception as e:
             error_msg = f"Failed to verify item: {e}"
             logger.error(error_msg)
-            if self.append_as is not None:
-                item[self.append_as] = False
+            if self.set_as is not None:
+                item[self.set_as] = False
                 return item
             else:
                 return False

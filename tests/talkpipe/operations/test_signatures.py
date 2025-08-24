@@ -371,9 +371,9 @@ class TestSignSegment:
         """Test SignSegment initialization validation."""
         private_key, _ = key_pair
         
-        # This should raise an error - can't use "_" with append_as
+        # This should raise an error - can't use "_" with set_as
         with pytest.raises(ValueError, match="The message_field cannot be '_'"):
-            SignSegment(private_key, message_field="_", append_as="signature")
+            SignSegment(private_key, message_field="_", set_as="signature")
             
     def test_sign_segment_basic(self, key_pair):
         """Test basic SignSegment functionality."""
@@ -388,11 +388,11 @@ class TestSignSegment:
         for result in results:
             assert isinstance(result, str)  # Base64-encoded signature
             
-    def test_sign_segment_append_as(self, key_pair):
-        """Test SignSegment with append_as parameter."""
+    def test_sign_segment_set_as(self, key_pair):
+        """Test SignSegment with set_as parameter."""
         private_key, _ = key_pair
         
-        segment = SignSegment(private_key, message_field="data", append_as="signature")
+        segment = SignSegment(private_key, message_field="data", set_as="signature")
         items = [{"data": "message1", "id": 1}]
         
         results = list(segment.transform(items))
@@ -483,8 +483,8 @@ class TestVerifySegment:
         assert len(results) == 1
         assert results[0] is True
         
-    def test_verify_segment_append_as(self, key_pair):
-        """Test VerifySegment with append_as parameter."""
+    def test_verify_segment_set_as(self, key_pair):
+        """Test VerifySegment with set_as parameter."""
         private_key, public_key = key_pair
         
         message = "test message"
@@ -495,7 +495,7 @@ class TestVerifySegment:
             public_key, 
             message_field="data", 
             signature_field="sig",
-            append_as="verified"
+            set_as="verified"
         )
         items = [{"data": message, "sig": signature_b64, "id": 1}]
         
@@ -542,7 +542,7 @@ class TestVerifySegment:
             public_key, 
             message_field="data", 
             signature_field="sig",
-            append_as="verified"
+            set_as="verified"
         )
         items = [{"data": "test message", "sig": 123}]  # Wrong type
         
@@ -592,7 +592,7 @@ class TestIntegration:
         sign_segment = SignSegment(
             str(private_path), 
             message_field="message", 
-            append_as="signature"
+            set_as="signature"
         )
         
         data = [
@@ -607,7 +607,7 @@ class TestIntegration:
             str(public_path),
             message_field="message",
             signature_field="signature",
-            append_as="verified"
+            set_as="verified"
         )
         
         verified_data = list(verify_segment.transform(signed_data))
@@ -631,7 +631,7 @@ class TestIntegration:
         sign_segment = SignSegment(
             private_key, 
             message_field="message", 
-            append_as="signature"
+            set_as="signature"
         )
         
         signed_data = list(sign_segment.transform([original_data]))[0]
@@ -644,7 +644,7 @@ class TestIntegration:
             public_key,
             message_field="message",
             signature_field="signature",
-            append_as="verified"
+            set_as="verified"
         )
         
         verified_data = list(verify_segment.transform([signed_data]))[0]

@@ -221,7 +221,7 @@ def test_downloadURL(mock_requests_get_completion):
     assert len(ans) > 0
     assert "example" in ans
 
-    f = html.downloadURLSegment(field="content", append_as="text")
+    f = html.downloadURLSegment(field="content", set_as="text")
     f = f.asFunction(single_in=True, single_out=True)
     ans = f({"content": "http://www.example.com"})
     assert "text" in ans

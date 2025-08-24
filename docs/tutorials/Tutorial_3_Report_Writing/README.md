@@ -136,8 +136,8 @@ Step 1 demonstrates how to transform retrieved documents into professional execu
 ```bash
 export TALKPIPE_CHATTERLANG_SCRIPT='
     | copy  
-    | llmEmbed[field="topic", source="ollama", model="mxbai-embed-large", append_as="vector"]
-    | searchVector[vector_field="vector", path="../Tutorial_2-Search_by_Example_and_RAG/vector_index", all_results_at_once=True, append_as="results"]
+    | llmEmbed[field="topic", source="ollama", model="mxbai-embed-large", set_as="vector"]
+    | searchVector[vector_field="vector", path="../Tutorial_2-Search_by_Example_and_RAG/vector_index", all_results_at_once=True, set_as="results"]
     | executiveSummaryPrompt
     | llmPrompt[source="ollama", model="llama3.2"]
 '
@@ -155,7 +155,7 @@ Convert the user's broad topic into a vector for semantic search.
 
 **2. Document Retrieval**
 ```
-| searchVector[..., all_results_at_once=True, append_as="results"]
+| searchVector[..., all_results_at_once=True, set_as="results"]
 ```
 Retrieve multiple relevant documents that will inform the summary.
 
@@ -189,8 +189,8 @@ Step 2 creates detailed reports with multiple sections, each generated through s
 ```bash
 export TALKPIPE_CHATTERLANG_SCRIPT='
     | copy
-    | llmEmbed[field="topic", source="ollama", model="mxbai-embed-large", append_as="vector"]
-    | searchVector[vector_field="vector", path="../Tutorial_2-Search_by_Example_and_RAG/vector_index", top_k=10, all_results_at_once=True, append_as="results"]
+    | llmEmbed[field="topic", source="ollama", model="mxbai-embed-large", set_as="vector"]
+    | searchVector[vector_field="vector", path="../Tutorial_2-Search_by_Example_and_RAG/vector_index", top_k=10, all_results_at_once=True, set_as="results"]
     | generateReportSectionPrompts
     | generateDetailedReport
 '
@@ -251,8 +251,8 @@ Step 3 creates a sophisticated pipeline that generates multiple report formats f
 ```bash
 export TALKPIPE_CHATTERLANG_SCRIPT='
     | copy
-    | llmEmbed[field="topic", source="ollama", model="mxbai-embed-large", append_as="vector"]
-    | searchVector[vector_field="vector", path="../Tutorial_2-Search_by_Example_and_RAG/vector_index", top_k=10, all_results_at_once=True, append_as="results"]
+    | llmEmbed[field="topic", source="ollama", model="mxbai-embed-large", set_as="vector"]
+    | searchVector[vector_field="vector", path="../Tutorial_2-Search_by_Example_and_RAG/vector_index", top_k=10, all_results_at_once=True, set_as="results"]
     | generateMultiFormatReport[source="ollama", model="llama3.2"]
 '
 

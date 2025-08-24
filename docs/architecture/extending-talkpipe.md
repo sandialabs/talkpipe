@@ -144,7 +144,7 @@ def extract_domain(email: str):
 # Usage
 uppercase = uppercase_segment()
 active_users = filter_by_field(field="status", value="active")
-get_domain = extract_domain(field="email", append_as="domain")
+get_domain = extract_domain(field="email", set_as="domain")
 ```
 
 #### Advanced Segment Patterns

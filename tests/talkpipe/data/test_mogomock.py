@@ -95,7 +95,7 @@ class TestMongoInsertMocked:
             connection_string="mongodb://fake-connection-string/",
             database="test_db",
             collection="test_collection",
-            append_as="mongo_id"
+            set_as="mongo_id"
         )
         
         # Test data
@@ -387,14 +387,14 @@ class TestMongoSearchMocked:
         assert results[0]["name"] == "Alice"  # Second youngest
         assert results[1]["name"] == "John"   # Third youngest
 
-    def test_append_as_parameter(self):
+    def test_set_as_parameter(self):
         """Test appending search results to the input item."""
-        # Create the segment with append_as
+        # Create the segment with set_as
         segment = MongoSearch(
             connection_string="mongodb://fake-connection-string/",
             database="test_db",
             collection="test_collection",
-            append_as="search_results",
+            set_as="search_results",
             field="query"
         )
         
@@ -477,7 +477,7 @@ class TestMongoSearchMocked:
             connection_string="mongodb://fake-connection-string/",
             database="test_db",
             collection="test_collection",
-            append_as="results",
+            set_as="results",
             field="query"
         )
         

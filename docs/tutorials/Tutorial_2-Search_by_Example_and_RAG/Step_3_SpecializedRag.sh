@@ -15,8 +15,8 @@
 
 export TALKPIPE_CHATTERLANG_SCRIPT='
     | copy
-    | llmEmbed[field="example", source="ollama", model="mxbai-embed-large", append_as="vector"]
-    | searchVector[vector_field="vector", path="./vector_index", all_results_at_once=True, append_as="results"]
+    | llmEmbed[field="example", source="ollama", model="mxbai-embed-large", set_as="vector"]
+    | searchVector[vector_field="vector", path="./vector_index", all_results_at_once=True, set_as="results"]
     | ragPrompt
     | llmPrompt[source="ollama", model="llama3.2"]
 '

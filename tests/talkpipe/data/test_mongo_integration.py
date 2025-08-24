@@ -68,7 +68,7 @@ class TestMongoInsertIntegration:
                 connection_string=TEST_CONNECTION_STRING,
                 database=TEST_DB_NAME,
                 collection=TEST_COLLECTION,
-                append_as="mongo_id"
+                set_as="mongo_id"
             )
         )
         

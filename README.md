@@ -202,8 +202,8 @@ script = """
 CONST scorePrompt = "Rate 1-10 how related to dogs this is:";
 
 | loadsJsonl 
-| llmScore[system_prompt=scorePrompt, model="llama3.2", append_as="dog_relevance"] 
-| appendAs[field_list="dog_relevance.score:relevance_score"] 
+| llmScore[system_prompt=scorePrompt, model="llama3.2", set_as="dog_relevance"] 
+| setAs[field_list="dog_relevance.score:relevance_score"] 
 | toDataFrame
 """
 
@@ -255,18 +255,18 @@ CONST iot_prompt = "Rate 0-10 how relevant this is to IoT researchers. Consider 
 
 # Process articles
 | loadsJsonl
-| concat[fields="title,summary", append_as="full_text"]
+| concat[fields="title,summary", set_as="full_text"]
 
 # Score for AI relevance
-| llmScore[system_prompt=ai_prompt, field="full_text", append_as="ai_eval", model="llama3.2"]
-| appendAs[field_list="ai_eval.score:ai_score,ai_eval.explanation:ai_reason"]
+| llmScore[system_prompt=ai_prompt, field="full_text", set_as="ai_eval", model="llama3.2"]
+| setAs[field_list="ai_eval.score:ai_score,ai_eval.explanation:ai_reason"]
 
 # Score for IoT relevance  
-| llmScore[system_prompt=iot_prompt, field="full_text", append_as="iot_eval", model="llama3.2"]
-| appendAs[field_list="iot_eval.score:iot_score,iot_eval.explanation:iot_reason"]
+| llmScore[system_prompt=iot_prompt, field="full_text", set_as="iot_eval", model="llama3.2"]
+| setAs[field_list="iot_eval.score:iot_score,iot_eval.explanation:iot_reason"]
 
 # Find highest score
-| lambda[expression="max(item['ai_score'],item['iot_score'])", append_as="max_score"]
+| lambda[expression="max(item['ai_score'],item['iot_score'])", set_as="max_score"]
 
 # Filter articles with score > 6
 | gt[field="max_score", n=6]
@@ -415,12 +415,12 @@ from talkpipe.chatterlang import registry
 @core.field_segment()
 def addTimestamp(item):
     # Handle a single item, not an iterable
-    # The decorator handles append_as and field parameters automatically
+    # The decorator handles set_as and field parameters automatically
     return datetime.now()
 
 # Use it with dictionaries
 data = [{'name': 'Alice'}, {'name': 'Bob'}]
-pipeline = addTimestamp(append_as="timestamp") | io.Print()
+pipeline = addTimestamp(set_as="timestamp") | io.Print()
     
 result = pipeline.asFunction(single_in=False, single_out=False)(data)
 
@@ -429,13 +429,13 @@ result = pipeline.asFunction(single_in=False, single_out=False)(data)
 # {'name': 'Bob', 'timestamp': datetime.datetime(2024, 1, 15, 10, 30, 45, 234567)}
 
 # Now it's also available in ChatterLang:
-# script = '| addTimestamp[append_as="timestamp"] | print'
+# script = '| addTimestamp[set_as="timestamp"] | print'
 ```
 
 ### Best Practices
 
 1. **Units with side effects should pass data through** - e.g., `writeFile` should yield items after writing
-2. **Use descriptive parameter names** with underscores (e.g., `fail_on_error`, `append_as`)
+2. **Use descriptive parameter names** with underscores (e.g., `fail_on_error`, `set_as`)
 3. **Handle errors gracefully** - use `fail_on_error` parameter pattern
 4. **Document with docstrings** - they appear in generated documentation
 5. **Test with both APIs** - ensure components work in both Python and ChatterLang
@@ -514,7 +514,7 @@ These parameter names should behave consistently across all units:
 - **items** are used in segment definitions, referring to the iterable over all the pieces of data in the stream.
   It will not be a parameter used anywhere as a parameter in ChatterLang.
 
-- **append_as**  
+- **set_as**  
   If used, any processed output is attached to the original data using bracket notation. The original item is then emitted.
 
 - **fail_on_error**

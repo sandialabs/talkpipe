@@ -65,7 +65,7 @@ export TALKPIPE_CHATTERLANG_SCRIPT='
         INPUT FROM "Write a fictitious five sentence story about technology development in an imaginary country." 
         | llmPrompt[source="ollama", model="llama3.2", multi_turn=False] 
         | toDict[field_list="_:content"] 
-        | llmPrompt[source="ollama", model="llama3.2", system_prompt="Write exactly one title for this story in plain text with no markdown", field="content", append_as="title", multi_turn=False] 
+        | llmPrompt[source="ollama", model="llama3.2", system_prompt="Write exactly one title for this story in plain text with no markdown", field="content", set_as="title", multi_turn=False] 
         | dumpsJsonl | print;
     }
 '
@@ -98,11 +98,11 @@ This transforms the generated text into a structured format, creating a dictiona
 
 **4. Title Generation**
 ```
-| llmPrompt[system_prompt="Write exactly one title for this story in plain text with no markdown", field="content", append_as="title", multi_turn=False]
+| llmPrompt[system_prompt="Write exactly one title for this story in plain text with no markdown", field="content", set_as="title", multi_turn=False]
 ```
 This step generates appropriate titles for each story. Notice how it:
 - Uses the story content as input (`field="content"`)
-- Adds the title to the existing data (`append_as="title"`)
+- Adds the title to the existing data (`set_as="title"`)
 - Ensures clean output with specific formatting instructions
 
 **5. Output Formatting**
@@ -135,7 +135,7 @@ INPUT FROM "Write a technical specification for a new software feature in 3 para
 
 **Different Structures**: Add more fields like categories, authors, or timestamps
 ```bash
-| llmPrompt[model="llama3.2", system_prompt="Generate a category for this document", append_as="category"]
+| llmPrompt[model="llama3.2", system_prompt="Generate a category for this document", set_as="category"]
 ```
 
 **Different Volumes**: Adjust the loop count to test with 10 documents or 1,000 documents

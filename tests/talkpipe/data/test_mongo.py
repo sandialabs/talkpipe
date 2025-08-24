@@ -147,12 +147,12 @@ class TestMongoInsert:
 
     def test_append_mongo_id(self):
         """Test appending MongoDB ID to the original item."""
-        # Create the segment with append_as
+        # Create the segment with set_as
         segment = MongoInsert(
             connection_string=TEST_CONNECTION_STRING,
             database=TEST_DB_NAME,
             collection=TEST_COLLECTION,
-            append_as="mongo_id"
+            set_as="mongo_id"
         )
         
         # Test data

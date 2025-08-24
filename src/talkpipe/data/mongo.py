@@ -37,7 +37,7 @@ class MongoInsert(core.AbstractSegment):
         fields (str, optional): Comma-separated list of fields to extract and include in the 
             document, in the format "field1:name1,field2:name2". If provided, this creates a 
             new document with the specified fields. Cannot be used with 'field' parameter.
-        append_as (str, optional): If provided, adds the MongoDB insertion result
+        set_as (str, optional): If provided, adds the MongoDB insertion result
             to the item using this field name. Default is None.
         create_index (str, optional): If provided, creates an index on this field.
             Default is None.
@@ -52,7 +52,7 @@ class MongoInsert(core.AbstractSegment):
         collection: Optional[str] = None,
         field: str = "_",
         fields: Optional[str] = None,
-        append_as: Optional[str] = None,
+        set_as: Optional[str] = None,
         create_index: Optional[str] = None,
         unique_index: bool = False
     ):
@@ -83,7 +83,7 @@ class MongoInsert(core.AbstractSegment):
         self.collection_name = collection
         self.field = field
         self.fields = fields
-        self.append_as = append_as
+        self.set_as = set_as
         self.create_index = create_index
         self.unique_index = unique_index
         
@@ -130,7 +130,7 @@ class MongoInsert(core.AbstractSegment):
             
         Yields:
             Each item from the input stream after inserting it into MongoDB.
-            If append_as is specified, the MongoDB result is added to the item.
+            If set_as is specified, the MongoDB result is added to the item.
         """
         collection = self._ensure_connection()
         
@@ -176,9 +176,9 @@ class MongoInsert(core.AbstractSegment):
                 result = collection.insert_one(data_to_insert)
                 
                 # Add result to item if requested
-                if self.append_as:
+                if self.set_as:
                     if isinstance(item, dict):
-                        item[self.append_as] = str(result.inserted_id)
+                        item[self.set_as] = str(result.inserted_id)
                     else:
                         logger.warning(
                             f"Cannot append MongoDB result to non-dict item. "
@@ -212,9 +212,9 @@ class MongoSearch(core.AbstractSegment):
         sort (str, optional): JSON string defining the sort order. Default is None.
         limit (int, optional): Maximum number of results to return per query. Default is 0 (no limit).
         skip (int, optional): Number of documents to skip. Default is 0.
-        append_as (str, optional): If provided, adds the MongoDB results to the incoming item
+        set_as (str, optional): If provided, adds the MongoDB results to the incoming item
             using this field name. If not provided, the results themselves are yielded.
-        as_list (bool, optional): If True and append_as is provided, all results are collected
+        as_list (bool, optional): If True and set_as is provided, all results are collected
             into a list and appended to the incoming item. Default is False.
     """
     
@@ -228,7 +228,7 @@ class MongoSearch(core.AbstractSegment):
         sort: Optional[str] = None,
         limit: int = 0,
         skip: int = 0,
-        append_as: Optional[str] = None
+        set_as: Optional[str] = None
     ):
         super().__init__()
         
@@ -256,7 +256,7 @@ class MongoSearch(core.AbstractSegment):
         self.sort = sort
         self.limit = limit
         self.skip = skip
-        self.append_as = append_as
+        self.set_as = set_as
         
         # Lazy-loaded client, database and collection
         self._client = None
@@ -287,7 +287,7 @@ class MongoSearch(core.AbstractSegment):
             input_iter: Iterable of items to process.
             
         Yields:
-            If append_as is specified, yields each input item with results appended.
+            If set_as is specified, yields each input item with results appended.
             Otherwise, yields the MongoDB results directly.
         """
         
@@ -314,9 +314,9 @@ class MongoSearch(core.AbstractSegment):
             )
             
             # Handle results based on configuration
-            if self.append_as:
+            if self.set_as:
                 results = list(cursor)
-                item[self.append_as] = results
+                item[self.set_as] = results
                 yield item
             else:
                 for result in cursor:

@@ -387,7 +387,7 @@ def add_vector(items: str, path, vector_field: str = "_", vector_id: Optional[st
 @register_segment("searchVector")
 @segment()
 def search_vector(items, path: str, vector_field = "_", top_k: int = 5, 
-                  all_results_at_once: bool = False, append_as: Optional[str] = None,
+                  all_results_at_once: bool = False, set_as: Optional[str] = None,
                   continue_on_error: bool = True,
                   search_metric: str = "cosine", search_method: str = "brute-force"):
     """    Segment to search for similar vectors in the SimpleVectorDB.
@@ -414,14 +414,14 @@ def search_vector(items, path: str, vector_field = "_", top_k: int = 5,
         try:
             results = db.vector_search(query_vector, limit=top_k, metric=search_metric, method=search_method)
             if all_results_at_once:
-                if append_as:
-                    item[append_as] = results
+                if set_as:
+                    item[set_as] = results
                     yield item
                 else:
                     yield results
             else:
-                if append_as:
-                    raise ValueError("append_as is not supported with all_results_at_once=False")
+                if set_as:
+                    raise ValueError("set_as is not supported with all_results_at_once=False")
                 else:
                     yield from results
         except Exception as e:

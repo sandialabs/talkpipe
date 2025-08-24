@@ -298,7 +298,7 @@ def indexWhoosh(items, index_path: str, field_list: list[str] = ["_:content"],
 @segment()
 def searchWhoosh(queries, index_path: str, limit: int = 100, 
                  all_results_at_once: bool = False, continue_on_error=True,
-                 reload_seconds: int = 60, field: str = "_", append_as: Optional[str] = None):
+                 reload_seconds: int = 60, field: str = "_", set_as: Optional[str] = None):
     """Search documents using Whoosh full-text indexing.
 
     Args:
@@ -315,14 +315,14 @@ def searchWhoosh(queries, index_path: str, limit: int = 100,
             try:
                 results = idx.text_search(query, limit=limit)
                 if all_results_at_once:
-                    if append_as:
-                        item[append_as] = results
+                    if set_as:
+                        item[set_as] = results
                         yield item
                     else:
                         yield results
                 else:
-                    if append_as:
-                        raise ValueError("append_as only works with this segment if all_results_at_once is True.")
+                    if set_as:
+                        raise ValueError("set_as only works with this segment if all_results_at_once is True.")
                     yield from results
                     
             except Exception as e:

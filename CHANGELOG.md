@@ -1,5 +1,12 @@
 # Changelog
 
+## In Development
+### New Segments and Sources
+- **set** Simple setting of a constant to a key.
+
+### Improvements
+- Renamed append_as to set_as and appendAs to setAs throughout the codebase.  "Set" is more accurate than "append" as the operation.
+
 ## 0.8.1
 ### Improvements
 - change --env to --script in Dockerfile.  This was a change in 0.8.0.

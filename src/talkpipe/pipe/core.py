@@ -392,7 +392,7 @@ def field_segment(*decorator_args, **decorator_kwargs):
     
     Args can include:
         field: The field to extract from each item
-        append_as: The field name to append the result as
+        set_as: The field name to append the result as
     """
     def decorator(func):
         class FieldSegment(AbstractSegment):
@@ -400,17 +400,17 @@ def field_segment(*decorator_args, **decorator_kwargs):
                 super().__init__()
                 merged_kwargs = {**decorator_kwargs, **init_kwargs}
                 self.field = merged_kwargs.get('field')
-                self.append_as = merged_kwargs.get('append_as')
+                self.set_as = merged_kwargs.get('set_as')
                 merged_kwargs.pop('field', None)
-                merged_kwargs.pop('append_as', None)
+                merged_kwargs.pop('set_as', None)
                 self._func = lambda x: func(x, *init_args, **merged_kwargs)
             
             def transform(self, input_iter):
                 for item in input_iter:
                     value = data_manipulation.extract_property(item, self.field) if self.field else item
                     result = self._func(value)
-                    if self.append_as:
-                        item[self.append_as] = result
+                    if self.set_as:
+                        item[self.set_as] = result
                         yield item
                     else:
                         yield result

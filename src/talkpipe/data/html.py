@@ -83,7 +83,7 @@ def htmlToTextSegment(raw, cleanText=True):
         raw (str): The raw HTML content to be converted
         cleanText (bool, optional): Whether to clean and normalize the output text. Defaults to True.
         field (str): The field name to be used for the segment. If None, assuming the incoming item is html.
-        append_as (str): The name of the field to append the text to.  If None, just pass on the cleaned text.
+        set_as (str): The name of the field to append the text to.  If None, just pass on the cleaned text.
 
     Returns:
         str: The extracted text content from the HTML

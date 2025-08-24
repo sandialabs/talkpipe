@@ -214,9 +214,9 @@ class FormattedItem(AbstractSegment):
             # Yield one string per item
             yield formatted_string
 
-@registry.register_segment("appendAs")
+@registry.register_segment("setAs")
 @field_segment
-def appendAs(item, field_list:str):
+def setAs(item, field_list:str):
     """Appends the specified fields to the input item.
     
     Equivalent to toDict except that that item is modified with the new key/value pairs 
@@ -232,16 +232,16 @@ def appendAs(item, field_list:str):
 
 @registry.register_segment("set")
 @segment
-def assign(items, value: Any, append_as: str):
+def assign(items, value: Any, set_as: str):
     """Assigns the specified value to the specified field.
 
     Args:
         item: The input item to modify.
         value: The value to assign.
-        append_as: Append the provided value as this field
+        set_as: Append the provided value as this field
     """
     for item in items:
-        item[append_as] = value
+        item[set_as] = value
         yield item
 
 @registry.register_segment(name="toDataFrame")
@@ -299,19 +299,19 @@ def exec(command: str) -> Iterator:
 
 
 @registry.register_segment("concat")
-@segment(fields=None, delimiter="\n\n", append_as=None)
-def concat(items, fields, delimiter="\n\n", append_as=None):
+@segment(fields=None, delimiter="\n\n", set_as=None)
+def concat(items, fields, delimiter="\n\n", set_as=None):
     """Concatenates specified fields from each item with a delimiter.
 
     Args:
         items: Iterable of input items to process
         fields: String specifying fields to extract and concatenate
         delimiter (str, optional): String to insert between concatenated fields. Defaults to "\n\n"
-        append_as (str, optional): If specified, adds concatenated result as new field with this name. 
+        set_as (str, optional): If specified, adds concatenated result as new field with this name. 
                                 Defaults to None.
 
     Yields:
-        If append_as is specified, yields the original item with concatenated result added as new field.
+        If set_as is specified, yields the original item with concatenated result added as new field.
         Otherwise, yields just the concatenated string.
     """
     props = parse_key_value_str(fields)
@@ -321,8 +321,8 @@ def concat(items, fields, delimiter="\n\n", append_as=None):
             if i>0:
                 ans +=delimiter
             ans += str(extract_property(item, prop[0]))            
-        if append_as:
-            item[append_as] = ans
+        if set_as:
+            item[set_as] = ans
             yield item
         else:
             yield ans
@@ -365,7 +365,7 @@ def slice(item, range=None):
 
 @registry.register_segment("longestStr")
 @segment()
-def longestStr(items, field_list, append_as=None):
+def longestStr(items, field_list, set_as=None):
     """Finds the longest string among specified fields in the input item.  If 
     a field is not present or is not a string, it is ignored.  If two or more
     fields have the same length, the first one encountered is returned.  If
@@ -385,8 +385,8 @@ def longestStr(items, field_list, append_as=None):
                 continue
             if len(str(data)) > len(longest):
                 longest = str(data)
-        if append_as:
-            item[append_as] = longest
+        if set_as:
+            item[set_as] = longest
             yield item
         else:   
             yield longest
@@ -533,13 +533,13 @@ class Hash(AbstractSegment):
             pickling.  Using repr() will handle all object, even those that can't be pickled and won't be subject to
             changes in pickling formats.  But the pickled version will include more state and generally be more reliable.
     """
-    def __init__(self, algorithm: str="MD5", use_repr=False, field_list: str = "_", append_as=None, fail_on_missing: bool = True):
+    def __init__(self, algorithm: str="MD5", use_repr=False, field_list: str = "_", set_as=None, fail_on_missing: bool = True):
         super().__init__()
         self.algorithm = algorithm
         self.use_repr = use_repr
         self.field_list = list(parse_key_value_str(field_list).keys())
         self.fail_on_missing = fail_on_missing
-        self.append_as = append_as
+        self.set_as = set_as
 
 
     def transform(self, input_iter: Iterable) -> Iterator:
@@ -551,8 +551,8 @@ class Hash(AbstractSegment):
         for data in input_iter:
             digest = hash_data(data, self.algorithm, self.field_list, 
                                     self.use_repr, self.fail_on_missing)
-            if self.append_as:
-                data[self.append_as] = digest
+            if self.set_as:
+                data[self.set_as] = digest
                 yield data
             else:
                 yield digest
@@ -588,19 +588,19 @@ class EvalExpression(AbstractSegment):
     Args:
         expression: The Python expression to evaluate
         field: If provided, extract this field from each item before evaluating
-        append_as: If provided, append the result to each item under this field name
+        set_as: If provided, append the result to each item under this field name
         fail_on_error: If True, raises exceptions when evaluation fails. If False, logs errors and returns None
     """
     
     def __init__(self, 
                  expression: str,
                  field: Optional[str] = "_",
-                 append_as: Optional[str] = None,
+                 set_as: Optional[str] = None,
                  fail_on_error: bool = True):
         super().__init__()
         self.expression = expression
         self.field = field
-        self.append_as = append_as
+        self.set_as = set_as
         self.fail_on_error = fail_on_error
         
         # Compile the expression into a lambda function
@@ -623,10 +623,10 @@ class EvalExpression(AbstractSegment):
             result = self.lambda_function(value)
             logger.debug(f"Evaluation result: {result}")
             
-            # Handle the result according to append_as
-            if self.append_as is not None and hasattr(item, '__setitem__'):
-                logger.debug(f"Appending result to field {self.append_as}")
-                item[self.append_as] = result
+            # Handle the result according to set_as
+            if self.set_as is not None and hasattr(item, '__setitem__'):
+                logger.debug(f"Appending result to field {self.set_as}")
+                item[self.set_as] = result
                 yield item
             else:
                 logger.debug("Yielding result directly")

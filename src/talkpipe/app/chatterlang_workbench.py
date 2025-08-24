@@ -88,7 +88,7 @@ EXAMPLE_SCRIPTS = {
         {
             "name": "Document Evaluation",
             "description": "Score a document on relevance to a topic",
-            "code": 'CONST scorePrompt = "On a scale of 1 to 10, rate how relevant the following text is to artificial intelligence. Provide a score and brief explanation.";\n| llmScore[system_prompt=scorePrompt, append_as="ai_relevance"] | print'
+            "code": 'CONST scorePrompt = "On a scale of 1 to 10, rate how relevant the following text is to artificial intelligence. Provide a score and brief explanation.";\n| llmScore[system_prompt=scorePrompt, set_as="ai_relevance"] | print'
         }
     ]
 }

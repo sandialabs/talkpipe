@@ -21,7 +21,7 @@ def test_create_embedder(requires_ollama):
 def test_lingering_nparray_issue(requires_ollama):
     f = compile(
         """
-        | llmEmbed[model="mxbai-embed-large", source="ollama", field="example", append_as="vector"] 
+        | llmEmbed[model="mxbai-embed-large", source="ollama", field="example", set_as="vector"] 
         | toDict[field_list="example"]
         """)
     f = f.asFunction(single_in=True, single_out=False)

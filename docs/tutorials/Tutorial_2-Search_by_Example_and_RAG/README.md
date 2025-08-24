@@ -39,7 +39,7 @@ export TALKPIPE_CHATTERLANG_SCRIPT='
     INPUT FROM "../Tutorial_1-Document_Indexing/stories.json"
     | readJsonl 
     | progressTicks[tick_count=1, print_count=True] 
-    | llmEmbed[field="content", source="ollama", model="mxbai-embed-large", append_as="vector"]
+    | llmEmbed[field="content", source="ollama", model="mxbai-embed-large", set_as="vector"]
     | addVector[path="./vector_index", vector_field="vector", metadata_field_list="title,content", overwrite=True]
 '
 
@@ -56,7 +56,7 @@ We're reusing the synthetic stories from Tutorial 1. This demonstrates a key pri
 
 **2. The Embedding Process**
 ```
-| llmEmbed[field="content", source="ollama", model="mxbai-embed-large", append_as="vector"]
+| llmEmbed[field="content", source="ollama", model="mxbai-embed-large", set_as="vector"]
 ```
 This segment:
 - Takes the `content` field from each document
@@ -99,7 +99,7 @@ Your users don't always know the right keywords. Sometimes they have an example 
 ```bash
 export TALKPIPE_CHATTERLANG_SCRIPT='    
     | copy
-    | llmEmbed[field="example", source="ollama", model="mxbai-embed-large", append_as="vector"]
+    | llmEmbed[field="example", source="ollama", model="mxbai-embed-large", set_as="vector"]
     | searchVector[vector_field="vector", path="./vector_index"]
     | formatItem[field_list="document.title:Title, document.content:Content, score:Score"]
 '
@@ -117,7 +117,7 @@ This creates a copy of the input data - crucial when building web endpoints to p
 
 **2. Query Embedding**
 ```
-| llmEmbed[field="example", source="ollama", model="mxbai-embed-large", append_as="vector"]
+| llmEmbed[field="example", source="ollama", model="mxbai-embed-large", set_as="vector"]
 ```
 The user's example text is converted to a vector using the same model that indexed the documents. This ensures the query and documents exist in the same vector space.
 
@@ -170,8 +170,8 @@ Finding relevant documents is helpful, but what users often really want is an an
 ```bash
 export TALKPIPE_CHATTERLANG_SCRIPT='
     | copy
-    | llmEmbed[field="example", source="ollama", model="mxbai-embed-large", append_as="vector"]
-    | searchVector[vector_field="vector", path="./vector_index", all_results_at_once=True, append_as="results"]
+    | llmEmbed[field="example", source="ollama", model="mxbai-embed-large", set_as="vector"]
+    | searchVector[vector_field="vector", path="./vector_index", all_results_at_once=True, set_as="results"]
     | ragPrompt
     | llmPrompt[source="ollama", model="llama3.2"]
 '
@@ -183,7 +183,7 @@ python -m talkpipe.app.chatterlang_serve --form-config story_by_example_ui.yml -
 
 **1. Batch Results Collection**
 ```
-| searchVector[..., all_results_at_once=True, append_as="results"]
+| searchVector[..., all_results_at_once=True, set_as="results"]
 ```
 Instead of processing results one by one, we collect all search results together. This allows the next step to see the full context.
 

@@ -174,7 +174,7 @@ def test_a_crawler_example(requires_ollama):
     script = """
     CONST explainPrompt = "Explain whether the content of the title and description fields in the following json is related to canines.";
     CONST scorePrompt = "On a scale of 1 to 10, how related to canines is the combination of the content in the title, description, and explanation fields?";
-    | loadsJsonl | llmScore[system_prompt=scorePrompt, model="llama3.1", append_as="canine", temperature=0.0] | appendAs[field_list="canine.score:canine_score"] | toDataFrame 
+    | loadsJsonl | llmScore[system_prompt=scorePrompt, model="llama3.1", set_as="canine", temperature=0.0] | setAs[field_list="canine.score:canine_score"] | toDataFrame 
     """
 
     pipeline = compiler.compile(script).asFunction(single_in=False, single_out=True)

@@ -131,7 +131,7 @@ def test_function_segment():
     pipe = add_two(field="x")
     assert list(pipe([{"x": 1, 'y': 2}, {"x": 2}, {"x": 3}])) == [3, 4, 5]
 
-    pipe = add_two(field="x", append_as="z")
+    pipe = add_two(field="x", set_as="z")
     assert list(pipe([{"x": 1, 'y': 2}, {"x": 2}, {"x": 3}])) == [{"x": 1, 'y': 2, 'z': 3}, {"x": 2, 'z': 4}, {"x": 3, 'z': 5}]
 
     @core.field_segment()
@@ -144,5 +144,5 @@ def test_function_segment():
     pipe = add_n(n=3, field="x")
     assert list(pipe([{"x": 1, 'y': 2}, {"x": 2}, {"x": 3}])) == [4, 5, 6]
 
-    pipe = add_n(n=3, field="x", append_as="z")
+    pipe = add_n(n=3, field="x", set_as="z")
     assert list(pipe([{"x": 1, 'y': 2}, {"x": 2}, {"x": 3}])) == [{"x": 1, 'y': 2, 'z': 4}, {"x": 2, 'z': 5}, {"x": 3, 'z': 6}]

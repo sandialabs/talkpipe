@@ -17,7 +17,7 @@
 
 export TALKPIPE_CHATTERLANG_SCRIPT='    
     | copy
-    | llmEmbed[field="example", source="ollama", model="mxbai-embed-large", append_as="vector"]
+    | llmEmbed[field="example", source="ollama", model="mxbai-embed-large", set_as="vector"]
     | searchVector[vector_field="vector", path="./vector_index", top_k=10]
     | formatItem[field_list="document.title:Title, document.content:Content, score:Score"]
 '

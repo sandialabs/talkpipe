@@ -22,7 +22,7 @@ export TALKPIPE_CHATTERLANG_SCRIPT='
         INPUT FROM "Write a fictitious five sentence story about technology development in an imaginary country." 
         | llmPrompt[source="ollama", model="llama3.2", multi_turn=False] 
         | toDict[field_list="_:content"] 
-        | llmPrompt[source="ollama", model="llama3.2", system_prompt="Write exactly one title for this story in plain text with no markdown", field="content", append_as="title", multi_turn=False] 
+        | llmPrompt[source="ollama", model="llama3.2", system_prompt="Write exactly one title for this story in plain text with no markdown", field="content", set_as="title", multi_turn=False] 
         | dumpsJsonl | print;
     }
 '
