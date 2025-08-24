@@ -181,7 +181,7 @@ def test_email_segment(monkeypatched_smtp, monkeypatched_env):
 
     code = """ | sendEmail[subject_field="subject", body_fields="body,body2"] """
     compiled = compile(code)
-    f = compiled.asFunction()
+    f = compiled.as_function()
     ans = list(f([{
         "subject": "Test email",
         "body": "This is a test email",
@@ -257,7 +257,7 @@ def test_readEmail(monkeypatched_imap, monkeypatched_env):
 
     code = """INPUT FROM readEmail[folder="INBOX", limit=2, poll_interval_minutes=-1] """
     compiled = compile(code)
-    f = compiled.asFunction()
+    f = compiled.as_function()
     ans = list(f())
 
     mock_imap = monkeypatched_imap()

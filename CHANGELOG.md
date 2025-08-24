@@ -1,11 +1,12 @@
 # Changelog
 
-## In Development
+## 0.9.0 (In Development)
 ### New Segments and Sources
 - **set** Simple setting of a constant to a key.
 
 ### Improvements
 - Renamed append_as to set_as and appendAs to setAs throughout the codebase.  "Set" is more accurate than "append" as the operation.
+- changed asFunction to as_function
 
 ## 0.8.1
 ### Improvements

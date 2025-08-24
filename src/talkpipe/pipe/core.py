@@ -157,7 +157,7 @@ class AbstractSegment(ABC, HasRuntimeComponent, Generic[T, U]):
         logger.debug(f"Finished segment {self.__class__.__name__}")
         return ans
 
-    def asFunction(self, single_in: bool = False, single_out: bool = False) -> Callable:
+    def as_function(self, single_in: bool = False, single_out: bool = False) -> Callable:
         """Convert the segment to a callable function.  By default, the function will expect and return an iterable.
         single_in and single_out can be set to True to expect a single input and return a single output.
         

@@ -59,7 +59,7 @@ def main():
     script = load_script(script_input)
 
     # Compile script - configuration values are now accessible via $key syntax
-    compiled = compiler.compile(script).asFunction()
+    compiled = compiler.compile(script).as_function()
     compiled()
 
 

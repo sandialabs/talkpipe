@@ -67,7 +67,7 @@ Create a multi-turn chat function in 2 lines:
 from talkpipe.chatterlang import compiler
 
 script = '| llmPrompt[model="llama3.2", source="ollama", multi_turn=True]'
-chat = compiler.compile(script).asFunction(single_in=True, single_out=True)
+chat = compiler.compile(script).as_function(single_in=True, single_out=True)
 
 response = chat("Hello! My name is Alice.")
 response = chat("What's my name?")  # Will remember context
@@ -85,7 +85,7 @@ from talkpipe.llm import chat
 
 # Create a pipeline that prompts for input, gets an LLM response, and prints it
 pipeline = io.Prompt() | chat.LLMPrompt(model="llama3.2") | io.Print()
-pipeline = pipeline.asFunction()
+pipeline = pipeline.as_function()
 pipeline()  # Run the interactive pipeline
 ```
 
@@ -104,7 +104,7 @@ def uppercase(items):
 
 # Use it in a pipeline
 pipeline = io.echo(data="hello,world") | uppercase() | io.Print()
-result = pipeline.asFunction(single_out=False)()
+result = pipeline.as_function(single_out=False)()
 
 # Output:
 # HELLO
@@ -179,7 +179,7 @@ LOOP 3 TIMES {
 INPUT FROM @conversation
 """
 
-pipeline = compiler.compile(script).asFunction()
+pipeline = compiler.compile(script).as_function()
 debate = pipeline()  # Watch the debate unfold!
 ```
 
@@ -207,7 +207,7 @@ CONST scorePrompt = "Rate 1-10 how related to dogs this is:";
 | toDataFrame
 """
 
-pipeline = compiler.compile(script).asFunction(single_in=False, single_out=True)
+pipeline = compiler.compile(script).as_function(single_in=False, single_out=True)
 df = pipeline(documents)
 # df now contains relevance scores for each document
 ```
@@ -229,7 +229,7 @@ script = """
 | print
 """
 
-analyzer = compiler.compile(script).asFunction(single_in=True)
+analyzer = compiler.compile(script).as_function(single_in=True)
 analyzer("https://example.com/")
 ```
 
@@ -276,7 +276,7 @@ CONST iot_prompt = "Rate 0-10 how relevant this is to IoT researchers. Consider 
 | print
 """
 
-evaluator = compiler.compile(script).asFunction(single_in=False, single_out=False)
+evaluator = compiler.compile(script).as_function(single_in=False, single_out=False)
 results = evaluator(articles)
 
 # Output shows only relevant articles with their scores:
@@ -375,7 +375,7 @@ def fibonacci(n=10):
 
 # Use it in a pipeline
 pipeline = fibonacci(n=5) | io.Print()
-result = pipeline.asFunction(single_out=False)()
+result = pipeline.as_function(single_out=False)()
 
 # Output:
 # 0
@@ -395,7 +395,7 @@ def multiplyBy(items, factor=2):
 
 # Use it to double the Fibonacci numbers
 pipeline = fibonacci(n=5) | multiplyBy(factor=3) | io.Print()
-result = pipeline.asFunction(single_out=False)()
+result = pipeline.as_function(single_out=False)()
 
 # Output:
 # 0
@@ -422,7 +422,7 @@ def addTimestamp(item):
 data = [{'name': 'Alice'}, {'name': 'Bob'}]
 pipeline = addTimestamp(set_as="timestamp") | io.Print()
     
-result = pipeline.asFunction(single_in=False, single_out=False)(data)
+result = pipeline.as_function(single_in=False, single_out=False)(data)
 
 # Output (timestamps will vary):
 # {'name': 'Alice', 'timestamp': datetime.datetime(2024, 1, 15, 10, 30, 45, 123456)}
@@ -464,17 +464,17 @@ TalkPipe is licensed under the Apache License 2.0. See LICENSE file for details.
 
 ## Glossary
 
+* **Unit** - A component in a pipeline that either produces or processes data.  There are two types of units, Source, and Segments.
 * **Segment** - A unit that reads from another Unit and may or may not yield data of its own.  All units that
 are not at the start of a pipeline is a Segment.
 * **Source** - A unit that takes nothing as input and yields data items.  These Units are used in the
 "INPUT FROM..." portion of a pipeline.  
-* **Unit** - A component in a pipeline that either produces or processes data.  There are two types of units, Source, and Segments.
 
 ## Conventions
 
 ### Versioning
 
-This codebase will use [semantic versioning](https://semver.org/) with the addtional convention that during the 0.x.y development that each MINOR version will maintain backward compatibility and PATCH versions will include substantial new capability.  So, for example, every 0.2.x version will be backward compatible, but 0.3.0 might contain code reorganization.
+This codebase will use [semantic versioning](https://semver.org/) with the addtional convention that during the 0.x.y development that each MINOR version will mostly maintain backward compatibility and PATCH versions will include substantial new capability.  So, for example, every 0.2.x version will be mostly backward compatible, but 0.3.0 might contain code reorganization.
 
 ### Codebase Structure
 
@@ -544,7 +544,7 @@ on their data.
 The chatterlang_workbench command starts a web service designed for experimentation.  It also contains links to HTML and text versions
 of all the sources and segments included in TalkPipe.
 
-After talkpipe is installed, a script called "talkpipe_ref" is available that will write an HTML and text file in the current directory, each of which contains the documentation for built-in sources and segments.
+After talkpipe is installed, a script called "chatterlang_reference_browser" is available that provides an interactive command-line search and exploration of sources and segments.  The command "chatterlang_reference_generator" will generate single page HTML and text versions of all the source and segment documentation.
 
 ### Standard Configuration File Items
 

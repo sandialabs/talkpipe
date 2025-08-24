@@ -55,7 +55,7 @@ class UserSession:
             
             # Compile script - configuration values are accessible via $key syntax
             self.compiled_script = chatterlang_compile(script_content)
-            self.compiled_script = self.compiled_script.asFunction(single_in=True, single_out=False)
+            self.compiled_script = self.compiled_script.as_function(single_in=True, single_out=False)
             logger.info(f"Session {self.session_id}: Script compiled successfully")
         except Exception as e:
             logger.error(f"Session {self.session_id}: Error compiling script: {e}")

@@ -113,7 +113,7 @@ def test_runtime_component():
     gav.runtime = runtime
     sav = SetAVar("var1")
     sav.runtime = runtime
-    sav = sav.asFunction(single_in=True, single_out=True)
+    sav = sav.as_function(single_in=True, single_out=True)
 
     sav("A string")
     assert list(gav()) == ["A string"]

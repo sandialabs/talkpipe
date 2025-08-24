@@ -34,11 +34,11 @@ def test_bloomfilter():
 
 def test_bloomfilter_segment():
     bfs = filtering.distinctBloomFilter(capacity=100, error_rate=0.01)
-    bfs = bfs.asFunction(single_in=False, single_out=False)
+    bfs = bfs.as_function(single_in=False, single_out=False)
     ans = list(bfs(["apple", "banana", "cherry", "apple", "banana", "cherry", "durian", "elderberry"]))
     assert ans == ["apple", "banana", "cherry", "durian", "elderberry"]
 
     bfs = filtering.distinctBloomFilter(capacity=100, error_rate=0.01, field_list="x")
-    bfs = bfs.asFunction(single_in=False, single_out=False)
+    bfs = bfs.as_function(single_in=False, single_out=False)
     ans = list(bfs([{"x": "apple"}, {"x": "banana"}, {"x": "cherry"}, {"x": "apple"}, {"x": "banana"}, {"x": "cherry"}, {"x": "durian"}, {"x": "elderberry", "y": "apple"}, {"x": "elderberry", "y": "banana"}]))
     assert ans == [{"x": "apple"}, {"x": "banana"}, {"x": "cherry"}, {"x": "durian"}, {"x": "elderberry", "y": "apple"}]

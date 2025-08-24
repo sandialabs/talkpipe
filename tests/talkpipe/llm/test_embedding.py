@@ -24,7 +24,7 @@ def test_lingering_nparray_issue(requires_ollama):
         | llmEmbed[model="mxbai-embed-large", source="ollama", field="example", set_as="vector"] 
         | toDict[field_list="example"]
         """)
-    f = f.asFunction(single_in=True, single_out=False)
+    f = f.as_function(single_in=True, single_out=False)
     d = {"example": "Hello"}
     response = list(f(d))
     j = json.dumps(response)

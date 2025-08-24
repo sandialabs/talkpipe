@@ -9,7 +9,7 @@ import logging
 def test_progressTicks_basic(capsys):
     # Should print a tick every 2 items, newline after 4 ticks, no count
     t = basic.progressTicks(tick="*", tick_count=2, eol_count=4, print_count=False)
-    t = t.asFunction(single_in=False, single_out=False)
+    t = t.as_function(single_in=False, single_out=False)
     ans = list(t(range(9)))
     assert ans == list(range(9))
     captured = capsys.readouterr()
@@ -20,7 +20,7 @@ def test_progressTicks_basic(capsys):
 def test_progressTicks_with_print_count(capsys):
     # Should print tick and count at end of line
     t = basic.progressTicks(tick=".", tick_count=1, eol_count=3, print_count=True)
-    t = t.asFunction(single_in=False, single_out=False)
+    t = t.as_function(single_in=False, single_out=False)
     ans = list(t(range(6)))
     assert ans == list(range(6))
     captured = capsys.readouterr()
@@ -30,12 +30,12 @@ def test_progressTicks_with_print_count(capsys):
 
 def test_firstN():
     f = basic.firstN(n=3)
-    f = f.asFunction(single_in=False, single_out=False)
+    f = f.as_function(single_in=False, single_out=False)
     ans = list(f([1, 2, 3, 4, 5]))
     assert ans == [1, 2, 3]
 
     f = basic.firstN(n=2)
-    f = f.asFunction(single_in=False, single_out=False)
+    f = f.as_function(single_in=False, single_out=False)
     ans = list(f([{"x": 1}, {"x": 2}, {"x": 3}, {"x": 4}]))
     assert ans == [{"x": 1}, {"x": 2}]
 
@@ -90,7 +90,7 @@ def test_MakeDictSegment():
 
 def test_setAs():
     aa = basic.setAs(field_list="a:A,b,c.2:D")
-    aa = aa.asFunction(single_in=True, single_out=True)
+    aa = aa.as_function(single_in=True, single_out=True)
     ans = aa({"a": 1, "b": 2, "c": [3,4,5]})
     assert ans == {"a": 1, "b": 2, "c": [3,4,5], "A": 1, "D": 5}
 
@@ -140,13 +140,13 @@ def each_char(s):
 
 def test_concat():
     c = basic.concat(fields="a,b")
-    c = c.asFunction(single_in=True, single_out=True)
+    c = c.as_function(single_in=True, single_out=True)
     ans = c({"a": "x", "b": "y"})
     assert ans == "x\n\ny"
 
 
     c = basic.concat(fields="a,b", delimiter="")
-    c = c.asFunction(single_in=True, single_out=True)
+    c = c.as_function(single_in=True, single_out=True)
     ans = c({"a": "x", "b": "y"})
     assert ans == "xy"
 
@@ -154,7 +154,7 @@ def test_concat():
     assert ans == "xy"
 
     c = basic.concat(fields="a,b", delimiter="|")
-    c = c.asFunction(single_in=True, single_out=True)
+    c = c.as_function(single_in=True, single_out=True)
     ans = c({"a": "x", "b": "y"})
     assert ans == "x|y"
 
@@ -163,63 +163,63 @@ def test_concat():
 
 def test_slice():
     s = basic.slice()
-    s = s.asFunction(single_in=True, single_out=True)
+    s = s.as_function(single_in=True, single_out=True)
     ans = s("abcdef")
     assert ans == "abcdef"
 
     s = basic.slice(range=":2")
-    s = s.asFunction(single_in=True, single_out=True)
+    s = s.as_function(single_in=True, single_out=True)
     ans = s("abcdef")
     assert ans == "ab"
 
     s = basic.slice(range=":-2")
-    s = s.asFunction(single_in=True, single_out=True)
+    s = s.as_function(single_in=True, single_out=True)
     ans = s("abcdef")
     assert ans == "abcd"
 
     s = basic.slice(range="2:")
-    s = s.asFunction(single_in=True, single_out=True)
+    s = s.as_function(single_in=True, single_out=True)
     ans = s("abcdef")
     assert ans == "cdef"
 
     s = basic.slice(range="2:4")
-    s = s.asFunction(single_in=True, single_out=True)
+    s = s.as_function(single_in=True, single_out=True)
     ans = s("abcdef")
     assert ans == "cd"
 
     s = basic.slice(field="x", range=":2")
-    s = s.asFunction(single_in=True, single_out=True)
+    s = s.as_function(single_in=True, single_out=True)
     ans = s({"x": "abcdef"})
     assert ans == "ab"
 
     s = basic.slice(field="x", range=":2", set_as="y")
-    s = s.asFunction(single_in=True, single_out=True)
+    s = s.as_function(single_in=True, single_out=True)
     ans = s({"x": "abcdef"})
     assert ans == {"x": "abcdef", "y": "ab"}
 
 def test_isIn():
     i = basic.isIn(field = "_", value=1)
-    i = i.asFunction(single_in=True, single_out=False)
+    i = i.as_function(single_in=True, single_out=False)
     assert list(i([1,2,3]))
     assert list(i([5,1,5]))
     assert len(list(i([2,3,4])))==0
 
 def test_isNotIn():
     i = basic.isNotIn(field = "_", value=1)
-    i = i.asFunction(single_in=True, single_out=False)
+    i = i.as_function(single_in=True, single_out=False)
     assert len(list(i([1,2,3])))==0
     assert len(list(i([5,1,5])))==0
     assert len(list(i([2,3,4])))==1
 
 def test_everyN():
     e = basic.everyN(n=3)
-    e = e.asFunction(single_in=False, single_out=False)
+    e = e.as_function(single_in=False, single_out=False)
     assert list(e(range(10))) == [2, 5, 8]
     assert list(e(range(4))) == [2]
 
 def test_flatten():
     f = basic.flatten()
-    f = f.asFunction(single_in=False, single_out=False)
+    f = f.as_function(single_in=False, single_out=False)
     ans = list(f([[1,2], [3,4]]))
     assert ans == [1,2,3,4]
 
@@ -256,90 +256,90 @@ def test_hash():
 
 def test_hash_segment():
     s = basic.Hash()
-    s = s.asFunction(single_in=True, single_out=True)
+    s = s.as_function(single_in=True, single_out=True)
     assert s("a") == s("a")
 
     s = basic.Hash(field_list="a")
-    s = s.asFunction(single_in=True, single_out=True)
+    s = s.as_function(single_in=True, single_out=True)
     assert s({"a": 1, "b":2}) == s({"a": 1, "c":3})
     
     h = basic.hash_data(1)
     s = basic.Hash(set_as="hash", field_list="a")
-    s = s.asFunction(single_in=True, single_out=True)
+    s = s.as_function(single_in=True, single_out=True)
     assert s({"a": 1}) == {"a": 1, "hash": h}
 
 def test_fillTemplate():
     f = basic.fillTemplate(template="Hello {name}")
-    f = f.asFunction(single_in=True, single_out=True)
+    f = f.as_function(single_in=True, single_out=True)
     assert f({"name": "World"}) == "Hello World"
 
     f = basic.fillTemplate(template="Hello {_}")
-    f = f.asFunction(single_in=True, single_out=True)
+    f = f.as_function(single_in=True, single_out=True)
     assert f("World") == "Hello World"
 
     f = basic.fillTemplate(template="Hello {_}", field="name")
-    f = f.asFunction(single_in=True, single_out=True)
+    f = f.as_function(single_in=True, single_out=True)
     assert f({"name": "World"}) == "Hello World"
 
     f = basic.fillTemplate(template="Hello {name}", set_as="greeting")
-    f = f.asFunction(single_in=True, single_out=True)
+    f = f.as_function(single_in=True, single_out=True)
     assert f({"name": "World"}) == {"name": "World", "greeting": "Hello World"}
 
     f = basic.fillTemplate(template="Hello {{name}}")
-    f = f.asFunction(single_in=True, single_out=True)
+    f = f.as_function(single_in=True, single_out=True)
     assert f({"name": "World"}) == "Hello {name}"
 
 def test_lambda():
     f = basic.EvalExpression("item*2")
-    f = f.asFunction()
+    f = f.as_function()
     ans = list(f([1, 2, 3]))
     assert ans == [2, 4, 6]
 
     f = basic.EvalExpression("len(item)")
-    f = f.asFunction()
+    f = f.as_function()
     ans = list(f(["Hello", "World!"]))
     assert ans == [5, 6]
 
     f = basic.EvalExpression("item+1", field="x", set_as="y")
-    f = f.asFunction()
+    f = f.as_function()
     ans = f([{"x": 1}, {"x": 2}])
     assert ans == [{"x": 1, "y": 2}, {"x": 2, "y": 3}]
 
     f = basic.EvalExpression("item+1", field="x")
-    f = f.asFunction()
+    f = f.as_function()
     ans = f([{"x": 1}, {"x": 2}])
     assert ans == [2,3]
 
     f = basic.EvalExpression("'(TAG) ' +item")
-    f = f.asFunction()
+    f = f.as_function()
     ans = f(["Hello", "World!"])
     assert ans == ["(TAG) Hello", "(TAG) World!"]
 
     f = basic.EvalExpression("'(LONG) '+item if len(item)>5 else item")
-    f = f.asFunction()
+    f = f.as_function()
     ans = f(["Hello", "World!"])
     assert ans == ["Hello", "(LONG) World!"]
 
 
 def test_lambdaFilter():
     f = basic.FilterExpression("item>2")
-    f = f.asFunction()
+    f = f.as_function()
     ans = list(f([1, 2, 3, 4]))
     assert ans == [3, 4]
 
     f = basic.FilterExpression("item>2", field="x")
-    f = f.asFunction()
+    f = f.as_function()
     ans = list(f([{"x": 3}, {"x": 2}, {"x": 4}]))
     assert ans == [{"x": 3}, {"x": 4}]
 
 def test_longestStr():
     f = basic.longestStr(field_list="x,y")
-    f = f.asFunction(single_in=False, single_out=False)
+    f = f.as_function(single_in=False, single_out=False)
     ans = list(f([{"x": "short", "y": "longest", "z":"reallymuchlonger"}, {"x": "longer", "y": "short", "z": "tiny"}]))
     assert ans == ["longest", "longer"]
 
     f = basic.longestStr(field_list="x,y", set_as="longest")
-    f = f.asFunction(single_in=False, single_out=False)
+    f = f.as_function(single_in=False, single_out=False)
     ans = list(f([{"x": "short", "y": "longest", "z":"reallymuchlonger"}, {"x": "longer", "y": "short", "z": "tiny"}]))
     assert ans[0]["longest"] == "longest"
     assert ans[1]["longest"] == "longer"

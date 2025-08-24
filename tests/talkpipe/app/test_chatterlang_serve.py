@@ -105,7 +105,7 @@ class TestUserSession:
         """Test UserSession initialization with script content."""
         with patch('talkpipe.chatterlang.compile') as mock_compile:
             mock_compiled = Mock()
-            mock_compiled.asFunction.return_value = mock_compiled
+            mock_compiled.as_function.return_value = mock_compiled
             mock_compile.return_value = mock_compiled
             
             session = UserSession("test-session-id", "test script")
@@ -119,7 +119,7 @@ class TestUserSession:
         
         with patch('talkpipe.chatterlang.compile') as mock_compile:
             mock_compiled = Mock()
-            mock_compiled.asFunction.return_value = mock_compiled
+            mock_compiled.as_function.return_value = mock_compiled
             mock_compile.return_value = mock_compiled
             
             session.compile_script("test script")
@@ -461,7 +461,7 @@ class TestChatterlangServerEndpoints:
         mock_compiled.return_value = iter(["Script output 1", "Script output 2"])
         
         with patch('talkpipe.chatterlang.compile') as mock_compile:
-            mock_compile.return_value.asFunction.return_value = mock_compiled
+            mock_compile.return_value.as_function.return_value = mock_compiled
             
             server = ChatterlangServer(script_content="test script")
             client = TestClient(server.app)

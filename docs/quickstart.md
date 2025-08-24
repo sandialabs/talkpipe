@@ -28,7 +28,7 @@ from talkpipe.chatterlang import compiler
 
 # Define a pipeline that prompts an LLM and prints the response.  Assumed Ollama is installed locally and llama3.2 is downloaded.
 script = '| llmPrompt[model="llama3.2", source="ollama"] | print'
-chat = compiler.compile(script).asFunction(single_in=True, single_out=True)
+chat = compiler.compile(script).as_function(single_in=True, single_out=True)
 
 # Use it
 response = chat("Hello! Tell me about the history of computers.")
@@ -44,7 +44,7 @@ from talkpipe.llm import chat
 
 # Create pipeline using the | operator
 pipeline = io.Prompt() | chat.LLMPrompt(model="llama3.2", source="ollama") | io.Print()
-pipeline_func = pipeline.asFunction()
+pipeline_func = pipeline.as_function()
 
 # Run it
 pipeline_func()  # This will prompt for input interactively

@@ -3,13 +3,13 @@ from talkpipe.operations import transforms
 
 def test_regex_replace():
     op = transforms.regex_replace(pattern="a", replacement="b")
-    op = op.asFunction(single_in=True, single_out=True)
+    op = op.as_function(single_in=True, single_out=True)
     assert op("apple") == "bpple"
     assert op("banana") == "bbnbnb"
     assert op("cherry") == "cherry"
 
     op = transforms.regex_replace(pattern="a", replacement="b", field="x")
-    op = op.asFunction(single_in=True, single_out=True)
+    op = op.as_function(single_in=True, single_out=True)
     assert op({"y": "apple", "x": "y"}) == {"y": "apple", "x": "y"}
     assert op({"y": "apple", "x": "banana"}) == {"y": "apple", "x": "bbnbnb"}
     assert op({"y": "apple", "x": "cherry"}) == {"y": "apple", "x": "cherry"}
@@ -21,14 +21,14 @@ def test_regex_replace():
 
     with pytest.raises(ValueError):
         op = transforms.regex_replace(pattern="a", replacement="b", field="x.2")
-        op = op.asFunction(single_in=True, single_out=True)
+        op = op.as_function(single_in=True, single_out=True)
         with pytest.raises(TypeError):
             op({"x": ["apple", "banana", "cherry"]})
     
 
 def test_fill_null():
     op = transforms.fill_null(x=3)
-    op = op.asFunction(single_in=True, single_out=True)
+    op = op.as_function(single_in=True, single_out=True)
     assert op({"y": "apple", "x": None}) == {"y": "apple", "x": 3}
     assert op({"y": "apple", "x": "banana"}) == {"y": "apple", "x": "banana"}
     assert op({"y": None, "x": "cherry"}) == {"y": '', "x": "cherry"}

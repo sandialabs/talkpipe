@@ -30,7 +30,7 @@ def test_rss_segment(monkeypatch):
     INPUT FROM rss[url="http://example.com/feed", db_path=":memory:", poll_interval_minutes=-1]
     """
     compiled = compile(code)
-    f = compiled.asFunction()
+    f = compiled.as_function()
     ans = list(f())
 
     for item in ans:

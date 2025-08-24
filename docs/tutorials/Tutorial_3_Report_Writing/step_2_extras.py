@@ -130,7 +130,7 @@ def format_detailed_report_segment(item, model=None, source=None, multi_turn=Tru
     
     # Generate each section using the LLM
     llm = LLMPrompt(model=model, source=source, multi_turn=multi_turn, system_prompt="You are a professional report writer.")
-    llm = llm.asFunction(single_in=True, single_out=True)
+    llm = llm.as_function(single_in=True, single_out=True)
     sections_content = {}
 
     report = f"""Detailed Analysis Report: {topic}\n\n"""

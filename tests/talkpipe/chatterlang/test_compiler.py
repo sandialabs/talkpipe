@@ -129,7 +129,7 @@ def test_fork_parallel():
 
 def test_variables_as_parameters():
     v_score = core.RuntimeComponent()
-    script = compiler.compile('CONST var1 = "Hello"; INPUT FROM echo[data=var1] | print', v_score).asFunction(single_out=True)    
+    script = compiler.compile('CONST var1 = "Hello"; INPUT FROM echo[data=var1] | print', v_score).as_function(single_out=True)    
     ans = script()
     assert ans == "Hello"
     assert v_score.const_store["var1"] == "Hello"
@@ -137,7 +137,7 @@ def test_variables_as_parameters():
 
 def test_constant_declarations():
     runtime = core.RuntimeComponent()
-    script = compiler.compile('CONST var1 = "Hello"; INPUT FROM "goodbye" | print', runtime).asFunction(single_out=True)
+    script = compiler.compile('CONST var1 = "Hello"; INPUT FROM "goodbye" | print', runtime).as_function(single_out=True)
     ans = script()
     assert ans == "goodbye"
     assert runtime.const_store["var1"] == "Hello"
@@ -148,7 +148,7 @@ def test_multiple_constants():
         """
         CONST var1 = "Hello";
         CONST var2 = "World";
-        INPUT FROM "goodbye" | print""", runtime).asFunction(single_out=True)
+        INPUT FROM "goodbye" | print""", runtime).as_function(single_out=True)
     ans = script()
     assert ans == "goodbye"
     assert runtime.const_store["var1"] == "Hello"
@@ -290,6 +290,6 @@ def test_environment_variable_support():
         f = compiler.compile("""
             INPUT FROM echo[data=$some_var]
         """)
-        f = f.asFunction(single_out=False)
+        f = f.as_function(single_out=False)
         ans = list(f())
         assert ans == ['a', 'b', 'c', 'd']

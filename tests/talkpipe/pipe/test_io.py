@@ -4,11 +4,11 @@ from talkpipe.util import config
 from talkpipe.chatterlang import compiler
 
 def test_echo_operation():
-    f = compiler.compile('INPUT FROM echo[data="howdy|do", delimiter="|"]').asFunction(single_in=True, single_out=False)
+    f = compiler.compile('INPUT FROM echo[data="howdy|do", delimiter="|"]').as_function(single_in=True, single_out=False)
     ans = f(None)
     assert ans == ["howdy", "do"]
 
-    f = compiler.compile('INPUT FROM echo[data="howdy,do"]').asFunction(single_in=True, single_out=False)
+    f = compiler.compile('INPUT FROM echo[data="howdy,do"]').as_function(single_in=True, single_out=False)
     ans = f(None)
     assert ans == ["howdy", "do"]
 
@@ -165,7 +165,7 @@ def test_writePickle_compiler_integration(tmpdir):
     
     # Test compilation and execution
     pipeline = compiler.compile(f'| writePickle[fname="{str(temp_file_path)}"]')
-    f = pipeline.asFunction(single_in=False, single_out=False)
+    f = pipeline.as_function(single_in=False, single_out=False)
     result = f(data)
     assert result == data
     
@@ -314,7 +314,7 @@ def test_writeString_compiler_integration(tmpdir):
     
     # Test compilation and execution
     pipeline = compiler.compile(f'| writeString[fname="{str(temp_file_path)}"]')
-    f = pipeline.asFunction(single_in=False, single_out=False)
+    f = pipeline.as_function(single_in=False, single_out=False)
     result = f(data)
     assert result == data
     

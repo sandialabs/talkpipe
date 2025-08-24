@@ -20,7 +20,7 @@ def test_qs_example_1a(capsys):
     capsys.readouterr()
 
     pipeline = compiler.compile('INPUT FROM echo[data="1|2|hello|3", delimiter="|"] | cast[cast_type="int"] | print')
-    pipeline = pipeline.asFunction(single_out=False)
+    pipeline = pipeline.as_function(single_out=False)
 
     ans = pipeline()
 
@@ -30,7 +30,7 @@ def test_qs_example_1a(capsys):
     assert ans == [1, 2, 3]
 
     pipeline = io.echo(data="1|2|hello|3", delimiter="|") | basic.Cast(cast_type="int") | io.Print()
-    function = pipeline.asFunction(single_out=False)
+    function = pipeline.as_function(single_out=False)
     ans = function()
     captured = capsys.readouterr()
     assert captured.out == "1\n2\n3\n"
@@ -42,7 +42,7 @@ def test_qs_example_1b(capsys):
     INPUT FROM echo[data="1,2,hello,3"] | cast[cast_type="int"] | @a;
     INPUT FROM @a | print
     """)
-    ssp = ssp.asFunction(single_out=False)
+    ssp = ssp.as_function(single_out=False)
     ans = ssp()
     
 
@@ -52,7 +52,7 @@ def test_qs_example_1b(capsys):
 
 def test_qs_example_1c(capsys):
     ssp = compiler.compile('INPUT FROM echo[data="1,2,hello,3"] | cast[cast_type="int"] | @a; INPUT FROM @a | print')
-    ssp = ssp.asFunction(single_out=False)
+    ssp = ssp.as_function(single_out=False)
     ans = ssp() 
 
     captured = capsys.readouterr()
@@ -72,14 +72,14 @@ def test_load_jsonl_example(tmpdir):
             temp_file.write(json.dumps(entry) + '\n')
 
     ssp = compiler.compile(f'| readJsonl | toDataFrame')
-    ssp = ssp.asFunction(single_in=True, single_out=True)
+    ssp = ssp.as_function(single_in=True, single_out=True)
     ans = ssp(temp_file_path)
     assert isinstance(ans, pd.DataFrame)
     assert list(ans.name) == ["Alice", "Bob", "Charlie"]
     assert list(ans.age) == [30, 25, 35]
 
     pipe = io.readJsonl() | basic.ToDataFrame()
-    pipe = pipe.asFunction(single_in=True, single_out=True)
+    pipe = pipe.as_function(single_in=True, single_out=True)
     ans = pipe(temp_file_path)
     assert isinstance(ans, pd.DataFrame)
     assert list(ans.name) == ["Alice", "Bob", "Charlie"]
@@ -91,14 +91,14 @@ def test_chat_function_example(requires_ollama):
     | llmPrompt[model="llama3.2", source="ollama", multi_turn=True]  
     """
     f = compiler.compile(script)
-    f = f.asFunction(single_in=True, single_out=True)
+    f = f.as_function(single_in=True, single_out=True)
     ans = f("Good afternoon.  My name is Bob!")
     assert isinstance(ans, str)
     ans = f("What is my name?")
     assert isinstance(ans, str)
     assert "bob" in ans.lower()
     
-    f = chat.LLMPrompt(model="llama3.2", source="ollama", multi_turn=True).asFunction(single_in=True, single_out=True)
+    f = chat.LLMPrompt(model="llama3.2", source="ollama", multi_turn=True).as_function(single_in=True, single_out=True)
     ans = f("Good afternoon.  My name is Bob!")
     assert isinstance(ans, str)
     ans = f("What is my names?")
@@ -109,14 +109,14 @@ def test_chat_function_example(requires_ollama):
     | llmPrompt[model="llama3.2", source="ollama", multi_turn=True, pass_prompts=True] | print | accum[reset=False] 
     """    
     f = compiler.compile(script)
-    f = f.asFunction(single_in=True, single_out=False)
+    f = f.as_function(single_in=True, single_out=False)
     f("Good afternoon.  My name is Bob!")
     result = list(f("What is my name?"))
     assert len(result) == 4
     assert "bob" in result[-1].lower()
     
     f = chat.LLMPrompt(model="llama3.2", source="ollama", multi_turn=True, pass_prompts=True) | io.Print() | compiler.Accum(reset=False)
-    f = f.asFunction(single_in=True, single_out=False)
+    f = f.as_function(single_in=True, single_out=False)
     f("Good afternoon.  My name is Bob!")
     result = list(f("What is my name?"))
     assert len(result) == 4
@@ -136,7 +136,7 @@ def test_a_discussion_example(requires_ollama, capsys):
     """
 
     f = compiler.compile(script)
-    f = f.asFunction(single_out=False)
+    f = f.as_function(single_out=False)
     result = list(f())
     captured = capsys.readouterr()
     assert len(captured.out.strip().split('\n')) >= 7
@@ -177,7 +177,7 @@ def test_a_crawler_example(requires_ollama):
     | loadsJsonl | llmScore[system_prompt=scorePrompt, model="llama3.1", set_as="canine", temperature=0.0] | setAs[field_list="canine.score:canine_score"] | toDataFrame 
     """
 
-    pipeline = compiler.compile(script).asFunction(single_in=False, single_out=True)
+    pipeline = compiler.compile(script).as_function(single_in=False, single_out=True)
     df = pipeline(data)
     assert isinstance(df, pd.DataFrame) 
     scores = list(df.canine_score)

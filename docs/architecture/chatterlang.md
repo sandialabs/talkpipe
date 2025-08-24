@@ -355,7 +355,7 @@ class UserSession:
     def compile_script(self, script_content: str):
         """Compile ChatterLang script for this session."""
         self.compiled_script = compile(script_content)
-        self.compiled_script = self.compiled_script.asFunction(
+        self.compiled_script = self.compiled_script.as_function(
             single_in=True, single_out=False
         )
 ```

@@ -296,7 +296,7 @@ The registry enables:
 
 ## Utility Functions
 
-### asFunction()
+### as_function()
 
 **File**: `src/talkpipe/pipe/core.py:145`
 
@@ -304,7 +304,7 @@ Converts segments to callable functions:
 
 ```python
 # Convert segment to function
-func = my_segment.asFunction(single_in=True, single_out=True)
+func = my_segment.as_function(single_in=True, single_out=True)
 result = func(input_item)
 ```
 
