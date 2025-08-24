@@ -230,6 +230,20 @@ def appendAs(item, field_list:str):
         item[k] = v
     return item
 
+@registry.register_segment("set")
+@segment
+def assign(items, value: Any, append_as: str):
+    """Assigns the specified value to the specified field.
+
+    Args:
+        item: The input item to modify.
+        value: The value to assign.
+        append_as: Append the provided value as this field
+    """
+    for item in items:
+        item[append_as] = value
+        yield item
+
 @registry.register_segment(name="toDataFrame")
 class ToDataFrame(AbstractSegment):
     """Drain all items from the input stream and emit a single DataFrame.

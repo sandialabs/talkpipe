@@ -150,15 +150,100 @@ class AbstractLLMGuidedGeneration(LLMPrompt):
 
 @register_segment("llmScore")
 class LlmScore(AbstractLLMGuidedGeneration):
-    """For each piece of text read from the input stream, compute a score and an explanation for that score.
-    
-    The system prompt must be provided and should explain the range of the score (which must be 
-    a range of integers) and the meaning of the score. For example, a system_prompt might be:
-    
-    <pre>Score the following text according to how relevant it is to canines, where 0 mean unrelated and 10 
-    means highly related.</pre>
+    """
+    Compute an integer relevance (or quality) score and a natural‑language explanation
+    for each prompt using an LLM.
+    Overview
+    --------
+    LlmScore is a thin specialization of AbstractLLMGuidedGeneration that:
+    1. Accepts arbitrary text segments (e.g., from a streaming source or an iterator).
+    2. For each segment, asks the LLM (guided by your system prompt) to produce:
+        - score: An integer within a range you define in the system prompt.
+        - explanation: A short justification describing why that score was assigned.
+    3. Validates / structures the model response into an instance of LlmScore.Score
+        (a pydantic model with fields `score: int`, `explanation: str`).
+    You MUST supply a system prompt that clearly defines:
+    - The scoring scale (integer range, e.g., 0–10 or 1–5).
+    - The semantics of low / high values.
+    - Any domain‑specific evaluation criteria.
 
-    See the LLMPrompt segment for more information on the other arguments.
+    Intended Use Cases
+    ------------------
+    - Content relevance scoring (e.g., "How related is this passage to canines?").
+    - Quality, safety, or policy compliance triage.
+    - Lightweight ranking signals ahead of deeper analysis.
+    - Real‑time streaming evaluation of incoming documents or chat messages.
+    
+    Parameters (inherited / expected)
+    ---------------------------------
+    While this class adds no new constructor arguments beyond those of
+    AbstractLLMGuidedGeneration, the following (typical) parameters of the base
+    class are especially relevant here (names may vary depending on your concrete
+    implementation):
+    - system_prompt (str, required):
+         A carefully crafted instruction that:
+            * Defines the integer scoring range (e.g., 0–10).
+            * Explains the meaning of endpoints and (optionally) intermediate values.
+            * Requests a JSON (or structured) output containing fields:
+                 - "score": integer
+                 - "explanation": brief textual rationale
+         Example:
+            "You are a scoring assistant. Score the supplied text for how
+             relevant it is to canines on a 0–10 scale (0 = unrelated, 10 = highly
+             specific and directly about canines). Return JSON with keys
+             'score' (int) and 'explanation' (string). Be concise."
+    - model:
+         Name of the LLM model to use.
+    - source:
+         The input source for the text segments (e.g., "ollama" or "openai").
+    - pass_prompts (bool, optional):
+         Whether to include the original prompts in the output.
+    - multi_turn (bool, optional):
+         Whether the interaction is part of a multi-turn dialogue.
+    - field (str, optional):
+         The specific field serve as the prompt (e.g., "content", "style").
+    - temperature (float, optional):
+         Sampling temperature; often set low (e.g., 0.0–0.3) to encourage
+         deterministic, reproducible scoring.
+    - append_as (str, optional):
+         If specified, the output will be appended as this field in the
+         final response.
+
+    Data Model
+    ----------
+    class Score:
+         score (int):
+              The integer score within the scale you defined in the system prompt.
+              Always validate that returned values fall in-range; if not, consider
+              clamping, rejecting, or re‑prompting.
+         explanation (str):
+              Concise justification of why the score was chosen. Encourage the model
+              (via the prompt) to reference explicit criteria, avoid hallucinated
+              facts, and keep it short (e.g., <= 2 sentences) for efficiency.
+
+    Method Notes
+    ------------
+    get_output_format():
+         Returns the Pydantic model (LlmScore.Score) that defines the expected
+         structure of each LLM response. This is used by the base class to coerce
+         raw model output into typed objects.
+
+    Prompt Engineering Tips
+    -----------------------
+    - Explicitly enumerate the allowed integer values (e.g., "Allowed scores: 0,1,2,...,10").
+    - Require a single JSON object with only the two keys to reduce parsing failures.
+    - Instruct the model NOT to include extra commentary outside JSON (or use a
+      structured output feature if the provider supports it).
+    - For consistency, set temperature close to 0 when subjective diversity is
+      not desired.
+
+    Performance Considerations
+    --------------------------
+    - Batch scoring: If your base class supports batching, you can group multiple
+      text segments per request to reduce overhead (ensure the prompt clarifies
+      batched output format).
+    - Streaming input: Feed contiguous chunks; consider normalizing whitespace
+      and truncating overlong inputs to control token costs.
     """
 
     class Score(BaseModel):
