@@ -1,5 +1,9 @@
 # Changelog
 
+## In Development (0.8.2)
+### Improvements
+- Added a check and thow an exception in simplevectordb if the user has clustered and then tries to use cosine for search
+
 ## 0.8.1
 ### Improvements
 - change --env to --script in Dockerfile.  This was a change in 0.8.0.
