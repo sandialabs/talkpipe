@@ -6,6 +6,7 @@ A terminal-based interactive browser for TalkPipe documentation.
 Allows browsing packages, searching for components, and viewing detailed documentation.
 """
 
+from typing import Dict, List, Optional, Tuple
 import argparse
 import os
 import re
@@ -13,8 +14,7 @@ import shutil
 import sys
 import tempfile
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
-
+from talkpipe.util.plugin_loader import list_loaded_plugins, list_failed_plugins
 
 class TalkPipeDoc:
     """Represents a single TalkPipe component (class or function)."""
