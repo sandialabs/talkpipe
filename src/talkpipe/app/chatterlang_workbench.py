@@ -13,6 +13,7 @@ from talkpipe.pipe.core import RuntimeComponent
 from talkpipe.chatterlang import registry
 from talkpipe.chatterlang.compiler import compile
 from talkpipe.util.config import load_module_file, parse_unknown_args, add_config_values
+from talkpipe.app.chatterlang_reference_generator import analyze_registered_items, generate_html, generate_text
 
 logger = logging.getLogger(__name__)
 
@@ -104,6 +105,95 @@ class InteractiveRequest(BaseModel):
 def get_examples():
     """Endpoint to return all example scripts"""
     return JSONResponse(content={"examples": EXAMPLE_SCRIPTS})
+
+@app.get("/docs/html")
+def get_docs_html():
+    """Generate and return HTML documentation using live introspection"""
+    import tempfile
+    import os
+    
+    try:
+        # Generate documentation using the shared extraction mechanism
+        analyzed_items = analyze_registered_items()
+        
+        # Create temporary file for HTML output
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.html', delete=False) as temp_file:
+            temp_path = temp_file.name
+        
+        try:
+            generate_html(analyzed_items, temp_path)
+            
+            # Read the generated HTML
+            with open(temp_path, 'r', encoding='utf-8') as f:
+                html_content = f.read()
+            
+            return HTMLResponse(content=html_content)
+        finally:
+            # Clean up temporary file
+            if os.path.exists(temp_path):
+                os.unlink(temp_path)
+                
+    except Exception as e:
+        logger.error(f"Error generating HTML documentation: {e}")
+        raise HTTPException(status_code=500, detail=f"Documentation generation failed: {e}")
+
+@app.get("/docs/text", response_class=HTMLResponse)
+def get_docs_text():
+    """Generate and return text documentation using live introspection"""
+    import tempfile
+    import os
+    import html
+    
+    try:
+        # Generate documentation using the shared extraction mechanism
+        analyzed_items = analyze_registered_items()
+        
+        # Create temporary file for text output
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.txt', delete=False) as temp_file:
+            temp_path = temp_file.name
+        
+        try:
+            generate_text(analyzed_items, temp_path)
+            
+            # Read the generated text and wrap in HTML for browser display
+            with open(temp_path, 'r', encoding='utf-8') as f:
+                text_content = f.read()
+            
+            # Wrap text content in a simple HTML page for better browser display
+            html_wrapped = f"""<!DOCTYPE html>
+<html>
+<head>
+    <title>TalkPipe Documentation (Text)</title>
+    <style>
+        body {{ 
+            font-family: 'Consolas', 'Monaco', monospace; 
+            white-space: pre-wrap; 
+            margin: 20px; 
+            line-height: 1.4;
+            background-color: #f5f5f5;
+        }}
+        .content {{
+            background-color: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }}
+    </style>
+</head>
+<body>
+    <div class="content">{html.escape(text_content)}</div>
+</body>
+</html>"""
+            
+            return HTMLResponse(content=html_wrapped)
+        finally:
+            # Clean up temporary file
+            if os.path.exists(temp_path):
+                os.unlink(temp_path)
+                
+    except Exception as e:
+        logger.error(f"Error generating text documentation: {e}")
+        raise HTTPException(status_code=500, detail=f"Documentation generation failed: {e}")
 
 
 @app.get("/logs")
@@ -626,7 +716,7 @@ def get_ui():
       <h1>Talk<span style="color: #4ade80;">Pipe</span></h1>
       <div class="subtitle">Write and execute ChatterLang scripts interactively</div>
       <span class="header-links">
-      <div class="topmaterial">Source and Segment documentation: (<a href="static/unit-docs.html" target="_blank">html</a>) (<a href="static/unit-docs.txt" target="_blank">text</a>)</div>
+      <div class="topmaterial">Source and Segment documentation: (<a href="/docs/html" target="_blank">html</a>) (<a href="/docs/text" target="_blank">text</a>)</div>
       </span>
     </header>
     <div id="compile-section">

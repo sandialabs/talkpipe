@@ -3,6 +3,9 @@
 ## In Development (0.8.2)
 ### Improvements
 - Added a check and thow an exception in simplevectordb if the user has clustered and then tries to use cosine for search
+- Added a plugin system so it is easer for external whl files to add commands to chatterlang.
+- Refactored the documentation system to pull from the registry in real time.  This ensures that plugin commands are 
+  included in the documentation system.  It also reduces potential problems from bad parsing of source code.
 
 ## 0.8.1
 ### Improvements

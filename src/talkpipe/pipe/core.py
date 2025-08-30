@@ -291,6 +291,8 @@ def source(*decorator_args, **decorator_kwargs):
 
             def __init__(self):
                 super().__init__()
+                # Store reference to original function for documentation access
+                self._original_func = func
 
             def generate(self) -> Iterator[U]:
                 # If the function returns an iterator, use it
@@ -298,6 +300,9 @@ def source(*decorator_args, **decorator_kwargs):
         
         # Set the name of the class to match the original function
         FunctionSource.__name__ = f"{func.__name__}Input"
+        # Preserve original function's docstring and metadata
+        FunctionSource.__doc__ = func.__doc__
+        FunctionSource._original_func = func
         return FunctionSource
     
     # Called with arguments, return a decorator
@@ -315,6 +320,8 @@ def source(*decorator_args, **decorator_kwargs):
                 
                 # Bind arguments to the function
                 self._func = lambda: func(*init_args, **merged_kwargs)
+                # Store reference to original function for documentation access
+                self._original_func = func
             
             def generate(self) -> Iterator[U]:
                 # If the function returns an iterator, use it
@@ -322,6 +329,9 @@ def source(*decorator_args, **decorator_kwargs):
         
         # Set the name of the class to match the original function
         ParameterizedSource.__name__ = f"{func.__name__}Input"
+        # Preserve original function's docstring and metadata
+        ParameterizedSource.__doc__ = func.__doc__
+        ParameterizedSource._original_func = func
         return ParameterizedSource
     
     return decorator
@@ -353,12 +363,17 @@ def segment(*decorator_args, **decorator_kwargs):
 
             def __init__(self):
                 super().__init__()
+                # Store reference to original function for documentation access
+                self._original_func = func
             
             def transform(self, input_iter: Iterable[T]) -> Iterator[U]:
                 return func(input_iter)
         
         # Set the name of the class to match the original function
         FunctionSegment.__name__ = f"{func.__name__}Operation"
+        # Preserve original function's docstring and metadata
+        FunctionSegment.__doc__ = func.__doc__
+        FunctionSegment._original_func = func
         return FunctionSegment
     
     # Called with arguments, return a decorator
@@ -376,12 +391,17 @@ def segment(*decorator_args, **decorator_kwargs):
                 
                 # Bind arguments to the function
                 self._func = lambda x: func(x, *init_args, **merged_kwargs)
+                # Store reference to original function for documentation access
+                self._original_func = func
             
             def transform(self, input_iter: Iterable[T]) -> Iterator[U]:
                 return self._func(input_iter)
         
         # Set the name of the class to match the original function
         ParameterizedSegment.__name__ = f"{func.__name__}Operation"
+        # Preserve original function's docstring and metadata
+        ParameterizedSegment.__doc__ = func.__doc__
+        ParameterizedSegment._original_func = func
         return ParameterizedSegment
     
     return decorator
@@ -404,6 +424,8 @@ def field_segment(*decorator_args, **decorator_kwargs):
                 merged_kwargs.pop('field', None)
                 merged_kwargs.pop('append_as', None)
                 self._func = lambda x: func(x, *init_args, **merged_kwargs)
+                # Store reference to original function for documentation access
+                self._original_func = func
             
             def transform(self, input_iter):
                 for item in input_iter:
@@ -416,6 +438,9 @@ def field_segment(*decorator_args, **decorator_kwargs):
                         yield result
         
         FieldSegment.__name__ = f"{func.__name__}FieldSegment"
+        # Preserve original function's docstring and metadata
+        FieldSegment.__doc__ = func.__doc__
+        FieldSegment._original_func = func
         return FieldSegment
     
     if len(decorator_args) == 1 and callable(decorator_args[0]):
