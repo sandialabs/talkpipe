@@ -17,12 +17,7 @@ class PluginLoader:
         """Discover and load all TalkPipe plugins from installed packages."""
         try:
             # Get all entry points for the 'talkpipe.plugins' group
-            if sys.version_info >= (3, 10):
-                # Python 3.10+ syntax
-                entry_points = metadata.entry_points(group='talkpipe.plugins')
-            else:
-                # Python 3.8-3.9 syntax  
-                entry_points = metadata.entry_points().get('talkpipe.plugins', [])
+            entry_points = metadata.entry_points(group='talkpipe.plugins')
             
             logger.info(f"Found {len(entry_points)} TalkPipe plugin(s)")
             
@@ -64,10 +59,7 @@ class PluginLoader:
     def reload_plugin(self, plugin_name: str) -> bool:
         """Reload a specific plugin by name."""
         try:
-            if sys.version_info >= (3, 10):
-                entry_points = metadata.entry_points(group='talkpipe.plugins')
-            else:
-                entry_points = metadata.entry_points().get('talkpipe.plugins', [])
+            entry_points = metadata.entry_points(group='talkpipe.plugins')
             
             for entry_point in entry_points:
                 if entry_point.name == plugin_name:
