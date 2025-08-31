@@ -211,6 +211,27 @@ def test_isNotIn():
     assert len(list(i([5,1,5])))==0
     assert len(list(i([2,3,4])))==1
 
+def test_isTrue():
+    i = basic.isTrue(field = "_", as_filter=True)
+    i = i.asFunction(single_in=False, single_out=False)
+    ans = list(i([1,0,None,True,False,"","Hello"]))
+    assert ans == [1, True, "Hello"]
+
+    i = basic.isTrue(field = "_", as_filter=False)
+    i = i.asFunction(single_in=False, single_out=False)
+    ans = list(i([1,0,None,True,False,"","Hello"]))
+    assert ans == [True, False, False, True, False, False, True]
+
+    i = basic.isTrue(field = "x", as_filter=True)
+    i = i.asFunction(single_in=False, single_out=False)
+    ans = list(i([{"x": 1}, {"x": 0}, {"x": None}, {"x": True}, {"x": False}, {"x": ""}, {"x": "Hello"}]))
+    assert ans == [{"x": 1}, {"x": True}, {"x": "Hello"}]
+
+    i = basic.isTrue(field = "x", as_filter=False, append_as="y")
+    i = i.asFunction(single_in=False, single_out=False)
+    ans = list(i([{"x": 1}, {"x": 0}, {"x": None}, {"x": True}, {"x": False}, {"x": ""}, {"x": "Hello"}]))
+    assert ans == [{"x": 1, "y": True}, {"x": 0, "y": False}, {"x": None, "y": False}, {"x": True, "y": True}, {"x": False, "y": False}, {"x": "", "y": False}, {"x": "Hello", "y": True}]  
+
 def test_everyN():
     e = basic.everyN(n=3)
     e = e.asFunction(single_in=False, single_out=False)

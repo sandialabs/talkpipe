@@ -412,6 +412,33 @@ def isNotIn(items, field, value):
         if value not in data:
             yield item
 
+@registry.register_segment("isTrue")
+@segment()
+def isTrue(items, as_filter=True, field="_", append_as=None):
+    """
+    Checks if the specified field is true.  A field is considered false if it is
+    None, False, an integer 0, or an empty string.  It is True otherwise.
+
+    Args:
+        as_filter (bool): Whether to use this function as a filter.  If false, only return
+          True or False.  If true, yield the item if it is true.
+        field (str): The field to check for truthiness.  Defaults to "_", which means the entire item.
+        append_as (str): If specified, the result will be added to this field in the item.
+    """
+    for item in items:
+        to_eval = extract_property(item, field)
+        # Check if value is truthy (not None, False, 0, or empty string)
+        ans = bool(to_eval) and (to_eval != 0) and (not isinstance(to_eval, str) or len(to_eval.strip()) > 0)
+
+        if append_as:
+            item[append_as] = ans
+            to_return = item
+        else:
+            to_return = item if as_filter else ans
+
+        if not as_filter or ans:
+            yield to_return
+
 @registry.register_segment("everyN")
 @segment()
 def everyN(items, n):
