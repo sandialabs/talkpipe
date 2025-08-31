@@ -29,6 +29,12 @@ Generate HTML and text documentation for all available sources and segments.
 - Custom module documentation
 - Export formats: HTML, text
 
+### [Plugin Manager](talkpipe-plugin-manager.md)
+Manage and inspect TalkPipe plugins installed via Python entry points.
+- List installed plugins
+- Plugin status monitoring
+- Development workflow support
+
 ---
 
 *For conceptual overviews, see the [architecture](../architecture/) sections. For working examples, see the [tutorials](../tutorials/) directory.*

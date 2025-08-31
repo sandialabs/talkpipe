@@ -291,17 +291,6 @@ class TalkPipeBrowser:
 
 
 def main():
-    """Main entry point."""
-    parser = argparse.ArgumentParser(description="Interactive TalkPipe documentation browser")
-    parser.add_argument("--legacy", action="store_true", 
-                       help="Use legacy file-based mode instead of live introspection")
-    
-    args = parser.parse_args()
-    
-    if args.legacy:
-        print("Legacy file-based mode is no longer supported.")
-        print("The browser now uses live plugin introspection for up-to-date information.")
-        sys.exit(1)
     
     try:
         browser = TalkPipeBrowser()

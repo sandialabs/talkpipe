@@ -78,6 +78,20 @@ Check out the [tutorials directory](tutorials/) for complete tutorials:
 - RAG (Retrieval-Augmented Generation) systems  
 - Multi-format report generation
 
+### Extend with Plugins
+
+TalkPipe supports plugins to add custom functionality:
+
+```bash
+# List installed plugins
+talkpipe_plugin_manager --list
+
+# Install third-party plugins
+pip install talkpipe-some-plugin
+```
+
+Plugins automatically extend ChatterLang with new sources and segments. See [Extending TalkPipe](architecture/extending-talkpipe.md) to create your own plugins.
+
 ### Dive Deeper
 
 - [Architecture](architecture/) - Technical deep-dives
