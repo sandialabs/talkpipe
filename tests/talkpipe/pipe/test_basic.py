@@ -204,12 +204,29 @@ def test_isIn():
     assert list(i([5,1,5]))
     assert len(list(i([2,3,4])))==0
 
+    i = basic.isIn(field = "_", value=1, as_filter=False)
+    i = i.asFunction(single_in=True, single_out=False)
+    assert list(i([1,2,3])) == [True]
+
+    i = basic.isIn(value=1, field="x", append_as="y", as_filter=False)
+    i = i.asFunction(single_in=True, single_out=True)
+    assert i({'x': [1,2,3]}) == {"x": [1,2,3], "y": True}
+
 def test_isNotIn():
     i = basic.isNotIn(field = "_", value=1)
     i = i.asFunction(single_in=True, single_out=False)
     assert len(list(i([1,2,3])))==0
     assert len(list(i([5,1,5])))==0
     assert len(list(i([2,3,4])))==1
+
+    i = basic.isNotIn(field = "_", value=1, as_filter=False)
+    i = i.asFunction(single_in=True, single_out=False)
+    assert list(i([1,2,3])) == [False]
+
+    i = basic.isNotIn(value=1, field="x", append_as="y", as_filter=False)
+    i = i.asFunction(single_in=True, single_out=True)
+    assert i({'x': [1,2,3]}) == {"x": [1,2,3], "y": False}
+
 
 def test_isTrue():
     i = basic.isTrue(field = "_", as_filter=True)
@@ -231,6 +248,27 @@ def test_isTrue():
     i = i.asFunction(single_in=False, single_out=False)
     ans = list(i([{"x": 1}, {"x": 0}, {"x": None}, {"x": True}, {"x": False}, {"x": ""}, {"x": "Hello"}]))
     assert ans == [{"x": 1, "y": True}, {"x": 0, "y": False}, {"x": None, "y": False}, {"x": True, "y": True}, {"x": False, "y": False}, {"x": "", "y": False}, {"x": "Hello", "y": True}]  
+
+def test_isFalse():
+    i = basic.isFalse(field = "_", as_filter=True)
+    i = i.asFunction(single_in=False, single_out=False)
+    ans = list(i([1,0,None,True,False,"","Hello"]))
+    assert ans == [0, None, False, ""]
+
+    i = basic.isFalse(field = "_", as_filter=False)
+    i = i.asFunction(single_in=False, single_out=False)
+    ans = list(i([1,0,None,True,False,"","Hello"]))
+    assert ans == [False, True, True, False, True, True, False]
+
+    i = basic.isFalse(field = "x", as_filter=True)
+    i = i.asFunction(single_in=False, single_out=False)
+    ans = list(i([{"x": 1}, {"x": 0}, {"x": None}, {"x": True}, {"x": False}, {"x": ""}, {"x": "Hello"}]))
+    assert ans == [{"x": 0}, {"x": None}, {"x": False}, {"x": ""}]
+
+    i = basic.isFalse(field = "x", as_filter=False, append_as="y")
+    i = i.asFunction(single_in=False, single_out=False)
+    ans = list(i([{"x": 1}, {"x": 0}, {"x": None}, {"x": True}, {"x": False}, {"x": ""}, {"x": "Hello"}]))
+    assert ans == [{"x": 1, "y": False}, {"x": 0, "y": True}, {"x": None, "y": True}, {"x": True, "y": False}, {"x": False, "y": True}, {"x": "", "y": True}, {"x": "Hello", "y": False}]
 
 def test_everyN():
     e = basic.everyN(n=3)

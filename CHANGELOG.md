@@ -2,13 +2,14 @@
 
 ## In Development (0.8.2)
 ### New Segments
-- Added **isTrue** segment that can function as both a filter or and evaluation of a field.
+- Added **isTrue** and **isFalse** segments that can function as both a filter or and evaluation of a field.
 
 ### Improvements
 - Added a check and thow an exception in simplevectordb if the user has clustered and then tries to use cosine for search
 - Added a plugin system so it is easer for external whl files to add commands to chatterlang.
 - Refactored the documentation system to pull from the registry in real time.  This ensures that plugin commands are 
   included in the documentation system.  It also reduces potential problems from bad parsing of source code.
+- Updated **isIn** and **isNotIn** to function list **isTrue** so that they need no always be filters.
 
 ## 0.8.1
 ### Improvements
