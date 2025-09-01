@@ -3,6 +3,7 @@
 ## In Development (0.8.2)
 ### New Segments
 - Added **isTrue** and **isFalse** segments that can function as both a filter or and evaluation of a field.
+- Added **llmBinaryAnswer** segment
 
 ### Improvements
 - Added a check and thow an exception in simplevectordb if the user has clustered and then tries to use cosine for search

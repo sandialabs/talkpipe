@@ -4,7 +4,7 @@ from talkpipe.llm.prompt_adapters import OllamaPromptAdapter, OpenAIPromptAdapte
 from testutils import monkeypatched_env, patch_get_config
 from talkpipe.util import config
 
-from talkpipe.llm.chat import LLMPrompt, LlmScore, LlmExtractTerms
+from talkpipe.llm.chat import LLMPrompt, LlmScore, LlmExtractTerms, LlmBinaryAnswer
 from talkpipe.chatterlang import compiler
 
 
@@ -180,3 +180,24 @@ def test_llmextractterms(requires_ollama):
     assert len(response.terms) > 0
     assert "bob" in response.terms
     assert "sally" in response.terms
+
+def test_llmbinaryanswer(requires_ollama):
+    system_prompt="""Is the following text positive or negative?"""
+    llmbinaryanswer = LlmBinaryAnswer(system_prompt=system_prompt, multi_turn=False, temperature=0.0, model="llama3.2", source="ollama")
+    llmbinaryanswer = llmbinaryanswer.asFunction(single_in=True, single_out=True)
+    response = llmbinaryanswer("I love this product!")
+    assert isinstance(response, LlmBinaryAnswer.Answer)
+    assert response.answer is True
+    assert isinstance(response.explanation, str)
+    assert len(response.explanation) > 0
+
+    response = llmbinaryanswer("I hate this product!")
+    assert response.answer is False
+
+    llmbinaryanswer = LlmBinaryAnswer(system_prompt=system_prompt, field="assertion", append_as="sentiment", temperature=0.0, model="llama3.2", source="ollama")
+    llmbinaryanswer = llmbinaryanswer.asFunction(single_in=True, single_out=True)
+    response = llmbinaryanswer({"assertion":"I love this product!"})
+    assert isinstance(response, dict)
+    assert response["sentiment"].answer is True
+    assert response["sentiment"].explanation is not None
+
