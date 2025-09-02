@@ -179,6 +179,9 @@ class ChatterlangServer:
         # Configure middleware
         self._setup_middleware()
         
+        # Add security headers middleware
+        self._setup_security_headers()
+        
         # Configure routes
         self._setup_routes()
         
@@ -221,13 +224,15 @@ class ChatterlangServer:
             )
             self.sessions[session_id] = session
             
-            # Set session cookie (expires in 24 hours)
+            # Set session cookie (expires in 24 hours) with security attributes
             response.set_cookie(
                 key="talkpipe_session_id",
                 value=session_id,
                 max_age=86400,  # 24 hours
-                httponly=True,
-                samesite="lax"
+                httponly=True,  # Prevent JavaScript access
+                samesite="lax",  # CSRF protection
+                secure=False,    # Set to True in production with HTTPS
+                path="/"         # Restrict cookie path
             )
             
             logger.info(f"Created new session: {session_id}")
@@ -268,14 +273,60 @@ class ChatterlangServer:
         logger.info("Started session cleanup background task")
     
     def _setup_middleware(self):
-        """Configure CORS middleware"""
+        """Configure CORS middleware with security restrictions"""
+        # Define allowed origins - never use "*" in production
+        allowed_origins = [
+            "http://localhost:3000",
+            "http://localhost:8000", 
+            "http://127.0.0.1:3000",
+            "http://127.0.0.1:8000",
+            f"http://localhost:{self.port}",
+            f"http://127.0.0.1:{self.port}"
+        ]
+        
+        # Add environment-specific origins if configured
+        import os
+        env_origins = os.getenv('TALKPIPE_ALLOWED_ORIGINS', '').split(',')
+        allowed_origins.extend([origin.strip() for origin in env_origins if origin.strip()])
+        
         self.app.add_middleware(
             CORSMiddleware,
-            allow_origins=["*"],
+            allow_origins=allowed_origins,  # Specific origins only - never "*"
             allow_credentials=True,
-            allow_methods=["*"],
-            allow_headers=["*"],
+            allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],  # Specific methods only
+            allow_headers=["Content-Type", "Authorization", "X-API-Key"],  # Specific headers only
+            expose_headers=["Content-Type"],
+            max_age=86400,  # Cache preflight requests for 24 hours
         )
+    
+    def _setup_security_headers(self):
+        """Add security headers to all responses"""
+        @self.app.middleware("http")
+        async def add_security_headers(request, call_next):
+            response = await call_next(request)
+            
+            # Security headers
+            response.headers["X-Frame-Options"] = "DENY"
+            response.headers["X-Content-Type-Options"] = "nosniff"
+            response.headers["X-XSS-Protection"] = "1; mode=block"
+            response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+            response.headers["Content-Security-Policy"] = (
+                "default-src 'self'; "
+                "script-src 'self' 'unsafe-inline'; "
+                "style-src 'self' 'unsafe-inline'; "
+                "img-src 'self' data:; "
+                "connect-src 'self'; "
+                "font-src 'self'; "
+                "object-src 'none'; "
+                "media-src 'self'; "
+                "child-src 'none';"
+            )
+            response.headers["Permissions-Policy"] = (
+                "camera=(), microphone=(), geolocation=(), payment=(), "
+                "usb=(), magnetometer=(), gyroscope=(), speaker=()"
+            )
+            
+            return response
     
     def _setup_routes(self):
         """Configure all API routes"""
@@ -326,12 +377,21 @@ class ChatterlangServer:
             return self.form_config.model_dump()
         
         @self.app.get("/output-stream")
-        async def output_stream(request: Request, response: Response):
+        async def output_stream(
+            request: Request, 
+            response: Response,
+            api_key: str = Depends(self._verify_api_key)
+        ):
             """Server-Sent Events endpoint for streaming output"""
             session = self.get_or_create_session(request, response)
             return StreamingResponse(
                 self._generate_output_stream(session),
-                media_type="text/event-stream"
+                media_type="text/event-stream",
+                headers={
+                    "Cache-Control": "no-cache",
+                    "Connection": "keep-alive",
+                    "X-Content-Type-Options": "nosniff"
+                }
             )
     
     async def _verify_api_key(self, x_api_key: Optional[str] = Header(None)):
