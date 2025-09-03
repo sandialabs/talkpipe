@@ -319,7 +319,10 @@ def compileLambda(expression: str, fail_on_error: bool = True):
 
         # Evaluate the expression in a restricted environment
         try:
-            result = eval(compiled_code, dict(SAFE_BUILTINS), locals_dict)
+            # Create completely restricted globals with no builtins access
+            safe_globals = {'__builtins__': {}}
+            safe_globals.update(SAFE_BUILTINS)
+            result = eval(compiled_code, safe_globals, locals_dict)
             return result
         except Exception as e:
             error_msg = f"Error evaluating expression '{expression}' on item {item}: {e}"
