@@ -1,0 +1,264 @@
+# GitLab CI/CD Pipeline for TalkPipe
+# Includes testing, security scanning, container builds, and deployments
+
+stages:
+  - test
+  - security
+  - build
+  - deploy
+
+variables:
+  # Container registry settings
+  CONTAINER_IMAGE: $CI_REGISTRY_IMAGE
+  DOCKER_DRIVER: overlay2
+  DOCKER_TLS_CERTDIR: "/certs"
+  # Python settings
+  PIP_CACHE_DIR: "$CI_PROJECT_DIR/.cache/pip"
+  # Security scan settings
+  SAST_EXCLUDED_PATHS: "tests/, build/, .git/"
+
+# Cache configuration for faster builds
+cache:
+  paths:
+    - .cache/pip/
+    - .pytest_cache/
+
+# Test stage - Multi-version Python testing
+.test_template: &test_template
+  stage: test
+  before_script:
+    - python --version
+    - pip install --upgrade pip
+    - pip install -e .[dev]
+  script:
+    - pytest --cov=src --cov-report=xml --cov-report=html --cov-report=term
+  coverage: '/(?i)total.*? (100(?:\.0+)?\%|[1-9]?\d(?:\.\d+)?\%)$/'
+  artifacts:
+    reports:
+      coverage_report:
+        coverage_format: cobertura
+        path: coverage.xml
+    paths:
+      - htmlcov/
+      - coverage.xml
+    expire_in: 7 days
+    when: always
+
+test:python3.11:
+  <<: *test_template
+  image: python:3.11-slim
+  before_script:
+    - apt-get update -qq && apt-get install -y -qq git gcc python3-dev libxml2-dev libxslt-dev
+    - python --version
+    - pip install --upgrade pip
+    - pip install -e .[dev]
+
+test:python3.12:
+  <<: *test_template
+  image: python:3.12-slim
+  before_script:
+    - apt-get update -qq && apt-get install -y -qq git gcc python3-dev libxml2-dev libxslt-dev
+    - python --version
+    - pip install --upgrade pip
+    - pip install -e .[dev]
+
+# Security scanning stage
+security:bandit:
+  stage: security
+  image: python:3.11-slim
+  before_script:
+    - apt-get update -qq && apt-get install -y -qq git gcc python3-dev libxml2-dev libxslt-dev
+    - pip install --upgrade pip
+    - pip install -e .[dev]
+    - pip install bandit
+  script:
+    - bandit -r src/ -f json -o bandit-report.json || true
+    - bandit -r src/ -f txt
+  artifacts:
+    reports:
+      sast: bandit-report.json
+    paths:
+      - bandit-report.json
+    expire_in: 7 days
+    when: always
+  allow_failure: true
+
+security:safety:
+  stage: security
+  image: python:3.11-slim
+  before_script:
+    - apt-get update -qq && apt-get install -y -qq git gcc python3-dev libxml2-dev libxslt-dev
+    - pip install --upgrade pip
+    - pip install -e .[dev]
+    - pip install safety
+  script:
+    - safety check --json --output safety-report.json || true
+    - safety check
+  artifacts:
+    paths:
+      - safety-report.json
+    expire_in: 7 days
+    when: always
+  allow_failure: true
+
+# GitLab built-in security scanning
+include:
+  - template: Security/SAST.gitlab-ci.yml
+  - template: Security/Dependency-Scanning.gitlab-ci.yml
+  - template: Security/License-Scanning.gitlab-ci.yml
+  - template: Security/Secret-Detection.gitlab-ci.yml
+  - template: Security/Container-Scanning.gitlab-ci.yml
+
+# Override SAST job for Python
+semgrep-sast:
+  variables:
+    SAST_EXCLUDED_PATHS: "tests/, build/, .git/, docs/"
+
+# Container build stage
+build:container:
+  stage: build
+  image: docker:24.0.5
+  services:
+    - docker:24.0.5-dind
+  before_script:
+    - echo $CI_REGISTRY_PASSWORD | docker login -u $CI_REGISTRY_USER --password-stdin $CI_REGISTRY
+  script:
+    - docker build --pull -t $CONTAINER_IMAGE:$CI_COMMIT_SHA .
+    - docker build --pull -t $CONTAINER_IMAGE:latest .
+    - docker push $CONTAINER_IMAGE:$CI_COMMIT_SHA
+    - docker push $CONTAINER_IMAGE:latest
+    # Create additional tags for branches and tags
+    - |
+      if [ "$CI_COMMIT_REF_NAME" != "main" ]; then
+        docker tag $CONTAINER_IMAGE:latest $CONTAINER_IMAGE:$CI_COMMIT_REF_SLUG
+        docker push $CONTAINER_IMAGE:$CI_COMMIT_REF_SLUG
+      fi
+    - |
+      if [ -n "$CI_COMMIT_TAG" ]; then
+        docker tag $CONTAINER_IMAGE:latest $CONTAINER_IMAGE:$CI_COMMIT_TAG
+        docker push $CONTAINER_IMAGE:$CI_COMMIT_TAG
+      fi
+  dependencies:
+    - test:python3.11
+  only:
+    - branches
+    - tags
+  except:
+    variables:
+      - $CI_COMMIT_MESSAGE =~ /\[skip build\]/
+
+# Container security scanning
+container_scanning:
+  stage: security
+  dependencies:
+    - build:container
+  variables:
+    CS_IMAGE: $CONTAINER_IMAGE:$CI_COMMIT_SHA
+  only:
+    - branches
+    - tags
+
+# Build Python package
+build:package:
+  stage: build
+  image: python:3.11-slim
+  before_script:
+    - apt-get update -qq && apt-get install -y -qq git gcc python3-dev libxml2-dev libxslt-dev
+    - pip install --upgrade pip build twine
+  script:
+    - python -m build
+    - twine check dist/*
+  artifacts:
+    paths:
+      - dist/
+    expire_in: 7 days
+  dependencies:
+    - test:python3.11
+  only:
+    - tags
+    - main
+
+# Deploy to PyPI (manual trigger for security)
+deploy:pypi:
+  stage: deploy
+  image: python:3.11-slim
+  before_script:
+    - pip install --upgrade pip twine
+  script:
+    - twine upload dist/*
+  environment:
+    name: pypi
+    url: https://pypi.org/project/talkpipe/
+  dependencies:
+    - build:package
+  variables:
+    TWINE_USERNAME: __token__
+    TWINE_PASSWORD: $PYPI_API_TOKEN
+  only:
+    - tags
+  when: manual
+
+# Deploy container to staging (auto on main)
+deploy:staging:
+  stage: deploy
+  image: alpine/helm:latest
+  before_script:
+    - echo "Deploying to staging environment"
+  script:
+    - echo "Container image: $CONTAINER_IMAGE:$CI_COMMIT_SHA"
+    - echo "Add your deployment commands here (kubectl, helm, etc.)"
+  environment:
+    name: staging
+    url: https://staging.talkpipe.example.com
+  dependencies:
+    - build:container
+  only:
+    - main
+
+# Deploy container to production (manual trigger)
+deploy:production:
+  stage: deploy
+  image: alpine/helm:latest
+  before_script:
+    - echo "Deploying to production environment"
+  script:
+    - echo "Container image: $CONTAINER_IMAGE:$CI_COMMIT_TAG"
+    - echo "Add your production deployment commands here"
+  environment:
+    name: production
+    url: https://talkpipe.example.com
+  dependencies:
+    - build:container
+  only:
+    - tags
+  when: manual
+
+# Cleanup old registry images (weekly scheduled job)
+cleanup:registry:
+  stage: deploy
+  image: alpine:latest
+  before_script:
+    - apk add --no-cache curl jq
+  script:
+    - echo "Cleaning up old container registry images"
+    - echo "Add registry cleanup commands here"
+  only:
+    variables:
+      - $CI_PIPELINE_SOURCE == "schedule"
+  when: manual
+
+# Pages deployment for coverage reports
+pages:
+  stage: deploy
+  script:
+    - mkdir public
+    - cp -r htmlcov/* public/ 2>/dev/null || echo "No coverage report found"
+    - echo '<html><body><h1>TalkPipe CI/CD Reports</h1><ul><li><a href="htmlcov/">Coverage Report</a></li></ul></body></html>' > public/index.html
+  artifacts:
+    paths:
+      - public
+    expire_in: 30 days
+  dependencies:
+    - test:python3.11
+  only:
+    - main

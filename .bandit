@@ -1,0 +1,19 @@
+[bandit]
+# Bandit configuration file
+exclude_dirs = [
+    "tests",
+    "build",
+    ".git"
+]
+
+# Skip these test IDs
+skips = [
+    # B101: Test for use of assert
+    "B101"
+]
+
+# Confidence levels: LOW, MEDIUM, HIGH
+confidence = "HIGH"
+
+# Severity levels: LOW, MEDIUM, HIGH  
+severity = "MEDIUM"
