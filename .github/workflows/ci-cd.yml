@@ -20,12 +20,12 @@ jobs:
         python-version: ['3.11', '3.12']
     
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v5
       with:
         fetch-depth: 0
     
     - name: Set up Python ${{ matrix.python-version }}
-      uses: actions/setup-python@v4
+      uses: actions/setup-python@v5
       with:
         python-version: ${{ matrix.python-version }}
     
@@ -48,7 +48,7 @@ jobs:
     
     - name: Upload coverage to Codecov
       if: matrix.python-version == '3.11'
-      uses: codecov/codecov-action@v3
+      uses: codecov/codecov-action@v5
       with:
         file: ./coverage.xml
         flags: unittests
@@ -58,10 +58,10 @@ jobs:
     needs: test
     
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v5
     
     - name: Set up Python
-      uses: actions/setup-python@v4
+      uses: actions/setup-python@v5
       with:
         python-version: '3.11'
     
@@ -99,7 +99,7 @@ jobs:
     
     steps:
     - name: Checkout repository
-      uses: actions/checkout@v4
+      uses: actions/checkout@v5
     
     - name: Log in to Container Registry
       uses: docker/login-action@v3
@@ -124,7 +124,7 @@ jobs:
           type=sha,prefix={{branch}}-
     
     - name: Build and push Docker image
-      uses: docker/build-push-action@v5
+      uses: docker/build-push-action@v6
       with:
         context: .
         push: true
@@ -161,7 +161,7 @@ jobs:
     
     steps:
     - name: Checkout repository
-      uses: actions/checkout@v4
+      uses: actions/checkout@v5
     
     - name: Initialize CodeQL
       uses: github/codeql-action/init@v3
@@ -180,12 +180,12 @@ jobs:
     if: github.event_name == 'release' && github.event.action == 'published'
     
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v5
       with:
         fetch-depth: 0
     
     - name: Set up Python
-      uses: actions/setup-python@v4
+      uses: actions/setup-python@v5
       with:
         python-version: '3.11'
     
