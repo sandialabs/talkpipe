@@ -20,7 +20,7 @@ RUN dnf update -y && \
         && dnf clean all
 
 # Create build user
-RUN groupadd -r builder && useradd -r -g builder builder
+RUN groupadd -r builder && useradd -r -g builder -m builder
 
 # Set up build environment
 WORKDIR /build
@@ -28,17 +28,18 @@ RUN chown builder:builder /build
 USER builder
 
 # Copy source files
-COPY --chown=builder:builder pyproject.toml README.md LICENSE ./
+#COPY --chown=builder:builder pyproject.toml README.md LICENSE ./
+COPY --chown=builder:builder pyproject.toml LICENSE ./
 COPY --chown=builder:builder src/ src/
 COPY --chown=builder:builder tests/ tests/
-COPY --chown=builder:builder .git/ .git/
 
 # Install Python dependencies and build the package
-RUN python3 -m pip install --user --upgrade pip setuptools wheel build && \
-    python3 -m pip install --user numpy pandas matplotlib scikit-learn scipy && \
-    python3 -m pip install --user -e .[dev] && \
-    python3 -m pytest --log-cli-level=DEBUG && \
-    python3 -m build --wheel
+RUN python3 -m pip install --user --upgrade pip setuptools wheel build
+RUN python3 -m pip install --user numpy pandas matplotlib scikit-learn scipy
+ENV SETUPTOOLS_SCM_PRETEND_VERSION_FOR_TALKPIPE=0.1.0
+RUN python3 -m pip install --user -e .[dev]
+RUN python3 -m pytest --log-cli-level=DEBUG
+RUN python3 -m build --wheel
 
 # Stage 2: Runtime stage with minimal dependencies
 FROM fedora:latest AS runtime
@@ -73,7 +74,7 @@ RUN python3 -m pip install --no-cache-dir --upgrade pip && \
     rm -f /tmp/*.whl
 
 # Copy only necessary runtime files
-COPY --chown=app:app pyproject.toml README.md LICENSE ./
+COPY --chown=app:app pyproject.toml ./
 
 # Create data volume mount point
 VOLUME ["/app/data"]
