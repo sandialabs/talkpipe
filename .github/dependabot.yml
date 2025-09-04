@@ -10,7 +10,7 @@ updates:
     reviewers:
       - "tlbauer"
     assignees:
-      - "tlbauer"
+      - "tlbauer2"
     commit-message:
       prefix: "deps"
       include: "scope"
@@ -40,7 +40,7 @@ updates:
     reviewers:
       - "tlbauer"
     assignees:
-      - "tlbauer"
+      - "tlbauer2"
     commit-message:
       prefix: "docker"
       include: "scope"

@@ -555,7 +555,8 @@ def fillTemplate(item, template:str, fail_on_missing:bool=True, default: Optiona
     Returns:
         str: The filled template string
     """
-    assert template is not None
+    if template is None:
+        raise ValueError("Template cannot be None")
     field_names = extract_template_field_names(template)
     values = {field_name:extract_property(item, field_name, fail_on_missing=fail_on_missing, default=default) for field_name in field_names}
     return fill_template(template, values)

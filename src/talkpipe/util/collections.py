@@ -117,6 +117,7 @@ class ExpiringDict(UserDict):
                 self.data = db.get('data', {})
                 self.expiry = db.get('expiry', {})
             self._clean_expired()
-        except:
+        except Exception as e:
+            logger.warning(f"Failed to load cached data from {self.filename}: {e}. Starting with empty cache.")
             self.data = {}
             self.expiry = {}

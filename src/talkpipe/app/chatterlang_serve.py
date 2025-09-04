@@ -76,13 +76,14 @@ class UserSession:
                 "type": message_type
             }
             self.output_queue.put(timestamped_output, block=False)
-        except:
+        except Exception as e:
             # Queue is full, remove oldest item
+            logger.warning(f"Output queue full, attempting to remove oldest item: {e}")
             try:
                 self.output_queue.get_nowait()
                 self.output_queue.put(timestamped_output, block=False)
-            except:
-                pass
+            except Exception as e2:
+                logger.warning(f"Failed to add output to queue even after removing oldest item: {e2}")
     
     def update_activity(self):
         """Update last activity timestamp"""
@@ -125,7 +126,7 @@ class ChatterlangServer:
     
     def __init__(
         self,
-        host: str = "0.0.0.0",
+        host: str = "localhost",
         port: int = 9999,
         api_key: str = "your-secret-key-here",
         require_auth: bool = False,
@@ -637,11 +638,11 @@ class ChatterlangServer:
         
         form_fields = self._generate_form_fields()
         
-        return f'''
+        template = '''
         <!DOCTYPE html>
         <html>
         <head>
-            <title>{self.title} - Stream</title>
+            <title>{title} - Stream</title>
             <style>
                 * {{
                     margin: 0;
@@ -983,7 +984,7 @@ class ChatterlangServer:
         </head>
         <body>
             <div class="header">
-                <h1>{self.form_config.title}</h1>
+                <h1>{form_config_title}</h1>
             </div>
             
             <div class="main-container">
@@ -1169,7 +1170,7 @@ class ChatterlangServer:
                     }}
                     
                     // Add user message to chat immediately for instant feedback
-                    const displayProperty = '{self.display_property}' || Object.keys(data)[0];
+                    const displayProperty = '{display_property}' || Object.keys(data)[0];
                     const userMessage = data[displayProperty] || JSON.stringify(data);
                     lastUserMessage = userMessage; // Store to detect duplicates from server
                     addMessage(userMessage, 'user', new Date().toISOString());
@@ -1228,6 +1229,34 @@ class ChatterlangServer:
         </body>
         </html>
         '''
+        return template.format(
+            title=self.title,
+            height=height,
+            form_style=form_style,
+            input_bg=input_bg,
+            text_color=text_color,
+            border_color=border_color,
+            button_bg=button_bg,
+            button_hover=button_hover,
+            form_fields=form_fields,
+            auth_header=auth_header,
+            form_config_title=self.form_config.title,
+            bg_color=bg_color,
+            output_bg=output_bg,
+            main_container_style=main_container_style,
+            form_panel_width=form_panel_width,
+            form_panel_style=form_panel_style,
+            chat_panel_style=chat_panel_style,
+            user_msg_bg=user_msg_bg,
+            response_msg_bg=response_msg_bg,
+            output_text=output_text,
+            error_msg_bg=error_msg_bg,
+            controls_style=controls_style,
+            form_panel_class=form_panel_class,
+            chat_controls=chat_controls,
+            standalone_controls=standalone_controls,
+            display_property=self.display_property
+        )
     
     def _get_html_interface(self) -> str:
         """Generate HTML interface with configurable form"""
@@ -1270,11 +1299,11 @@ class ChatterlangServer:
         
         form_fields = self._generate_form_fields()
         
-        return f'''
+        template2 = '''
         <!DOCTYPE html>
         <html>
         <head>
-            <title>{self.title}</title>
+            <title>{title}</title>
             <style>
                 * {{
                     margin: 0;
@@ -1483,10 +1512,10 @@ class ChatterlangServer:
         <body>
             <div class="main-content">
                 <div class="info-section">
-                    <h1>{self.title}</h1>
+                    <h1>{title}</h1>
                     <p>Submit JSON data using the form below or send POST requests to:</p>
-                    <div class="endpoint-info">POST http://{self.host}:{self.port}/process</div>
-                    {"<p>Authentication required: Include 'X-API-Key' header</p>" if self.require_auth else ""}
+                    <div class="endpoint-info">POST http://{host}:{port}/process</div>
+                    {require_auth_text}
                     <p>View API documentation at: <a href="/docs">/docs</a></p>
                     <p>View streaming interface at: <a href="/stream">/stream</a></p>
                 </div>
@@ -1502,7 +1531,7 @@ class ChatterlangServer:
             <div class="form-panel" id="formPanel">
                 <div class="form-container">
                     <div class="form-header">
-                        <h3>{self.form_config.title}</h3>
+                        <h3>{form_config_title}</h3>
                     </div>
                     
                     {auth_header}
@@ -1643,6 +1672,22 @@ class ChatterlangServer:
         </body>
         </html>
         '''
+        return template2.format(
+            title=self.title,
+            height=height,
+            form_style=form_style,
+            input_bg=input_bg,
+            text_color=text_color,
+            border_color=border_color,
+            button_bg=button_bg,
+            button_hover=button_hover,
+            form_fields=form_fields,
+            auth_header=auth_header,
+            form_config_title=self.form_config.title,
+            host=self.host,
+            port=self.port,
+            require_auth_text='<p>Authentication required: Include "X-API-Key" header</p>' if self.require_auth else ''
+        )
     
     def set_processor_function(self, func: Callable[[Dict[str, Any]], Any]):
         """Set the function used to process incoming JSON data"""
@@ -1696,7 +1741,7 @@ def load_form_config(config_path: str) -> Dict[str, Any]:
 class ChatterlangServerSegment(AbstractSource):
     """Segment for receiving JSON data via FastAPI with configurable form"""
     
-    def __init__(self, port: Union[int,str] = 9999, host: str = "0.0.0.0", 
+    def __init__(self, port: Union[int,str] = 9999, host: str = "localhost", 
                  api_key: str = None, require_auth: bool = False,
                  form_config: Union[str, Dict[str, Any]] = None):
         super().__init__()
@@ -1776,8 +1821,8 @@ def go():
     parser = argparse.ArgumentParser(description='FastAPI JSON Data Receiver with Configurable Form')
     parser.add_argument('-p', '--port', type=int, default=2025,
                         help='Port to listen on (default: 2025)')
-    parser.add_argument('-o', '--host', default='0.0.0.0',
-                        help='Host to bind to (default: 0.0.0.0)')
+    parser.add_argument('-o', '--host', default='localhost',
+                        help='Host to bind to (default: localhost)')
     parser.add_argument('--api-key', help='Set API key for authentication')
     parser.add_argument('--require-auth', action='store_true',
                         help='Require API key authentication')

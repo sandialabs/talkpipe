@@ -98,18 +98,26 @@ def htmlToTextSegment(raw, cleanText=True):
 def get_robot_parser(domain, timeout=5):
     """Retrieve or create a RobotFileParser for a given domain with a timeout."""
     robots_url = f"{domain}/robots.txt"
+    
+    # Validate URL scheme for security
+    parsed_url = urllib.parse.urlparse(robots_url)
+    if parsed_url.scheme not in ('http', 'https'):
+        logger.warning(f"Unsafe URL scheme '{parsed_url.scheme}' in robots_url: {robots_url}. Only http/https allowed.")
+        return None
+    
     rp = RobotFileParser()
     rp.set_url(robots_url)
 
     try:
-        with urllib.request.urlopen(robots_url, timeout=timeout) as response:
-            content = response.read()
-            if content.startswith(b'\x1f\x8b'):
-                # If the content is gzipped, decompress it
-                content = gzip.decompress(content).decode('utf-8')
-            else:
-                # If not gzipped, decode it directly
-                content = content.decode('utf-8')
+        response = requests.get(robots_url, timeout=timeout)
+        response.raise_for_status()  # Raise an exception for bad status codes
+        content_bytes = response.content
+        if content_bytes.startswith(b'\x1f\x8b'):
+            # If the content is gzipped, decompress it
+            content = gzip.decompress(content_bytes).decode('utf-8')
+        else:
+            # If not gzipped, decode it directly
+            content = content_bytes.decode('utf-8')
         
         try:
             rp.parse(content.splitlines())
@@ -117,7 +125,7 @@ def get_robot_parser(domain, timeout=5):
             # If parsing fails, log the error but return the robot parser anyway
             logger.warning(f"Error parsing robots.txt from {robots_url}: {e}")
             
-    except (urllib.error.URLError, ConnectionError, TimeoutError) as e:
+    except (requests.RequestException, ConnectionError, TimeoutError) as e:
         logger.warning(f"Failed to fetch robots.txt from {robots_url}. Assuming allowed. Error: {e}")
         return None  # Use None to indicate failure to fetch
 

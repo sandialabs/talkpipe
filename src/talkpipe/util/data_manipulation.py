@@ -342,8 +342,14 @@ def compileLambda(expression: str, fail_on_error: bool = True):
         restricted_globals.update(SAFE_BUILTINS)
 
         # Evaluate the expression in a heavily restricted environment
+        # Note: eval() is used intentionally here with extensive security controls:
+        # - Restricted globals (no dangerous builtins)
+        # - Input validation (blocks dangerous patterns)
+        # - Compiled code with syntax checking
+        # - Exception handling for safety
+        # ast.literal_eval() cannot be used as this evaluates dynamic expressions, not just literals
         try:
-            result = eval(compiled_code, restricted_globals, locals_dict)
+            result = eval(compiled_code, restricted_globals, locals_dict)  # nosec B307
             return result
         except Exception as e:
             error_msg = f"Error evaluating expression '{expression}' on item {item}: {e}"

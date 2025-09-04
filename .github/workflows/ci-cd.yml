@@ -74,12 +74,12 @@ jobs:
     - name: Run Bandit security scan
       run: |
         bandit -r src/ -f json -o bandit-report.json || true
-        bandit -r src/ -f txt || true  # TODO: Revisit - consider failing build on security issues
+        bandit -r src/ -f txt 
     
     - name: Run Safety dependency scan
       run: |
         safety check --json --output safety-report.json || true
-        safety check || true  # TODO: Revisit - consider failing build on dependency vulnerabilities
+        safety check 
     
     - name: Upload security scan results
       uses: actions/upload-artifact@v4
