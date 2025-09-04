@@ -68,13 +68,9 @@ def test_run_command_with_arguments():
         # Unix/Linux: use grep
         command = 'printf "apple\nbanana\ncherry" | grep "a"'
     
-    # Collect output lines
-    output_lines = list(talkpipe.util.os.run_command(command))
-    
-    # Assertions
-    assert len(output_lines) == 2
-    assert "apple" in output_lines
-    assert "banana" in output_lines
+    # Should expect SecurityError for shell commands with pipes
+    with pytest.raises(talkpipe.util.os.SecurityError):
+        list(talkpipe.util.os.run_command(command))
 
 def test_get_all_attributes():
     class TestClass:
