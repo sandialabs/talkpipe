@@ -55,8 +55,8 @@ def test_run_command_error_handling():
     # Use a command that's extremely unlikely to exist
     command = "this_command_definitely_does_not_exist_12345"
     
-    # Should raise CalledProcessError or print error message
-    with pytest.raises(subprocess.CalledProcessError):
+    # Should raise CalledProcessError or SecurityError (for non-whitelisted commands)
+    with pytest.raises((subprocess.CalledProcessError, talkpipe.util.os.SecurityError)):
         list(talkpipe.util.os.run_command(command))
 
 def test_run_command_with_arguments():
