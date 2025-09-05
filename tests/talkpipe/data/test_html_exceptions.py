@@ -66,23 +66,23 @@ class TestHtmlModuleExceptions:
         result = downloadURL("https://example.com", fail_on_error=False)
         assert result is None
     
-    @patch('urllib.request.urlopen')
-    def test_get_robot_parser_timeout(self, mock_urlopen):
+    @patch('requests.get')
+    def test_get_robot_parser_timeout(self, mock_requests_get):
         """Test get_robot_parser handles timeout exceptions."""
-        # Mock urlopen to raise a timeout error
-        mock_urlopen.side_effect = TimeoutError("Connection timed out")
+        # Mock requests.get to raise a timeout error
+        mock_requests_get.side_effect = requests.exceptions.Timeout("Connection timed out")
         
         # it gets caught and handled, so even though it is thrown, it keeps going
         assert html.get_robot_parser("https://example.com", timeout=0.1) is None
         # Verify the warning was logged
-        mock_urlopen.assert_called_once()
+        mock_requests_get.assert_called_once()
 
     
-    @patch('urllib.request.urlopen')
-    def test_get_robot_parser_urlerror(self, mock_urlopen):
+    @patch('requests.get')
+    def test_get_robot_parser_urlerror(self, mock_requests_get):
         """Test get_robot_parser handles URLError exceptions."""
-        # Mock urlopen to raise a URLError
-        mock_urlopen.side_effect = urllib.error.URLError("No host")
+        # Mock requests.get to raise a RequestException
+        mock_requests_get.side_effect = requests.exceptions.RequestException("No host")
         
         # This should return None, which is handled in can_fetch
         result = html.get_robot_parser("https://example.com")

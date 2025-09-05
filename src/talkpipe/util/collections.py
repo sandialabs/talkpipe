@@ -1,5 +1,8 @@
+import logging
 import time
 from collections import UserDict
+
+logger = logging.getLogger(__name__)
 
 class ExpiringDict(UserDict):
     def __init__(self, filename=None, default_ttl=None):

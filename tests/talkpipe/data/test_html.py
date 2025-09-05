@@ -104,20 +104,20 @@ def clear_robot_parser_cache():
 
 def test_get_robot_parser_exceptions():
     """Test exception handling in get_robot_parser function."""
-    # Test case 1: URLError when fetching robots.txt
-    with patch('urllib.request.urlopen') as mock_urlopen:
-        # Set up the mock to raise URLError
-        mock_urlopen.side_effect = urllib.error.URLError("URL Error")
-        # Call the function - should return None when URLError occurs
+    # Test case 1: RequestException when fetching robots.txt
+    with patch('requests.get') as mock_requests_get:
+        # Set up the mock to raise RequestException
+        mock_requests_get.side_effect = requests.exceptions.RequestException("Request Error")
+        # Call the function - should return None when RequestException occurs
         result = html.get_robot_parser("https://example.com")
         assert result is None
     
     html.get_robot_parser.cache_clear()
 
     # Test case 2: ConnectionError when fetching robots.txt
-    with patch('urllib.request.urlopen') as mock_urlopen:
+    with patch('requests.get') as mock_requests_get:
         # Set up the mock to raise ConnectionError
-        mock_urlopen.side_effect = ConnectionError("Connection Error")
+        mock_requests_get.side_effect = ConnectionError("Connection Error")
         # Call the function - should return None when ConnectionError occurs
         result = html.get_robot_parser("https://example.com")
         assert result is None
@@ -125,9 +125,9 @@ def test_get_robot_parser_exceptions():
     html.get_robot_parser.cache_clear()
 
     # Test case 3: TimeoutError when fetching robots.txt
-    with patch('urllib.request.urlopen') as mock_urlopen:
+    with patch('requests.get') as mock_requests_get:
         # Set up the mock to raise TimeoutError
-        mock_urlopen.side_effect = TimeoutError("Timeout Error")
+        mock_requests_get.side_effect = requests.exceptions.Timeout("Timeout Error")
         # Call the function - should return None when TimeoutError occurs
         result = html.get_robot_parser("https://example.com")
         assert result is None
@@ -136,9 +136,9 @@ def test_get_robot_parser_exceptions():
 
     # Test case 4: Successful fetch but robots.txt parsing fails
     mock_response = MagicMock()
-    mock_response.read.return_value = b"Invalid robots.txt content"
-    mock_response.__enter__.return_value = mock_response
-    with patch('urllib.request.urlopen', return_value=mock_response):
+    mock_response.content = b"Invalid robots.txt content"
+    mock_response.raise_for_status.return_value = None  # No HTTP error
+    with patch('requests.get', return_value=mock_response):
         with patch.object(RobotFileParser, 'parse', side_effect=Exception("Parse error")):
             # Even with a parse error, the function should finish and return the RobotFileParser
             result = html.get_robot_parser("https://example.com")
@@ -148,9 +148,9 @@ def test_get_robot_parser_exceptions():
 
     # Test case 5: Successful fetch and parse
     mock_response = MagicMock()
-    mock_response.read.return_value = b"User-agent: *\nDisallow: /private/"
-    mock_response.__enter__.return_value = mock_response
-    with patch('urllib.request.urlopen', return_value=mock_response):
+    mock_response.content = b"User-agent: *\nDisallow: /private/"
+    mock_response.raise_for_status.return_value = None  # No HTTP error
+    with patch('requests.get', return_value=mock_response):
         # Function should return a configured RobotFileParser
         result = html.get_robot_parser("https://example.com")
         assert isinstance(result, RobotFileParser)

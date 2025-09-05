@@ -131,7 +131,7 @@ class MakeLists(AbstractSegment):
         """
 
         if self.num_items is not None and self.num_items <= 0:
-            raise ValueError("num_vectors must be None or a positive integer")
+            raise ValueError("num_items must be None or a positive integer")
         accumulated = []
         for datum in input_iter:
             item = extract_property(datum, self.field)
