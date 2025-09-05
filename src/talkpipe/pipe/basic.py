@@ -4,7 +4,7 @@ from typing import Iterable, Iterator, Union, Optional, Any, Dict
 import logging
 import time
 import sys
-import pickle
+import json
 import hashlib
 import copy
 import pandas as pd
@@ -478,14 +478,14 @@ class ConfigureLogger(AbstractSegment):
         """
         yield from input_iter
 
-def hash_data(data, algorithm="MD5", field_list="_", use_repr=False, fail_on_missing=True, default=None):
+def hash_data(data, algorithm="MD5", field_list="_", use_repr=True, fail_on_missing=True, default=None):
     """Hash a single data item using the specified parameters.
     
     Args:
         data: The data item to hash
         algorithm (str): Hash algorithm to use. Options include SHA1, SHA224, SHA256, SHA384, SHA512, SHA-3, and MD5.
         fields (list): List of fields to include in the hash
-        use_repr (bool): Whether to use repr() or pickle
+        use_repr (bool): Whether to use repr() or JSON serialization. Defaults to True for security.
         fail_on_missing (bool): Whether to fail on missing fields
         
     Returns:
@@ -498,12 +498,23 @@ def hash_data(data, algorithm="MD5", field_list="_", use_repr=False, fail_on_mis
             if fail_on_missing:
                 raise ValueError(f"Field {field} value was None")
             else:
-                logging.warning(f"Field {field} value was None.  Ignoring")
+                logging.warning(f"Field {field} value was None. Ignoring")
                 continue
+        
         if use_repr:
-            hasher.update(repr(item).encode())
+            # Safe: repr() doesn't execute code and works with all objects
+            hasher.update(repr(item).encode('utf-8'))
         else:
-            hasher.update(pickle.dumps(item))
+            # Safe: JSON serialization instead of pickle
+            try:
+                # Use JSON with sorted keys for deterministic hashing
+                json_str = json.dumps(item, sort_keys=True, default=str, ensure_ascii=False)
+                hasher.update(json_str.encode('utf-8'))
+            except (TypeError, ValueError) as e:
+                # Fallback to repr for non-JSON-serializable objects
+                logging.debug(f"JSON serialization failed for {type(item)}, using repr: {e}")
+                hasher.update(repr(item).encode('utf-8'))
+    
     return hasher.hexdigest()
 
 @registry.register_segment("hash")
@@ -511,15 +522,16 @@ class Hash(AbstractSegment):
     """Hashes the input data using the specified algorithm.
 
     This segment hashes the input data using the specified algorithm.
-    Strings will be encoded and hashed.  All other datatypes wil be hashed using either pickle or repr().
+    All datatypes are hashed using either repr() or JSON serialization for security.
 
     Args:
-        algorithm (str): Hash algorithm to use.  Options include SHA1, SHA224, SHA256, SHA384, SHA512, SHA-3, and MD5.
-        use_repr (bool): If True, the repr() version of the input data is hashed.  If False, the input data is hashed via 
-            pickling.  Using repr() will handle all object, even those that can't be pickled and won't be subject to
-            changes in pickling formats.  But the pickled version will include more state and generally be more reliable.
+        algorithm (str): Hash algorithm to use. Options include SHA1, SHA224, SHA256, SHA384, SHA512, SHA-3, and MD5.
+        use_repr (bool): If True, the repr() version of the input data is hashed. If False, JSON serialization 
+            is used with fallback to repr() for non-JSON-serializable objects. Using repr() will handle all 
+            objects consistently and won't be subject to changes in serialization formats. JSON serialization 
+            provides more structured representation but may not work with all Python objects.
     """
-    def __init__(self, algorithm: str="MD5", use_repr=False, field_list: str = "_", append_as=None, fail_on_missing: bool = True):
+    def __init__(self, algorithm: str="MD5", use_repr=True, field_list: str = "_", append_as=None, fail_on_missing: bool = True):
         super().__init__()
         self.algorithm = algorithm
         self.use_repr = use_repr

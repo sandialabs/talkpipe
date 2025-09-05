@@ -1,6 +1,6 @@
 import logging
 import json
-import pickle
+import base64
 from typing import List, Dict, Any, Tuple, Optional, Union, Protocol
 from dataclasses import dataclass, asdict
 import uuid
@@ -47,6 +47,67 @@ class SimpleVectorDB(DocumentStore, VectorAddable, VectorSearchable):
         self.cluster_assignments = None
         self.clusters = None
         self.n_clusters = 8
+
+    def _serialize_numpy(self, arr: np.ndarray) -> str:
+        """Serialize numpy array to base64 string"""
+        if arr is None:
+            return None
+        return base64.b64encode(arr.tobytes()).decode('utf-8')
+    
+    def _deserialize_numpy(self, data: str, shape: Tuple[int, ...], dtype: str = 'float32') -> np.ndarray:
+        """Deserialize base64 string to numpy array"""
+        if data is None:
+            return None
+        bytes_data = base64.b64decode(data.encode('utf-8'))
+        return np.frombuffer(bytes_data, dtype=dtype).reshape(shape)
+    
+    def _serialize_kmeans_model(self, model: KMeans) -> Dict[str, Any]:
+        """Serialize KMeans model to dict"""
+        if model is None:
+            return None
+        
+        def safe_int(val):
+            """Safely convert numpy int to Python int"""
+            if val is None:
+                return None
+            return int(val)
+        
+        def safe_float(val):
+            """Safely convert numpy float to Python float"""
+            if val is None:
+                return None
+            return float(val)
+            
+        return {
+            'cluster_centers_': model.cluster_centers_.tolist() if model.cluster_centers_ is not None else None,
+            'labels_': model.labels_.tolist() if hasattr(model, 'labels_') and model.labels_ is not None else None,
+            'inertia_': safe_float(getattr(model, 'inertia_', None)),
+            'n_clusters': safe_int(model.n_clusters),
+            'n_features_in_': safe_int(getattr(model, 'n_features_in_', None)),
+            'n_iter_': safe_int(getattr(model, 'n_iter_', None))
+        }
+    
+    def _deserialize_kmeans_model(self, data: Dict[str, Any]) -> KMeans:
+        """Deserialize dict to KMeans model"""
+        if data is None:
+            return None
+        
+        # Create a new KMeans instance
+        model = KMeans(n_clusters=data['n_clusters'])
+        
+        # Set the fitted attributes
+        if data['cluster_centers_'] is not None:
+            model.cluster_centers_ = np.array(data['cluster_centers_'])
+        if data['labels_'] is not None:
+            model.labels_ = np.array(data['labels_'])
+        if data['inertia_'] is not None:
+            model.inertia_ = data['inertia_']
+        if data['n_features_in_'] is not None:
+            model.n_features_in_ = data['n_features_in_']
+        if data['n_iter_'] is not None:
+            model.n_iter_ = data['n_iter_']
+            
+        return model
 
     def _validate_vector(self, vector: VectorLike) -> np.ndarray:
         """Validate vector and return as numpy array"""
@@ -297,32 +358,114 @@ class SimpleVectorDB(DocumentStore, VectorAddable, VectorSearchable):
         return list(self.vectors.keys())
 
     def save(self, filepath: str) -> None:
-        """Save the database to a file using pickle"""
+        """Save the database to a file using JSON"""
+        # Serialize cluster centers if they exist
+        cluster_centers_data = None
+        cluster_centers_shape = None
+        if self.cluster_centers is not None:
+            cluster_centers_shape = list(self.cluster_centers.shape)  # Convert to list for JSON
+            cluster_centers_data = self._serialize_numpy(self.cluster_centers)
+        
+        # Convert cluster assignments to ensure JSON serializable types
+        cluster_assignments = None
+        if self.cluster_assignments is not None:
+            cluster_assignments = {k: int(v) for k, v in self.cluster_assignments.items()}
+        
+        # Convert clusters to ensure JSON serializable types  
+        clusters = None
+        if self.clusters is not None:
+            clusters = {str(k): v for k, v in self.clusters.items()}
+        
         data = {
+            'format_version': '2.0',  # Mark as JSON format
             'dimension': self.dimension,
-            'vectors': self.vectors,
+            'vectors': {vid: {
+                'doc_id': entry.doc_id,
+                'vector': entry.vector,
+                'document': entry.document
+            } for vid, entry in self.vectors.items()},
             'clusters_valid': self.clusters_valid,
-            'kmeans_model': self.kmeans_model,
-            'cluster_centers': self.cluster_centers,
-            'cluster_assignments': self.cluster_assignments,
-            'clusters': self.clusters,
+            'kmeans_model': self._serialize_kmeans_model(self.kmeans_model),
+            'cluster_centers_data': cluster_centers_data,
+            'cluster_centers_shape': cluster_centers_shape,
+            'cluster_assignments': cluster_assignments,
+            'clusters': clusters,
             'n_clusters': self.n_clusters
         }
-        with open(filepath, 'wb') as f:
-            pickle.dump(data, f)
+        with open(filepath, 'w') as f:
+            json.dump(data, f, indent=2)
 
     def load(self, filepath: str) -> None:
-        """Load the database from a file"""
-        with open(filepath, 'rb') as f:
-            data = pickle.load(f)
-            self.dimension = data['dimension']
-            self.vectors = data['vectors']
-            self.clusters_valid = data.get('clusters_valid', False)
-            self.kmeans_model = data.get('kmeans_model', None)
-            self.cluster_centers = data.get('cluster_centers', None)
-            self.cluster_assignments = data.get('cluster_assignments', None)
-            self.clusters = data.get('clusters', None)
-            self.n_clusters = data.get('n_clusters', 8)
+        """Load the database from a file (supports both JSON and legacy pickle)"""
+        # Try to determine file format
+        try:
+            with open(filepath, 'r') as f:
+                # Try to load as JSON first
+                data = json.load(f)
+                format_version = data.get('format_version', '1.0')
+                
+                if format_version == '2.0':
+                    # New JSON format with clustering data
+                    self.dimension = data['dimension']
+                    self.vectors = {vid: VectorEntry(**entry_dict) for vid, entry_dict in data['vectors'].items()}
+                    self.clusters_valid = data.get('clusters_valid', False)
+                    self.kmeans_model = self._deserialize_kmeans_model(data.get('kmeans_model'))
+                    
+                    # Deserialize cluster centers
+                    if data.get('cluster_centers_data') and data.get('cluster_centers_shape'):
+                        self.cluster_centers = self._deserialize_numpy(
+                            data['cluster_centers_data'], 
+                            tuple(data['cluster_centers_shape'])
+                        )
+                    else:
+                        self.cluster_centers = None
+                        
+                    # Handle cluster assignments (convert back to ints if needed)
+                    cluster_assignments = data.get('cluster_assignments')
+                    if cluster_assignments is not None:
+                        self.cluster_assignments = {k: int(v) for k, v in cluster_assignments.items()}
+                    else:
+                        self.cluster_assignments = None
+                        
+                    # Handle clusters (convert keys back to ints if needed)
+                    clusters = data.get('clusters')
+                    if clusters is not None:
+                        self.clusters = {int(k): v for k, v in clusters.items()}
+                    else:
+                        self.clusters = None
+                    self.n_clusters = data.get('n_clusters', 8)
+                else:
+                    # Legacy JSON format (export_json/import_json)
+                    self.dimension = data['dimension']
+                    self.vectors = {vid: VectorEntry(**entry_dict) for vid, entry_dict in data['vectors'].items()}
+                    # Reset clustering data for legacy format
+                    self.clusters_valid = False
+                    self.kmeans_model = None
+                    self.cluster_centers = None
+                    self.cluster_assignments = None
+                    self.clusters = None
+                    self.n_clusters = 8
+        except (json.JSONDecodeError, UnicodeDecodeError):
+            # Fall back to pickle format for backward compatibility
+            self._load_pickle(filepath)
+
+    def _load_pickle(self, filepath: str) -> None:
+        """Load database from pickle format (legacy support)"""
+        try:
+            import pickle  # nosec B403 - Only used for legacy compatibility
+            with open(filepath, 'rb') as f:
+                data = pickle.load(f)  # nosec B301 - Legacy compatibility only, user controls file
+                self.dimension = data['dimension']
+                self.vectors = data['vectors']
+                self.clusters_valid = data.get('clusters_valid', False)
+                self.kmeans_model = data.get('kmeans_model', None)
+                self.cluster_centers = data.get('cluster_centers', None)
+                self.cluster_assignments = data.get('cluster_assignments', None)
+                self.clusters = data.get('clusters', None)
+                self.n_clusters = data.get('n_clusters', 8)
+                logger.warning(f"Loaded database from legacy pickle format: {filepath}")
+        except Exception as e:
+            raise ValueError(f"Failed to load database from {filepath}: {e}")
 
     def export_json(self, filepath: str) -> None:
         """Export database to JSON format"""

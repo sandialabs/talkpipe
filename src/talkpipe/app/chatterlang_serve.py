@@ -7,6 +7,7 @@ from typing import Union
 import logging
 import argparse
 import yaml
+import html
 import asyncio
 from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
@@ -638,11 +639,10 @@ class ChatterlangServer:
         
         form_fields = self._generate_form_fields()
         
-        return (  # nosec B608
-            f'''<!DOCTYPE html>
+        return f'''<!DOCTYPE html> 
         <html>
         <head>
-            <title>{self.title} - Stream</title>
+            <title>{html.escape(self.title)} - Stream</title>
             <style>
                 * {{
                     margin: 0;
@@ -984,7 +984,7 @@ class ChatterlangServer:
         </head>
         <body>
             <div class="header">
-                <h1>{self.form_config.title}</h1>
+                <h1>{html.escape(self.form_config.title)}</h1>
             </div>
             
             <div class="main-container">
@@ -1170,7 +1170,7 @@ class ChatterlangServer:
                     }}
                     
                     // Add user message to chat immediately for instant feedback
-                    const displayProperty = '{self.display_property}' || Object.keys(data)[0];
+                    const displayProperty = '{html.escape(str(self.display_property))}' || Object.keys(data)[0];
                     const userMessage = data[displayProperty] || JSON.stringify(data);
                     lastUserMessage = userMessage; // Store to detect duplicates from server
                     addMessage(userMessage, 'user', new Date().toISOString());
@@ -1228,8 +1228,7 @@ class ChatterlangServer:
             </script>
         </body>
         </html>
-        '''
-        )
+        '''  # nosec B608 
     
     def _get_html_interface(self) -> str:
         """Generate HTML interface with configurable form"""
@@ -1272,11 +1271,11 @@ class ChatterlangServer:
         
         form_fields = self._generate_form_fields()
         
-        return (  # nosec B608
-            f'''<!DOCTYPE html>
+        # nosec B608 - HTML template with proper escaping, not SQL injection
+        return f'''<!DOCTYPE html>
         <html>
         <head>
-            <title>{self.title}</title>
+            <title>{html.escape(self.title)}</title>
             <style>
                 * {{
                     margin: 0;
@@ -1293,7 +1292,7 @@ class ChatterlangServer:
                 }}
                 
                 .main-content {{
-                    height: calc(100vh - {height});
+                    height: calc(100vh - {html.escape(height)});
                     padding: 20px;
                     overflow-y: auto;
                     background-color: #f8f9fa;
@@ -1336,9 +1335,9 @@ class ChatterlangServer:
                 
                 .form-panel {{
                     position: fixed;
-                    {form_style}
-                    background-color: {input_bg};
-                    border: 1px solid {border_color};
+                    {html.escape(form_style)}
+                    background-color: {html.escape(input_bg)};
+                    border: 1px solid {html.escape(border_color)};
                     padding: 20px;
                     box-shadow: 0 -2px 10px rgba(0,0,0,0.1);
                     overflow-y: auto;
@@ -1355,7 +1354,7 @@ class ChatterlangServer:
                 }}
                 
                 .form-header h3 {{
-                    color: {text_color};
+                    color: {html.escape(text_color)};
                     margin: 0;
                 }}
                 
@@ -1485,9 +1484,9 @@ class ChatterlangServer:
         <body>
             <div class="main-content">
                 <div class="info-section">
-                    <h1>{self.title}</h1>
+                    <h1>{html.escape(self.title)}</h1>
                     <p>Submit JSON data using the form below or send POST requests to:</p>
-                    <div class="endpoint-info">POST http://{self.host}:{self.port}/process</div>
+                    <div class="endpoint-info">POST http://{html.escape(self.host)}:{html.escape(str(self.port))}/process</div>
                     {"<p>Authentication required: Include 'X-API-Key' header</p>" if self.require_auth else ""}
                     <p>View API documentation at: <a href="/docs">/docs</a></p>
                     <p>View streaming interface at: <a href="/stream">/stream</a></p>
@@ -1504,7 +1503,7 @@ class ChatterlangServer:
             <div class="form-panel" id="formPanel">
                 <div class="form-container">
                     <div class="form-header">
-                        <h3>{self.form_config.title}</h3>
+                        <h3>{html.escape(self.form_config.title)}</h3>
                     </div>
                     
                     {auth_header}
@@ -1644,9 +1643,8 @@ class ChatterlangServer:
             </script>
         </body>
         </html>
-        '''
-        )
-    
+        '''  # nosec B608
+
     def set_processor_function(self, func: Callable[[Dict[str, Any]], Any]):
         """Set the function used to process incoming JSON data"""
         self.processor_function = func

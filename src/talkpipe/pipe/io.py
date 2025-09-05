@@ -3,7 +3,7 @@
 from typing import Optional, Iterable, Iterator
 import logging
 import os
-import pickle
+import pickle  # nosec B403 - Used only for write operations, not loading untrusted data
 import json
 from pprint import pformat
 from prompt_toolkit import PromptSession
