@@ -110,8 +110,9 @@ def get_all_attributes(obj: Any, skip_packages: tuple = ('pydantic',), visited: 
                         else:
                             attributes.append(attr_name)
 
-            except Exception:
-                # Skip attributes that can't be accessed
+            except Exception as e:
+                # Log error when skipping attributes that can't be accessed
+                logger.warning(f"Failed to access attribute '{attr_name}' on object {type(obj).__name__}: {e}")
                 continue
 
     return attributes

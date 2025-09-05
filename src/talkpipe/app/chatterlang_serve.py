@@ -638,8 +638,8 @@ class ChatterlangServer:
         
         form_fields = self._generate_form_fields()
         
-        return f'''  # nosec B608
-        <!DOCTYPE html>
+        return (  # nosec B608
+            f'''<!DOCTYPE html>
         <html>
         <head>
             <title>{self.title} - Stream</title>
@@ -1229,6 +1229,7 @@ class ChatterlangServer:
         </body>
         </html>
         '''
+        )
     
     def _get_html_interface(self) -> str:
         """Generate HTML interface with configurable form"""
@@ -1271,7 +1272,8 @@ class ChatterlangServer:
         
         form_fields = self._generate_form_fields()
         
-        return f'''<!DOCTYPE html>  <!-- nosec B608 HTML template, not SQL -->
+        return (  # nosec B608
+            f'''<!DOCTYPE html>
         <html>
         <head>
             <title>{self.title}</title>
@@ -1643,6 +1645,7 @@ class ChatterlangServer:
         </body>
         </html>
         '''
+        )
     
     def set_processor_function(self, func: Callable[[Dict[str, Any]], Any]):
         """Set the function used to process incoming JSON data"""

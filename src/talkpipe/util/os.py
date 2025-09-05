@@ -1,5 +1,5 @@
 import logging
-import subprocess
+import subprocess  # nosec B404 - Required for secure command execution with comprehensive validation
 import shlex
 
 logger = logging.getLogger(__name__)
@@ -45,8 +45,8 @@ def run_command(command: str):
         base_command = command_parts[0]
         _validate_base_command(base_command)
         
-        process = subprocess.Popen(
-            command_parts, 
+        process = subprocess.Popen(  # nosec B603
+            command_parts,  # Secure: validated command parts, whitelist checked, shell=False
             stdout=subprocess.PIPE, 
             stderr=subprocess.PIPE, 
             text=True, 
