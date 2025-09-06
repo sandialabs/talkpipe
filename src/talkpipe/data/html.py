@@ -48,8 +48,8 @@ def htmlToText(html, cleanText=True):
             html = ""
     
     # Remove scripts and style elements
-    html = re.sub(r'<script.*?</script>', '', html, flags=re.DOTALL)
-    html = re.sub(r'<style.*?</style>', '', html, flags=re.DOTALL)
+    html = re.sub(r'<script.*?</script\b[^>]*>', '', html, flags=re.DOTALL | re.IGNORECASE)
+    html = re.sub(r'<style.*?</style\b[^>]*>', '', html, flags=re.DOTALL | re.IGNORECASE)
     
     # Replace block elements with newlines
     block_tags = ['p', 'div', 'br', 'li', 'h[1-6]', 'header', 'footer']
