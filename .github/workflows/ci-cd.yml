@@ -133,10 +133,14 @@ jobs:
         cache-from: type=gha
         cache-to: type=gha,mode=max
     
+    - name: Extract first tag for Trivy
+      id: first-tag
+      run: echo "tag=$(echo '${{ steps.meta.outputs.tags }}' | head -n1)" >> $GITHUB_OUTPUT
+    
     - name: Run container security scan with Trivy
       uses: aquasecurity/trivy-action@master
       with:
-        image-ref: ${{ steps.meta.outputs.tags }}
+        image-ref: ${{ steps.first-tag.outputs.tag }}
         format: 'sarif'
         output: 'trivy-results.sarif'
     
