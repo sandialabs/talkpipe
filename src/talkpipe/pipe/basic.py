@@ -492,7 +492,7 @@ class ConfigureLogger(AbstractSegment):
         """
         yield from input_iter
 
-def hash_data(data, algorithm="MD5", field_list="_", use_repr=True, fail_on_missing=True, default=None):
+def hash_data(data, algorithm="SHA256", field_list="_", use_repr=True, fail_on_missing=True, default=None):
     """Hash a single data item using the specified parameters.
     
     Args:
@@ -505,6 +505,12 @@ def hash_data(data, algorithm="MD5", field_list="_", use_repr=True, fail_on_miss
     Returns:
         str: The resulting hash digest
     """
+    _SECURE_HASH_ALGOS = {
+        "SHA224", "SHA256", "SHA384", "SHA512",
+        "SHA3_224", "SHA3_256", "SHA3_384", "SHA3_512"
+    }
+    if algorithm.upper() in {"MD5", "SHA1"} or algorithm.upper() not in {algo.upper() for algo in _SECURE_HASH_ALGOS}:
+        raise ValueError(f"Unsupported or insecure hash algorithm: {algorithm}. Allowed: {', '.join(sorted(_SECURE_HASH_ALGOS))}")
     hasher = hashlib.new(algorithm)
     for field in field_list:
         item = extract_property(data, field, fail_on_missing, default=default)
@@ -545,8 +551,14 @@ class Hash(AbstractSegment):
             objects consistently and won't be subject to changes in serialization formats. JSON serialization 
             provides more structured representation but may not work with all Python objects.
     """
-    def __init__(self, algorithm: str="MD5", use_repr=True, field_list: str = "_", set_as=None, fail_on_missing: bool = True):
+    def __init__(self, algorithm: str="SHA256", use_repr=True, field_list: str = "_", set_as=None, fail_on_missing: bool = True):
         super().__init__()
+        _SECURE_HASH_ALGOS = {
+            "SHA224", "SHA256", "SHA384", "SHA512",
+            "SHA3_224", "SHA3_256", "SHA3_384", "SHA3_512"
+        }
+        if algorithm.upper() in {"MD5", "SHA1"} or algorithm.upper() not in {algo.upper() for algo in _SECURE_HASH_ALGOS}:
+            raise ValueError(f"Unsupported or insecure hash algorithm: {algorithm}. Allowed: {', '.join(sorted(_SECURE_HASH_ALGOS))}")
         self.algorithm = algorithm
         self.use_repr = use_repr
         self.field_list = list(parse_key_value_str(field_list).keys())
