@@ -37,7 +37,12 @@ def generate_key_pair(key_size: int = 2048) -> rsa.RSAPrivateKey:
         
     Returns:
         rsa.RSAPrivateKey: a private key, from which the public key can be extracted.
+    
+    Raises:
+        ValueError: If key_size is less than 2048.
     """
+    if key_size < 2048:
+        raise ValueError("RSA key size must be 2048 bits or greater for security.")
     logger.info(f"Generating RSA key pair with size {key_size} bits")
     private_key = rsa.generate_private_key(
         public_exponent=65537,
