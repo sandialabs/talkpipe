@@ -1,0 +1,20 @@
+name: Test Metadata Tags
+on: workflow_dispatch
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Extract metadata
+      id: meta
+      uses: docker/metadata-action@v5
+      with:
+        images: ghcr.io/test/repo
+        tags: |
+          type=ref,event=branch
+          type=sha,prefix={{branch}}-
+    
+    - name: Show tags
+      run: |
+        echo "Tags: ${{ steps.meta.outputs.tags }}"
+        echo "First tag would be used by Trivy"

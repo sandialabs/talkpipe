@@ -52,9 +52,16 @@ def mock_requests_get_completion(monkeypatch):
         def __init__(self, status_code, text):
             self.status_code = status_code
             self.text = text or None
+            # Add content attribute for compatibility with requests library
+            self.content = (text or "").encode('utf-8') if text else b""
 
         def json(self):
             return self.json_data
+        
+        def raise_for_status(self):
+            """Mock implementation of raise_for_status"""
+            if self.status_code >= 400:
+                raise Exception(f"HTTP {self.status_code} Error")
 
     def mock_get(*args, **kwargs):
         if is_url(args[0]):

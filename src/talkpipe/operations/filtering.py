@@ -40,10 +40,10 @@ class BloomFilter:
         # Convert the item to bytes (if it's not already) so it can be hashed.
         item_bytes = str(item).encode('utf-8')
         
-        # First hash using MD5
-        hash1 = int(hashlib.md5(item_bytes).hexdigest(), 16)
-        # Second hash using SHA-1
-        hash2 = int(hashlib.sha1(item_bytes).hexdigest(), 16)
+        # First hash using MD5 (not for security, used for bloom filter hashing)
+        hash1 = int(hashlib.md5(item_bytes, usedforsecurity=False).hexdigest(), 16)
+        # Second hash using SHA-1 (not for security, used for bloom filter hashing)
+        hash2 = int(hashlib.sha1(item_bytes, usedforsecurity=False).hexdigest(), 16)
         
         # Generate hash values using double hashing:
         # For each i, compute: (hash1 + i * hash2) mod size

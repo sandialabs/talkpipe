@@ -369,8 +369,8 @@ class TestMain:
     
     @patch('talkpipe.app.chatterlang_reference_browser.TalkPipeBrowser')
     @patch('argparse.ArgumentParser.parse_args')
-    @patch('subprocess.run')
-    def test_main_auto_generate_docs(self, mock_subprocess, mock_args, mock_browser_class):
+    @patch('talkpipe.app.chatterlang_reference_generator.go')
+    def test_main_auto_generate_docs(self, mock_generate_reference, mock_args, mock_browser_class):
         """Test main function auto-generating documentation."""
         mock_namespace = Mock()
         mock_namespace.doc_path = None
@@ -385,19 +385,11 @@ class TestMain:
             # First call (talkpipe_ref.txt) returns False, second call (after generation) returns True
             mock_exists.side_effect = [False, False, True]
             
-            # Mock successful subprocess run
-            mock_subprocess.return_value = Mock()
-            
             with patch('builtins.print'):
                 main()
             
-            # Verify subprocess was called to generate docs
-            mock_subprocess.assert_called_once_with(
-                ['chatterlang_reference_generator'],
-                capture_output=True,
-                text=True,
-                check=True
-            )
+            # Verify generate_reference was called to generate docs
+            mock_generate_reference.assert_called_once()
             
             # Verify browser was created and run
             mock_browser_class.assert_called_once()

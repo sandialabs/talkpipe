@@ -168,8 +168,10 @@ def test_WhooshWriter_commit_and_rollback(temp_index_dir, index_fields):
         with WhooshWriter(temp_index_dir, index_fields) as idx:
             idx.add_document({"title": "ExceptionDoc", "content": "Should NOT be committed"})
             raise RuntimeError("Force exit")
-    except RuntimeError:
-        pass
+    except RuntimeError as e:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.warning(f"Expected RuntimeError during test rollback verification: {e}")
     
     idx3 = WhooshFullTextIndex(temp_index_dir, index_fields)
     results = idx3.text_search("ExceptionDoc")

@@ -55,8 +55,8 @@ def test_run_command_error_handling():
     # Use a command that's extremely unlikely to exist
     command = "this_command_definitely_does_not_exist_12345"
     
-    # Should raise CalledProcessError or print error message
-    with pytest.raises(subprocess.CalledProcessError):
+    # Should raise CalledProcessError or SecurityError (for non-whitelisted commands)
+    with pytest.raises((subprocess.CalledProcessError, talkpipe.util.os.SecurityError)):
         list(talkpipe.util.os.run_command(command))
 
 def test_run_command_with_arguments():
@@ -68,13 +68,9 @@ def test_run_command_with_arguments():
         # Unix/Linux: use grep
         command = 'printf "apple\nbanana\ncherry" | grep "a"'
     
-    # Collect output lines
-    output_lines = list(talkpipe.util.os.run_command(command))
-    
-    # Assertions
-    assert len(output_lines) == 2
-    assert "apple" in output_lines
-    assert "banana" in output_lines
+    # Should expect SecurityError for shell commands with pipes
+    with pytest.raises(talkpipe.util.os.SecurityError):
+        list(talkpipe.util.os.run_command(command))
 
 def test_get_all_attributes():
     class TestClass:

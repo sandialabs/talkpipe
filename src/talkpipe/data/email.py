@@ -173,8 +173,10 @@ def sendEmail(items, subject_field, body_fields, sender_email, recipient_email, 
         - Uses TLS encryption for email transmission
     """
     logger.debug(f"Starting sendEmail with subject_field={subject_field}, body_fields={body_fields}")
-    assert subject_field is not None, "subject_field is required"
-    assert body_fields is not None, "body_fields is required"
+    if subject_field is None:
+        raise ValueError("subject_field is required")
+    if body_fields is None:
+        raise ValueError("body_fields is required")
 
     config = get_config()
     logger.debug(f"Loaded config: {config}")
@@ -347,7 +349,8 @@ def fetch_emails(
             
             try:
                 date_obj = email.utils.parsedate_to_datetime(date_str)
-            except:
+            except Exception as e:
+                logger.warning(f"Failed to parse email date '{date_str}': {e}. Using current time.")
                 date_obj = datetime.datetime.now()
             
             # Extract content

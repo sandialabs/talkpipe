@@ -134,7 +134,7 @@ def test_makelists_combinations():
 def test_makelists_invalid_parameters():
     """Test MakeLists with invalid parameters."""
     # Test with negative num_items
-    with pytest.raises(AssertionError, match="num_vectors must be None or a positive integer"):
+    with pytest.raises(ValueError, match="num_items must be None or a positive integer"):
         ml = transforms.MakeLists(num_items=-1)
         list(ml.transform([1, 2, 3]))
 

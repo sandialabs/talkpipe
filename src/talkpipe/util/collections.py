@@ -1,5 +1,10 @@
+import json
+import logging
+import os
 import time
 from collections import UserDict
+
+logger = logging.getLogger(__name__)
 
 class ExpiringDict(UserDict):
     def __init__(self, filename=None, default_ttl=None):
@@ -105,18 +110,33 @@ class ExpiringDict(UserDict):
     
     def _save(self):
         if self.filename:
-            import shelve
-            with shelve.open(self.filename) as db:
-                db['data'] = self.data
-                db['expiry'] = self.expiry
+            # Use .tmp file and atomic rename for safety
+            tmp_filename = str(self.filename) + '.tmp'
+            data_to_save = {
+                'data': self.data,
+                'expiry': self.expiry
+            }
+            try:
+                with open(tmp_filename, 'w') as f:
+                    json.dump(data_to_save, f)
+                os.rename(tmp_filename, str(self.filename))  # Atomic on most filesystems
+            except Exception:
+                if os.path.exists(tmp_filename):
+                    os.unlink(tmp_filename)
+                raise
     
     def _load(self):
         try:
-            import shelve
-            with shelve.open(self.filename) as db:
-                self.data = db.get('data', {})
-                self.expiry = db.get('expiry', {})
-            self._clean_expired()
-        except:
+            if os.path.exists(self.filename):
+                with open(self.filename, 'r') as f:
+                    loaded_data = json.load(f)
+                self.data = loaded_data.get('data', {})
+                self.expiry = loaded_data.get('expiry', {})
+                self._clean_expired()
+            else:
+                self.data = {}
+                self.expiry = {}
+        except Exception as e:
+            logger.warning(f"Failed to load cached data from {self.filename}: {e}. Starting with empty cache.")
             self.data = {}
             self.expiry = {}

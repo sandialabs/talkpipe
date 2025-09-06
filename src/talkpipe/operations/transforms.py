@@ -84,7 +84,8 @@ def fill_null(items, default='', **kwargs):
         [{'a': None, 'b': 1}, {'a': 2, 'b': 'EMPTY'}]
     """
     for item in items:
-        assert isinstance(item, dict), f"Expected a dictionary, but got {type(item)} instead"
+        if not isinstance(item, dict):
+            raise TypeError(f"Expected a dictionary, but got {type(item)} instead")
         for k in item:
             if item[k] is None and k not in kwargs:
                 item[k] = default
@@ -129,7 +130,8 @@ class MakeLists(AbstractSegment):
 
         """
 
-        assert self.num_items is None or self.num_items > 0, "num_vectors must be None or a positive integer"
+        if self.num_items is not None and self.num_items <= 0:
+            raise ValueError("num_items must be None or a positive integer")
         accumulated = []
         for datum in input_iter:
             item = extract_property(datum, self.field)

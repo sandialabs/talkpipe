@@ -7,6 +7,7 @@ from typing import Union
 import logging
 import argparse
 import yaml
+import html
 import asyncio
 from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
@@ -76,13 +77,14 @@ class UserSession:
                 "type": message_type
             }
             self.output_queue.put(timestamped_output, block=False)
-        except:
+        except Exception as e:
             # Queue is full, remove oldest item
+            logger.warning(f"Output queue full, attempting to remove oldest item: {e}")
             try:
                 self.output_queue.get_nowait()
                 self.output_queue.put(timestamped_output, block=False)
-            except:
-                pass
+            except Exception as e2:
+                logger.warning(f"Failed to add output to queue even after removing oldest item: {e2}")
     
     def update_activity(self):
         """Update last activity timestamp"""
@@ -125,7 +127,7 @@ class ChatterlangServer:
     
     def __init__(
         self,
-        host: str = "0.0.0.0",
+        host: str = "localhost",
         port: int = 9999,
         api_key: str = "your-secret-key-here",
         require_auth: bool = False,
@@ -179,6 +181,9 @@ class ChatterlangServer:
         # Configure middleware
         self._setup_middleware()
         
+        # Add security headers middleware
+        self._setup_security_headers()
+        
         # Configure routes
         self._setup_routes()
         
@@ -221,13 +226,15 @@ class ChatterlangServer:
             )
             self.sessions[session_id] = session
             
-            # Set session cookie (expires in 24 hours)
+            # Set session cookie (expires in 24 hours) with security attributes
             response.set_cookie(
                 key="talkpipe_session_id",
                 value=session_id,
                 max_age=86400,  # 24 hours
-                httponly=True,
-                samesite="lax"
+                httponly=True,  # Prevent JavaScript access
+                samesite="lax",  # CSRF protection
+                secure=False,    # Set to True in production with HTTPS
+                path="/"         # Restrict cookie path
             )
             
             logger.info(f"Created new session: {session_id}")
@@ -268,14 +275,60 @@ class ChatterlangServer:
         logger.info("Started session cleanup background task")
     
     def _setup_middleware(self):
-        """Configure CORS middleware"""
+        """Configure CORS middleware with security restrictions"""
+        # Define allowed origins - never use "*" in production
+        allowed_origins = [
+            "http://localhost:3000",
+            "http://localhost:8000", 
+            "http://127.0.0.1:3000",
+            "http://127.0.0.1:8000",
+            f"http://localhost:{self.port}",
+            f"http://127.0.0.1:{self.port}"
+        ]
+        
+        # Add environment-specific origins if configured
+        import os
+        env_origins = os.getenv('TALKPIPE_ALLOWED_ORIGINS', '').split(',')
+        allowed_origins.extend([origin.strip() for origin in env_origins if origin.strip()])
+        
         self.app.add_middleware(
             CORSMiddleware,
-            allow_origins=["*"],
+            allow_origins=allowed_origins,  # Specific origins only - never "*"
             allow_credentials=True,
-            allow_methods=["*"],
-            allow_headers=["*"],
+            allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],  # Specific methods only
+            allow_headers=["Content-Type", "Authorization", "X-API-Key"],  # Specific headers only
+            expose_headers=["Content-Type"],
+            max_age=86400,  # Cache preflight requests for 24 hours
         )
+    
+    def _setup_security_headers(self):
+        """Add security headers to all responses"""
+        @self.app.middleware("http")
+        async def add_security_headers(request, call_next):
+            response = await call_next(request)
+            
+            # Security headers
+            response.headers["X-Frame-Options"] = "DENY"
+            response.headers["X-Content-Type-Options"] = "nosniff"
+            response.headers["X-XSS-Protection"] = "1; mode=block"
+            response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+            response.headers["Content-Security-Policy"] = (
+                "default-src 'self'; "
+                "script-src 'self' 'unsafe-inline'; "
+                "style-src 'self' 'unsafe-inline'; "
+                "img-src 'self' data:; "
+                "connect-src 'self'; "
+                "font-src 'self'; "
+                "object-src 'none'; "
+                "media-src 'self'; "
+                "child-src 'none';"
+            )
+            response.headers["Permissions-Policy"] = (
+                "camera=(), microphone=(), geolocation=(), payment=(), "
+                "usb=(), magnetometer=(), gyroscope=(), speaker=()"
+            )
+            
+            return response
     
     def _setup_routes(self):
         """Configure all API routes"""
@@ -326,12 +379,21 @@ class ChatterlangServer:
             return self.form_config.model_dump()
         
         @self.app.get("/output-stream")
-        async def output_stream(request: Request, response: Response):
+        async def output_stream(
+            request: Request, 
+            response: Response,
+            api_key: str = Depends(self._verify_api_key)
+        ):
             """Server-Sent Events endpoint for streaming output"""
             session = self.get_or_create_session(request, response)
             return StreamingResponse(
                 self._generate_output_stream(session),
-                media_type="text/event-stream"
+                media_type="text/event-stream",
+                headers={
+                    "Cache-Control": "no-cache",
+                    "Connection": "keep-alive",
+                    "X-Content-Type-Options": "nosniff"
+                }
             )
     
     async def _verify_api_key(self, x_api_key: Optional[str] = Header(None)):
@@ -577,11 +639,10 @@ class ChatterlangServer:
         
         form_fields = self._generate_form_fields()
         
-        return f'''
-        <!DOCTYPE html>
+        return f'''<!DOCTYPE html> 
         <html>
         <head>
-            <title>{self.title} - Stream</title>
+            <title>{html.escape(self.title)} - Stream</title>
             <style>
                 * {{
                     margin: 0;
@@ -923,7 +984,7 @@ class ChatterlangServer:
         </head>
         <body>
             <div class="header">
-                <h1>{self.form_config.title}</h1>
+                <h1>{html.escape(self.form_config.title)}</h1>
             </div>
             
             <div class="main-container">
@@ -1109,7 +1170,7 @@ class ChatterlangServer:
                     }}
                     
                     // Add user message to chat immediately for instant feedback
-                    const displayProperty = '{self.display_property}' || Object.keys(data)[0];
+                    const displayProperty = '{html.escape(str(self.display_property))}' || Object.keys(data)[0];
                     const userMessage = data[displayProperty] || JSON.stringify(data);
                     lastUserMessage = userMessage; // Store to detect duplicates from server
                     addMessage(userMessage, 'user', new Date().toISOString());
@@ -1167,7 +1228,7 @@ class ChatterlangServer:
             </script>
         </body>
         </html>
-        '''
+        '''  # nosec B608 
     
     def _get_html_interface(self) -> str:
         """Generate HTML interface with configurable form"""
@@ -1210,11 +1271,11 @@ class ChatterlangServer:
         
         form_fields = self._generate_form_fields()
         
-        return f'''
-        <!DOCTYPE html>
+        # nosec B608 - HTML template with proper escaping, not SQL injection
+        return f'''<!DOCTYPE html>
         <html>
         <head>
-            <title>{self.title}</title>
+            <title>{html.escape(self.title)}</title>
             <style>
                 * {{
                     margin: 0;
@@ -1231,7 +1292,7 @@ class ChatterlangServer:
                 }}
                 
                 .main-content {{
-                    height: calc(100vh - {height});
+                    height: calc(100vh - {html.escape(height)});
                     padding: 20px;
                     overflow-y: auto;
                     background-color: #f8f9fa;
@@ -1274,9 +1335,9 @@ class ChatterlangServer:
                 
                 .form-panel {{
                     position: fixed;
-                    {form_style}
-                    background-color: {input_bg};
-                    border: 1px solid {border_color};
+                    {html.escape(form_style)}
+                    background-color: {html.escape(input_bg)};
+                    border: 1px solid {html.escape(border_color)};
                     padding: 20px;
                     box-shadow: 0 -2px 10px rgba(0,0,0,0.1);
                     overflow-y: auto;
@@ -1293,7 +1354,7 @@ class ChatterlangServer:
                 }}
                 
                 .form-header h3 {{
-                    color: {text_color};
+                    color: {html.escape(text_color)};
                     margin: 0;
                 }}
                 
@@ -1423,9 +1484,9 @@ class ChatterlangServer:
         <body>
             <div class="main-content">
                 <div class="info-section">
-                    <h1>{self.title}</h1>
+                    <h1>{html.escape(self.title)}</h1>
                     <p>Submit JSON data using the form below or send POST requests to:</p>
-                    <div class="endpoint-info">POST http://{self.host}:{self.port}/process</div>
+                    <div class="endpoint-info">POST http://{html.escape(self.host)}:{html.escape(str(self.port))}/process</div>
                     {"<p>Authentication required: Include 'X-API-Key' header</p>" if self.require_auth else ""}
                     <p>View API documentation at: <a href="/docs">/docs</a></p>
                     <p>View streaming interface at: <a href="/stream">/stream</a></p>
@@ -1442,7 +1503,7 @@ class ChatterlangServer:
             <div class="form-panel" id="formPanel">
                 <div class="form-container">
                     <div class="form-header">
-                        <h3>{self.form_config.title}</h3>
+                        <h3>{html.escape(self.form_config.title)}</h3>
                     </div>
                     
                     {auth_header}
@@ -1582,8 +1643,8 @@ class ChatterlangServer:
             </script>
         </body>
         </html>
-        '''
-    
+        '''  # nosec B608
+
     def set_processor_function(self, func: Callable[[Dict[str, Any]], Any]):
         """Set the function used to process incoming JSON data"""
         self.processor_function = func
@@ -1636,7 +1697,7 @@ def load_form_config(config_path: str) -> Dict[str, Any]:
 class ChatterlangServerSegment(AbstractSource):
     """Segment for receiving JSON data via FastAPI with configurable form"""
     
-    def __init__(self, port: Union[int,str] = 9999, host: str = "0.0.0.0", 
+    def __init__(self, port: Union[int,str] = 9999, host: str = "localhost", 
                  api_key: str = None, require_auth: bool = False,
                  form_config: Union[str, Dict[str, Any]] = None):
         super().__init__()
@@ -1716,8 +1777,8 @@ def go():
     parser = argparse.ArgumentParser(description='FastAPI JSON Data Receiver with Configurable Form')
     parser.add_argument('-p', '--port', type=int, default=2025,
                         help='Port to listen on (default: 2025)')
-    parser.add_argument('-o', '--host', default='0.0.0.0',
-                        help='Host to bind to (default: 0.0.0.0)')
+    parser.add_argument('-o', '--host', default='localhost',
+                        help='Host to bind to (default: localhost)')
     parser.add_argument('--api-key', help='Set API key for authentication')
     parser.add_argument('--require-auth', action='store_true',
                         help='Require API key authentication')

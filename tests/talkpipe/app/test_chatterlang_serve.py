@@ -226,7 +226,7 @@ class TestChatterlangServer:
         """Test server initialization with default configuration."""
         server = ChatterlangServer()
         
-        assert server.host == "0.0.0.0"
+        assert server.host == "localhost"
         assert server.port == 9999
         assert server.require_auth is False
         assert server.title == "ChatterLang Server"
@@ -823,7 +823,7 @@ class TestMainFunction:
             # Verify server was created with default values
             mock_server_class.assert_called_once()
             call_args = mock_server_class.call_args[1]
-            assert call_args["host"] == "0.0.0.0"
+            assert call_args["host"] == "localhost"
             assert call_args["port"] == 2025
             assert call_args["require_auth"] is False
             

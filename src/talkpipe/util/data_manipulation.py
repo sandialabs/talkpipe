@@ -110,8 +110,9 @@ def get_all_attributes(obj: Any, skip_packages: tuple = ('pydantic',), visited: 
                         else:
                             attributes.append(attr_name)
 
-            except Exception:
-                # Skip attributes that can't be accessed
+            except Exception as e:
+                # Log error when skipping attributes that can't be accessed
+                logger.warning(f"Failed to access attribute '{attr_name}' on object {type(obj).__name__}: {e}")
                 continue
 
     return attributes
@@ -284,6 +285,23 @@ def compileLambda(expression: str, fail_on_error: bool = True):
     Returns:
         A callable function that takes a single 'item' parameter and returns the evaluated expression result
     """
+    # Security check: block dangerous patterns in expressions
+    dangerous_patterns = [
+        '__import__', 'import', 'exec', 'eval', 'compile', 'open', 'file',
+        'input', 'raw_input', 'reload', 'vars', 'locals', 'globals',
+        'dir', 'hasattr', 'getattr', 'setattr', 'delattr', 'classmethod',
+        'staticmethod', 'super', 'property', '__', '.mro', '.subclasses'
+    ]
+    
+    expression_lower = expression.lower()
+    for pattern in dangerous_patterns:
+        if pattern in expression_lower:
+            raise ValueError(f"Security violation: Expression contains prohibited pattern '{pattern}'")
+    
+    # Additional security: check for attribute access to dangerous methods
+    if '.__' in expression or 'getitem' in expression_lower or 'setitem' in expression_lower:
+        raise ValueError("Security violation: Expression contains prohibited attribute access patterns")
+
     # Set of safe built-ins that can be used in expressions
     _SAFE_BUILTINS = {
         'abs': abs, 'all': all, 'any': any, 'bool': bool, 'dict': dict,
@@ -315,11 +333,24 @@ def compileLambda(expression: str, fail_on_error: bool = True):
 
         # If item is a dictionary, add its keys as variables for convenience
         if isinstance(item, dict):
-            locals_dict.update(item)
+            # Filter dictionary keys to prevent injection of dangerous names
+            safe_keys = {k: v for k, v in item.items() 
+                        if isinstance(k, str) and not k.startswith('_') and k not in dangerous_patterns}
+            locals_dict.update(safe_keys)
 
-        # Evaluate the expression in a restricted environment
+        # Create a completely restricted environment with no access to dangerous globals
+        restricted_globals = {'__builtins__': {}}
+        restricted_globals.update(SAFE_BUILTINS)
+
+        # Evaluate the expression in a heavily restricted environment
+        # Note: eval() is used intentionally here with extensive security controls:
+        # - Restricted globals (no dangerous builtins)
+        # - Input validation (blocks dangerous patterns)
+        # - Compiled code with syntax checking
+        # - Exception handling for safety
+        # ast.literal_eval() cannot be used as this evaluates dynamic expressions, not just literals
         try:
-            result = eval(compiled_code, dict(SAFE_BUILTINS), locals_dict)
+            result = eval(compiled_code, restricted_globals, locals_dict)  # nosec B307
             return result
         except Exception as e:
             error_msg = f"Error evaluating expression '{expression}' on item {item}: {e}"

@@ -352,20 +352,20 @@ def main():
                 print("Attempting to run 'chatterlang_reference_generator' command to generate them...")
                 
                 try:
-                    import subprocess
-                    subprocess.run(['chatterlang_reference_generator'], capture_output=True, text=True, check=True)
+                    from talkpipe.app.chatterlang_reference_generator import go as generate_reference
+                    generate_reference()
                     print("Successfully generated reference files.")
                     
                     # Check if files were created
                     if txt_file.exists():
                         doc_path = str(current_dir)
                     else:
-                        print("Error: talkpipe_ref command completed but files were not created")
+                        print("Error: reference generation completed but files were not created")
                         sys.exit(1)
-                except (subprocess.CalledProcessError, FileNotFoundError) as e:
-                    print(f"Error running talkpipe_ref command: {e}")
+                except Exception as e:
+                    print(f"Error running reference generator: {e}")
                     print("Please either:")
-                    print("  1. Install TalkPipe and ensure 'talkpipe_ref' is in PATH, or")
+                    print("  1. Install TalkPipe properly, or")
                     print("  2. Provide path to directory containing talkpipe_ref.txt")
                     sys.exit(1)
     else:
