@@ -44,13 +44,13 @@ class TestKeyGeneration:
         
     def test_generate_key_pair_custom_size(self):
         """Test generating a key pair with custom key size."""
-        private_key = generate_key_pair(key_size=1024)
+        private_key = generate_key_pair(key_size=2048)
         assert isinstance(private_key, rsa.RSAPrivateKey)
-        assert private_key.key_size == 1024
+        assert private_key.key_size == 2048
         
     def test_pem_encode_key_no_password(self):
         """Test encoding keys to PEM format without password."""
-        private_key = generate_key_pair(key_size=1024)  # Smaller for faster tests
+        private_key = generate_key_pair(key_size=2048)  # Smaller for faster tests
         private_pem, public_pem = pem_encode_key(private_key)
         
         assert isinstance(private_pem, bytes)
@@ -60,7 +60,7 @@ class TestKeyGeneration:
         
     def test_pem_encode_key_with_password(self):
         """Test encoding keys to PEM format with password."""
-        private_key = generate_key_pair(key_size=1024)
+        private_key = generate_key_pair(key_size=2048)
         password = "test_password"
         private_pem, public_pem = pem_encode_key(private_key, password)
         
@@ -71,7 +71,7 @@ class TestKeyGeneration:
         
     def test_pem_encode_key_with_bytes_password(self):
         """Test encoding keys to PEM format with bytes password."""
-        private_key = generate_key_pair(key_size=1024)
+        private_key = generate_key_pair(key_size=2048)
         password = b"test_password"
         private_pem, public_pem = pem_encode_key(private_key, password)
         
@@ -85,7 +85,7 @@ class TestKeySaving:
     
     def test_save_key_pair(self, tmp_path):
         """Test saving key pair to files."""
-        private_key = generate_key_pair(key_size=1024)
+        private_key = generate_key_pair(key_size=2048)
         private_pem, public_pem = pem_encode_key(private_key)
         
         private_path = tmp_path / "test_private.pem"
@@ -111,31 +111,31 @@ class TestKeyAcquisition:
     
     def test_acquire_private_key_from_object(self):
         """Test acquiring private key from RSAPrivateKey object."""
-        original_key = generate_key_pair(key_size=1024)
+        original_key = generate_key_pair(key_size=2048)
         acquired_key = acquire_private_key(original_key)
         assert acquired_key is original_key
         
     def test_acquire_private_key_from_bytes(self):
         """Test acquiring private key from PEM bytes."""
-        original_key = generate_key_pair(key_size=1024)
+        original_key = generate_key_pair(key_size=2048)
         private_pem, _ = pem_encode_key(original_key)
         
         acquired_key = acquire_private_key(private_pem)
         assert isinstance(acquired_key, rsa.RSAPrivateKey)
-        assert acquired_key.key_size == 1024
+        assert acquired_key.key_size == 2048
         
     def test_acquire_private_key_from_string(self):
         """Test acquiring private key from PEM string."""
-        original_key = generate_key_pair(key_size=1024)
+        original_key = generate_key_pair(key_size=2048)
         private_pem, _ = pem_encode_key(original_key)
         
         acquired_key = acquire_private_key(private_pem.decode('utf-8'))
         assert isinstance(acquired_key, rsa.RSAPrivateKey)
-        assert acquired_key.key_size == 1024
+        assert acquired_key.key_size == 2048
         
     def test_acquire_private_key_from_file(self, tmp_path):
         """Test acquiring private key from file path."""
-        original_key = generate_key_pair(key_size=1024)
+        original_key = generate_key_pair(key_size=2048)
         private_pem, _ = pem_encode_key(original_key)
         
         key_file = tmp_path / "private_key.pem"
@@ -144,11 +144,11 @@ class TestKeyAcquisition:
             
         acquired_key = acquire_private_key(str(key_file))
         assert isinstance(acquired_key, rsa.RSAPrivateKey)
-        assert acquired_key.key_size == 1024
+        assert acquired_key.key_size == 2048
         
     def test_acquire_private_key_with_password(self, tmp_path):
         """Test acquiring encrypted private key with password."""
-        original_key = generate_key_pair(key_size=1024)
+        original_key = generate_key_pair(key_size=2048)
         password = "test_password"
         private_pem, _ = pem_encode_key(original_key, password)
         
@@ -158,7 +158,7 @@ class TestKeyAcquisition:
             
         acquired_key = acquire_private_key(str(key_file), password=password)
         assert isinstance(acquired_key, rsa.RSAPrivateKey)
-        assert acquired_key.key_size == 1024
+        assert acquired_key.key_size == 2048
         
     def test_acquire_private_key_invalid_format(self):
         """Test acquiring private key with invalid format."""
@@ -167,7 +167,7 @@ class TestKeyAcquisition:
             
     def test_acquire_public_key_from_object(self):
         """Test acquiring public key from RSAPublicKey object."""
-        private_key = generate_key_pair(key_size=1024)
+        private_key = generate_key_pair(key_size=2048)
         original_public = private_key.public_key()
         
         acquired_key = acquire_public_key(original_public)
@@ -175,14 +175,14 @@ class TestKeyAcquisition:
         
     def test_acquire_public_key_from_private_key(self):
         """Test acquiring public key from RSAPrivateKey object."""
-        private_key = generate_key_pair(key_size=1024)
+        private_key = generate_key_pair(key_size=2048)
         
         acquired_key = acquire_public_key(private_key)
         assert isinstance(acquired_key, rsa.RSAPublicKey)
         
     def test_acquire_public_key_from_bytes(self):
         """Test acquiring public key from PEM bytes."""
-        private_key = generate_key_pair(key_size=1024)
+        private_key = generate_key_pair(key_size=2048)
         _, public_pem = pem_encode_key(private_key)
         
         acquired_key = acquire_public_key(public_pem)
@@ -190,7 +190,7 @@ class TestKeyAcquisition:
         
     def test_acquire_public_key_from_string(self):
         """Test acquiring public key from PEM string."""
-        private_key = generate_key_pair(key_size=1024)
+        private_key = generate_key_pair(key_size=2048)
         _, public_pem = pem_encode_key(private_key)
         
         acquired_key = acquire_public_key(public_pem.decode('utf-8'))
@@ -198,7 +198,7 @@ class TestKeyAcquisition:
         
     def test_acquire_public_key_from_file(self, tmp_path):
         """Test acquiring public key from file path."""
-        private_key = generate_key_pair(key_size=1024)
+        private_key = generate_key_pair(key_size=2048)
         _, public_pem = pem_encode_key(private_key)
         
         key_file = tmp_path / "public_key.pem"
@@ -219,7 +219,7 @@ class TestLoadKeyPairFromFile:
     
     def test_load_key_pair_from_file(self, tmp_path):
         """Test loading key pair from files."""
-        original_private = generate_key_pair(key_size=1024)
+        original_private = generate_key_pair(key_size=2048)
         private_pem, public_pem = pem_encode_key(original_private)
         
         private_path = tmp_path / "private_key.pem"
@@ -236,7 +236,7 @@ class TestLoadKeyPairFromFile:
         
         assert isinstance(private_key, rsa.RSAPrivateKey)
         assert isinstance(public_key, rsa.RSAPublicKey)
-        assert private_key.key_size == 1024
+        assert private_key.key_size == 2048
 
 
 class TestSerialization:
@@ -284,7 +284,7 @@ class TestSigningAndVerification:
     @pytest.fixture
     def key_pair(self):
         """Generate a key pair for testing."""
-        private_key = generate_key_pair(key_size=1024)
+        private_key = generate_key_pair(key_size=2048)
         public_key = private_key.public_key()
         return private_key, public_key
         
@@ -363,7 +363,7 @@ class TestSignSegment:
     @pytest.fixture
     def key_pair(self):
         """Generate a key pair for testing."""
-        private_key = generate_key_pair(key_size=1024)
+        private_key = generate_key_pair(key_size=2048)
         public_key = private_key.public_key()
         return private_key, public_key
         
@@ -432,7 +432,7 @@ class TestSignSegment:
         
     def test_sign_segment_with_password(self, tmp_path):
         """Test SignSegment with password-protected key."""
-        private_key = generate_key_pair(key_size=1024)
+        private_key = generate_key_pair(key_size=2048)
         password = "test_password"
         private_pem, _ = pem_encode_key(private_key, password)
         
@@ -454,7 +454,7 @@ class TestVerifySegment:
     @pytest.fixture
     def key_pair(self):
         """Generate a key pair for testing."""
-        private_key = generate_key_pair(key_size=1024)
+        private_key = generate_key_pair(key_size=2048)
         public_key = private_key.public_key()
         return private_key, public_key
         
@@ -555,7 +555,7 @@ class TestVerifySegment:
 class TestCLI:
     """Test the command-line interface."""
     
-    @patch('sys.argv', ['script', '--key-size', '1024', 
+    @patch('sys.argv', ['script', '--key-size', '2048', 
                         '--private-key', 'test_private.pem',
                         '--public-key', 'test_public.pem'])
     @patch('builtins.open', new_callable=mock_open)
@@ -565,7 +565,7 @@ class TestCLI:
         generate_keys_cli()
         
         # Verify print statements
-        mock_print.assert_any_call("Generating RSA key pair with size 1024 bits...")
+        mock_print.assert_any_call("Generating RSA key pair with size 2048 bits...")
         mock_print.assert_any_call("Saving private key to test_private.pem")
         mock_print.assert_any_call("Saving public key to test_public.pem")
         mock_print.assert_any_call("Key pair generated and saved successfully!")
@@ -580,7 +580,7 @@ class TestIntegration:
     def test_end_to_end_workflow(self, tmp_path):
         """Test complete end-to-end workflow."""
         # Generate and save keys
-        private_key = generate_key_pair(key_size=1024)
+        private_key = generate_key_pair(key_size=2048)
         private_pem, public_pem = pem_encode_key(private_key)
         
         private_path = tmp_path / "private.pem"
@@ -623,7 +623,7 @@ class TestIntegration:
     def test_tampered_data_detection(self, tmp_path):
         """Test that tampered data is detected."""
         # Generate keys
-        private_key = generate_key_pair(key_size=1024)
+        private_key = generate_key_pair(key_size=2048)
         public_key = private_key.public_key()
         
         # Sign original data
