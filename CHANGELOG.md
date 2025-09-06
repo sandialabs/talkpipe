@@ -3,10 +3,18 @@
 ## 0.9.0 (In Development)
 ### New Segments and Sources
 - **set** Simple setting of a constant to a key.
+- Added **isTrue** and **isFalse** segments that can function as both a filter or and evaluation of a field.
+- Added **llmBinaryAnswer** segment
 
 ### Improvements
+- Configured CI-CD system for github to run tests, security checks, and build containers
 - Renamed append_as to set_as and appendAs to setAs throughout the codebase.  "Set" is more accurate than "append" as the operation.
 - changed asFunction to as_function
+- Added a check and thow an exception in simplevectordb if the user has clustered and then tries to use cosine for search
+- Added a plugin system so it is easer for external whl files to add commands to chatterlang.
+- Refactored the documentation system to pull from the registry in real time.  This ensures that plugin commands are 
+  included in the documentation system.  It also reduces potential problems from bad parsing of source code.
+- Updated **isIn** and **isNotIn** to function list **isTrue** so that they need no always be filters.
 
 ## 0.8.1
 ### Improvements

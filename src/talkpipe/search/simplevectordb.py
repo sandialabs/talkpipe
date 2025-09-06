@@ -1,20 +1,21 @@
+from typing import List, Dict, Any, Tuple, Optional
+from dataclasses import dataclass, asdict
 import logging
+from os.path import exists
 import json
 import base64
 from typing import List, Dict, Any, Tuple, Optional, Union, Protocol
 from dataclasses import dataclass, asdict
 import uuid
-import numpy as np
-from sklearn.cluster import KMeans
 import warnings
 import heapq
+import numpy as np
+from sklearn.cluster import KMeans
 from talkpipe.pipe.core import segment
 from talkpipe.pipe import field_segment
 from talkpipe.chatterlang import register_segment
 from .abstract import VectorLike, DocumentStore, VectorAddable, VectorSearchable, SearchResult, Document, DocID
 from talkpipe.util.data_manipulation import extract_property, toDict
-from os.path import exists
-from .abstract import DocumentStore, VectorAddable, VectorSearchable
 
 logger = logging.getLogger(__name__)
 
@@ -217,7 +218,7 @@ class SimpleVectorDB(DocumentStore, VectorAddable, VectorSearchable):
             self.clusters.setdefault(cluster_id, []).append(vector_id)
         
         self.clusters_valid = True
-        print(f"K-means clustering completed with {actual_n_clusters} clusters")
+        logger.info(f"K-means clustering completed with {actual_n_clusters} clusters")
 
     def _kmeans_search(self, query_vector: np.ndarray, top_k: int, metric: str, search_clusters: int = 3) -> List[Tuple[str, float, VectorEntry]]:
         """Search using k-means clustering"""
@@ -256,6 +257,10 @@ class SimpleVectorDB(DocumentStore, VectorAddable, VectorSearchable):
         
         if not self.vectors:
             return []
+        
+        # If k-means clustering has been performed, only euclidean distance is allowed
+        if self.clusters_valid and metric != "euclidean":
+            raise ValueError("Only euclidean distance metric is supported after k-means clustering has been performed")
         
         if method == "k-means":
             return self._kmeans_search(query_vec, top_k, metric)
@@ -334,6 +339,10 @@ class SimpleVectorDB(DocumentStore, VectorAddable, VectorSearchable):
 
     def filter_search(self, query_vector: VectorLike, document_filter: Dict[str, str], top_k: int = 5, metric: str = "cosine", method: str = "brute-force") -> List[Tuple[str, float, VectorEntry]]:
         """Search with document filtering"""
+        # If k-means clustering has been performed, only euclidean distance is allowed
+        if self.clusters_valid and metric != "euclidean":
+            raise ValueError("Only euclidean distance metric is supported after k-means clustering has been performed")
+        
         # Filter vectors
         filtered_vectors = {
             vid: entry for vid, entry in self.vectors.items()

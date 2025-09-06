@@ -393,38 +393,115 @@ def longestStr(items, field_list, set_as=None):
 
 @registry.register_segment("isIn")
 @segment()
-def isIn(items, field, value):
+def isIn(items, field, value, as_filter=True, set_as=None):
     """Filters items based on whether a field contains a specified value.
 
     Args:
         items: Iterable of items to filter
         field: Field name to check for value
         value: Value to check for in the field
+        as_filter (bool): Whether to use this function as a filter. If false, only return
+          True or False. If true, yield the item if the condition is true.
+        set_as (str): If specified, the result will be added to this field in the item.
 
     Yields:
         Items where the specified field contains the specified value.
     """
     for item in items:
         data = extract_property(item, field)
-        if value in data:
-            yield item
+        ans = value in data
+
+        if set_as:
+            item[set_as] = ans
+            to_return = item
+        else:
+            to_return = item if as_filter else ans
+
+        if not as_filter or ans:
+            yield to_return
 
 @registry.register_segment("isNotIn")
 @segment()
-def isNotIn(items, field, value):
+def isNotIn(items, field, value, as_filter=True, set_as=None):
     """Filters items based on whether a field does not contain a specified value.
 
     Args:
+        items: Iterable of items to filter
         field: Field name to check for value
         value: Value to check for in the field
+        as_filter (bool): Whether to use this function as a filter. If false, only return
+          True or False. If true, yield the item if the condition is true.
+        set_as (str): If specified, the result will be added to this field in the item.
 
     Yields:
         Items where the specified field does not contain the specified value.
     """
     for item in items:
         data = extract_property(item, field)
-        if value not in data:
-            yield item
+        ans = value not in data
+
+        if set_as:
+            item[set_as] = ans
+            to_return = item
+        else:
+            to_return = item if as_filter else ans
+
+        if not as_filter or ans:
+            yield to_return
+
+@registry.register_segment("isTrue")
+@segment()
+def isTrue(items, as_filter=True, field="_", set_as=None):
+    """
+    Checks if the specified field is true.  A field is considered false if it is
+    None, False, an integer 0, or an empty string.  It is True otherwise.
+
+    Args:
+        as_filter (bool): Whether to use this function as a filter.  If false, only return
+          True or False.  If true, yield the item if it is true.
+        field (str): The field to check for truthiness.  Defaults to "_", which means the entire item.
+        set_as (str): If specified, the result will be added to this field in the item.
+    """
+    for item in items:
+        to_eval = extract_property(item, field)
+        # Check if value is truthy (not None, False, 0, or empty string)
+        ans = bool(to_eval) and (to_eval != 0) and (not isinstance(to_eval, str) or len(to_eval.strip()) > 0)
+
+        if set_as:
+            item[set_as] = ans
+            to_return = item
+        else:
+            to_return = item if as_filter else ans
+
+        if not as_filter or ans:
+            yield to_return
+
+@registry.register_segment("isFalse")
+@segment()
+def isFalse(items, as_filter=True, field="_", set_as=None):
+    """
+    Checks if the specified field is false.  A field is considered false if it is
+    None, False, an integer 0, or an empty string.  It is True otherwise.
+
+    Args:
+        as_filter (bool): Whether to use this function as a filter.  If false, only return
+            True or False.  If true, yield the item if it is false.
+        field (str): The field to check for falsiness.  Defaults to "_", which means the entire item.
+        set_as (str): If specified, the result will be added to this field in the item.
+    """
+    for item in items:
+        to_eval = extract_property(item, field)
+        # Check if value is falsy (None, False, 0, or empty string)
+        ans = not (bool(to_eval) and (to_eval != 0) and (not isinstance(to_eval, str) or len(to_eval.strip()) > 0))
+
+        if set_as:
+            item[set_as] = ans
+            to_return = item
+        else:
+            to_return = item if as_filter else ans
+
+        if not as_filter or ans:
+            yield to_return
 
 @registry.register_segment("everyN")
 @segment()

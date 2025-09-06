@@ -273,3 +273,23 @@ class LlmExtractTerms(AbstractLLMGuidedGeneration):
     @staticmethod
     def get_output_format() -> BaseModel:
         return LlmExtractTerms.Terms
+
+@register_segment("llmBinaryAnswer")
+class LlmBinaryAnswer(AbstractLLMGuidedGeneration):
+    """For each piece of text read from the input stream, generate a binary answer (yes/no).
+    The system prompt must be provided and should explain the nature of the question.
+
+    For example, the system prompt might be:
+
+    <pre>Is the following text positive or negative?</pre>
+
+    See the LLMPrompt segment for more information on the other arguments.
+    """
+
+    class Answer(BaseModel):
+        explanation: str
+        answer: bool
+
+    @staticmethod
+    def get_output_format() -> BaseModel:
+        return LlmBinaryAnswer.Answer

@@ -20,12 +20,13 @@ Complete documentation for all TalkPipe commands and components:
 - [ChatterLang Workbench](api-reference/chatterlang-workbench.md) - Interactive web interface for writing and testing scripts interactively
 - [ChatterLang Script Runner](api-reference/chatterlang-script.md) - Run a script from the command line
 - [Documentation Generator](api-reference/talkpipe-ref.md) - Generate reference documentations for Segments and Sources
+- [Plugin Manager](api-reference/talkpipe-plugin-manager.md) - Manage and inspect TalkPipe plugins
 
 ### 🏗️ [Architecture](architecture/)
 Deep technical documentation:
 - [Pipe API](architecture/pipe-api.md) - Internal DSL and pipeline construction
 - [ChatterLang](architecture/chatterlang.md) - External DSL language reference
-- [Extending TalkPipe](architecture/extending-talkpipe.md) - Creating custom components
+- [Extending TalkPipe](architecture/extending-talkpipe.md) - Creating custom components and plugins
 - [Configuration](architecture/configuration.md) - Configuring variables for scripts
 
 

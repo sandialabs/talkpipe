@@ -4,28 +4,28 @@ TalkPipe Documentation Browser
 
 A terminal-based interactive browser for TalkPipe documentation.
 Allows browsing packages, searching for components, and viewing detailed documentation.
+Uses plugin introspection to load live component information.
 """
 
+from typing import Dict, List
 import argparse
-import os
-import re
-import shutil
 import sys
-import tempfile
-from pathlib import Path
-from typing import Dict, List, Optional, Tuple
-
+from talkpipe.chatterlang.registry import input_registry, segment_registry
+from talkpipe.util.plugin_loader import load_plugins
+from talkpipe.util.doc_extraction import (
+    extract_component_info, detect_component_type, extract_parameters_dict
+)
 
 class TalkPipeDoc:
     """Represents a single TalkPipe component (class or function)."""
     
     def __init__(self, name: str, chatterlang_name: str, doc_type: str, 
-                 package: str, base_classes: List[str], docstring: str, 
+                 module: str, base_classes: List[str], docstring: str, 
                  parameters: Dict[str, str]):
         self.name = name
         self.chatterlang_name = chatterlang_name
-        self.doc_type = doc_type  # 'Source Class', 'Segment Class', 'Segment Function', etc.
-        self.package = package
+        self.doc_type = doc_type  # 'Source', 'Segment', 'Field Segment'
+        self.module = module
         self.base_classes = base_classes
         self.docstring = docstring
         self.parameters = parameters
@@ -34,124 +34,73 @@ class TalkPipeDoc:
 class TalkPipeBrowser:
     """Interactive terminal browser for TalkPipe documentation."""
     
-    def __init__(self, doc_path: str):
-        self.doc_path = Path(doc_path)
+    def __init__(self):
         self.components: Dict[str, TalkPipeDoc] = {}
-        self.packages: Dict[str, List[str]] = {}
-        self.load_documentation()
+        self.modules: Dict[str, List[str]] = {}
+        self.load_components()
     
-    def load_documentation(self):
-        """Parse the talkpipe_ref.txt or unit-docs.txt file and load all components."""
-        # Try talkpipe_ref.txt first (current directory format)
-        txt_file = self.doc_path / "talkpipe_ref.txt"
-        if not txt_file.exists():
-            # Try unit-docs.txt (installation directory format)
-            txt_file = self.doc_path / "unit-docs.txt"
-            if not txt_file.exists():
-                print(f"Error: Could not find talkpipe_ref.txt or unit-docs.txt in {self.doc_path}")
-                sys.exit(1)
-        
-        with open(txt_file, 'r', encoding='utf-8') as f:
-            content = f.read()
-        
-        # Split into packages
-        package_sections = re.split(r'\n\nPACKAGE: ([^\n]+)\n-+\n', content)[1:]
-        
-        for i in range(0, len(package_sections), 2):
-            package_name = package_sections[i]
-            package_content = package_sections[i + 1]
-            
-            # Parse components in this package
-            self._parse_package_components(package_name, package_content)
+    def _extract_parameters(self, cls: type) -> Dict[str, str]:
+        """Extract parameter information from a class or function."""
+        return extract_parameters_dict(cls)
     
-    def _parse_package_components(self, package_name: str, content: str):
-        """Parse individual components within a package."""
-        # Split by component headers - handle both with and without newlines before
-        components = re.split(r'\n(?=(Source|Segment) (?:Class|Function): )', content)
+    def load_components(self):
+        """Load all components from the plugin system."""
+        load_plugins()  # Ensure plugins are loaded
         
-        if package_name not in self.packages:
-            self.packages[package_name] = []
+        # Load sources
+        for chatterlang_name, cls in input_registry.all.items():
+            component_info = extract_component_info(chatterlang_name, cls, "Source")
+            if component_info:
+                self._load_component_from_info(component_info)
         
-        for component_text in components:
-            if not component_text.strip():
-                continue
-            # Handle the case where the split includes the header
-            if not component_text.startswith(('Source', 'Segment')) and '\n' in component_text:
-                lines = component_text.split('\n')
-                for i, line in enumerate(lines):
-                    if line.startswith(('Source', 'Segment')):
-                        component_text = '\n'.join(lines[i:])
-                        break
-                else:
-                    continue
-            
-            if component_text.startswith(('Source', 'Segment')):
-                component = self._parse_component(package_name, component_text)
-                if component:
-                    self.components[component.chatterlang_name] = component
-                    self.packages[package_name].append(component.chatterlang_name)
+        # Load segments
+        for chatterlang_name, cls in segment_registry.all.items():
+            component_type = detect_component_type(cls, "Segment")
+            component_info = extract_component_info(chatterlang_name, cls, component_type)
+            if component_info:
+                self._load_component_from_info(component_info)
     
-    def _parse_component(self, package_name: str, text: str) -> Optional[TalkPipeDoc]:
-        """Parse a single component from its text representation."""
-        lines = text.strip().split('\n')
-        if not lines:
-            return None
-        
-        # Parse header
-        header_match = re.match(r'(Source|Segment) (Class|Function): (.+)', lines[0])
-        if not header_match:
-            return None
-        
-        doc_type = f"{header_match.group(1)} {header_match.group(2)}"
-        name = header_match.group(3)
-        
-        chatterlang_name = ""
-        base_classes = []
-        docstring = ""
-        parameters = {}
-        
-        # Parse the rest
-        current_section = None
-        docstring_lines = []
-        param_lines = []
-        
-        for line in lines[1:]:
-            line = line.strip()
+    def _load_component_from_info(self, component_info):
+        """Load a single component from ComponentInfo into the browser."""
+        try:
+            # Convert parameters from ParamSpec list to dict for browser compatibility
+            parameters = {}
+            for param in component_info.parameters:
+                param_str = param.name
+                if param.annotation:
+                    param_str += f": {param.annotation}"
+                if param.default:
+                    param_str += f" = {param.default}"
+                parameters[param.name] = param_str
             
-            if line.startswith("Chatterlang Name: "):
-                chatterlang_name = line.replace("Chatterlang Name: ", "")
-            elif line.startswith("Base Classes: "):
-                base_classes = [cls.strip() for cls in line.replace("Base Classes: ", "").split(',')]
-            elif line == "Docstring:":
-                current_section = "docstring"
-            elif line == "Parameters:":
-                current_section = "parameters"
-            elif current_section == "docstring" and line:
-                docstring_lines.append(line)
-            elif current_section == "parameters" and line:
-                param_lines.append(line)
-        
-        docstring = '\n'.join(docstring_lines).strip()
-        
-        # Parse parameters
-        for param_line in param_lines:
-            if ':' in param_line and '=' in param_line:
-                param_name = param_line.split(':')[0].strip()
-                param_value = param_line.split('=', 1)[1].strip()
-                parameters[param_name] = param_value
-            elif param_line.strip():
-                parameters[param_line.strip()] = ""
-        
-        return TalkPipeDoc(name, chatterlang_name, doc_type, package_name, 
-                          base_classes, docstring, parameters)
+            # Create component
+            component = TalkPipeDoc(
+                name=component_info.name,
+                chatterlang_name=component_info.chatterlang_name,
+                doc_type=component_info.component_type,
+                module=component_info.module,
+                base_classes=component_info.base_classes,
+                docstring=component_info.docstring,
+                parameters=parameters
+            )
+            
+            self.components[component_info.chatterlang_name] = component
+            
+            # Group by module
+            if component_info.module not in self.modules:
+                self.modules[component_info.module] = []
+            self.modules[component_info.module].append(component_info.chatterlang_name)
+            
+        except Exception as e:
+            print(f"Warning: Failed to load component {component_info.chatterlang_name}: {e}")
     
     def run(self):
         """Run the interactive browser."""
         print("🔧 TalkPipe Documentation Browser")
         print("=" * 50)
         print("Commands:")
-        print("  list                - List all packages")
-        print("  list <package>      - List components in package")
+        print("  list                - List all modules")
+        print("  list <module>       - List components in module")
         print("  show <component>    - Show detailed component info")
         print("  search <term>       - Search components and descriptions")
         print("  help                - Show this help")
@@ -174,9 +123,9 @@ class TalkPipeBrowser:
                     self._show_help()
                 elif cmd == 'list':
                     if arg:
-                        self._list_package_components(arg)
+                        self._list_module_components(arg)
                     else:
-                        self._list_packages()
+                        self._list_modules()
                 elif cmd == 'show':
                     if arg:
                         self._show_component(arg)
@@ -200,40 +149,56 @@ class TalkPipeBrowser:
         """Show help information."""
         print("\nTalkPipe Documentation Browser Help")
         print("-" * 35)
-        print("list                 - Show all available packages")
-        print("list <package>       - Show components in a specific package")
+        print("list                 - Show all available modules")
+        print("list <module>        - Show components in a specific module")
         print("show <component>     - Show detailed info about a component")
         print("search <term>        - Search for components by name or description")
         print("help                 - Show this help message")
         print("quit/exit            - Exit the browser")
         print("\nExamples:")
-        print("  list data.email")
+        print("  list talkpipe.data.email")
         print("  show readEmail")
         print("  search mongodb")
         print()
     
-    def _list_packages(self):
-        """List all available packages."""
-        print(f"\nAvailable Packages ({len(self.packages)}):")
+    def _list_modules(self):
+        """List all available modules."""
+        print(f"\nAvailable Modules ({len(self.modules)}):")
         print("-" * 30)
-        for package, components in sorted(self.packages.items()):
-            print(f"📦 {package:<25} ({len(components)} components)")
+        for module, components in sorted(self.modules.items()):
+            print(f"📦 {module:<35} ({len(components)} components)")
         print()
     
-    def _list_package_components(self, package_name: str):
-        """List components in a specific package."""
-        if package_name not in self.packages:
-            print(f"Package '{package_name}' not found.")
-            print("Available packages:", ", ".join(sorted(self.packages.keys())))
-            return
+    def _list_module_components(self, module_name: str):
+        """List components in a specific module."""
+        # Try exact match first
+        if module_name not in self.modules:
+            # Try partial match
+            matches = [mod for mod in self.modules.keys() if module_name in mod]
+            if len(matches) == 1:
+                module_name = matches[0]
+            elif len(matches) > 1:
+                print(f"Multiple modules found matching '{module_name}':")
+                for match in matches:
+                    print(f"  {match}")
+                return
+            else:
+                print(f"Module '{module_name}' not found.")
+                print("Available modules:", ", ".join(sorted(self.modules.keys())))
+                return
         
-        components = self.packages[package_name]
-        print(f"\nComponents in {package_name} ({len(components)}):")
+        components = self.modules[module_name]
+        print(f"\nComponents in {module_name} ({len(components)}):")
         print("-" * 50)
         
         for comp_name in sorted(components):
             comp = self.components[comp_name]
-            type_icon = "🔌" if "Source" in comp.doc_type else "⚙️"
+            if comp.doc_type == "Source":
+                type_icon = "🔌"
+            elif comp.doc_type == "Field Segment":
+                type_icon = "🔧"
+            else:
+                type_icon = "⚙️"
             print(f"{type_icon} {comp.chatterlang_name:<20} ({comp.name})")
         print()
     
@@ -267,7 +232,7 @@ class TalkPipeBrowser:
         print(f"{'='*60}")
         print(f"Class/Function: {component.name}")
         print(f"Type:           {component.doc_type}")
-        print(f"Package:        {component.package}")
+        print(f"Module:         {component.module}")
         
         if component.base_classes:
             print(f"Base Classes:   {', '.join(component.base_classes)}")
@@ -283,11 +248,8 @@ class TalkPipeBrowser:
         if component.parameters:
             print(f"\nParameters:")
             print("-" * 11)
-            for param_name, param_value in component.parameters.items():
-                if param_value:
-                    print(f"  {param_name:<20} = {param_value}")
-                else:
-                    print(f"  {param_name}")
+            for param_name, param_info in component.parameters.items():
+                print(f"  {param_info}")
         
         print()
     
@@ -311,8 +273,13 @@ class TalkPipeBrowser:
         print("-" * 60)
         
         for component in sorted(matches, key=lambda x: x.chatterlang_name):
-            type_icon = "🔌" if "Source" in component.doc_type else "⚙️"
-            print(f"{type_icon} {component.chatterlang_name:<20} ({component.package})")
+            if component.doc_type == "Source":
+                type_icon = "🔌"
+            elif component.doc_type == "Field Segment":
+                type_icon = "🔧"
+            else:
+                type_icon = "⚙️"
+            print(f"{type_icon} {component.chatterlang_name:<20} ({component.module})")
             
             # Show brief description
             if component.docstring:
@@ -324,58 +291,18 @@ class TalkPipeBrowser:
 
 
 def main():
-    """Main entry point."""
-    parser = argparse.ArgumentParser(description="Interactive TalkPipe documentation browser")
-    parser.add_argument("doc_path", nargs="?", help="Path to directory containing talkpipe_ref.txt (optional - uses current directory by default)")
     
-    args = parser.parse_args()
-    
-    # If no path provided, check for reference files in current directory first
-    if args.doc_path is None:
-        current_dir = Path(os.getcwd())
-        txt_file = current_dir / "talkpipe_ref.txt"
-        
-        # If reference files exist in current directory, use them directly
-        if txt_file.exists():
-            doc_path = str(current_dir)
-        else:
-            # Check installation directory for pre-installed documentation
-            install_dir = Path(__file__).parent / 'static'
-            install_txt_file = install_dir / "unit-docs.txt"
-            
-            if install_txt_file.exists():
-                print("Using pre-installed documentation from installation directory.")
-                doc_path = str(install_dir)
-            else:
-                # Files don't exist, try to run talkpipe_ref command to create them
-                print("Reference files not found in current directory or installation directory.")
-                print("Attempting to run 'chatterlang_reference_generator' command to generate them...")
-                
-                try:
-                    from talkpipe.app.chatterlang_reference_generator import go as generate_reference
-                    generate_reference()
-                    print("Successfully generated reference files.")
-                    
-                    # Check if files were created
-                    if txt_file.exists():
-                        doc_path = str(current_dir)
-                    else:
-                        print("Error: reference generation completed but files were not created")
-                        sys.exit(1)
-                except Exception as e:
-                    print(f"Error running reference generator: {e}")
-                    print("Please either:")
-                    print("  1. Install TalkPipe properly, or")
-                    print("  2. Provide path to directory containing talkpipe_ref.txt")
-                    sys.exit(1)
-    else:
-        if not os.path.exists(args.doc_path):
-            print(f"Error: Directory {args.doc_path} does not exist")
+    try:
+        browser = TalkPipeBrowser()
+        if not browser.components:
+            print("No TalkPipe components found. Make sure plugins are properly installed.")
             sys.exit(1)
-        doc_path = args.doc_path
-    
-    browser = TalkPipeBrowser(doc_path)
-    browser.run()
+        
+        print(f"Loaded {len(browser.components)} components from {len(browser.modules)} modules")
+        browser.run()
+    except Exception as e:
+        print(f"Error initializing browser: {e}")
+        sys.exit(1)
 
 
 if __name__ == "__main__":

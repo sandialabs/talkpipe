@@ -1,99 +1,32 @@
-import os
-import ast
 import sys
-import html  # <-- Fix: Import the html module for html.escape
+import html
 from typing import Optional, List
 from dataclasses import dataclass, field
-
-# Python 3.9+ can unparse AST natively. We'll check if it's available:
-AST_UNPARSE_AVAILABLE = (sys.version_info.major > 3) or (
-    sys.version_info.major == 3 and sys.version_info.minor >= 9
+from talkpipe.chatterlang.registry import input_registry, segment_registry
+from talkpipe.util.plugin_loader import load_plugins
+from talkpipe.util.doc_extraction import (
+    ParamSpec, ComponentInfo, extract_component_info, detect_component_type
 )
 
-def safe_unparse(node: ast.AST) -> str:
-    """
-    Safely unparse an AST node if running on Python 3.9+.
-    Otherwise, return a placeholder or implement a fallback.
-    """
-    if not node:
-        return ""
-    if AST_UNPARSE_AVAILABLE:
-        import ast
-        return ast.unparse(node)
-    else:
-        return "<unparse not supported in this Python version>"
-
-@dataclass
-class ParamSpec:
-    """
-    Holds detailed parameter info: name, annotation, default.
-    """
-    name: str
-    annotation: str = ""
-    default: str = ""
+# ParamSpec is now imported from doc_extraction
 
 @dataclass
 class AnalyzedItem:
     """
     Represents a discovered class or function along with its metadata.
     """
-    type: str                 # "Class" or "Function"
+    type: str                 # "Source" or "Segment"
     name: str
-    docstring: str            # raw docstring (may contain HTML)
+    docstring: str            # raw docstring
     parameters: List[ParamSpec]
-    package_name: str = ""    # dotted module path
     chatterlang_name: Optional[str] = None
     base_classes: List[str] = field(default_factory=list)
     
-    # For classes: 'segment', 'source', or 'field_segment'
-    # For functions: booleans is_segment, is_source, is_field_segment
+    # For segments: 'segment', 'source', or 'field_segment'
     decorator_type: Optional[str] = None
     is_segment: bool = False
     is_source: bool = False
-    is_field_segment: bool = False  # New field for field_segment
-
-def _extract_chatterlang_name(decorator: ast.Call) -> Optional[str]:
-    """
-    Extract a string passed to @register_segment(...) or @register_source(...),
-    either as the first positional argument or via name="..." keyword.
-    """
-    if decorator.args:
-        arg = decorator.args[0]
-        # Handle both old ast.Str and new ast.Constant
-        if isinstance(arg, ast.Constant) and isinstance(arg.value, str):
-            return arg.value
-        elif hasattr(ast, 'Str') and isinstance(arg, ast.Str):
-            return arg.s
-    
-    for kw in decorator.keywords or []:
-        if kw.arg == 'name':
-            # Handle both old ast.Str and new ast.Constant
-            if isinstance(kw.value, ast.Constant) and isinstance(kw.value.value, str):
-                return kw.value.value
-            elif hasattr(ast, 'Str') and isinstance(kw.value, ast.Str):
-                return kw.value.s
-    return None
-
-def build_param_specs(args_list: List[ast.arg], defaults_list: List[ast.expr]) -> List[ParamSpec]:
-    """
-    Build a list of ParamSpec from a function's args and defaults AST lists.
-    - 'args_list': the full list of arguments (including 'self' if present).
-    - 'defaults_list': the default values for the *last* len(defaults_list) arguments.
-    """
-    param_specs = []
-    num_no_defaults = len(args_list) - len(defaults_list)
-    for i, arg_node in enumerate(args_list):
-        name = arg_node.arg
-        annotation_str = safe_unparse(arg_node.annotation) if arg_node.annotation else ""
-        if i >= num_no_defaults:
-            # This arg has a default value
-            default_index = i - num_no_defaults
-            default_expr = defaults_list[default_index]
-            default_str = safe_unparse(default_expr)
-        else:
-            default_str = ""
-        param_specs.append(ParamSpec(name=name, annotation=annotation_str, default=default_str))
-    return param_specs
+    is_field_segment: bool = False
 
 def sanitize_id(text: str) -> str:
     """
@@ -102,229 +35,67 @@ def sanitize_id(text: str) -> str:
     """
     return text.replace('.', '-').replace('/', '-').replace(' ', '-')
 
-def analyze_function(node: ast.FunctionDef, filename: str, package_name: str) -> Optional[AnalyzedItem]:
+def analyze_registered_items() -> List[AnalyzedItem]:
     """
-    Analyze a function node, looking for:
-      - @register_segment(...) / @register_source(...)
-      - @segment / @source / @field_segment
-      - or attribute-based forms (e.g. @registry.register_segment(...))
+    Analyze all registered sources and segments from the plugin system.
     """
+    load_plugins()  # Ensure plugins are loaded
+    analyzed_items = []
+    
+    # Process sources
+    for chatterlang_name, cls in input_registry.all.items():
+        component_info = extract_component_info(chatterlang_name, cls, 'Source')
+        if component_info:
+            item = convert_component_info_to_analyzed_item(component_info)
+            analyzed_items.append(item)
+    
+    # Process segments
+    for chatterlang_name, cls in segment_registry.all.items():
+        component_type = detect_component_type(cls, 'Segment')
+        component_info = extract_component_info(chatterlang_name, cls, component_type)
+        if component_info:
+            item = convert_component_info_to_analyzed_item(component_info)
+            analyzed_items.append(item)
+    
+    return analyzed_items
+
+def convert_component_info_to_analyzed_item(component_info: ComponentInfo) -> AnalyzedItem:
+    """
+    Convert ComponentInfo to AnalyzedItem for backward compatibility.
+    """
+    # Map component types to decorator types and flags
+    decorator_type = None
     is_segment = False
     is_source = False
-    is_field_segment = False  # New flag
-    chatterlang_name = None
-    docstring = ast.get_docstring(node) or ""
-
-    params = build_param_specs(node.args.args, node.args.defaults)
-
-    # Check decorators
-    for decorator in node.decorator_list:
-        if isinstance(decorator, ast.Call):
-            func = decorator.func
-            # e.g. @register_segment("foo")
-            if isinstance(func, ast.Name):
-                if func.id == 'register_segment':
-                    is_segment = True
-                    extracted = _extract_chatterlang_name(decorator)
-                    if extracted:
-                        chatterlang_name = extracted
-                elif func.id == 'register_source':
-                    is_source = True
-                    extracted = _extract_chatterlang_name(decorator)
-                    if extracted:
-                        chatterlang_name = extracted
-                elif func.id == 'segment':
-                    is_segment = True
-                elif func.id == 'source':
-                    is_source = True
-                elif func.id == 'field_segment':  # New: detect field_segment
-                    is_field_segment = True
-            elif isinstance(func, ast.Attribute):
-                # e.g. @registry.register_segment("foo") or @core.segment()
-                if func.attr == 'register_segment':
-                    is_segment = True
-                    extracted = _extract_chatterlang_name(decorator)
-                    if extracted:
-                        chatterlang_name = extracted
-                elif func.attr == 'register_source':
-                    is_source = True
-                    extracted = _extract_chatterlang_name(decorator)
-                    if extracted:
-                        chatterlang_name = extracted
-                elif func.attr == 'segment':  # e.g. @core.segment()
-                    is_segment = True
-                elif func.attr == 'source':  # e.g. @core.source()
-                    is_source = True
-                elif func.attr == 'field_segment':  # e.g. @core.field_segment()
-                    is_field_segment = True
-        elif isinstance(decorator, ast.Name):
-            # e.g. @segment or @source or @field_segment
-            if decorator.id == 'segment':
-                is_segment = True
-            elif decorator.id == 'source':
-                is_source = True
-            elif decorator.id == 'field_segment':  # New: detect field_segment
-                is_field_segment = True
-
-    # If no relevant decorators, ignore
-    if not (is_segment or is_source or is_field_segment):
-        return None
-
+    is_field_segment = False
+    
+    if component_info.component_type == 'Source':
+        is_source = True
+        decorator_type = 'source'
+        item_type = 'Source'
+    elif component_info.component_type == 'Field Segment':
+        is_field_segment = True
+        decorator_type = 'field_segment'
+        item_type = 'Segment'
+    elif component_info.component_type == 'Segment':
+        is_segment = True
+        decorator_type = 'segment'
+        item_type = 'Segment'
+    else:
+        item_type = component_info.component_type
+    
     return AnalyzedItem(
-        type="Function",
-        name=node.name,
-        docstring=docstring,  # raw
-        parameters=params,
-        package_name=package_name,
-        chatterlang_name=chatterlang_name,
-        base_classes=[],
-        decorator_type=None,  # classes only
+        type=item_type,
+        name=component_info.name,
+        docstring=component_info.docstring,
+        parameters=component_info.parameters,
+        chatterlang_name=component_info.chatterlang_name,
+        base_classes=component_info.base_classes,
+        decorator_type=decorator_type,
         is_segment=is_segment,
         is_source=is_source,
-        is_field_segment=is_field_segment,  # New field
+        is_field_segment=is_field_segment,
     )
-
-def analyze_class(node: ast.ClassDef, filename: str, package_name: str) -> Optional[AnalyzedItem]:
-    """
-    Analyze a class node, looking for @register_segment(...), @register_source(...),
-    or field_segment-related decorators.
-    """
-    chatterlang_name = None
-    decorator_type = None
-
-    # Check the class decorators
-    for decorator in node.decorator_list:
-        if isinstance(decorator, ast.Call):
-            func = decorator.func
-            if isinstance(func, ast.Name):
-                if func.id == 'register_segment':
-                    decorator_type = 'segment'
-                    extracted = _extract_chatterlang_name(decorator)
-                    if extracted:
-                        chatterlang_name = extracted
-                elif func.id == 'register_source':
-                    decorator_type = 'source'
-                    extracted = _extract_chatterlang_name(decorator)
-                    if extracted:
-                        chatterlang_name = extracted
-                elif func.id == 'register_field_segment':  # New: detect register_field_segment
-                    decorator_type = 'field_segment'
-                    extracted = _extract_chatterlang_name(decorator)
-                    if extracted:
-                        chatterlang_name = extracted
-            elif isinstance(func, ast.Attribute):
-                if func.attr == 'register_segment':
-                    decorator_type = 'segment'
-                    extracted = _extract_chatterlang_name(decorator)
-                    if extracted:
-                        chatterlang_name = extracted
-                elif func.attr == 'register_source':
-                    decorator_type = 'source'
-                    extracted = _extract_chatterlang_name(decorator)
-                    if extracted:
-                        chatterlang_name = extracted
-                elif func.attr == 'register_field_segment':  # New: detect register_field_segment
-                    decorator_type = 'field_segment'
-                    extracted = _extract_chatterlang_name(decorator)
-                    if extracted:
-                        chatterlang_name = extracted
-                elif func.attr == 'segment':  # e.g. @core.segment()
-                    decorator_type = 'segment'
-                elif func.attr == 'source':  # e.g. @core.source()
-                    decorator_type = 'source'  
-                elif func.attr == 'field_segment':  # e.g. @core.field_segment()
-                    decorator_type = 'field_segment'
-
-    if not decorator_type:
-        # Not a segment, source, or field_segment class
-        return None
-
-    # Rest of the function remains the same...
-    init_node = None
-    for body_item in node.body:
-        if isinstance(body_item, ast.FunctionDef) and body_item.name == "__init__":
-            init_node = body_item
-            break
-
-    params: List[ParamSpec] = []
-    if init_node:
-        params = build_param_specs(init_node.args.args, init_node.args.defaults)
-
-    docstring = ast.get_docstring(node) or ""
-
-    base_classes: List[str] = []
-    for base in node.bases:
-        if isinstance(base, ast.Name):
-            base_classes.append(base.id)
-        elif isinstance(base, ast.Attribute):
-            base_classes.append(f"{base.value.id}.{base.attr}")
-
-    return AnalyzedItem(
-        type="Class",
-        name=node.name,
-        docstring=docstring,
-        parameters=params,
-        package_name=package_name,
-        chatterlang_name=chatterlang_name,
-        base_classes=base_classes,
-        decorator_type=decorator_type,
-        is_segment=False,
-        is_source=False,
-        is_field_segment=False,
-    )
-
-# ------------------------------------------------------------------------
-# FILE / AST PROCESSING
-# ------------------------------------------------------------------------
-
-def compute_package_name(file_path: str, root_dir: str) -> str:
-    """
-    Convert the file path (relative to root_dir) into a dotted module path.
-    e.g. root_dir=/projects/myapp, file_path=/projects/myapp/mypkg/subpkg/module.py
-    => package_name = mypkg.subpkg.module
-    """
-    rel_path = os.path.relpath(file_path, start=root_dir)
-    rel_no_ext, _ = os.path.splitext(rel_path)
-    return rel_no_ext.replace(os.path.sep, '.')
-
-def find_python_files(root_dir: str) -> List[str]:
-    """
-    Recursively find all .py files under root_dir.
-    """
-    python_files = []
-    for dirpath, _, filenames in os.walk(root_dir):
-        for fname in filenames:
-            if fname.endswith(".py"):
-                full_path = os.path.join(dirpath, fname)
-                python_files.append(full_path)
-    return python_files
-
-def analyze_file(file_path: str, root_dir: str) -> List[AnalyzedItem]:
-    """
-    Parse one Python file and analyze all top-level classes and functions.
-    """
-    with open(file_path, "r", encoding="utf-8") as f:
-        file_contents = f.read()
-
-    tree = ast.parse(file_contents)
-    items = []
-    package_name = compute_package_name(file_path, root_dir)
-
-    for node in tree.body:
-        if isinstance(node, ast.ClassDef):
-            item = analyze_class(node, file_path, package_name)
-            if item:
-                items.append(item)
-        elif isinstance(node, ast.FunctionDef):
-            item = analyze_function(node, file_path, package_name)
-            if item:
-                items.append(item)
-
-    return items
-
-# ------------------------------------------------------------------------
-# HTML GENERATION (WITH TABLE OF CONTENTS)
-# ------------------------------------------------------------------------
 
 def get_first_docstring_line(docstring: str) -> str:
     """
@@ -343,11 +114,15 @@ def generate_html(analyzed_items: List[AnalyzedItem], output_file: str) -> None:
     Generate a styled HTML file with a table of contents, raw HTML docstrings,
     skipping 'self', and skipping first param for segment functions.
     """
-    # Group by package, then sort packages
-    items_by_package = {}
-    for it in analyzed_items:
-        items_by_package.setdefault(it.package_name, []).append(it)
-    sorted_pkgs = sorted(items_by_package.keys())
+    # Group by type (Source/Segment), then sort by chatterlang name
+    items_by_type = {}
+    for item in analyzed_items:
+        type_key = item.type
+        items_by_type.setdefault(type_key, []).append(item)
+    
+    # Sort items within each type by chatterlang name
+    for type_items in items_by_type.values():
+        type_items.sort(key=lambda x: x.chatterlang_name.lower() if x.chatterlang_name else x.name.lower())
 
     html_content = """\
 <!DOCTYPE html>
@@ -355,7 +130,7 @@ def generate_html(analyzed_items: List[AnalyzedItem], output_file: str) -> None:
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Class and Function Documentation</title>
+  <title>Chatterlang Reference Documentation</title>
   <style>
     body {
       font-family: Arial, sans-serif;
@@ -390,7 +165,7 @@ def generate_html(analyzed_items: List[AnalyzedItem], output_file: str) -> None:
       font-weight: bold;
       background-color: #e5e5e5;
     }
-    .toc-package {
+    .toc-type {
       font-weight: bold;
       font-size: 1.2em;
       background-color: #f0f0f0;
@@ -399,7 +174,7 @@ def generate_html(analyzed_items: List[AnalyzedItem], output_file: str) -> None:
     .toc-name {
       width: 25%;
     }
-    .toc-talkpipe {
+    .toc-chatterlang {
       width: 25%;
       color: #0056b3;
       font-style: italic;
@@ -407,7 +182,7 @@ def generate_html(analyzed_items: List[AnalyzedItem], output_file: str) -> None:
     .toc-description {
       width: 50%;
     }
-    .package-header {
+    .type-header {
       margin-top: 40px;
       margin-bottom: 10px;
       padding: 5px 0;
@@ -416,20 +191,17 @@ def generate_html(analyzed_items: List[AnalyzedItem], output_file: str) -> None:
       font-weight: bold;
       color: #444;
     }
-    .class, .function {
+    .item {
       margin: 20px 0;
       padding: 10px;
       border: 1px solid #ddd;
-      background-color: #f9f9f9;
-    }
-    .function {
       background-color: #f9f9f9;
     }
     h2 {
       color: #333;
       margin-bottom: 5px;
     }
-    .talkpipe-name {
+    .chatterlang-name {
       font-weight: bold;
       color: #007bff;
     }
@@ -444,14 +216,14 @@ def generate_html(analyzed_items: List[AnalyzedItem], output_file: str) -> None:
 </head>
 <body>
   <div class="container">
-    <h1>Class and Function Documentation</h1>
+    <h1>Chatterlang Reference Documentation</h1>
     <div class="toc">
       <h2>Table of Contents</h2>
       <table class="toc-table">
         <thead>
           <tr>
-            <th class="toc-name">Name</th>
-            <th class="toc-talkpipe">Chatterlang Name</th>
+            <th class="toc-chatterlang">Chatterlang Name</th>
+            <th class="toc-name">Class Name</th>
             <th class="toc-description">Description</th>
           </tr>
         </thead>
@@ -459,28 +231,27 @@ def generate_html(analyzed_items: List[AnalyzedItem], output_file: str) -> None:
 """
 
     # Build the table of contents with table structure
-    for pkg in sorted_pkgs:
-        pkg_items = items_by_package[pkg]
-        pkg_items.sort(key=lambda x: x.name.lower())
-        pkg_id = sanitize_id(pkg)
+    for item_type in sorted(items_by_type.keys()):
+        type_items = items_by_type[item_type]
+        type_id = sanitize_id(item_type)
 
-        # Package header row
-        html_content += f'<tr><td class="toc-package" colspan="3"><a href="#{pkg_id}">{html.escape(pkg)}</a></td></tr>\n'
+        # Type header row
+        html_content += f'<tr><td class="toc-type" colspan="3"><a href="#{type_id}">{html.escape(item_type)}</a></td></tr>\n'
 
-        # Each item under this package
-        for item in pkg_items:
-            item_id = f"{pkg_id}-{sanitize_id(item.name)}"
+        # Each item under this type
+        for item in type_items:
+            item_id = f"{type_id}-{sanitize_id(item.chatterlang_name or item.name)}"
             first_doc_line = get_first_docstring_line(item.docstring)
             
-            # Name column
+            # Chatterlang column (now first)
             html_content += f'<tr>\n'
-            html_content += f'  <td class="toc-name"><a href="#{item_id}">{html.escape(item.name)}</a></td>\n'
-            
-            # Talkpipe column
-            html_content += f'  <td class="toc-talkpipe">'
+            html_content += f'  <td class="toc-chatterlang">'
             if item.chatterlang_name:
-                html_content += f'{html.escape(item.chatterlang_name)}'
+                html_content += f'<a href="#{item_id}">{html.escape(item.chatterlang_name)}</a>'
             html_content += '</td>\n'
+            
+            # Name column (now second)
+            html_content += f'  <td class="toc-name">{html.escape(item.name)}</td>\n'
             
             # Description column
             html_content += f'  <td class="toc-description">'
@@ -496,49 +267,38 @@ def generate_html(analyzed_items: List[AnalyzedItem], output_file: str) -> None:
     </div>
 """
 
-    # Now the main content, grouped by package
-    for pkg in sorted_pkgs:
-        pkg_items = items_by_package[pkg]
-        pkg_items.sort(key=lambda x: x.name.lower())
+    # Now the main content, grouped by type
+    for item_type in sorted(items_by_type.keys()):
+        type_items = items_by_type[item_type]
+        type_id = sanitize_id(item_type)
+        html_content += f'<div class="type-header" id="{type_id}">{html.escape(item_type)}</div>\n'
 
-        pkg_id = sanitize_id(pkg)
-        html_content += f'<div class="package-header" id="{pkg_id}">{html.escape(pkg)}</div>\n'
-
-        for item in pkg_items:
-            if item.type == "Class":
-                if item.decorator_type == 'segment':
-                    disp_type = "Segment Class"
-                elif item.decorator_type == 'source':
-                    disp_type = "Source Class"
-                elif item.decorator_type == 'field_segment':  # New display type
-                    disp_type = "Field Segment Class"
-                else:
-                    disp_type = "Class"
+        for item in type_items:
+            if item.decorator_type == 'segment':
+                disp_type = "Segment"
+            elif item.decorator_type == 'source':
+                disp_type = "Source"
+            elif item.decorator_type == 'field_segment':
+                disp_type = "Field Segment"
             else:
-                if item.is_segment:
-                    disp_type = "Segment Function"
-                elif item.is_source:
-                    disp_type = "Source Function"
-                elif item.is_field_segment:  # New display type
-                    disp_type = "Field Segment Function"
-                else:
-                    disp_type = "Function"
+                disp_type = item.type
 
-            item_id = f"{pkg_id}-{sanitize_id(item.name)}"
-            html_content += f'<div class="{item.type.lower()}" id="{item_id}">\n'
+            item_id = f"{type_id}-{sanitize_id(item.chatterlang_name or item.name)}"
+            html_content += f'<div class="item" id="{item_id}">\n'
             html_content += f'  <h2>{disp_type}: {item.name}</h2>\n'
 
             if item.chatterlang_name:
-                html_content += f'  <p class="talkpipe-name">Chatterlang Name: {item.chatterlang_name}</p>\n'
+                html_content += f'  <p class="chatterlang-name">Chatterlang Name: {item.chatterlang_name}</p>\n'
 
             if item.docstring.strip():
                 # Insert raw docstring (may contain HTML)
-                html_content += f'  <div><pre>{item.docstring}</pre></div>\n'
+                html_content += f'  <div><pre>{html.escape(item.docstring)}</pre></div>\n'
 
-            # Process parameters
+            # Process parameters - skip 'self' and for segments skip first param if it's the data param
             filtered_params = [p for p in item.parameters if p.name not in ["self", "items", "item"]]
-            if item.type == "Function" and item.is_segment and len(filtered_params) > 0:
-                filtered_params = filtered_params[1:]
+            if item.is_segment and len(filtered_params) > 0:
+                # For segments, the first param is often the data being processed
+                filtered_params = filtered_params[1:] if len(filtered_params) > 1 else filtered_params
 
             if filtered_params:
                 html_content += '  <h3>Parameters:</h3>\n  <ul class="param-list">\n'
@@ -555,7 +315,7 @@ def generate_html(analyzed_items: List[AnalyzedItem], output_file: str) -> None:
 
             if item.base_classes:
                 bases_line = ", ".join(item.base_classes)
-                html_content += f'  <p><strong>Base Classes:</strong> {bases_line}</p>\n'
+                html_content += f'  <p><strong>Base Classes:</strong> {html.escape(bases_line)}</p>\n'
 
             html_content += '</div>\n'
 
@@ -568,53 +328,43 @@ def generate_html(analyzed_items: List[AnalyzedItem], output_file: str) -> None:
     with open(output_file, "w", encoding="utf-8") as f:
         f.write(html_content)
 
-# ------------------------------------------------------------------------
-# TEXT GENERATION
-# ------------------------------------------------------------------------
-
 def generate_text(analyzed_items: List[AnalyzedItem], output_file: str) -> None:
     """
     Write a nicely formatted plain-text version of the same documentation.
-    Group by package, sorted, omit 'self', skip first param for segment functions.
+    Group by type, sorted, omit 'self', skip first param for segment functions.
     No table of contents here - just a linear, grouped listing.
     """
-    items_by_package = {}
-    for it in analyzed_items:
-        items_by_package.setdefault(it.package_name, []).append(it)
-    sorted_pkgs = sorted(items_by_package.keys())
+    # Group by type (Source/Segment), then sort by chatterlang name
+    items_by_type = {}
+    for item in analyzed_items:
+        type_key = item.type
+        items_by_type.setdefault(type_key, []).append(item)
+    
+    # Sort items within each type by chatterlang name
+    for type_items in items_by_type.values():
+        type_items.sort(key=lambda x: x.chatterlang_name.lower() if x.chatterlang_name else x.name.lower())
 
     lines = []
-    lines.append("Class and Function Documentation (Text Version)")
-    lines.append("================================================")
+    lines.append("Chatterlang Reference Documentation (Text Version)")
+    lines.append("==================================================")
     lines.append("")
 
-    for pkg in sorted_pkgs:
-        pkg_items = items_by_package[pkg]
-        pkg_items.sort(key=lambda x: x.name.lower())
+    for item_type in sorted(items_by_type.keys()):
+        type_items = items_by_type[item_type]
 
-        lines.append(f"PACKAGE: {pkg}")
-        lines.append("-" * (len("PACKAGE: ") + len(pkg)))  # underline
+        lines.append(f"TYPE: {item_type}")
+        lines.append("-" * (len("TYPE: ") + len(item_type)))  # underline
         lines.append("")
 
-        for item in pkg_items:
-            if item.type == "Class":
-                if item.decorator_type == 'segment':
-                    disp_type = "Segment Class"
-                elif item.decorator_type == 'source':
-                    disp_type = "Source Class"
-                elif item.decorator_type == 'field_segment':  # New display type
-                    disp_type = "Field Segment Class"
-                else:
-                    disp_type = "Class"
+        for item in type_items:
+            if item.decorator_type == 'segment':
+                disp_type = "Segment"
+            elif item.decorator_type == 'source':
+                disp_type = "Source"
+            elif item.decorator_type == 'field_segment':
+                disp_type = "Field Segment"
             else:
-                if item.is_segment:
-                    disp_type = "Segment Function"
-                elif item.is_source:
-                    disp_type = "Source Function"
-                elif item.is_field_segment:  # New display type
-                    disp_type = "Field Segment Function"
-                else:
-                    disp_type = "Function"
+                disp_type = item.type
 
             lines.append(f"{disp_type}: {item.name}")
             if item.chatterlang_name:
@@ -631,8 +381,8 @@ def generate_text(analyzed_items: List[AnalyzedItem], output_file: str) -> None:
                 lines.append("  Docstring: (none)")
 
             filtered_params = [p for p in item.parameters if p.name != "self"]
-            if item.type == "Function" and item.is_segment and len(filtered_params) > 0:
-                filtered_params = filtered_params[1:]
+            if item.is_segment and len(filtered_params) > 0:
+                filtered_params = filtered_params[1:] if len(filtered_params) > 1 else filtered_params
 
             if filtered_params:
                 lines.append("  Parameters:")
@@ -651,59 +401,33 @@ def generate_text(analyzed_items: List[AnalyzedItem], output_file: str) -> None:
         f.write("\n".join(lines))
         f.write("\n")
 
-# ------------------------------------------------------------------------
-# MAIN
-# ------------------------------------------------------------------------
-
-def main(root_dir: str, html_file: str, text_file: str) -> None:
+def main(html_file: str, text_file: str) -> None:
     """
-    We expect two output files: an HTML output (with a table of contents)
-    and a text output (no table of contents).
+    Generate documentation using the plugin system registry.
     """
-    py_files = find_python_files(root_dir)
-    all_items = []
-    for pf in py_files:
-        all_items.extend(analyze_file(pf, root_dir))
-
+    analyzed_items = analyze_registered_items()
+    
     # Generate both files
-    generate_html(all_items, html_file)
-    generate_text(all_items, text_file)
+    generate_html(analyzed_items, html_file)
+    generate_text(analyzed_items, text_file)
 
     print(f"HTML documentation generated at {html_file}")
     print(f"Text documentation generated at {text_file}")
 
 def go():
-    if len(sys.argv) not in {1, 4}:
-        print("Error: You must provide either 0 or 3 arguments.")
-        print("Usage: python unit-documentation-analyzer.py [root_or_package html_out text_out]")
+    if len(sys.argv) not in {1, 3}:
+        print("Error: You must provide either 0 or 2 arguments.")
+        print("Usage: python chatterlang_reference_generator.py [html_out text_out]")
         sys.exit(1)
     elif len(sys.argv) == 1:
-        print("No arguments provided. Using default arguments: talkpipe ./talkpipe_ref.html ./talkpipe_ref.txt")
-        root_or_package = "talkpipe"
-        html_out = "./talkpipe_ref.html"
-        text_out = "./talkpipe_ref.txt"
+        print("No arguments provided. Using default arguments: ./chatterlang_ref.html ./chatterlang_ref.txt")
+        html_out = "./chatterlang_ref.html"
+        text_out = "./chatterlang_ref.txt"
     else:
-        root_or_package = sys.argv[1]
-        html_out = sys.argv[2]
-        text_out = sys.argv[3]
+        html_out = sys.argv[1]
+        text_out = sys.argv[2]
 
-    # Check if the input is a package name first
-    try:
-        import importlib.util
-        spec = importlib.util.find_spec(root_or_package)
-        if spec and spec.submodule_search_locations:
-            root_dir = spec.submodule_search_locations[0]
-        else:
-            # If not a package, check if it's a directory
-            if os.path.isdir(root_or_package):
-                root_dir = root_or_package
-            else:
-                raise ImportError(f"Cannot find package or directory '{root_or_package}'")
-    except ImportError as e:
-        print(e)
-        sys.exit(1)
-
-    main(root_dir, html_out, text_out)
+    main(html_out, text_out)
 
 if __name__ == "__main__":
     go()
