@@ -252,7 +252,7 @@ def test_hash():
     with pytest.raises(AttributeError):
         basic.hash_data({"b": 1}, field_list=["a"])
 
-    assert basic.hash_data("a", algorithm="md5") != basic.hash_data("a", algorithm="SHA1")
+    assert basic.hash_data("a", algorithm="SHA224") != basic.hash_data("a", algorithm="SHA256")
 
 def test_hash_segment():
     s = basic.Hash()
