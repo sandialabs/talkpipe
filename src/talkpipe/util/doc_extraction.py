@@ -7,9 +7,11 @@ sources and segments.
 """
 
 import inspect
+import logging
 from typing import Dict, List, Any, Optional
 from dataclasses import dataclass
 
+logger = logging.getLogger(__name__)
 
 @dataclass
 class ParamSpec:
@@ -247,7 +249,8 @@ def extract_parameters_dict(cls: type) -> Dict[str, str]:
                     if param.default != param.empty:
                         param_str += f" = {param.default}"
                     parameters[param_name] = param_str
-    except Exception:
+    except Exception as e:
+        logger.warning(f"Failed to extract parameters for class {cls.__name__}: {e}")
         pass  # If parameter extraction fails, just return empty dict
     
     return parameters
