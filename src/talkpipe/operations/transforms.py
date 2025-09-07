@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Optional, Annotated
 import re
 
 import numpy as np
@@ -11,17 +11,11 @@ from talkpipe.chatterlang import registry
 
 @registry.register_segment("regexReplace")
 @core.segment()
-def regex_replace(items, pattern, replacement, field="_"):
+def regex_replace(items: Annotated[object, "Input items to transform"], pattern: Annotated[str, "Regular expression pattern to match"], replacement: Annotated[str, "Replacement string for matched patterns"], field: Annotated[str, "Field to apply transformation to. Use '_' for entire item"] = "_"):
     """Transform items by applying regex pattern replacement.
 
     This segment transforms items by applying a regex pattern replacement to either
     the entire item (if field="_") or a specific field of the item.
-
-    Args:
-        items (Iterable): Input items to transform.
-        pattern (str): Regular expression pattern to match.
-        replacement (str): Replacement string for matched patterns.
-        field (str, optional): Field to apply transformation to. Use "_" for entire item. Defaults to "_".
 
     Yields:
         Union[str, dict]: Transformed items. Returns string if field="_", otherwise returns modified item dict.
@@ -54,19 +48,12 @@ def regex_replace(items, pattern, replacement, field="_"):
 
 @registry.register_segment("fillNull")
 @core.segment()
-def fill_null(items, default='', **kwargs):
+def fill_null(items: Annotated[object, "An iterable of dictionaries to process"], default: Annotated[str, "The default value to use for any None values not specified in kwargs"] = '', **kwargs):
     """
     Fills null (None) values in a sequence of dictionaries with specified defaults.
 
     This generator function processes dictionaries by replacing None values with either
     a general default value or specific values for named fields.
-
-    Args:
-        items: An iterable of dictionaries to process.
-        default (str, optional): The default value to use for any None values not 
-            specified in kwargs. Defaults to ''.
-        **kwargs: Field-specific default values. Each keyword argument specifies a
-            field name and the default value to use for that field.
 
     Yields:
         dict: The processed dictionary with None values replaced by defaults.
@@ -101,7 +88,7 @@ def fill_null(items, default='', **kwargs):
 @register_segment("makeLists")
 class MakeLists(AbstractSegment):
 
-    def __init__(self, num_items:Optional[int]=None, cumulative:bool = False, field:str = "_", ignoreNone:bool = False):
+    def __init__(self, num_items: Annotated[Optional[int], "Number of items to collect per batch. If None, collect all items"] = None, cumulative: Annotated[bool, "If True, batches are cumulative (growing), if False, batches are fixed-size"] = False, field: Annotated[str, "Field to extract from each item. Use '_' for the entire item"] = "_", ignoreNone: Annotated[bool, "If True, skip items whose extracted value is None"] = False):
         super().__init__()
         self.num_items = num_items
         self.cumulative = cumulative

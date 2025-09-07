@@ -4,7 +4,7 @@ Contains an abstract class for a chat model, as well as two
 concrete classes for chatting with models from Ollama.
 """
 
-from typing import Optional, Iterable, Iterator
+from typing import Optional, Iterable, Iterator, Annotated
 from abc import ABC, abstractmethod
 import logging
 from pydantic import BaseModel
@@ -31,30 +31,19 @@ class LLMPrompt(AbstractSegment):
     and TALKPIPE_default_source).  If those are not set, the values will be loaded
     from the configuration file (~/.talkpipe.toml).  If none of those are set, an 
     error will be raised.
-
-    Args:
-        model (str, optional): The name of the model to chat with. Defaults to None.
-        source (ModelSource, optional): The source of the model. Defaults to None. Valid values are "openai" and "ollama."
-        system_prompt (str, optional): The system prompt for the model. Defaults to "You are a helpful assistant.".
-        multi_turn (bool, optional): Whether the chat is multi-turn. Defaults to True.
-        pass_prompts (bool, optional): Whether to pass the prompts through to the output. Defaults to False.
-        field (str, optional): The field in the input item containing the prompt. Defaults to None.
-        set_as (str, optional): The field to append the response to. Defaults to None.
-        temperature (float, optional): The temperature to use for the model. If not specified, no temperature parameter will be passed to the model.
-        output_format (BaseModel, optional): A class used for guided generation. Defaults to None.
     """
 
     def __init__(
             self, 
-            model: str = None, 
-            source: str = None, 
-            system_prompt: str = "You are a helpful assistant.", 
-            multi_turn: bool = True,
-            pass_prompts: bool = False,
-            field: Optional[str] = None,
-            set_as: Optional[str] = None,
-            temperature: float = None,
-            output_format: BaseModel = None):
+            model: Annotated[Optional[str], "The name of the model to chat with"] = None, 
+            source: Annotated[Optional[str], "The source of the model (openai or ollama)"] = None, 
+            system_prompt: Annotated[str, "The system prompt for the model"] = "You are a helpful assistant.", 
+            multi_turn: Annotated[bool, "Whether the chat is multi-turn"] = True,
+            pass_prompts: Annotated[bool, "Whether to pass the prompts through to the output"] = False,
+            field: Annotated[Optional[str], "The field in the input item containing the prompt"] = None,
+            set_as: Annotated[Optional[str], "The field to append the response to"] = None,
+            temperature: Annotated[Optional[float], "The temperature to use for the model"] = None,
+            output_format: Annotated[Optional[BaseModel], "A class used for guided generation"] = None):
         super().__init__()
         logging.debug(f"Initializing LLMPrompt with name={model}, source={source}")
         cfg = get_config()
@@ -108,15 +97,6 @@ class AbstractLLMGuidedGeneration(LLMPrompt):
     This class is used to create segments that generate output based on LLM responses.
     It is an abstract class and should not be used directly.
     Subclasses must implement the get_output_format method to specify the output format.
-    Args:
-        system_prompt (str): The system prompt for the LLM.
-        model (str, optional): The name of the model to chat with. Defaults to None.
-        source (str, optional): The source of the model. Defaults to None. Valid values are "openai" and "ollama."
-        multi_turn (bool, optional): Whether the chat is multi-turn. Defaults to False.
-        pass_prompts (bool, optional): Whether to pass the prompts through to the output. Defaults to False.
-        field (str, optional): The field in the input item containing the prompt. Defaults to None.
-        temperature (float, optional): The temperature to use for the model. If not specified, no temperature parameter will be passed to the model.
-        set_as (str, optional): The field to append the response to. Defaults to None.
     """
 
     @staticmethod
@@ -127,14 +107,14 @@ class AbstractLLMGuidedGeneration(LLMPrompt):
 
     def __init__(
             self, 
-            system_prompt: str, 
-            model: str = None, 
-            source: str = None, 
-            multi_turn: bool = False,
-            pass_prompts: bool = False,
-            field: Optional[str] = None,
-            temperature: float = None,
-            set_as: Optional[str] = None):
+            system_prompt: Annotated[str, "The system prompt for the LLM"], 
+            model: Annotated[Optional[str], "The name of the model to chat with"] = None, 
+            source: Annotated[Optional[str], "The source of the model (openai or ollama)"] = None, 
+            multi_turn: Annotated[bool, "Whether the chat is multi-turn"] = False,
+            pass_prompts: Annotated[bool, "Whether to pass the prompts through to the output"] = False,
+            field: Annotated[Optional[str], "The field in the input item containing the prompt"] = None,
+            temperature: Annotated[Optional[float], "The temperature to use for the model"] = None,
+            set_as: Annotated[Optional[str], "The field to append the response to"] = None):
         
         super().__init__(
             model, 

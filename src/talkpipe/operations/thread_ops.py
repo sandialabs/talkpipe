@@ -1,4 +1,4 @@
-from typing import Iterator, Any, Dict
+from typing import Iterator, Any, Dict, Annotated
 import threading
 import queue
 import uuid
@@ -175,7 +175,7 @@ class ThreadedQueue:
 
 @registry.register_segment(name="threaded")
 @core.segment()
-def threadedSegment(items: Iterator):
+def threadedSegment(items: Annotated[Iterator, "Input stream to link to threaded queue system"]):
     """Links the input stream to a threaded queue system.
 
     This segment takes an input stream and links it to a threaded queue system.

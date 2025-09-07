@@ -3,7 +3,7 @@ FastAPI JSON Receiver Server with Configurable Form UI
 Receives JSON data via HTTP and processes it with a configurable function
 Multi-user support with session isolation
 """
-from typing import Union
+from typing import Union, Annotated, Optional
 import logging
 import argparse
 import yaml
@@ -1697,9 +1697,9 @@ def load_form_config(config_path: str) -> Dict[str, Any]:
 class ChatterlangServerSegment(AbstractSource):
     """Segment for receiving JSON data via FastAPI with configurable form"""
     
-    def __init__(self, port: Union[int,str] = 9999, host: str = "localhost", 
-                 api_key: str = None, require_auth: bool = False,
-                 form_config: Union[str, Dict[str, Any]] = None):
+    def __init__(self, port: Annotated[Union[int,str], "Port number for the server"] = 9999, host: Annotated[str, "Host address to bind to"] = "localhost", 
+                 api_key: Annotated[Optional[str], "API key for authentication"] = None, require_auth: Annotated[bool, "Whether to require authentication"] = False,
+                 form_config: Annotated[Union[str, Dict[str, Any], None], "Form configuration as dict, config variable, or file path"] = None):
         super().__init__()
         self.port = int(port)
         self.host = host

@@ -1,4 +1,4 @@
-from typing import List, Dict, Any, Tuple, Optional
+from typing import List, Dict, Any, Tuple, Optional, Annotated
 from dataclasses import dataclass, asdict
 import logging
 from os.path import exists
@@ -499,18 +499,11 @@ class SimpleVectorDB(DocumentStore, VectorAddable, VectorSearchable):
 
 @register_segment("addVector")
 @segment()
-def add_vector(items: str, path, vector_field: str = "_", vector_id: Optional[str] = None, 
-               metadata_field_list: Optional[str] = None, overwrite: bool = False):
+def add_vector(items: Annotated[object, "The items containing the vector data"], path: Annotated[str, "Path to the vector database file"], vector_field: Annotated[str, "The field containing the vector data"] = "_", vector_id: Annotated[Optional[str], "Optional custom ID for the vector"] = None, 
+               metadata_field_list: Annotated[Optional[str], "Optional metadata field list"] = None, overwrite: Annotated[bool, "Whether to overwrite existing database file"] = False):
     """
     Segment to add a vector to the SimpleVectorDB.
     
-    Args:
-        item: The item containing the vector data.
-        vector_field: The field containing the vector data.
-        vector_id: Optional custom ID for the vector.
-        metadata_field_list: Optional metadata field list.
-        dimension: Expected dimension of the vector (optional).
-
     Returns:
         The ID of the added vector.
     """
@@ -538,17 +531,12 @@ def add_vector(items: str, path, vector_field: str = "_", vector_id: Optional[st
 
 @register_segment("searchVector")
 @segment()
-def search_vector(items, path: str, vector_field = "_", top_k: int = 5, 
-                  all_results_at_once: bool = False, set_as: Optional[str] = None,
-                  continue_on_error: bool = True,
-                  search_metric: str = "cosine", search_method: str = "brute-force"):
-    """    Segment to search for similar vectors in the SimpleVectorDB.
-    Args:
-        vector_field: The field containing the vector data.
-        top_k: Number of top results to return.
-        search_metric: Similarity metric ("cosine" or "euclidean").
-        search_method: Search method ("brute-force", "brute-force-heap", or "k-means").
-        path: Optional path to a saved vector database.
+def search_vector(items: Annotated[object, "Items containing query vectors"], path: Annotated[str, "Path to the vector database file"], vector_field: Annotated[str, "The field containing the vector data"] = "_", top_k: Annotated[int, "Number of top results to return"] = 5, 
+                  all_results_at_once: Annotated[bool, "If True, return all results at once. If False, yield one result at a time"] = False, set_as: Annotated[Optional[str], "Field name to set results on input items"] = None,
+                  continue_on_error: Annotated[bool, "If True, continue processing on errors"] = True,
+                  search_metric: Annotated[str, "Similarity metric ('cosine' or 'euclidean')"] = "cosine", search_method: Annotated[str, "Search method ('brute-force', 'brute-force-heap', or 'k-means')"] = "brute-force"):
+    """Segment to search for similar vectors in the SimpleVectorDB.
+    
     Yields:
         List of SearchResult objects.
     """

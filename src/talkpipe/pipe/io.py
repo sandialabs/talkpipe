@@ -1,6 +1,6 @@
 """Utility segments and sources for io operations.
 """
-from typing import Optional, Iterable, Iterator
+from typing import Optional, Iterable, Iterator, Annotated
 import logging
 import os
 import pickle  # nosec B403 - Used only for write operations, not loading untrusted data
@@ -20,17 +20,15 @@ class Print(AbstractSegment):
     An operation prints and passes on each item from the input stream.
     """
 
-    def __init__(self, pprint: Optional[bool] = False, field_list: Optional[str] = None):
+    def __init__(self, 
+                 pprint: Annotated[Optional[bool], "If True, uses pformat for pretty printing"] = False, 
+                 field_list: Annotated[Optional[str], "Comma-separated list of fields to extract and print"] = None):
         super().__init__()
         self.pprint = pprint
         self.field_list = field_list
 
-    def transform(self, input_iter: Iterable[int]) -> Iterator[int]:
-        """
-        Execute the operation on an iterable input.
-
-        Args:
-            input_iter (Iterable[int]): Iterable input data
+    def transform(self, input_iter: Annotated[Iterable[int], "Iterable input data"]) -> Iterator[int]:
+        """Execute the operation on an iterable input.
 
         Yields:
             int: Each element of the input iterable
@@ -48,19 +46,18 @@ class Log(AbstractSegment):
     An operation that logs each item from the input stream.
     """
 
-    def __init__(self, level: Optional[str] = 'INFO', field_list: Optional[str] = None, log_name: Optional[str] = None):
+    def __init__(self, 
+                 level: Annotated[Optional[str], "Logging level (DEBUG, INFO, WARNING, ERROR, CRITICAL)"] = 'INFO', 
+                 field_list: Annotated[Optional[str], "Comma-separated list of fields to extract and log"] = None, 
+                 log_name: Annotated[Optional[str], "Name of the logger to use"] = None):
         super().__init__()
         self.level = level
         self.field_list = field_list
         self.log_name = log_name
         self.logger = logging.getLogger(log_name)
 
-    def transform(self, input_iter: Iterable[int]) -> Iterator[int]:
-        """
-        Execute the operation on an iterable input.
-
-        Args:
-            input_iter (Iterable[int]): Iterable input data
+    def transform(self, input_iter: Annotated[Iterable[int], "Iterable input data"]) -> Iterator[int]:
+        """Execute the operation on an iterable input.
 
         Yields:
             int: Each element of the input iterable
@@ -95,7 +92,8 @@ class Prompt(AbstractSource):
 
 @register_source('echo')
 @source(delimiter=',')
-def echo(data, delimiter):
+def echo(data: Annotated[str, "The input string to split and generate items from"], 
+         delimiter: Annotated[str, "The delimiter to split the string on"]):
     """A source that generates input from a string.
 
     This source will generate input from a string, splitting it on a delimiter.
@@ -137,13 +135,12 @@ def dumpsJsonl(data: Iterable):
 
 @register_segment('writePickle')
 @segment()
-def writePickle(data, fname: str, field: Optional[str] = None, first_only: bool = False):
+def writePickle(data, 
+                fname: Annotated[str, "The name of the file to write"], 
+                field: Annotated[Optional[str], "Field to extract from each item before writing"] = None, 
+                first_only: Annotated[bool, "If True, only the first item in the input stream is written"] = False):
     """Writes each item into a pickle file. If first_only is True, only the first item is written.
     In any event, all items are yielded.
-
-    Args:
-        fname (str): The name of the file to write.
-        first_only (bool): If True, only the first item in the input stream is written.
     """
     first = True
     with open(os.path.expanduser(fname), 'wb') as f:
@@ -157,14 +154,14 @@ def writePickle(data, fname: str, field: Optional[str] = None, first_only: bool 
 
 @register_segment('writeString')
 @segment()
-def writeString(data, fname: str, field: Optional[str] = None, new_line = True, first_only: bool = False):
+def writeString(data, 
+                fname: Annotated[str, "The name of the file to write"], 
+                field: Annotated[Optional[str], "Field to extract from each item before writing"] = None, 
+                new_line: Annotated[bool, "If True, a new line will be written after each item"] = True, 
+                first_only: Annotated[bool, "If True, the segment will write only the first item in the input stream"] = False):
     """Writes each item into a files after casting it to a string.
-
-    Args:
-        fname (str): The name of the file to write.
-        new_line (bool): If True, a new line will be written after each item.
-        first_only (bool): If True, the segment will write only the first item in the input stream.
-            In any event, all items will be yielded.
+    
+    In any event, all items will be yielded.
     """
     first = True
     with open(os.path.expanduser(fname), 'w') as f:

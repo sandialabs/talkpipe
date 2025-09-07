@@ -12,8 +12,11 @@
 - changed asFunction to as_function
 - Added a check and thow an exception in simplevectordb if the user has clustered and then tries to use cosine for search
 - Added a plugin system so it is easer for external whl files to add commands to chatterlang.
-- Refactored the documentation system to pull from the registry in real time.  This ensures that plugin commands are 
+- Refactored the documentation system.
+  - pulls from the registry in real time.  This ensures that plugin commands are 
   included in the documentation system.  It also reduces potential problems from bad parsing of source code.
+  - Pulls "Annotated" typing from parameter names to create the Parameters section of the documentation.
+  Makes for cleaner, more consistently up to date documentation.  The use of Annotated is optional.
 - Updated **isIn** and **isNotIn** to function list **isTrue** so that they need no always be filters.
 
 ## 0.8.1

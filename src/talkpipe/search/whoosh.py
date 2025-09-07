@@ -1,4 +1,4 @@
-from typing import List, Any, Optional, Dict
+from typing import List, Any, Optional, Dict, Annotated
 import os
 import uuid
 import logging
@@ -254,19 +254,10 @@ def WhooshSearcher(index_path: str, reload_seconds: int = -1):
 
 @register_segment("indexWhoosh")
 @segment()
-def indexWhoosh(items, index_path: str, field_list: list[str] = ["_:content"], 
-                yield_doc=False, continue_on_error=True, overwrite=False,
-                commit_seconds: int = -1):
+def indexWhoosh(items: Annotated[object, "Iterator of items to index"], index_path: Annotated[str, "Path to the Whoosh index directory"], field_list: Annotated[list[str], "List of fields to index"] = ["_:content"], 
+                yield_doc: Annotated[bool, "If True, yield each indexed document. Otherwise yield the original item"] = False, continue_on_error: Annotated[bool, "If True, continue processing other documents when one fails"] = True, overwrite: Annotated[bool, "If True, clear existing index before indexing"] = False,
+                commit_seconds: Annotated[int, "If > 0, commit changes if it has been this many seconds since the last commit"] = -1):
     """Index documents using Whoosh full-text indexing.
-
-    Args:
-        items: Iterator of items to index
-        index_path (str): Path to the Whoosh index directory.
-        field_list (list[str]): List of fields to index.
-        yield_doc (bool): If True, yield each indexed document. Otherwise yield the original item.
-        continue_on_error (bool): If True, continue processing other documents when one fails.
-        overwrite (bool): If True, clear existing index before indexing.
-        commit_seconds (int): If > 0, commit changes if it has been this many seconds since the last commit.
     """
     field_list_dict = parse_key_value_str(field_list)
     indexed_count = 0
@@ -296,18 +287,10 @@ def indexWhoosh(items, index_path: str, field_list: list[str] = ["_:content"],
 
 @register_segment("searchWhoosh")
 @segment()
-def searchWhoosh(queries, index_path: str, limit: int = 100, 
-                 all_results_at_once: bool = False, continue_on_error=True,
-                 reload_seconds: int = 60, field: str = "_", set_as: Optional[str] = None):
+def searchWhoosh(queries: Annotated[object, "Iterator of query strings"], index_path: Annotated[str, "Path to the Whoosh index directory"], limit: Annotated[int, "Maximum number of results to return for each query"] = 100, 
+                 all_results_at_once: Annotated[bool, "If True, yield all results at once. Otherwise, yield one result at a time"] = False, continue_on_error: Annotated[bool, "If True, continue with next query when one fails"] = True,
+                 reload_seconds: Annotated[int, "If > 0, reload the index if the last search was at least this many seconds ago"] = 60, field: Annotated[str, "Field to extract query from"] = "_", set_as: Annotated[Optional[str], "Field name to set results on input items"] = None):
     """Search documents using Whoosh full-text indexing.
-
-    Args:
-        queries: Iterator of query strings
-        index_path (str): Path to the Whoosh index directory.
-        limit (int): Maximum number of results to return for each query. Defaults to 100.
-        all_results_at_once (bool): If True, yield all results at once. Otherwise, yield one result at a time.
-        continue_on_error (bool): If True, continue with next query when one fails.
-        reload_seconds (int): If > 0, reload the index if the last search was at least this many seconds ago.
     """
     with WhooshSearcher(index_path, reload_seconds=reload_seconds) as idx:
         for item in queries:

@@ -1,5 +1,6 @@
 """Utility functions for processing HTML content"""
 
+from typing import Optional, Annotated
 import logging
 import re
 import gzip
@@ -71,19 +72,13 @@ def htmlToText(html, cleanText=True):
 
 @register_segment("htmlToText")
 @core.field_segment()
-def htmlToTextSegment(raw, cleanText=True):
+def htmlToTextSegment(raw: Annotated[str, "The raw HTML content to be converted"], cleanText: Annotated[bool, "Whether to clean and normalize the output text"] = True):
     """
     Converts HTML content to text segment.
 
     This function takes HTML content and converts it to plain text format.
     If cleanText is enabled, the resulting text will also be cleaned so it 
     tries to retain only the main body content.
-
-    Args:
-        raw (str): The raw HTML content to be converted
-        cleanText (bool, optional): Whether to clean and normalize the output text. Defaults to True.
-        field (str): The field name to be used for the segment. If None, assuming the incoming item is html.
-        set_as (str): The name of the field to append the text to.  If None, just pass on the cleaned text.
 
     Returns:
         str: The extracted text content from the HTML
@@ -226,18 +221,15 @@ def downloadURL(url, fail_on_error=True, user_agent=None, timeout=10):
 
 @register_segment("downloadURL")
 @core.field_segment()
-def downloadURLSegment(item, fail_on_error=True, timeout=10, user_agent=None):
+def downloadURLSegment(item: Annotated[str, "The URL to download"], 
+                       fail_on_error: Annotated[bool, "If True, raises exceptions on download errors. If False, returns None on errors"] = True, 
+                       timeout: Annotated[int, "The timeout in seconds for the download request"] = 10, 
+                       user_agent: Annotated[Optional[str], "User agent string to use for the request"] = None):
     """Download a URL segment and return its content.
 
     This function is a wrapper around downloadURL that specifically handles URL segments.
     It attempts to download content from the specified URL with configurable error handling
     and timeout settings.
-
-    Args:
-        fail_on_error (bool, optional): If True, raises exceptions on download errors.
-            If False, returns None on errors. Defaults to True.
-        timeout (int, optional): The timeout in seconds for the download request. 
-            Defaults to 10 seconds.
 
     Returns:
         bytes|None: The downloaded content as bytes if successful, None if fail_on_error

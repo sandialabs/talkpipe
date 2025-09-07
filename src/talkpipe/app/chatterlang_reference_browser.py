@@ -65,12 +65,36 @@ class TalkPipeBrowser:
         try:
             # Convert parameters from ParamSpec list to dict for browser compatibility
             parameters = {}
+            
+            # First pass: calculate max widths for alignment
+            max_name_width = 0
+            max_type_width = 0
+            max_default_width = 0
+            
             for param in component_info.parameters:
-                param_str = param.name
+                max_name_width = max(max_name_width, len(param.name))
                 if param.annotation:
-                    param_str += f": {param.annotation}"
+                    max_type_width = max(max_type_width, len(str(param.annotation)))
                 if param.default:
-                    param_str += f" = {param.default}"
+                    max_default_width = max(max_default_width, len(str(param.default)))
+            
+            # Second pass: format with proper alignment
+            for param in component_info.parameters:
+                param_str = param.name.ljust(max_name_width)
+                
+                if param.annotation:
+                    param_str += f": {str(param.annotation).ljust(max_type_width)}"
+                elif max_type_width > 0:  # Add spacing even if no type for this param
+                    param_str += f"  {' ' * max_type_width}"
+                
+                if param.default:
+                    param_str += f" = {str(param.default).ljust(max_default_width)}"
+                elif max_default_width > 0:  # Add spacing even if no default for this param
+                    param_str += f"   {' ' * max_default_width}"
+                
+                if param.description:
+                    param_str += f"  // {param.description}"
+                
                 parameters[param.name] = param_str
             
             # Create component

@@ -2,6 +2,7 @@ import logging
 import time
 import sqlite3
 import feedparser
+from typing import Annotated
 from talkpipe.util.config import get_config
 from talkpipe.pipe import core
 from talkpipe.chatterlang import registry
@@ -125,21 +126,17 @@ def rss_monitor(
 
 @registry.register_source("rss")
 @core.source(url=None)
-def rss_source(url: str, db_path: str = ':memory:', poll_interval_minutes: int = 10):
+def rss_source(
+    url: Annotated[str, "The URL of the RSS feed to monitor. If None, reads from config using key 'RSS_URL'"], 
+    db_path: Annotated[str, "Path to SQLite database file for storing entry history"] = ':memory:', 
+    poll_interval_minutes: Annotated[int, "Number of minutes to wait between polling the RSS feed"] = 10
+):
     """
     Generator function that monitors and yields new entries from an RSS feed.
 
     This function continuously monitors an RSS feed at the specified URL and yields new entries
     as they become available. It uses a SQLite database to keep track of previously seen entries
     to avoid duplicates.
-
-    Args:
-        url (str): The URL of the RSS feed to monitor.  If None, the URL is read from the config using
-            the key "RSS_URL"
-        db_path (str, optional): Path to the SQLite database file for storing entry history.
-            Defaults to ':memory:' for an in-memory database.
-        poll_interval_minutes (int, optional): Number of minutes to wait between polling
-            the RSS feed for updates. Defaults to 10 minutes.
 
     Yields:
         dict: New entries from the RSS feed, containing feed item data.

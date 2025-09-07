@@ -8,7 +8,7 @@ import logging
 from abc import ABC, abstractmethod
 from typing import (
     Any, TypeVar, Generic, Iterable, List, 
-    Iterator, Union, Callable, Type, Concatenate, ParamSpec
+    Iterator, Union, Callable, Type, Concatenate, ParamSpec, Annotated
 )
 from talkpipe.util import data_manipulation
 
@@ -45,14 +45,10 @@ class RuntimeComponent:
     def const_store(self, value: dict):
         self._const_store = value
     
-    def add_constants(self, constants: dict, override: bool = True):
-        """Add constants to the const_store.
-        
-        Args:
-            constants: Dictionary of constants to add
-            override: If True, new constants override existing ones. 
-                     If False, existing constants are preserved.
-        """
+    def add_constants(self, 
+                      constants: Annotated[dict, "Dictionary of constants to add"], 
+                      override: Annotated[bool, "If True, new constants override existing ones. If False, existing constants are preserved."] = True):
+        """Add constants to the const_store."""
         if override:
             self._const_store.update(constants)
         else:
@@ -100,15 +96,12 @@ class AbstractSegment(ABC, HasRuntimeComponent, Generic[T, U]):
         self.downstream = []
     
     @abstractmethod
-    def transform(self, input_iter: Iterable[T]) -> Iterator[U]:
+    def transform(self, input_iter: Annotated[Iterable[T], "An iterable of input items to process"]) -> Iterator[U]:
         """Transform input items into output items.
         
         This is the core method that must be implemented by all segment subclasses.
         It defines how the segment processes data flowing through the pipeline.
         
-        Args:
-            input_iter (Iterable[T]): An iterable of input items to process
-            
         Returns:
             Iterator[U]: An iterator yielding transformed output items
             
@@ -157,15 +150,13 @@ class AbstractSegment(ABC, HasRuntimeComponent, Generic[T, U]):
         logger.debug(f"Finished segment {self.__class__.__name__}")
         return ans
 
-    def as_function(self, single_in: bool = False, single_out: bool = False) -> Callable:
-        """Convert the segment to a callable function.  By default, the function will expect and return an iterable.
-        single_in and single_out can be set to True to expect a single input and return a single output.
+    def as_function(self, 
+                    single_in: Annotated[bool, "If True, the function will expect a single input argument."] = False, 
+                    single_out: Annotated[bool, "If True, the function will return a single output."] = False) -> Callable:
+        """Convert the segment to a callable function.
         
-        <pre>
-        Args:
-            single_in (bool): If True, the function will expect a single input argument.
-            single_out (bool): If True, the function will return a single output.
-        </pre>
+        By default, the function will expect and return an iterable.
+        single_in and single_out can be set to True to expect a single input and return a single output.
         """
         def func(item = None):
             results = list(self([item] if single_in else item))
@@ -264,9 +255,9 @@ class AbstractSource(ABC, HasRuntimeComponent, Generic[U]):
         logger.debug(f"Finished source {self.__class__.__name__}")
         return ans
 
-def source(*decorator_args, **decorator_kwargs):
-    """
-    Decorator to convert a function into an source class with optional parameters.
+def source(*decorator_args: Annotated[Any, "Positional arguments for the input generator"], 
+           **decorator_kwargs: Annotated[Any, "Keyword arguments for the input generator"]):
+    """Decorator to convert a function into an source class with optional parameters.
     
     Can be used with or without arguments:
     @input 
@@ -274,10 +265,6 @@ def source(*decorator_args, **decorator_kwargs):
     
     @input(param1=value1, param2=value2)
     def func(): ...
-    
-    Args:
-        *decorator_args: Positional arguments for the input generator
-        **decorator_kwargs: Keyword arguments for the input generator
     
     Returns:
         Callable: A decorator that creates an Input subclass
@@ -336,9 +323,9 @@ def source(*decorator_args, **decorator_kwargs):
     
     return decorator
 
-def segment(*decorator_args, **decorator_kwargs):
-    """
-    Decorator to convert a function into an segment class with optional parameters.
+def segment(*decorator_args: Annotated[Any, "Positional arguments for the operation"], 
+            **decorator_kwargs: Annotated[Any, "Keyword arguments for the operation"]):
+    """Decorator to convert a function into an segment class with optional parameters.
     
     Can be used with or without arguments:
     @segment 
@@ -346,10 +333,6 @@ def segment(*decorator_args, **decorator_kwargs):
     
     @segment(param1=value1, param2=value2)
     def func(x): ...
-    
-    Args:
-        *decorator_args: Positional arguments for the operation
-        **decorator_kwargs: Keyword arguments for the operation
     
     Returns:
         Callable: A decorator that creates an Operation subclass
@@ -484,15 +467,11 @@ class Script(AbstractSegment):
         super().__init__()
         self.segments = segments
 
-    def transform(self, initial_input: Iterable[Any] = None) -> Iterator[Any]:
+    def transform(self, initial_input: Annotated[Iterable[Any], "The initial input data"] = None) -> Iterator[Any]:
         """Run the script
         
         If the first item in a segment is an AbstractSource, it will be called
-        to generate the initial input.  Otherwise, the initial input will be passed.
-
-        Args:
-            initial_input (Iterable[Any]): The initial input data
-
+        to generate the initial input. Otherwise, the initial input will be passed.
         """
         current_iter = initial_input
         for i, seg in enumerate(self.segments):
