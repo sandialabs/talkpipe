@@ -27,6 +27,7 @@ dependencies = [
     'ollama',
     'requests',
     'numpy',
+    'numba==0.61.2',
     'python-docx',
     'pandas',
     'feedparser',
