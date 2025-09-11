@@ -18,6 +18,10 @@
   - Pulls "Annotated" typing from parameter names to create the Parameters section of the documentation.
   Makes for cleaner, more consistently up to date documentation.  The use of Annotated is optional.
 - Updated **isIn** and **isNotIn** to function list **isTrue** so that they need no always be filters.
+- Created an AbstractFieldSegment class and changed the field_segment decorator to use it.  This makes it easier
+  to create segments with consistent "field segment" behavior that require additional initialization.  
+- Renamed ExtractFile to ReadFile and refactored it to be descended from AbstractFileSegment
+- Renamed **extract** to **readFile** in chatterlang for consistence.
 
 ## 0.8.1
 ### Improvements

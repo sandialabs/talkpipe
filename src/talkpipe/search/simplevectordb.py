@@ -14,8 +14,8 @@ from sklearn.cluster import KMeans
 from talkpipe.pipe.core import segment
 from talkpipe.pipe import field_segment
 from talkpipe.chatterlang import register_segment
-from .abstract import VectorLike, DocumentStore, VectorAddable, VectorSearchable, SearchResult, Document, DocID
-from talkpipe.util.data_manipulation import extract_property, toDict
+from .abstract import DocumentStore, VectorAddable, VectorSearchable, SearchResult
+from talkpipe.util.data_manipulation import DocID, Document, VectorLike, extract_property, toDict
 
 logger = logging.getLogger(__name__)
 

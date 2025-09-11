@@ -10,7 +10,7 @@ from whoosh.qparser import MultifieldParser, QueryParserError
 from whoosh.writing import LockError
 from talkpipe.pipe import segment, field_segment
 from talkpipe.chatterlang import register_segment
-from talkpipe.util.data_manipulation import toDict, extract_property
+from talkpipe.util.data_manipulation import DocID, Document, toDict, extract_property
 from talkpipe.util.config import parse_key_value_str
 import time
 
@@ -18,9 +18,7 @@ from .abstract import (
     SearchResult, 
     DocumentStore, 
     MutableDocumentStore, 
-    TextSearchable,
-    Document,
-    DocID
+    TextSearchable
 )
 
 logger = logging.getLogger(__name__)

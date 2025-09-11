@@ -1,11 +1,19 @@
+from typing import Union
 import logging
 import re
 import inspect
 import json
 import textwrap
 from types import MappingProxyType
-from typing import Any, Set
+from typing import Any, Dict, List, Set
+
+import numpy as np
 from talkpipe.util.config import parse_key_value_str
+
+# Type aliases
+VectorLike = Union[List[float], np.ndarray]
+Document = Dict[str, str]
+DocID = str
 
 logger = logging.getLogger(__name__)
 
@@ -360,3 +368,5 @@ def compileLambda(expression: str, fail_on_error: bool = True):
             return None
 
     return lambda_function
+
+

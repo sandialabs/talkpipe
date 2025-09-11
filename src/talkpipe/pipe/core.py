@@ -398,27 +398,18 @@ def field_segment(*decorator_args, **decorator_kwargs):
         set_as: The field name to append the result as
     """
     def decorator(func):
-        class FieldSegment(AbstractSegment):
+        class FieldSegment(AbstractFieldSegment):
             def __init__(self, *init_args, **init_kwargs):
-                super().__init__()
                 merged_kwargs = {**decorator_kwargs, **init_kwargs}
-                self.field = merged_kwargs.get('field')
-                self.set_as = merged_kwargs.get('set_as')
-                merged_kwargs.pop('field', None)
-                merged_kwargs.pop('set_as', None)
+                field = merged_kwargs.pop('field', None)
+                set_as = merged_kwargs.pop('set_as', None)
+                super().__init__(field=field, set_as=set_as)
                 self._func = lambda x: func(x, *init_args, **merged_kwargs)
                 # Store reference to original function for documentation access
                 self._original_func = func
             
-            def transform(self, input_iter):
-                for item in input_iter:
-                    value = data_manipulation.extract_property(item, self.field) if self.field else item
-                    result = self._func(value)
-                    if self.set_as:
-                        item[self.set_as] = result
-                        yield item
-                    else:
-                        yield result
+            def process_value(self, value):
+                return self._func(value)
         
         FieldSegment.__name__ = f"{func.__name__}FieldSegment"
         # Preserve original function's docstring and metadata
@@ -429,6 +420,56 @@ def field_segment(*decorator_args, **decorator_kwargs):
     if len(decorator_args) == 1 and callable(decorator_args[0]):
         return decorator(decorator_args[0])
     return decorator
+
+class AbstractFieldSegment(AbstractSegment[T, U]):
+    """Abstract base class for segments that process a single field and optionally set results.
+    
+    This class handles the 'field' and 'set_as' parameters that are commonly used
+    in field-processing segments, making it easy for descendant classes to have
+    their own constructors while still supporting field extraction and result setting.
+    
+    Args:
+        field: The field to extract from each item (optional)
+        set_as: The field name to set/append the result as (optional)
+    """
+    
+    def __init__(self, field: str = None, set_as: str = None):
+        super().__init__()
+        self.field = field
+        self.set_as = set_as
+    
+    @abstractmethod
+    def process_value(self, value: Any) -> Any:
+        """Process the extracted field value or the entire item.
+        
+        This method must be implemented by subclasses to define how to process
+        the extracted field value (or entire item if no field is specified).
+        
+        Args:
+            value: The field value extracted from the item, or the entire item
+                  if no field was specified
+        
+        Returns:
+            Any: The processed result
+        """
+        pass
+    
+    def transform(self, input_iter: Iterable[T]) -> Iterator[U]:
+        """Transform input items by processing field values.
+        
+        For each item:
+        1. Extract the specified field value (or use entire item if no field)
+        2. Process the value using process_value()
+        3. Either yield the result directly or set it on the item and yield the item
+        """
+        for item in input_iter:
+            value = data_manipulation.extract_property(item, self.field) if self.field else item
+            result = self.process_value(value)
+            if self.set_as:
+                item[self.set_as] = result
+                yield item
+            else:
+                yield result
 
 class Pipeline(AbstractSegment):
     """A pipeline is a sequence of operations.  Each operation draws from the output of the previous operation
