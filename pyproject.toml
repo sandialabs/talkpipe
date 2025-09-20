@@ -42,7 +42,8 @@ dependencies = [
     'scikit-learn',
     'cryptography',
     'uvicorn',
-    'whoosh'
+    'whoosh',
+    'lancedb'
 ]
 dynamic = ["version"]
 

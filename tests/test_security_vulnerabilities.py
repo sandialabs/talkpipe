@@ -270,9 +270,12 @@ class TestAdditionalSecurityIssues:
             log_output = log_capture.getvalue()
             
             # Check that sensitive values are not in logs
-            assert "secret123" not in log_output, "Password should not be logged"
-            assert "abc123" not in log_output, "API key should not be logged"
-            assert "bearer_token" not in log_output, "Token should not be logged"
+            if "secret123" in log_output:
+                pytest.fail("Password should not be logged")
+            if "abc123" in log_output:
+                pytest.fail("API key should not be logged")
+            if "bearer_token" in log_output:
+                pytest.fail("Token should not be logged")
             
         finally:
             logger.removeHandler(handler)
