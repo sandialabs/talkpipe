@@ -27,6 +27,7 @@ dependencies = [
     'ollama',
     'requests',
     'numpy',
+    'numba==0.61.2',
     'python-docx',
     'pandas',
     'feedparser',
@@ -41,7 +42,9 @@ dependencies = [
     'scikit-learn',
     'cryptography',
     'uvicorn',
-    'whoosh'
+    'whoosh',
+    'lancedb',
+    'deprecated'
 ]
 dynamic = ["version"]
 
@@ -60,6 +63,7 @@ chatterlang_reference_generator = "talkpipe.app.chatterlang_reference_generator:
 talkpipe_genkeys = "talkpipe.operations.crypto:generate_keys_cli"
 chatterlang_serve = "talkpipe.app.chatterlang_serve:go"
 chatterlang_reference_browser = "talkpipe.app.chatterlang_reference_browser:main"
+talkpipe_plugins = "talkpipe.app.talkpipe_plugin_manager:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]

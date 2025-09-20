@@ -16,3 +16,16 @@ from talkpipe.operations.signatures import *
 from talkpipe.app.chatterlang_serve import *
 from talkpipe.search.whoosh import *
 from talkpipe.search.simplevectordb import *
+
+# Load plugins automatically on import
+from talkpipe.util.plugin_loader import load_plugins
+import logging
+
+# Configure logging for plugin loading
+logger = logging.getLogger(__name__)
+
+try:
+    load_plugins()
+    logger.debug("Plugin loading completed")
+except Exception as e:
+    logger.warning(f"Plugin loading failed: {e}")

@@ -1,32 +1,35 @@
+from deprecated import deprecated
+from typing import List, Dict, Any, Tuple, Optional, Annotated
+from dataclasses import dataclass, asdict
 import logging
+from os.path import exists
 import json
 import base64
 from typing import List, Dict, Any, Tuple, Optional, Union, Protocol
 from dataclasses import dataclass, asdict
 import uuid
-import numpy as np
-from sklearn.cluster import KMeans
 import warnings
 import heapq
+import numpy as np
+from sklearn.cluster import KMeans
 from talkpipe.pipe.core import segment
 from talkpipe.pipe import field_segment
 from talkpipe.chatterlang import register_segment
-from .abstract import VectorLike, DocumentStore, VectorAddable, VectorSearchable, SearchResult, Document, DocID
-from talkpipe.util.data_manipulation import extract_property, toDict
-from os.path import exists
-from .abstract import DocumentStore, VectorAddable, VectorSearchable
+from .abstract import DocumentStore, VectorAddable, VectorSearchable, SearchResult
+from talkpipe.util.data_manipulation import DocID, Document, VectorLike, extract_property, toDict
 
 logger = logging.getLogger(__name__)
 
 
 @dataclass
-class VectorEntry:
+@deprecated("Use the equivalent functionality in talkpipe.search.lancedb.  The simplevectordb module will be removed in 1.0.0.")
+class VectorEntry:    
     """Internal data structure for storing vector data"""
     doc_id: str
     vector: List[float]
     document: Document
 
-
+@deprecated("Use the talkpipe.search.lancedb.LanceDBDocumentStore instead, which implements the same interfaces.  The simplevectordb module will be removed in 1.0.0.")
 class SimpleVectorDB(DocumentStore, VectorAddable, VectorSearchable):
     """A simple in-memory vector database with similarity search capabilities"""
     
@@ -217,7 +220,7 @@ class SimpleVectorDB(DocumentStore, VectorAddable, VectorSearchable):
             self.clusters.setdefault(cluster_id, []).append(vector_id)
         
         self.clusters_valid = True
-        print(f"K-means clustering completed with {actual_n_clusters} clusters")
+        logger.info(f"K-means clustering completed with {actual_n_clusters} clusters")
 
     def _kmeans_search(self, query_vector: np.ndarray, top_k: int, metric: str, search_clusters: int = 3) -> List[Tuple[str, float, VectorEntry]]:
         """Search using k-means clustering"""
@@ -256,6 +259,10 @@ class SimpleVectorDB(DocumentStore, VectorAddable, VectorSearchable):
         
         if not self.vectors:
             return []
+        
+        # If k-means clustering has been performed, only euclidean distance is allowed
+        if self.clusters_valid and metric != "euclidean":
+            raise ValueError("Only euclidean distance metric is supported after k-means clustering has been performed")
         
         if method == "k-means":
             return self._kmeans_search(query_vec, top_k, metric)
@@ -334,6 +341,10 @@ class SimpleVectorDB(DocumentStore, VectorAddable, VectorSearchable):
 
     def filter_search(self, query_vector: VectorLike, document_filter: Dict[str, str], top_k: int = 5, metric: str = "cosine", method: str = "brute-force") -> List[Tuple[str, float, VectorEntry]]:
         """Search with document filtering"""
+        # If k-means clustering has been performed, only euclidean distance is allowed
+        if self.clusters_valid and metric != "euclidean":
+            raise ValueError("Only euclidean distance metric is supported after k-means clustering has been performed")
+        
         # Filter vectors
         filtered_vectors = {
             vid: entry for vid, entry in self.vectors.items()
@@ -490,18 +501,12 @@ class SimpleVectorDB(DocumentStore, VectorAddable, VectorSearchable):
 
 @register_segment("addVector")
 @segment()
-def add_vector(items: str, path, vector_field: str = "_", vector_id: Optional[str] = None, 
-               metadata_field_list: Optional[str] = None, overwrite: bool = False):
+@deprecated("Use talkpipe.search.lancedb.add_to_lancedb instead.  The simplevectordb module will be removed in 1.0.0.")
+def add_vector(items: Annotated[object, "The items containing the vector data"], path: Annotated[str, "Path to the vector database file"], vector_field: Annotated[str, "The field containing the vector data"] = "_", vector_id: Annotated[Optional[str], "Optional custom ID for the vector"] = None, 
+               metadata_field_list: Annotated[Optional[str], "Optional metadata field list"] = None, overwrite: Annotated[bool, "Whether to overwrite existing database file"] = False):
     """
     Segment to add a vector to the SimpleVectorDB.
     
-    Args:
-        item: The item containing the vector data.
-        vector_field: The field containing the vector data.
-        vector_id: Optional custom ID for the vector.
-        metadata_field_list: Optional metadata field list.
-        dimension: Expected dimension of the vector (optional).
-
     Returns:
         The ID of the added vector.
     """
@@ -529,17 +534,13 @@ def add_vector(items: str, path, vector_field: str = "_", vector_id: Optional[st
 
 @register_segment("searchVector")
 @segment()
-def search_vector(items, path: str, vector_field = "_", top_k: int = 5, 
-                  all_results_at_once: bool = False, set_as: Optional[str] = None,
-                  continue_on_error: bool = True,
-                  search_metric: str = "cosine", search_method: str = "brute-force"):
-    """    Segment to search for similar vectors in the SimpleVectorDB.
-    Args:
-        vector_field: The field containing the vector data.
-        top_k: Number of top results to return.
-        search_metric: Similarity metric ("cosine" or "euclidean").
-        search_method: Search method ("brute-force", "brute-force-heap", or "k-means").
-        path: Optional path to a saved vector database.
+@deprecated("Use talkpipe.search.lancedb.search_lancedb instead.  .  The simplevectordb module will be removed in 1.0.0.")
+def search_vector(items: Annotated[object, "Items containing query vectors"], path: Annotated[str, "Path to the vector database file"], vector_field: Annotated[str, "The field containing the vector data"] = "_", top_k: Annotated[int, "Number of top results to return"] = 5, 
+                  all_results_at_once: Annotated[bool, "If True, return all results at once. If False, yield one result at a time"] = False, set_as: Annotated[Optional[str], "Field name to set results on input items"] = None,
+                  continue_on_error: Annotated[bool, "If True, continue processing on errors"] = True,
+                  search_metric: Annotated[str, "Similarity metric ('cosine' or 'euclidean')"] = "cosine", search_method: Annotated[str, "Search method ('brute-force', 'brute-force-heap', or 'k-means')"] = "brute-force"):
+    """Segment to search for similar vectors in the SimpleVectorDB.
+    
     Yields:
         List of SearchResult objects.
     """

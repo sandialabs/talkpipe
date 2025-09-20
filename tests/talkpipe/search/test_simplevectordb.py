@@ -68,6 +68,56 @@ def test_cosine_similarity_via_vector_search(db):
     assert results[1].doc_id == "v3"  or results[1].doc_id == "v1" # First result should be identical vector
     assert abs(results[2].score - 0.0) < 1e-6  # Orthogonal vectors
 
+def test_cosine_similarity_via_vector_search_clusters(db):
+    # Choose 3 centroids in 2D space that are 90 degrees apart
+    centers = [[0,1], [1,0], [0,-1]]
+    # rotate all centers around the origin by the same amount
+    angle = np.random.rand() * 2 * np.pi
+    rotation_matrix = np.array([[np.cos(angle), -np.sin(angle)],
+                                 [np.sin(angle), np.cos(angle)]])
+    centers = [np.dot(rotation_matrix, center) for center in centers]
+
+    for i, cluster_center in enumerate(centers):
+        for j in range(20):
+            vector = cluster_center + np.random.normal(scale=0.1, size=2)
+            db.add(vector.tolist(), {"centroid": cluster_center.tolist()}, f"v_{i}_{j}")
+
+    # Search for each cluster centroid and show that the first 20 clusters are returned
+    for i, center in enumerate(centers):
+        results = db.vector_search(center, limit=20, metric="cosine")
+        assert len(results) == 20
+        assert all(res.document["centroid"] == str(center.tolist()) for res in results)
+
+def test_euclidean_distance_via_vector_search_clusters(db):
+    # Choose 3 centroids in 2D space that are well separated
+    centers = [[0,5], [5,0], [0,-5]]
+    # rotate all centers around the origin by the same amount
+    angle = np.random.rand() * 2 * np.pi
+    rotation_matrix = np.array([[np.cos(angle), -np.sin(angle)],
+                                 [np.sin(angle), np.cos(angle)]])
+    centers = [np.dot(rotation_matrix, center) for center in centers]
+
+    for i, cluster_center in enumerate(centers):
+        for j in range(20):
+            vector = cluster_center + np.random.normal(scale=0.1, size=2)
+            db.add(vector.tolist(), {"centroid": cluster_center.tolist()}, f"v_{i}_{j}")
+
+    # Search for each cluster centroid and show that the first 20 clusters are returned
+    for i, center in enumerate(centers):
+        results = db.vector_search(center, limit=20, metric="euclidean")
+        assert len(results) == 20
+        assert all(res.document["centroid"] == str(center.tolist()) for res in results)
+
+    # Run k-means clustering
+    db.run_kmeans_clustering(n_clusters=3)
+
+    # Check that each cluster is homogenous
+    for cluster_id, vector_ids in db.clusters.items():
+        assert len(vector_ids) > 0
+        # Check that all vectors have the same document
+        first_doc = db.get(vector_ids[0]).document
+        assert all(db.get(vid).document == first_doc for vid in vector_ids)
+
 def test_search_brute_force(db):
     v1 = db.add([1,2,3])
     v2 = db.add([4,5,6])
@@ -79,7 +129,7 @@ def test_search_kmeans(db):
     db.add([4,5,6])
     db.add([7,8,9])
     db.run_kmeans_clustering(n_clusters=2)
-    results = db.search([1,2,3], top_k=2, method="k-means")
+    results = db.search([1,2,3], top_k=2, method="k-means", metric="euclidean")
     assert len(results) == 2
 
 def test_filter_search(db):
@@ -190,3 +240,75 @@ def test_search_vector_segment_invalid_query(tmp_path):
     seg = search_vector(vector_field="vector", path=str(tmp_path / "db.pkl"))
     with pytest.raises(ValueError):
         list(seg(bad_items))
+
+def test_kmeans_restricts_metric_to_euclidean(db):
+    # Add some vectors
+    db.add([1,2,3], {}, "v1")
+    db.add([4,5,6], {}, "v2") 
+    db.add([7,8,9], {}, "v3")
+    
+    # Before k-means clustering, both cosine and euclidean should work
+    results_cosine = db.search([1,2,3], metric="cosine")
+    assert len(results_cosine) == 3
+    
+    results_euclidean = db.search([1,2,3], metric="euclidean")
+    assert len(results_euclidean) == 3
+    
+    # Run k-means clustering
+    db.run_kmeans_clustering(n_clusters=2)
+    
+    # After k-means clustering, only euclidean should work
+    results_euclidean_after = db.search([1,2,3], metric="euclidean")
+    assert len(results_euclidean_after) == 3
+    
+    # Cosine should now raise an exception
+    with pytest.raises(ValueError, match="Only euclidean distance metric is supported after k-means clustering"):
+        db.search([1,2,3], metric="cosine")
+
+def test_kmeans_restricts_vector_search_metric(db):
+    # Add some vectors
+    db.add([1,2,3], {}, "v1")
+    db.add([4,5,6], {}, "v2") 
+    db.add([7,8,9], {}, "v3")
+    
+    # Before k-means clustering, both cosine and euclidean should work
+    results_cosine = db.vector_search([1,2,3], metric="cosine")
+    assert len(results_cosine) == 3
+    
+    results_euclidean = db.vector_search([1,2,3], metric="euclidean")
+    assert len(results_euclidean) == 3
+    
+    # Run k-means clustering
+    db.run_kmeans_clustering(n_clusters=2)
+    
+    # After k-means clustering, only euclidean should work
+    results_euclidean_after = db.vector_search([1,2,3], metric="euclidean")
+    assert len(results_euclidean_after) == 3
+    
+    # Cosine should now raise an exception
+    with pytest.raises(ValueError, match="Only euclidean distance metric is supported after k-means clustering"):
+        db.vector_search([1,2,3], metric="cosine")
+
+def test_kmeans_restricts_filter_search_metric(db):
+    # Add some vectors
+    db.add([1,2,3], {"category": "A"}, "v1")
+    db.add([4,5,6], {"category": "B"}, "v2") 
+    db.add([7,8,9], {"category": "A"}, "v3")
+    
+    # Before k-means clustering, both cosine and euclidean should work
+    results_cosine = db.filter_search([1,2,3], {"category": "A"}, metric="cosine")
+    assert len(results_cosine) == 2
+    
+    results_euclidean = db.filter_search([1,2,3], {"category": "A"}, metric="euclidean")
+    assert len(results_euclidean) == 2
+    
+    # Run k-means clustering
+    db.run_kmeans_clustering(n_clusters=2)
+    
+    # After k-means clustering, only euclidean should work
+    results_euclidean_after = db.filter_search([1,2,3], {"category": "A"}, metric="euclidean")
+    assert len(results_euclidean_after) == 2
+    
+    # Cosine should now raise an exception
+    with pytest.raises(ValueError, match="Only euclidean distance metric is supported after k-means clustering"):
+        db.filter_search([1,2,3], {"category": "A"}, metric="cosine")

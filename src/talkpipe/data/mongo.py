@@ -6,7 +6,7 @@ This segment allows you to insert items from your TalkPipe pipeline into a Mongo
 import logging
 import json
 import re
-from typing import Iterable, Iterator, Optional, Union, Dict, Any
+from typing import Iterable, Iterator, Optional, Union, Dict, Any, Annotated
 from pymongo import MongoClient
 from pymongo.collection import Collection
 from pymongo.database import Database
@@ -26,35 +26,18 @@ class MongoInsert(core.AbstractSegment):
     For each item received, this segment inserts it into the specified MongoDB collection
     and then yields the item back to the pipeline. This allows for both persisting data
     and continuing to process it in subsequent pipeline stages.
-    
-    Args:
-        connection_string (str, optional): MongoDB connection string. If not provided,
-            will attempt to get from config using the key "mongo_connection_string".
-        database (str): Name of the MongoDB database to use.
-        collection (str): Name of the MongoDB collection to use.
-        field (str, optional): Field to extract from each item for insertion. 
-            If not provided, inserts the entire item. Default is "_".
-        fields (str, optional): Comma-separated list of fields to extract and include in the 
-            document, in the format "field1:name1,field2:name2". If provided, this creates a 
-            new document with the specified fields. Cannot be used with 'field' parameter.
-        set_as (str, optional): If provided, adds the MongoDB insertion result
-            to the item using this field name. Default is None.
-        create_index (str, optional): If provided, creates an index on this field.
-            Default is None.
-        unique_index (bool, optional): If True and create_index is provided, 
-            creates a unique index. Default is False.
     """
     
     def __init__(
         self,
-        connection_string: Optional[str] = None,
-        database: Optional[str] = None,
-        collection: Optional[str] = None,
-        field: str = "_",
-        fields: Optional[str] = None,
-        set_as: Optional[str] = None,
-        create_index: Optional[str] = None,
-        unique_index: bool = False
+        connection_string: Annotated[Optional[str], "MongoDB connection string"] = None,
+        database: Annotated[Optional[str], "Name of the MongoDB database to use"] = None,
+        collection: Annotated[Optional[str], "Name of the MongoDB collection to use"] = None,
+        field: Annotated[str, "Field to extract from each item for insertion"] = "_",
+        fields: Annotated[Optional[str], "Comma-separated list of fields to extract"] = None,
+        set_as: Annotated[Optional[str], "Field name to add MongoDB insertion result to item"] = None,
+        create_index: Annotated[Optional[str], "Field to create an index on"] = None,
+        unique_index: Annotated[bool, "Whether to create a unique index"] = False
     ):
         super().__init__()
         
@@ -125,9 +108,6 @@ class MongoInsert(core.AbstractSegment):
     def transform(self, input_iter: Iterable[Any]) -> Iterator[Any]:
         """Insert each item into the MongoDB collection.
         
-        Args:
-            input_iter: Iterable of items to process.
-            
         Yields:
             Each item from the input stream after inserting it into MongoDB.
             If set_as is specified, the MongoDB result is added to the item.
@@ -200,35 +180,19 @@ class MongoSearch(core.AbstractSegment):
     
     This segment performs a query against a MongoDB collection and yields
     the matching documents one by one as they are returned from the database.
-    
-    Args:
-        field(str): the field in the incoming item to use as a query.  Defaults is "_"
-        connection_string (str, optional): MongoDB connection string. If not provided,
-            will attempt to get from config using the key "mongo_connection_string".
-        database (str): Name of the MongoDB database to use.
-        collection (str): Name of the MongoDB collection to use.
-        project (str, optional): JSON string defining the projection for returned documents.
-            Default is None (returns all fields).
-        sort (str, optional): JSON string defining the sort order. Default is None.
-        limit (int, optional): Maximum number of results to return per query. Default is 0 (no limit).
-        skip (int, optional): Number of documents to skip. Default is 0.
-        set_as (str, optional): If provided, adds the MongoDB results to the incoming item
-            using this field name. If not provided, the results themselves are yielded.
-        as_list (bool, optional): If True and set_as is provided, all results are collected
-            into a list and appended to the incoming item. Default is False.
     """
     
     def __init__(
         self,
-        field: str = "_",
-        connection_string: Optional[str] = None,
-        database: Optional[str] = None,
-        collection: Optional[str] = None,
-        project: Optional[str] = None,
-        sort: Optional[str] = None,
-        limit: int = 0,
-        skip: int = 0,
-        set_as: Optional[str] = None
+        field: Annotated[str, "Field in the incoming item to use as a query"] = "_",
+        connection_string: Annotated[Optional[str], "MongoDB connection string"] = None,
+        database: Annotated[Optional[str], "Name of the MongoDB database to use"] = None,
+        collection: Annotated[Optional[str], "Name of the MongoDB collection to use"] = None,
+        project: Annotated[Optional[str], "JSON string defining projection for returned documents"] = None,
+        sort: Annotated[Optional[str], "JSON string defining sort order"] = None,
+        limit: Annotated[int, "Maximum number of results to return per query"] = 0,
+        skip: Annotated[int, "Number of documents to skip"] = 0,
+        set_as: Annotated[Optional[str], "Field name to add MongoDB results to incoming item"] = None
     ):
         super().__init__()
         
@@ -283,9 +247,6 @@ class MongoSearch(core.AbstractSegment):
     def transform(self, input_iter: Iterable[Any]) -> Iterator[Any]:
         """Search the MongoDB collection based on query parameters.
         
-        Args:
-            input_iter: Iterable of items to process.
-            
         Yields:
             If set_as is specified, yields each input item with results appended.
             Otherwise, yields the MongoDB results directly.

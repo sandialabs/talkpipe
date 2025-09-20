@@ -18,6 +18,4 @@ export TALKPIPE_CHATTERLANG_SCRIPT='
     | addVector[path="./vector_index", vector_field="vector", metadata_field_list="title,content", overwrite=True]
 '
 
-#chatterlang_script --script "
-python -m talkpipe.app.chatterlang_script --script CHATTERLANG_SCRIPT 
-"
+chatterlang_script --script CHATTERLANG_SCRIPT 

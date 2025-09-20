@@ -1,6 +1,6 @@
 """Module for embedding text using different models"""
 
-from typing import Optional
+from typing import Optional, Annotated
 import logging
 from talkpipe.llm.embedding_adapters import OllamaEmbedderAdapter
 from talkpipe.pipe.core import AbstractSegment
@@ -25,18 +25,12 @@ class LLMEmbed(AbstractSegment):
     """
     def __init__(
             self, 
-            model: str = None, 
-            source: str = None,
-            field: Optional[str] = None,
-            set_as: Optional[str] = None,
+            model: Annotated[Optional[str], "The name of the embedding model to use"] = None, 
+            source: Annotated[Optional[str], "The source of the embedding model (e.g., 'ollama')"] = None,
+            field: Annotated[Optional[str], "If provided, extract text from this field in the input items"] = None,
+            set_as: Annotated[Optional[str], "If provided, append embeddings to input items under this field name"] = None,
             ):
         """Initialize the embedding segment with the specified parameters.
-        
-        Args:
-            model: The name of the embedding model to use. If None, uses the default from config.
-            source: The source of the embedding model (e.g., 'ollama'). If None, uses the default from config.
-            field: If provided, extract text from this field in the input items.
-            set_as: If provided, append embeddings to input items under this field name.
         
         Raises:
             ValueError: If the specified source is not supported.

@@ -1,6 +1,7 @@
 import logging
 import math
 import hashlib
+from typing import Annotated
 
 from talkpipe.pipe import core
 from talkpipe.chatterlang import registry
@@ -70,20 +71,18 @@ class BloomFilter:
 
 @registry.register_segment("distinctBloomFilter")
 @core.segment()
-def distinctBloomFilter(items, capacity, error_rate, field_list="_"):
+def distinctBloomFilter(
+    items, 
+    capacity: Annotated[int, "Expected number of items to be added to the Bloom Filter"], 
+    error_rate: Annotated[float, "Acceptable false positive probability (between 0 and 1)"], 
+    field_list: Annotated[str, "Dot-separated string of nested fields to use for distinctness check"] = "_"
+):
     """
     Filter items using a Bloom Filter to yield only distinct elements based on specified fields.
 
     A Bloom Filter is a space-efficient probabilistic data structure used to test whether 
     an element is a member of a set. False positive matches are possible, but false 
     negatives are not.
-
-    Args:
-        items (iterable): Input items to filter.
-        capacity (int): Expected number of items to be added to the Bloom Filter.
-        error_rate (float): Acceptable false positive probability (between 0 and 1).
-        field_list (str, optional): Dot-separated string of nested fields to use for 
-            distinctness check. Defaults to "_" which uses the entire item.
 
     Yields:
         item: Items that have not been seen before according to the Bloom Filter.

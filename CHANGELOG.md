@@ -1,12 +1,36 @@
 # Changelog
 
-## 0.9.0 (In Development)
-### New Segments and Sources
-- **set** Simple setting of a constant to a key.
+## 0.9.0
+### New and Updated Segments and Sources
+- Added **set**, which simply assigns some constant to a key.
+- Added **isTrue** and **isFalse** segments that can function as both a filter or an evaluation of a field.
+- Added **llmBinaryAnswer** segment for coercing true/false answers from an LLM.
+- Added **searchLanceDB** and **addToLanceDB** for creating and searching LanceDB vector databases. This 
+  involved creating a **LanceDBDocumentStore** class that operates in ways compatible with simplevectordb and
+  whoosh.
+- Renamed **extractor** to **readFile**.
 
 ### Improvements
-- Renamed append_as to set_as and appendAs to setAs throughout the codebase.  "Set" is more accurate than "append" as the operation.
-- changed asFunction to as_function
+- Configured CI/CD system for GitHub to run tests, security checks, and container builds.
+- Fixed identified security vulnerabilities.
+- Renamed append_as to set_as and appendAs to setAs throughout the codebase. "Set" is more accurate than "append" for the associated behavior.
+- Changed asFunction to as_function.
+- Added a check and throw an exception in simplevectordb if the user has clustered and then tries to use cosine for search.
+- Added a plugin system so it is easier for external whl files to add commands to chatterlang.
+- Refactored the documentation system:
+  - Pulls from the registry in real time. This ensures that plugin commands are 
+    included in the documentation system. It also reduces potential problems from bad parsing of source code.
+  - Pulls "Annotated" typing from parameter names to create the Parameters section of the documentation.
+    Makes for cleaner, more consistently up-to-date documentation. The use of Annotated is optional.
+- Updated **isIn** and **isNotIn** to function like **isTrue** so that they need not always be filters.
+- Created an AbstractFieldSegment class and changed the field_segment decorator to use it. This makes it easier
+  to create segments with consistent "field_segment" behavior but require additional initialization.
+- Renamed ExtractFile to ReadFile and refactored it to be descended from AbstractFieldSegment.
+- Renamed **extract** to **readFile** in chatterlang for consistency.
+- Deprecated simplevectordb classes and segments. These will be removed in 1.0.0. The lancedb vector database
+  provides equivalent functionality and doesn't require all the data to be in memory at once.
+- Added an **AbstractFieldSegment** class and refactored **field_segment** to use it. This is so classes can be
+  implemented with field_segment functionality that also need some one-time initialization.
 
 ## 0.8.1
 ### Improvements

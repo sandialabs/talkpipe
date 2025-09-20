@@ -1,5 +1,5 @@
 import pytest
-from talkpipe.data.extraction import FileExtractor, readtxt, readdocx, listFiles
+from talkpipe.data.extraction import ReadFile, readtxt, readdocx, listFiles
 
 def test_readdocx(tmp_path):
     # Test reading individual docx file using existing test file
@@ -53,7 +53,7 @@ def test_readtxt(tmp_path):
         next(readtxt()([tmp_path / "nonexistent_dir"]))
 
 def test_FileExtractor(tmp_path):
-    fe = FileExtractor()
+    fe = ReadFile()
 
     with open(tmp_path / "test.txt", "w") as file:
         file.write("Hello World")   

@@ -1,11 +1,7 @@
-from typing import List, Dict, Any, Optional, Tuple, Union, Protocol
+from typing import List, Optional, Tuple, Union, Protocol
 from pydantic import BaseModel
-import numpy as np
 
-# Type aliases
-VectorLike = Union[List[float], np.ndarray]
-Document = Dict[str, str]
-DocID = str
+from talkpipe.util.data_manipulation import VectorLike, Document, DocID
 
 class SearchResult(BaseModel):
     score: float

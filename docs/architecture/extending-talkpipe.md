@@ -197,6 +197,8 @@ class WindowSegment(AbstractSegment):
 
 ## Plugin Architecture
 
+TalkPipe supports two mechanisms for extending functionality: direct component registration and installable plugins via entry points.
+
 ### Registry System
 
 TalkPipe uses a registry system to manage and discover components:
@@ -230,7 +232,124 @@ input apiData(url="https://api.example.com/data")
 | print
 ```
 
-### Creating Plugin Packages
+### Entry Point Plugin System
+
+TalkPipe automatically discovers and loads plugins installed via Python entry points. This enables distributable plugin packages that integrate seamlessly with TalkPipe.
+
+#### How Plugin Loading Works
+
+When TalkPipe is imported, it:
+
+1. **Discovers plugins** via the `talkpipe.plugins` entry point group
+2. **Imports plugin modules** which triggers automatic component registration
+3. **Calls initialization functions** if they exist for additional setup
+
+The key mechanism is that importing a plugin module automatically registers any components defined with registry decorators.
+
+#### Creating Distributable Plugins
+
+**1. Define your plugin components:**
+
+```python
+# my_plugin/components.py
+from talkpipe.chatterlang import registry
+from talkpipe.pipe.core import AbstractSource, AbstractSegment
+
+@registry.register_source("httpGet")
+class HttpGetSource(AbstractSource):
+    """HTTP GET request source."""
+    
+    def __init__(self, url: str):
+        super().__init__()
+        self.url = url
+    
+    def generate(self):
+        import requests
+        response = requests.get(self.url)
+        yield response.json()
+
+@registry.register_segment("filterKeys") 
+class FilterKeysSegment(AbstractSegment):
+    """Filter dictionary by keys."""
+    
+    def __init__(self, keys: list):
+        super().__init__()
+        self.keys = keys
+    
+    def transform(self, input_iter):
+        for item in input_iter:
+            if isinstance(item, dict):
+                yield {k: v for k, v in item.items() if k in self.keys}
+```
+
+**2. Create a plugin class:**
+
+```python
+# my_plugin/plugin.py
+from . import components  # Import triggers registration
+
+class NetworkPlugin:
+    """Main plugin class referenced by entry point."""
+    
+    def initialize_plugin(self):
+        """Optional: Called after module import."""
+        print("Network plugin initialized!")
+        # Additional setup if needed
+```
+
+**3. Configure entry points:**
+
+**pyproject.toml:**
+```toml
+[project.entry-points."talkpipe.plugins"]
+network_plugin = "my_plugin.plugin:NetworkPlugin"
+```
+
+**setup.py:**
+```python
+setup(
+    name="my-talkpipe-plugin",
+    entry_points={
+        "talkpipe.plugins": [
+            "network_plugin = my_plugin.plugin:NetworkPlugin",
+        ]
+    }
+)
+```
+
+#### Plugin Installation and Usage
+
+```bash
+# Install plugin
+pip install my-talkpipe-plugin
+```
+
+```python
+# Use in Python - plugins loaded automatically
+import talkpipe
+
+from talkpipe.chatterlang import compiler
+
+# Plugin components available in ChatterLang scripts
+script = "| httpGet[url='https://api.example.com'] | filterKeys[keys=['name', 'id']] | print"
+pipeline = compiler.compile(script)
+```
+
+#### Plugin Management
+
+Use the plugin manager CLI to inspect and manage plugins:
+
+```bash
+# List all plugins
+talkpipe_plugin_manager --list
+
+# Reload a plugin during development
+talkpipe_plugin_manager --reload network_plugin
+```
+
+### Alternative: Manual Plugin Loading
+
+For simpler use cases, you can manually register components:
 
 ```python
 # my_plugin/registry.py
@@ -242,21 +361,10 @@ def register_all_components():
     """Register all plugin components."""
     registry.input_registry.register(MyCustomSource, "mySource")
     registry.segment_registry.register(MyCustomSegment, "mySegment")
-```
 
-#### Plugin Installation and Usage
-
-```python
-# Install plugin
-pip install my-talkpipe-plugin
-
-# Use in Python
-import talkpipe
-import my_plugin  # Auto-registers components
-
-# Components are now available
-source = my_plugin.MyCustomSource()
-segment = my_plugin.MyCustomSegment()
+# Import and call registration function
+from my_plugin.registry import register_all_components
+register_all_components()
 ```
 
 ## Module Loading and Registration

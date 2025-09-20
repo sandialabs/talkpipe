@@ -1,6 +1,6 @@
 """Math operations for pipe."""
 
-from typing import Iterable, Union, Callable, Any
+from typing import Iterable, Union, Callable, Any, Annotated
 from numpy import random
 from talkpipe.pipe import core
 from talkpipe.chatterlang import registry
@@ -8,30 +8,35 @@ from talkpipe.util.data_manipulation import extract_property
 
 @registry.register_source(name="randomInts")
 @core.source(n=10, lower=0, upper=100)
-def randomInts(n: int, lower, upper) -> Iterable[int]:
+def randomInts(
+    n: Annotated[int, "Number of random integers to generate"], 
+    lower: Annotated[int, "Lower bound (inclusive)"], 
+    upper: Annotated[int, "Upper bound (exclusive)"]
+) -> Iterable[int]:
     """Generate n random integers between lower and upper."""
     yield from random.randint(lower, upper, n)
 
 @registry.register_segment(name="scale")
 @core.segment(multiplier=2)
-def scale(items: Iterable[Union[int, float]], multiplier: Union[int, float]) -> Iterable[Union[int, float]]:
+def scale(
+    items: Iterable[Union[int, float]], 
+    multiplier: Annotated[Union[int, float], "Value to multiply each item by"]
+) -> Iterable[Union[int, float]]:
     """Scale each item in the input stream by the multiplier."""
     for x in items:
         yield x * multiplier
 
 @registry.register_source(name="range")
 @core.source(lower=0,  upper=10)
-def arange(lower, upper):
+def arange(
+    lower: Annotated[int, "Lower bound of the range (inclusive)"], 
+    upper: Annotated[int, "Upper bound of the range (exclusive)"]
+):
     """Generate a range of integers between lower (inclusive) and upper (exclusive)
 
     This segment wraps the built-in range function, allowing you to specify
     the lower and upper bounds of the range. The range is inclusive of the
     lower bound and exclusive of the upper bound.
-
-    Args:
-        lower (int): Lower bound of the range (inclusive)
-        upper (int): Upper bound of the range (exclusive)
-
     """
     yield from list(range(lower, upper))
 
@@ -39,7 +44,10 @@ def arange(lower, upper):
 class AbstractComparisonFilter(core.AbstractSegment):
     """Abstract base class for comparison segments."""
 
-    def __init__(self, field: str, n: Any, comparator: Callable[[Any, Any], bool]):
+    def __init__(self, 
+                 field: Annotated[str, "Field/property to compare"], 
+                 n: Annotated[Any, "Value to compare against"], 
+                 comparator: Callable[[Any, Any], bool]):
         super().__init__()
         self.field = field
         self.n = n
@@ -61,12 +69,6 @@ class eq(AbstractComparisonFilter):
     For each item passed in, this segment yields only those where the value of the specified field
     is equal to the given number n.  
 
-    Args:
-        items: Iterable of items to filter
-        field: String representing the field/property to compare.  Note that
-          an underscore "_" can be used to refer to the item itself.
-        n: Item to compare against
-
     Yields:
         Items where the specified field's value equals n
 
@@ -75,7 +77,9 @@ class eq(AbstractComparisonFilter):
 
     """
 
-    def __init__(self, field: str, n: Any):
+    def __init__(self, 
+                 field: Annotated[str, "Field/property to compare"], 
+                 n: Annotated[Any, "Value to compare against"]):
         super().__init__(field, n, lambda x, y: x == y)
 
 #TODO: rename class to NEQ in 0.5.0
@@ -86,12 +90,6 @@ class neq(AbstractComparisonFilter):
     For each item passed in, this segment yields only those where the value of the specified field
     is not equal to the given number n.
 
-    Args:
-        items: Iterable of items to filter
-        field: String representing the field/property to compare.  Note that
-          an underscore "_" can be used to refer to the item itself.
-        n: Item to compare against
-
     Yields:
         Items where the specified field's value does not equal n
 
@@ -99,7 +97,9 @@ class neq(AbstractComparisonFilter):
         AttributeError: If the specified field is missing from any item
 
     """
-    def __init__(self, field: str, n: Any):
+    def __init__(self, 
+                 field: Annotated[str, "Field/property to compare"], 
+                 n: Annotated[Any, "Value to compare against"]):
         super().__init__(field, n, lambda x, y: x != y)
 
 #TODO: rename class to GT in 0.5.0
@@ -110,12 +110,6 @@ class gt(AbstractComparisonFilter):
     For each item passed in, this segment yields only those where the value of the specified field
     is greater than the given number n.
 
-    Args:
-        items: Iterable of items to filter
-        field: String representing the field/property to compare.  Note that
-          an underscore "_" can be used to refer to the item itself.
-        n: Number to compare against
-
     Yields:
         Items where the specified field's value is greater than n
 
@@ -123,7 +117,9 @@ class gt(AbstractComparisonFilter):
         AttributeError: If the specified field is missing from any item
 
     """
-    def __init__(self, field: str, n: Any):
+    def __init__(self, 
+                 field: Annotated[str, "Field/property to compare"], 
+                 n: Annotated[Any, "Value to compare against"]):
         super().__init__(field, n, lambda x, y: x > y)
 
 #TODO: rename class to GTE in 0.5.0
@@ -134,12 +130,6 @@ class gte(AbstractComparisonFilter):
     For each item passed in, this segment yields only those where the value of the specified field
     is greater than or equal to the given number n.
 
-    Args:
-        items: Iterable of items to filter
-        field: String representing the field/property to compare.  Note that
-          an underscore "_" can be used to refer to the item itself.
-        n: Number to compare against
-
     Yields:
         Items where the specified field's value is greater than or equal to n
 
@@ -147,7 +137,9 @@ class gte(AbstractComparisonFilter):
         AttributeError: If the specified field is missing from any item
 
     """
-    def __init__(self, field: str, n: Any):
+    def __init__(self, 
+                 field: Annotated[str, "Field/property to compare"], 
+                 n: Annotated[Any, "Value to compare against"]):
         super().__init__(field, n, lambda x, y: x >= y)
 
 #TODO: rename class to LT in 0.5.0
@@ -159,12 +151,6 @@ class lt(AbstractComparisonFilter):
     For each item passed in, this segment yields items where the 
     specified field value is less than the given number n.
 
-    Args:
-        items (iterable): An iterable of items to filter
-        field: String representing the field/property to compare.  Note that
-          an underscore "_" can be used to refer to the item itself.
-        n (numeric): The number to compare against
-
     Yields:
         item: Items where the specified field value is less than n
 
@@ -172,7 +158,9 @@ class lt(AbstractComparisonFilter):
         AttributeError: If the specified field does not exist on an item (due to fail_on_missing=True)
 
     """
-    def __init__(self, field: str, n: Any):
+    def __init__(self, 
+                 field: Annotated[str, "Field/property to compare"], 
+                 n: Annotated[Any, "Value to compare against"]):
         super().__init__(field, n, lambda x, y: x < y)
 
 
@@ -184,12 +172,6 @@ class lte(AbstractComparisonFilter):
     For each item passed in, this segment yields only those where the value of the specified field
     is less than or equal to the given number n.
 
-    Args:
-        items: Iterable of items to filter
-        field: String representing the field/property to compare.  Note that
-          an underscore "_" can be used to refer to the item itself.
-        n: Number to compare against
-
     Yields:
         Items where the specified field's value is less than or equal to n
 
@@ -197,5 +179,7 @@ class lte(AbstractComparisonFilter):
         AttributeError: If the specified field is missing from any item
 
     """
-    def __init__(self, field: str, n: Any):
+    def __init__(self, 
+                 field: Annotated[str, "Field/property to compare"], 
+                 n: Annotated[Any, "Value to compare against"]):
         super().__init__(field, n, lambda x, y: x <= y)

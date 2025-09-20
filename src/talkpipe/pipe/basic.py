@@ -1,6 +1,6 @@
 """Standard operations for data processing pipelines."""
 
-from typing import Iterable, Iterator, Union, Optional, Any, Dict
+from typing import Iterable, Iterator, Union, Optional, Any, Annotated
 import logging
 import time
 import sys
@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
 
 @registry.register_segment("sleep")
 @segment()
-def sleep(items, seconds: int):
+def sleep(items, seconds: Annotated[int, "The number of seconds to sleep after processing each item"]):
     """Sleep for a specified number of seconds between processing each item.
     
     This segment introduces a delay between processing each item in the pipeline.
@@ -30,10 +30,6 @@ def sleep(items, seconds: int):
     ChatterLang Usage:
         sleep[seconds=1]
         
-    Args:
-        items (Iterable): An iterable of items to process.
-        seconds (int): The number of seconds to sleep after processing each item.
-
     Yields:
         Any: Each input item unchanged after the sleep delay.
     """
@@ -43,7 +39,11 @@ def sleep(items, seconds: int):
 
 @registry.register_segment(name="progressTicks")
 @segment()
-def progressTicks(items, tick: str = ".", tick_count: int = 10, eol_count: Optional[int] = 10, print_count: bool = False):
+def progressTicks(items, 
+                  tick: Annotated[str, "The character to print as a tick mark."] = ".", 
+                  tick_count: Annotated[int, "Number of items to process before printing a tick mark."] = 10, 
+                  eol_count: Annotated[Optional[int], "Number of tick marks before starting a new line. If None, no new line is printed."] = 10, 
+                  print_count: Annotated[bool, "If True, prints the count of items processed at line ends."] = False):
     """Display progress indicators while processing items in the pipeline.
 
     Prints tick marks to stderr to visualize processing progress without interfering 
@@ -51,15 +51,7 @@ def progressTicks(items, tick: str = ".", tick_count: int = 10, eol_count: Optio
 
     ChatterLang Usage:
         progressTicks[tick="*", tick_count=100, eol_count=10, print_count=true]
-        
-    Args:
-        items (Iterable): An iterable of items to process.
-        tick (str): The character to print as a tick mark. Defaults to '.'.
-        tick_count (int): Number of items to process before printing a tick mark. Defaults to 10.
-        eol_count (Optional[int]): Number of tick marks before starting a new line. 
-                                  If None, no new line is printed. Defaults to 10.
-        print_count (bool): If True, prints the count of items processed at line ends.
-        
+                
     Yields:
         Any: The original items from the input iterable, unchanged.
     """
@@ -78,7 +70,7 @@ def progressTicks(items, tick: str = ".", tick_count: int = 10, eol_count: Optio
 
 @registry.register_segment(name="firstN")
 @segment()
-def firstN(items, n: int = 1):
+def firstN(items, n: Annotated[int, "The number of items to yield."] = 1):
     """Yields the first n items from the input stream.
     
     Useful for sampling data, testing pipelines with limited data, or implementing
@@ -123,7 +115,7 @@ class Cast(AbstractSegment):
     This lets this segment also be used as a filter to remove data that cannot be cast.
     The cast occurs by calling the type object on the data.  
     """
-    def __init__(self, cast_type: Union[type, str], fail_silently: bool = True):
+    def __init__(self, cast_type: Annotated[Union[type, str], "The type to cast the data to."] , fail_silently: Annotated[bool, "Whether to fail silently if the cast fails."] = True):
         super().__init__()
         self.cast_type = cast_type if isinstance(cast_type, type) else get_type_safely(cast_type)
         self.fail_silently = fail_silently
@@ -145,14 +137,11 @@ class Cast(AbstractSegment):
 class ToDict(AbstractSegment):
     """Creates a dictionary from the input data."""
 
-    def __init__(self, field_list: str = "_", fail_on_missing: bool = True, default: Optional[Any] = None):
+    def __init__(self, 
+                 field_list: Annotated[str, "A list of properties in field_list format to extract from the input data."] = "_", 
+                 fail_on_missing: Annotated[bool, "Whether to fail on missing properties."] = True):
         """Convert each item in the input string into a dictionary based on the provided parameter list.
 
-        Args:
-            field_list (str): A list of properties to extract from the input data.  The properties are separated by commas.
-                Each property can be a path to a nested property.  If the property is "_", the entire data object is used.
-            fail_on_missing (bool): If True, the segment will raise an exception if a property is missing from the input data.
-                If False, the segment will skip missing properties.
         """
         super().__init__()
         self.field_list = field_list
@@ -171,22 +160,17 @@ class FormattedItem(AbstractSegment):
     This segment takes each input item and generates one formatted string output 
     containing all specified fields. Each field is in the format "Label: Value".
     
-    Args:
-        field_list (str): Comma-separated list of field:label pairs. 
-                         Format: "field1:Label1,field2:Label2" or just "field1,field2"
-        format_type (str): Type of formatting to apply ("auto", "text", "json", "clean")
-        wrap_width (int): Width for text wrapping (default: 80)
-        fail_on_missing (bool): Whether to fail if a field is missing (default: False)
-        separator (str): Separator between property and value (default: ": ")
-        field_separator (str): Separator between different fields (default: "\n")
-    
     Yields:
         str: One formatted string per input item containing all fields
     """
     
-    def __init__(self, field_list: str, wrap_width: int = 80, 
-                 fail_on_missing: bool = False, field_name_separator: str = ": ", 
-                 field_separator: str = "\n", item_suffix: str = ""):
+    def __init__(self, 
+                 field_list: Annotated[str, "Comma-separated list of field:label pairs."] = "_", 
+                 wrap_width: Annotated[int, "Width for text wrapping"] = 80, 
+                 fail_on_missing: Annotated[bool, "Whether to fail if a field is missing"] = False, 
+                 field_name_separator: Annotated[str, "Separator between property and value"] = ": ", 
+                 field_separator: Annotated[str, "Separator between different fields"] = "\n", 
+                 item_suffix: Annotated[str, "Suffix to append to each item"] = ""):
         super().__init__()
         self.field_list = field_list
         self.wrap_width = wrap_width
@@ -216,7 +200,8 @@ class FormattedItem(AbstractSegment):
 
 @registry.register_segment("setAs")
 @field_segment
-def setAs(item, field_list:str):
+def setAs(item, 
+          field_list:Annotated[str, "Comma-separated list of field:label pairs."]):
     """Appends the specified fields to the input item.
     
     Equivalent to toDict except that that item is modified with the new key/value pairs 
@@ -232,13 +217,11 @@ def setAs(item, field_list:str):
 
 @registry.register_segment("set")
 @segment
-def assign(items, value: Any, set_as: str):
+def assign(items: Annotated[Iterator[Any], "The input item to modify"], 
+           value: Annotated[Any, "The value to assign"], 
+           set_as: Annotated[str, "The field to assign the value to"]):
     """Assigns the specified value to the specified field.
 
-    Args:
-        item: The input item to modify.
-        value: The value to assign.
-        set_as: Append the provided value as this field
     """
     for item in items:
         item[set_as] = value
@@ -279,7 +262,7 @@ class ToList(AbstractSegment):
 
 @registry.register_source(name="exec")
 @source()
-def exec(command: str) -> Iterator:
+def exec(command: Annotated[str, "The shell command to execute."]) -> Iterator:
     """Execute a shell command and yield each line from stdout as a data item.
     
     This source allows you to integrate shell commands into TalkPipe pipelines,
@@ -300,15 +283,11 @@ def exec(command: str) -> Iterator:
 
 @registry.register_segment("concat")
 @segment(fields=None, delimiter="\n\n", set_as=None)
-def concat(items, fields, delimiter="\n\n", set_as=None):
+def concat(items, 
+           fields: Annotated[str, "Comma-separated list of fields to concatenate."],
+           delimiter: Annotated[str, "String to insert between concatenated fields."] = "\n\n", 
+           set_as: Annotated[str, "If specified, adds concatenated result as new field with this name."] = None):
     """Concatenates specified fields from each item with a delimiter.
-
-    Args:
-        items: Iterable of input items to process
-        fields: String specifying fields to extract and concatenate
-        delimiter (str, optional): String to insert between concatenated fields. Defaults to "\n\n"
-        set_as (str, optional): If specified, adds concatenated result as new field with this name. 
-                                Defaults to None.
 
     Yields:
         If set_as is specified, yields the original item with concatenated result added as new field.
@@ -329,7 +308,7 @@ def concat(items, fields, delimiter="\n\n", set_as=None):
 
 @registry.register_segment("slice")
 @field_segment()
-def slice(item, range=None):
+def slice(item, range: Annotated[str, "String in format 'start:end' where both start and end are optional."] = None):
     """Slices a sequence using start and end indices.
 
     This function takes a sequence and a range string in the format "start:end" to slice the sequence.
@@ -365,14 +344,14 @@ def slice(item, range=None):
 
 @registry.register_segment("longestStr")
 @segment()
-def longestStr(items, field_list, set_as=None):
+def longestStr(items, 
+               field_list: Annotated[str, "Comma-separated list of fields to check for longest string."],
+               set_as: Annotated[str, "If specified, adds longest string as new field with this name."] = None):
     """Finds the longest string among specified fields in the input item.  If 
     a field is not present or is not a string, it is ignored.  If two or more
     fields have the same length, the first one encountered is returned.  If
-    none of the specified fields are present, and emptry string is yielded.
-    Args:
-        items: The input items
-        field_list (str): Comma-separated list of fields to check for longest string
+    none of the specified fields are present, and empty string is yielded.
+
     Yields:
         The longest string found in the specified fields of the input items.
     """
@@ -393,47 +372,108 @@ def longestStr(items, field_list, set_as=None):
 
 @registry.register_segment("isIn")
 @segment()
-def isIn(items, field, value):
+def isIn(items, 
+         field: Annotated[str, "Field name to check for value"],
+         value: Annotated[Any, "Value to check for in the field"],
+         as_filter: Annotated[bool, "Whether to use this function as a filter. If false, only return True or False. If true, yield the item if the condition is true."] = True,
+         set_as: Annotated[str, "If specified, the result will be added to this field in the item."] = None):
     """Filters items based on whether a field contains a specified value.
-
-    Args:
-        items: Iterable of items to filter
-        field: Field name to check for value
-        value: Value to check for in the field
 
     Yields:
         Items where the specified field contains the specified value.
     """
     for item in items:
         data = extract_property(item, field)
-        if value in data:
-            yield item
+        ans = value in data
+
+        if set_as:
+            item[set_as] = ans
+            to_return = item
+        else:
+            to_return = item if as_filter else ans
+
+        if not as_filter or ans:
+            yield to_return
 
 @registry.register_segment("isNotIn")
 @segment()
-def isNotIn(items, field, value):
+def isNotIn(items, 
+            field: Annotated[str, "Field name to check for value"],
+            value: Annotated[Any, "Value to check for in the field"],
+            as_filter: Annotated[bool, "Whether to use this function as a filter. If false, only return True or False. If true, yield the item if the condition is true."] = True,
+            set_as: Annotated[str, "If specified, the result will be added to this field in the item."] = None):
     """Filters items based on whether a field does not contain a specified value.
-
-    Args:
-        field: Field name to check for value
-        value: Value to check for in the field
 
     Yields:
         Items where the specified field does not contain the specified value.
     """
     for item in items:
         data = extract_property(item, field)
-        if value not in data:
-            yield item
+        ans = value not in data
+
+        if set_as:
+            item[set_as] = ans
+            to_return = item
+        else:
+            to_return = item if as_filter else ans
+
+        if not as_filter or ans:
+            yield to_return
+
+@registry.register_segment("isTrue")
+@segment()
+def isTrue(items, 
+           as_filter: Annotated[bool, "Whether to use this function as a filter. If false, only return True or False. If true, yield the item if the condition is true."] = True, 
+           field: Annotated[str, "The field to check for truthiness. Defaults to '_', which means the entire item."] = "_", 
+           set_as: Annotated[str, "If specified, the result will be added to this field in the item."] = None):
+    """
+    Checks if the specified field is true.  A field is considered false if it is
+    None, False, an integer 0, or an empty string.  It is True otherwise.
+
+    """
+    for item in items:
+        to_eval = extract_property(item, field)
+        # Check if value is truthy (not None, False, 0, or empty string)
+        ans = bool(to_eval) and (to_eval != 0) and (not isinstance(to_eval, str) or len(to_eval.strip()) > 0)
+
+        if set_as:
+            item[set_as] = ans
+            to_return = item
+        else:
+            to_return = item if as_filter else ans
+
+        if not as_filter or ans:
+            yield to_return
+
+@registry.register_segment("isFalse")
+@segment()
+def isFalse(items, 
+             as_filter: Annotated[bool, "Whether to use this function as a filter. If false, only return True or False. If true, yield the item if the condition is true."] = True, 
+             field: Annotated[str, "The field to check for falsiness. Defaults to '_', which means the entire item."] = "_", 
+             set_as: Annotated[str, "If specified, the result will be added to this field in the item."] = None):
+    """
+    Checks if the specified field is false.  A field is considered false if it is
+    None, False, an integer 0, or an empty string.  It is True otherwise.
+
+    """
+    for item in items:
+        to_eval = extract_property(item, field)
+        # Check if value is falsy (None, False, 0, or empty string)
+        ans = not (bool(to_eval) and (to_eval != 0) and (not isinstance(to_eval, str) or len(to_eval.strip()) > 0))
+
+        if set_as:
+            item[set_as] = ans
+            to_return = item
+        else:
+            to_return = item if as_filter else ans
+
+        if not as_filter or ans:
+            yield to_return
 
 @registry.register_segment("everyN")
 @segment()
-def everyN(items, n):
+def everyN(items, n: Annotated[int, "Number of items to skip between each yield"]):
     """Yields every nth item from the input stream.
-
-    Args:
-        items: Iterable of items to process
-        n: Number of items to skip between each yield
 
     Yields:
         Every nth item from the input stream.
@@ -446,9 +486,6 @@ def everyN(items, n):
 @segment()
 def flatten(items):
     """Flattens a nested list of items.
-
-    Args:
-        items: Iterable of items to flatten
 
     Yields:
         Flattened list of items
@@ -477,7 +514,9 @@ class ConfigureLogger(AbstractSegment):
         logger_levels (str): Logger levels in format 'logger:level,logger:level,...'
         logger_files (str): Logger files in format 'logger:file,logger:file,...'
     """
-    def __init__(self, logger_levels: Optional[str]=None, logger_files: Optional[str] = None):
+    def __init__(self, 
+                 logger_levels: Annotated[Optional[str], "Logger levels in format 'logger:level,logger:level,...'"] = None, 
+                 logger_files: Annotated[Optional[str], "Logger files in format 'logger:file,logger:file,...'"] = None):
         super().__init__()
         self.logger_levels = logger_levels
         self.logger_files = logger_files
@@ -492,16 +531,14 @@ class ConfigureLogger(AbstractSegment):
         """
         yield from input_iter
 
-def hash_data(data, algorithm="SHA256", field_list="_", use_repr=True, fail_on_missing=True, default=None):
+def hash_data(data, 
+              algorithm: Annotated[str, "Hash algorithm to use. Options include SHA1, SHA224, SHA256, SHA384, SHA512, SHA-3, and MD5."] = "SHA256", 
+              field_list: Annotated[str, "List of fields to include in the hash"] = "_", 
+              use_repr: Annotated[bool, "Whether to use repr() or JSON serialization. Defaults to True for security."] = True, 
+              fail_on_missing: Annotated[bool, "Whether to fail on missing fields"] = True, 
+              default: Annotated[Any, "Default value to use for missing fields"] = None):
     """Hash a single data item using the specified parameters.
-    
-    Args:
-        data: The data item to hash
-        algorithm (str): Hash algorithm to use. Options include SHA1, SHA224, SHA256, SHA384, SHA512, SHA-3, and MD5.
-        fields (list): List of fields to include in the hash
-        use_repr (bool): Whether to use repr() or JSON serialization. Defaults to True for security.
-        fail_on_missing (bool): Whether to fail on missing fields
-        
+            
     Returns:
         str: The resulting hash digest
     """
@@ -544,14 +581,13 @@ class Hash(AbstractSegment):
     This segment hashes the input data using the specified algorithm.
     All datatypes are hashed using either repr() or JSON serialization for security.
 
-    Args:
-        algorithm (str): Hash algorithm to use. Options include SHA1, SHA224, SHA256, SHA384, SHA512, SHA-3, and MD5.
-        use_repr (bool): If True, the repr() version of the input data is hashed. If False, JSON serialization 
-            is used with fallback to repr() for non-JSON-serializable objects. Using repr() will handle all 
-            objects consistently and won't be subject to changes in serialization formats. JSON serialization 
-            provides more structured representation but may not work with all Python objects.
     """
-    def __init__(self, algorithm: str="SHA256", use_repr=True, field_list: str = "_", set_as=None, fail_on_missing: bool = True):
+    def __init__(self, 
+                 algorithm: Annotated[str, "Hash algorithm to use. Options include SHA1, SHA224, SHA256, SHA384, SHA512, SHA-3, and MD5."] = "SHA256", 
+                 use_repr: Annotated[bool, "Whether to use repr() or JSON serialization. Defaults to True for security."] = True, 
+                 field_list: Annotated[str, "List of fields to include in the hash"] = "_", 
+                 set_as: Optional[str] = None, 
+                 fail_on_missing: Annotated[bool, "Whether to fail on missing fields"] = True):
         super().__init__()
         _SECURE_HASH_ALGOS = {
             "SHA224", "SHA256", "SHA384", "SHA512",
@@ -583,12 +619,11 @@ class Hash(AbstractSegment):
 
 @registry.register_segment("fillTemplate")
 @field_segment
-def fillTemplate(item, template:str, fail_on_missing:bool=True, default: Optional[Any] = ""):
+def fillTemplate(item, 
+                 template: Annotated[str, "The template string with placeholders for values"], 
+                 fail_on_missing: Annotated[bool, "Whether to fail on missing fields"] = True, 
+                 default: Annotated[Optional[Any], "Default value to use for missing fields"] = ""):
     """Fill a template string with values from the input item.
-
-    Args:
-        item: The input item containing values to fill the template
-        template (str): The template string with placeholders for values
 
     Returns:
         str: The filled template string
@@ -610,18 +645,13 @@ class EvalExpression(AbstractSegment):
     The item is available in expressions as 'item'. If the item is a dictionary,
     its fields can be accessed directly as variables in the expression.
     
-    Args:
-        expression: The Python expression to evaluate
-        field: If provided, extract this field from each item before evaluating
-        set_as: If provided, append the result to each item under this field name
-        fail_on_error: If True, raises exceptions when evaluation fails. If False, logs errors and returns None
     """
     
     def __init__(self, 
-                 expression: str,
-                 field: Optional[str] = "_",
-                 set_as: Optional[str] = None,
-                 fail_on_error: bool = True):
+                 expression: Annotated[str, "The Python expression to evaluate"],
+                 field: Annotated[Optional[str], "If provided, extract this field from each item before evaluating"] = "_",
+                 set_as: Annotated[Optional[str], "If provided, append the result to each item under this field name"] = None,
+                 fail_on_error: Annotated[bool, "If True, raises exceptions when evaluation fails. If False, logs errors and returns None"] = True):
         super().__init__()
         self.expression = expression
         self.field = field
@@ -668,16 +698,12 @@ class FilterExpression(AbstractSegment):
     The item is available in expressions as 'item'. If the item is a dictionary,
     its fields can be accessed directly as variables in the expression.
     
-    Args:
-        expression: The Python expression to evaluate
-        field: If provided, extract this field from each item before evaluating
-        fail_on_error: If True, raises exceptions when evaluation fails. If False, logs errors and returns None
     """
     
     def __init__(self, 
-                 expression: str,
-                 field: Optional[str] = "_",
-                 fail_on_error: bool = True):
+                 expression: Annotated[str, "The Python expression to evaluate"],
+                 field: Annotated[Optional[str], "If provided, extract this field from each item before evaluating"] = "_",
+                 fail_on_error: Annotated[bool, "If True, raises exceptions when evaluation fails. If False, logs errors and returns None"] = True):
         super().__init__()
         self.expression = expression
         self.field = field

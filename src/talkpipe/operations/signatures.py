@@ -9,7 +9,7 @@ import logging
 import argparse
 import json
 import base64
-from typing import Optional, Tuple, Union, Iterable, Iterator, Any, List
+from typing import Optional, Tuple, Union, Iterable, Iterator, Any, List, Annotated
 
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.asymmetric import padding, rsa
@@ -277,17 +277,14 @@ class SignSegment(core.AbstractSegment):
     This segment signs each item in the input stream using RSA-PSS with SHA-256.
     """
     
-    def __init__(self, private_key, message_field="_", password=None,
-                 set_as=None, encode_signature=True):
+    def __init__(self, 
+                 private_key: Annotated[Union[str, bytes, Any], "Private key path, PEM content, or RSAPrivateKey object"], 
+                 message_field: Annotated[str, "Field containing the message to sign"] = "_", 
+                 password: Annotated[Optional[Union[str, bytes]], "Password for encrypted private key"] = None,
+                 set_as: Annotated[Optional[str], "Field to store the signature in. If None, returns just the signature"] = None, 
+                 encode_signature: Annotated[bool, "Whether to base64-encode the signature"] = True):
         """
         Initialize the sign segment.
-        
-        Args:
-            private_key: Private key path, PEM content, or RSAPrivateKey object
-            message_field (str): Field containing the message to sign. Defaults to "_" (the whole item)
-            password: Password for encrypted private key
-            set_as (str): Field to store the signature in. If None, returns just the signature
-            encode_signature (bool): Whether to base64-encode the signature
         
         Raises:
             ValueError: If invalid parameters are provided
@@ -335,9 +332,6 @@ class SignSegment(core.AbstractSegment):
     def transform(self, input_iter):
         """Process a stream of items.
         
-        Args:
-            input_iter: An iterable of items to process
-            
         Yields:
             Processed items with signatures
         """
@@ -352,16 +346,13 @@ class VerifySegment(core.AbstractSegment):
     This segment verifies the signature on each item in the input stream using RSA-PSS with SHA-256.
     """
     
-    def __init__(self, public_key, message_field="_", 
-                 signature_field="signature", set_as=None):
+    def __init__(self, 
+                 public_key: Annotated[Union[str, bytes, Any], "Public key path, PEM content, or RSAPublicKey object"], 
+                 message_field: Annotated[str, "Field containing the original message"] = "_", 
+                 signature_field: Annotated[str, "Field containing the signature"] = "signature", 
+                 set_as: Annotated[Optional[str], "Field to store the verification result in. If None, returns just the result"] = None):
         """
         Initialize the verify segment.
-        
-        Args:
-            public_key: Public key path, PEM content, or RSAPublicKey object
-            message_field (str): Field containing the original message. Defaults to "_" (the whole item)
-            signature_field (str): Field containing the signature. Defaults to "signature"
-            set_as (str): Field to store the verification result in. If None, returns just the result
         
         Raises:
             ValueError: If invalid parameters are provided
@@ -416,9 +407,6 @@ class VerifySegment(core.AbstractSegment):
     def transform(self, input_iter):
         """Process a stream of items.
         
-        Args:
-            input_iter: An iterable of items to process
-            
         Yields:
             Processed items with verification results
         """

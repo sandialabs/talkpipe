@@ -7,6 +7,7 @@ import email
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from email.header import decode_header
+from typing import Annotated
 from talkpipe.pipe import core
 from talkpipe.chatterlang import registry
 from talkpipe.util.config import parse_key_value_str
@@ -140,20 +141,17 @@ def item_to_text(item, body_fields):
 
 @registry.register_segment("sendEmail")
 @core.segment(subject_field=None, body_fields=None, sender_email=None, recipient_email=None)
-def sendEmail(items, subject_field, body_fields, sender_email, recipient_email, smtp_server=None, port=587):
-    """
-    Send emails for each item in the input iterable using SMTP.
+def sendEmail(items, 
+              subject_field: Annotated[str, "Field name in the item to use as email subject"], 
+              body_fields: Annotated[str, "Comma-separated list of field names to include in email body"], 
+              sender_email: Annotated[str, "Sender's email address. If None, uses config value"], 
+              recipient_email: Annotated[str, "Recipient's email address. If None, uses config value"], 
+              smtp_server: Annotated[str, "SMTP server address. Defaults to 'smtp.gmail.com'"] = None, 
+              port: Annotated[int, "SMTP server port"] = 587):
+    """Send emails for each item in the input iterable using SMTP.
 
     This function processes a list of items and sends an email for each one, using the specified
     fields for subject and body content. It supports both HTML and plain text email formats.
-
-    Args:
-        subject_field (str): Field name in the item to use as email subject
-        body_fields (list[str]): List of field names to include in email body
-        sender_email (str, optional): Sender's email address. If None, uses config value
-        recipient_email (str, optional): Recipient's email address. If None, uses config value
-        smtp_server (str, optional): SMTP server address. Defaults to 'smtp.gmail.com'
-        port (int, optional): SMTP server port. Defaults to 587
 
     Yields:
         item: Returns each processed item after sending its corresponding email
@@ -389,24 +387,19 @@ def fetch_emails(
 
 @registry.register_source("readEmail")
 @core.source(poll_interval_minutes=10, folder='INBOX', mark_as_read=True, limit=100, unseen_only=True)
-def readEmail(poll_interval_minutes=10, folder='INBOX', mark_as_read=True, limit=100, unseen_only=True, 
-             imap_server=None, email_address=None, password=None):
-    """
-    A source that monitors an email inbox and yields new unread emails.
+def readEmail(poll_interval_minutes: Annotated[int, "Minutes between email checks"] = 10, 
+              folder: Annotated[str, "Mailbox folder to check"] = 'INBOX', 
+              mark_as_read: Annotated[bool, "Whether to mark emails as read"] = True, 
+              limit: Annotated[int, "Maximum number of emails to fetch per check. If -1, fetch all"] = 100, 
+              unseen_only: Annotated[bool, "Whether to only fetch unseen emails"] = True,
+              imap_server: Annotated[str, "IMAP server address. If None, uses config"] = None, 
+              email_address: Annotated[str, "Email address. If None, uses config"] = None, 
+              password: Annotated[str, "Password. If None, uses config"] = None):
+    """A source that monitors an email inbox and yields new unread emails.
     
     This source periodically checks for new unread emails, marks them as read,
     and yields their content and metadata. It connects using IMAP and can be
     configured to poll at specific intervals.
-    
-    Args:
-        poll_interval_minutes (int, optional): Minutes between email checks. Defaults to 10.
-        folder (str, optional): Mailbox folder to check. Defaults to 'INBOX'.
-        mark_as_read (bool, optional): Whether to mark emails as read. Defaults to True.
-        limit (int, optional): Maximum number of emails to fetch per check. Defaults to 100. 
-            if -1, fetch all.
-        imap_server (str, optional): IMAP server address. If None, uses config.
-        email_address (str, optional): Email address. If None, uses config.
-        password (str, optional): Password. If None, uses config.
         
     Yields:
         dict: Email metadata and content including:

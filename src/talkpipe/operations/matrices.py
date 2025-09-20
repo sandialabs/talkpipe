@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Optional, Annotated
 import numpy as np
 import umap
 from sklearn.manifold import TSNE
@@ -9,22 +9,14 @@ class ReduceUMAP(AbstractSegment):
     """Use UMAP to reduce dimensionality of provided matrix.
     
     This segment reduces the dimensionality of the provided matrix using UMAP.
-    
-    Parameters:
-        n_components: The dimension of the space to embed into. Default is 2.
-        n_neighbors: Size of local neighborhood. Default is 15.
-        min_dist: Minimum distance between embedded points. Default is 0.1.
-        metric: Distance metric for UMAP. Default is 'euclidean'.
-        random_state: Random state for reproducibility.
-        **umap_kwargs: Additional keyword arguments to pass to UMAP.
     """
     def __init__(self, 
-                 n_components: Optional[int] = 2, 
-                 n_neighbors: int = 15,
-                 min_dist: float = 0.1,
-                 metric: str = 'euclidean',
-                 random_state: Optional[int] = None,
-                 n_epochs: int = None
+                 n_components: Annotated[Optional[int], "The dimension of the space to embed into"] = 2, 
+                 n_neighbors: Annotated[int, "Size of local neighborhood"] = 15,
+                 min_dist: Annotated[float, "Minimum distance between embedded points"] = 0.1,
+                 metric: Annotated[str, "Distance metric for UMAP"] = 'euclidean',
+                 random_state: Annotated[Optional[int], "Random state for reproducibility"] = None,
+                 n_epochs: Annotated[Optional[int], "Number of training epochs"] = None
                 ):
         super().__init__()
         self.n_components = n_components
@@ -59,29 +51,16 @@ class ReduceTSNE(AbstractSegment):
     
     This segment reduces the dimensionality of the provided matrix using t-SNE 
     (t-Distributed Stochastic Neighbor Embedding).
-    
-    Parameters:
-        n_components: The dimension of the space to embed into. Default is 2.
-        perplexity: The perplexity is related to the number of nearest neighbors used
-            in other manifold learning algorithms. Larger datasets usually require a
-            larger perplexity. Default is 30.
-        early_exaggeration: Controls how tight natural clusters in the original 
-            space are in the embedded space. Default is 12.0.
-        learning_rate: The learning rate for t-SNE. Default is 200.0.
-        max_iter: Maximum number of iterations for the optimization. Default is 1000.
-        metric: Distance metric for t-SNE. Default is 'euclidean'.
-        random_state: Random state for reproducibility.
-        **tsne_kwargs: Additional keyword arguments to pass to TSNE.
     """
     
     def __init__(self,
-                n_components: Optional[int] = 2,
-                perplexity: float = 30.0,
-                early_exaggeration: float = 12.0,
-                learning_rate: float = 200.0,
-                max_iter: int = 1000,
-                metric: str = 'euclidean',
-                random_state: Optional[int] = None,
+                n_components: Annotated[Optional[int], "The dimension of the space to embed into"] = 2,
+                perplexity: Annotated[float, "The perplexity is related to the number of nearest neighbors used in other manifold learning algorithms"] = 30.0,
+                early_exaggeration: Annotated[float, "Controls how tight natural clusters in the original space are in the embedded space"] = 12.0,
+                learning_rate: Annotated[float, "The learning rate for t-SNE"] = 200.0,
+                max_iter: Annotated[int, "Maximum number of iterations for the optimization"] = 1000,
+                metric: Annotated[str, "Distance metric for t-SNE"] = 'euclidean',
+                random_state: Annotated[Optional[int], "Random state for reproducibility"] = None,
                 **tsne_kwargs
                 ):
         super().__init__()
