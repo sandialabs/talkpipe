@@ -4,7 +4,7 @@ import uuid
 import numpy as np
 from talkpipe.chatterlang import register_segment
 from talkpipe import segment
-from talkpipe.util.data_manipulation import extract_property, VectorLike, Document, DocID
+from talkpipe.util.data_manipulation import extract_property, VectorLike, Document, DocID, toDict
 from .abstract import DocumentStore, VectorAddable, VectorSearchable, SearchResult
 
 @register_segment("searchLancDB")
@@ -15,27 +15,40 @@ def search_lancedb(items: Annotated[object, "Items with the query vectors"],
                    all_results_at_once: Annotated[bool, "If true, return all results at once"]=False,
                    field: Annotated[str, "Field with the vector"]=None,
                    set_as: Annotated[str, "Set the results as this variable"]=None,
-                   limit: Annotated[int, "Number of results to return per query"]=10
+                   limit: Annotated[int, "Number of results to return per query"]=10,
+                   vector_dim: Annotated[Optional[int], "Expected dimension of vectors"]=None
                 ):
+    """Search for similar vectors in LanceDB and return SearchResult objects.
+
+    Yields:
+        SearchResult objects or lists of SearchResult objects.
+    """
     if path is None or table_name is None:
         raise ValueError("Both 'path' and 'table' parameters must be provided.")
-    
+
     if set_as is not None and not all_results_at_once:
         raise ValueError("If 'set_as' is provided, 'all_results_at_once' must be True.")
 
-    db = lancedb.connect(path)
-    tbl = db.open_table(table_name)
+    # Use LanceDBDocumentStore for consistent interface
+    doc_store = LanceDBDocumentStore(path, table_name, vector_dim)
+
     for item in items:
         if field:
             query_vector = extract_property(item, field)
         else:
             query_vector = item
-        results = tbl.search(query_vector).limit(limit).to_list()
+
+        # Get SearchResult objects from document store
+        search_results = doc_store.vector_search(query_vector, limit)
+
         if set_as:
-            item[set_as] = results
+            item[set_as] = search_results
             yield item
-        if not all_results_at_once:
-            for result in results:
+        elif all_results_at_once:
+            yield search_results
+        else:
+            # Yield individual SearchResult objects
+            for result in search_results:
                 yield result
 
 @register_segment("addToLancDB")
@@ -43,33 +56,72 @@ def search_lancedb(items: Annotated[object, "Items with the query vectors"],
 def add_to_lancedb(items: Annotated[object, "Items with the vectors and documents"],
                    path: Annotated[str, "Path to the LanceDB database"],
                    table_name: Annotated[str, "Table name in the LanceDB database"],
-                   overwrite: Annotated[bool, "If true, overwrite existing entries"]=False,
-                   batches_of: Annotated[int, "Number of items to add at once"]=10
+                   vector_field: Annotated[str, "The field containing the vector data"] = "vector",
+                   doc_id_field: Annotated[Optional[str], "Field containing document ID"] = None,
+                   metadata_field_list: Annotated[Optional[str], "Optional metadata field list"] = None,
+                   overwrite: Annotated[bool, "If true, overwrite existing table"]=False,
+                   vector_dim: Annotated[Optional[int], "Expected dimension of vectors"]=None
                    ):
+    """Add vectors and documents to LanceDB using LanceDBDocumentStore.
+
+    Returns:
+        The original items with the document IDs added.
+    """
     if path is None or table_name is None:
         raise ValueError("Both 'path' and 'table' parameters must be provided.")
 
-    db = lancedb.connect(path)
-    tbl = None
-    batch = []
+    # Use LanceDBDocumentStore for consistent interface
+    doc_store = LanceDBDocumentStore(path, table_name, vector_dim)
+
+    # Handle overwrite by dropping table if it exists
+    if overwrite:
+        try:
+            db = doc_store._get_db()
+            # Try to drop the table if it exists
+            try:
+                db.drop_table(table_name)
+            except (FileNotFoundError, ValueError):
+                # Table doesn't exist, which is fine
+                pass
+            # Reset the cached table reference
+            doc_store._table = None
+        except Exception:
+            # If there's any issue with dropping, continue
+            pass
+
     for item in items:
-        if tbl is None:
-            tbl = db.create_table(table_name, [item], mode="overwrite" if overwrite else "append")
-            yield item
-            continue
-        
-        batch.append(item)
-        if len(batch) >= batches_of:
-            tbl.add(batch)
-            for batched_item in batch:
-                yield batched_item
-            batch = []
-    
-    # Insert remaining items if any
-    if batch:
-        tbl.add(batch)
-        for batched_item in batch:
-            yield batched_item
+        # Extract vector
+        vector = extract_property(item, vector_field, fail_on_missing=True)
+        if not isinstance(vector, (list, tuple, np.ndarray)):
+            raise ValueError(f"Vector field '{vector_field}' must be a list, tuple, or numpy array")
+
+        # Extract document ID if specified
+        doc_id = None
+        if doc_id_field:
+            doc_id = extract_property(item, doc_id_field, fail_on_missing=False)
+
+        # Extract metadata
+        if metadata_field_list:
+            metadata = toDict(item, metadata_field_list, fail_on_missing=False)
+        else:
+            # Use the entire item as metadata, excluding the vector field
+            if isinstance(item, dict):
+                metadata = {k: v for k, v in item.items() if k != vector_field}
+            else:
+                # If item is not a dict (e.g., raw vector), create minimal metadata
+                metadata = {"item_type": str(type(item).__name__)}
+
+        # Convert metadata to Document format (string keys and values)
+        document = {str(k): str(v) for k, v in metadata.items()}
+
+        # Add to document store
+        added_doc_id = doc_store.add_vector(vector, document, doc_id)
+
+        # Add the document ID to the item for reference (only if item is a dict)
+        if isinstance(item, dict):
+            item["_doc_id"] = added_doc_id
+
+        yield item
 
 
 class LanceDBDocumentStore(DocumentStore, VectorAddable, VectorSearchable):
