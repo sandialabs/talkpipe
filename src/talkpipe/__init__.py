@@ -16,6 +16,7 @@ from talkpipe.operations.signatures import *
 from talkpipe.app.chatterlang_serve import *
 from talkpipe.search.whoosh import *
 from talkpipe.search.simplevectordb import *
+from talkpipe.search.lancedb import *
 
 # Load plugins automatically on import
 from talkpipe.util.plugin_loader import load_plugins
