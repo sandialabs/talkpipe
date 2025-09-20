@@ -1,4 +1,5 @@
 from typing import Annotated, List, Optional
+import logging
 import lancedb
 import uuid
 import numpy as np
@@ -6,6 +7,8 @@ from talkpipe.chatterlang import register_segment
 from talkpipe import segment
 from talkpipe.util.data_manipulation import extract_property, VectorLike, Document, DocID, toDict
 from .abstract import DocumentStore, VectorAddable, VectorSearchable, SearchResult
+
+logger = logging.getLogger(__name__)
 
 @register_segment("searchLancDB")
 @segment()
@@ -82,12 +85,12 @@ def add_to_lancedb(items: Annotated[object, "Items with the vectors and document
                 db.drop_table(table_name)
             except (FileNotFoundError, ValueError):
                 # Table doesn't exist, which is fine
-                pass
+                logger.info(f"Table '{table_name}' does not exist, nothing to drop.")
             # Reset the cached table reference
             doc_store._table = None
         except Exception:
             # If there's any issue with dropping, continue
-            pass
+            logger.warning(f"Could not drop table '{table_name}' for overwrite. Continuing without dropping.")
 
     for item in items:
         # Extract vector
