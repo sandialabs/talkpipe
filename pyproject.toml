@@ -43,7 +43,8 @@ dependencies = [
     'cryptography',
     'uvicorn',
     'whoosh',
-    'lancedb'
+    'lancedb',
+    'deprecated'
 ]
 dynamic = ["version"]
 

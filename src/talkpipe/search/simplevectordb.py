@@ -1,3 +1,4 @@
+from deprecated import deprecated
 from typing import List, Dict, Any, Tuple, Optional, Annotated
 from dataclasses import dataclass, asdict
 import logging
@@ -21,13 +22,14 @@ logger = logging.getLogger(__name__)
 
 
 @dataclass
-class VectorEntry:
+@deprecated("Use the equivalent functionality in talkpipe.search.lancedb.  The simplevectordb module will be removed in 1.0.0.")
+class VectorEntry:    
     """Internal data structure for storing vector data"""
     doc_id: str
     vector: List[float]
     document: Document
 
-
+@deprecated("Use the talkpipe.search.lancedb.LanceDBDocumentStore instead, which implements the same interfaces.  The simplevectordb module will be removed in 1.0.0.")
 class SimpleVectorDB(DocumentStore, VectorAddable, VectorSearchable):
     """A simple in-memory vector database with similarity search capabilities"""
     
@@ -499,6 +501,7 @@ class SimpleVectorDB(DocumentStore, VectorAddable, VectorSearchable):
 
 @register_segment("addVector")
 @segment()
+@deprecated("Use talkpipe.search.lancedb.add_to_lancedb instead.  The simplevectordb module will be removed in 1.0.0.")
 def add_vector(items: Annotated[object, "The items containing the vector data"], path: Annotated[str, "Path to the vector database file"], vector_field: Annotated[str, "The field containing the vector data"] = "_", vector_id: Annotated[Optional[str], "Optional custom ID for the vector"] = None, 
                metadata_field_list: Annotated[Optional[str], "Optional metadata field list"] = None, overwrite: Annotated[bool, "Whether to overwrite existing database file"] = False):
     """
@@ -531,6 +534,7 @@ def add_vector(items: Annotated[object, "The items containing the vector data"],
 
 @register_segment("searchVector")
 @segment()
+@deprecated("Use talkpipe.search.lancedb.search_lancedb instead.  .  The simplevectordb module will be removed in 1.0.0.")
 def search_vector(items: Annotated[object, "Items containing query vectors"], path: Annotated[str, "Path to the vector database file"], vector_field: Annotated[str, "The field containing the vector data"] = "_", top_k: Annotated[int, "Number of top results to return"] = 5, 
                   all_results_at_once: Annotated[bool, "If True, return all results at once. If False, yield one result at a time"] = False, set_as: Annotated[Optional[str], "Field name to set results on input items"] = None,
                   continue_on_error: Annotated[bool, "If True, continue processing on errors"] = True,
