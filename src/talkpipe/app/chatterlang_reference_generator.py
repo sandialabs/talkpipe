@@ -38,25 +38,42 @@ def sanitize_id(text: str) -> str:
 def analyze_registered_items() -> List[AnalyzedItem]:
     """
     Analyze all registered sources and segments from the plugin system.
+    Groups items with multiple chatterlang names together.
     """
     load_plugins()  # Ensure plugins are loaded
-    analyzed_items = []
-    
+
+    # Group by class to handle multiple names for the same class
+    class_to_names = {}
+
     # Process sources
     for chatterlang_name, cls in input_registry.all.items():
-        component_info = extract_component_info(chatterlang_name, cls, 'Source')
-        if component_info:
-            item = convert_component_info_to_analyzed_item(component_info)
-            analyzed_items.append(item)
-    
+        if cls not in class_to_names:
+            class_to_names[cls] = {'names': [], 'type': 'Source'}
+        class_to_names[cls]['names'].append(chatterlang_name)
+
     # Process segments
     for chatterlang_name, cls in segment_registry.all.items():
-        component_type = detect_component_type(cls, 'Segment')
-        component_info = extract_component_info(chatterlang_name, cls, component_type)
+        if cls not in class_to_names:
+            component_type = detect_component_type(cls, 'Segment')
+            class_to_names[cls] = {'names': [], 'type': component_type}
+        class_to_names[cls]['names'].append(chatterlang_name)
+
+    analyzed_items = []
+
+    # Create AnalyzedItem objects with combined names
+    for cls, info in class_to_names.items():
+        # Sort names for consistent output
+        sorted_names = sorted(info['names'])
+        primary_name = sorted_names[0]  # Use first alphabetically as primary
+
+        component_info = extract_component_info(primary_name, cls, info['type'])
         if component_info:
             item = convert_component_info_to_analyzed_item(component_info)
+            # If multiple names, combine them
+            if len(sorted_names) > 1:
+                item.chatterlang_name = ', '.join(sorted_names)
             analyzed_items.append(item)
-    
+
     return analyzed_items
 
 def convert_component_info_to_analyzed_item(component_info: ComponentInfo) -> AnalyzedItem:

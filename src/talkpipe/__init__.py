@@ -1,3 +1,7 @@
+import warnings
+warnings.filterwarnings("ignore", message=".*ColPaliEmbeddings.*has conflict with protected namespace.*")
+warnings.filterwarnings("ignore", message=".*SigLipEmbeddings.*has conflict with protected namespace.*")
+
 from talkpipe.pipe.basic import *
 from talkpipe.pipe.math import *
 from talkpipe.pipe.io import *

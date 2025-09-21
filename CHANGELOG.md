@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.9.2 (in development)
+### Improvements
+- Added ability for sources and segments to have multiple names in chatterlang.
+
+## 0.9.1
+Forgot to import the lancedb module in talkpipe/__init__.py, so it wasn't registering the segments.
+
 ## 0.9.0
 ### New and Updated Segments and Sources
 - Added **set**, which simply assigns some constant to a key.
