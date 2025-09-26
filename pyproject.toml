@@ -40,7 +40,6 @@ dependencies = [
     'pymongo',
     'umap-learn',
     'scikit-learn',
-    'cryptography',
     'uvicorn',
     'whoosh',
     'lancedb',
