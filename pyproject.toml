@@ -24,7 +24,6 @@ dependencies = [
     'prompt_toolkit',
     'parsy',
     'pydantic',
-    'ollama',
     'requests',
     'numpy',
     'numba==0.62.1',
@@ -34,17 +33,16 @@ dependencies = [
     'readability-lxml',
     'lxml',
     'lxml_html_clean',
-    'openai',
     'fastapi[standard]',
     'ipywidgets',
     'pymongo',
     'umap-learn',
     'scikit-learn',
-    'cryptography',
     'uvicorn',
     'whoosh',
     'lancedb',
-    'deprecated'
+    'deprecated',
+    'pyyaml'
 ]
 dynamic = ["version"]
 
@@ -54,6 +52,18 @@ dev = [
     'pytest-mock',
     'pytest-cov',
     'mongomock'
+]
+ollama = [
+    'ollama'
+]
+openai = [
+    'openai'
+]
+anthropic = [
+    'anthropic'
+]
+all = [
+    'talkpipe[openai,ollama,anthropic]'
 ]
 
 [project.scripts]

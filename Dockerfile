@@ -37,7 +37,7 @@ COPY --chown=builder:builder tests/ tests/
 RUN python3 -m pip install --user --upgrade pip setuptools wheel build
 RUN python3 -m pip install --user numpy pandas matplotlib scikit-learn scipy
 ENV SETUPTOOLS_SCM_PRETEND_VERSION_FOR_TALKPIPE=0.1.0
-RUN python3 -m pip install --user -e .[dev]
+RUN python3 -m pip install --user -e .[dev,all]
 RUN python3 -m pytest --log-cli-level=DEBUG
 RUN python3 -m build --wheel
 

@@ -1,5 +1,5 @@
 from typing import Dict, Type, TypeVar, List
-from .prompt_adapters import AbstractLLMPromptAdapter, OllamaPromptAdapter, OpenAIPromptAdapter
+from .prompt_adapters import AbstractLLMPromptAdapter, OllamaPromptAdapter, OpenAIPromptAdapter, AnthropicPromptAdapter
 from .embedding_adapters import AbstractEmbeddingAdapter, OllamaEmbedderAdapter
 
 T_PROMPTADAPTER = TypeVar("T_PROMPTADAPTER", bound=AbstractLLMPromptAdapter)
@@ -7,7 +7,8 @@ T_EMBEDDINGADAPTER = TypeVar("T_EMBEDDINGADAPTER", bound=AbstractEmbeddingAdapte
 
 _promptAdapter:Dict[str, Type[T_PROMPTADAPTER]] = {
     "ollama": OllamaPromptAdapter,
-    "openai": OpenAIPromptAdapter
+    "openai": OpenAIPromptAdapter,
+    "anthropic": AnthropicPromptAdapter
 }
 
 def registerPromptAdapter(name:str, promptAdapter:Type[T_PROMPTADAPTER]):

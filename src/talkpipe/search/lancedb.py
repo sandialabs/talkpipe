@@ -10,7 +10,7 @@ from .abstract import DocumentStore, VectorAddable, VectorSearchable, SearchResu
 
 logger = logging.getLogger(__name__)
 
-@register_segment("searchLancDB")
+@register_segment("searchLanceDB", "searchLancDB")
 @segment()
 def search_lancedb(items: Annotated[object, "Items with the query vectors"],
                    path: Annotated[str, "Path to the LanceDB database"],
@@ -54,7 +54,7 @@ def search_lancedb(items: Annotated[object, "Items with the query vectors"],
             for result in search_results:
                 yield result
 
-@register_segment("addToLancDB")
+@register_segment("addToLanceDB", "addToLancDB")
 @segment()
 def add_to_lancedb(items: Annotated[object, "Items with the vectors and documents"],
                    path: Annotated[str, "Path to the LanceDB database"],

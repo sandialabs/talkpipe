@@ -31,17 +31,37 @@ class Registry(Generic[T]):
 input_registry = Registry()
 segment_registry = Registry()
 
-def register_source(name: str):
-    """Decorator to register a source module in the registry. """
+def register_source(*names: str, name: str = None):
+    """Decorator to register a source module with one or more names in the registry. """
+    # Handle backward compatibility with name= keyword argument
+    if name is not None:
+        if names:
+            raise ValueError("Cannot specify both positional names and 'name' keyword argument")
+        names = (name,)
+
+    if not names:
+        raise ValueError("At least one name must be provided")
+
     def wrap(cls):
-        input_registry.register(cls, name=name)
+        for source_name in names:
+            input_registry.register(cls, name=source_name)
         return cls
     return wrap
 
-def register_segment(name: str):
-    """Decorator to register a setment module in the registry. """
+def register_segment(*names: str, name: str = None):
+    """Decorator to register a segment module with one or more names in the registry. """
+    # Handle backward compatibility with name= keyword argument
+    if name is not None:
+        if names:
+            raise ValueError("Cannot specify both positional names and 'name' keyword argument")
+        names = (name,)
+
+    if not names:
+        raise ValueError("At least one name must be provided")
+
     def wrap(cls):
-        segment_registry.register(cls, name=name)
+        for segment_name in names:
+            segment_registry.register(cls, name=segment_name)
         return cls
     return wrap
 

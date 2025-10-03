@@ -152,7 +152,11 @@ This isn't hypothetical – it's exactly how these tutorials were designed to wo
 ### Start Running Immediately
 One of TalkPipe's core strengths is getting you from idea to working prototype faster than traditional approaches:
 
-1. **Install TalkPipe**: `pip install talkpipe`
+1. **Install TalkPipe**:
+   ```bash
+   pip install talkpipe[all]  # Includes all LLM providers
+   # Or install specific providers: talkpipe[ollama], talkpipe[openai], talkpipe[anthropic]
+   ```
 2. **Run a tutorial**: `cd Tutorial_1-Document_Indexing && ./Step_1_CreateSyntheticData.sh`
 3. **See results**: Working applications in minutes, not hours
 

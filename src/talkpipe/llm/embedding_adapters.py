@@ -1,7 +1,6 @@
 from typing import List
 
 import numpy as np
-import ollama
 
 class AbstractEmbeddingAdapter:
     """Abstract class for embedding text.
@@ -49,6 +48,13 @@ class OllamaEmbedderAdapter(AbstractEmbeddingAdapter):
         super().__init__(model, "ollama")
 
     def execute(self, text: str) -> List[float]:
+        try:
+            import ollama
+        except ImportError:
+            raise ImportError(
+                "Ollama is not installed. Please install it with: pip install talkpipe[ollama]"
+            )
+
         response = ollama.embed(
             model=self.model_name,
             input=text
