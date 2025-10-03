@@ -8,6 +8,17 @@ Welcome to TalkPipe! This guide will help you get up and running quickly with Ta
 pip install talkpipe
 ```
 
+For LLM support, install the provider(s) you need:
+```bash
+# Install specific providers
+pip install talkpipe[openai]    # For OpenAI
+pip install talkpipe[ollama]    # For Ollama
+pip install talkpipe[anthropic] # For Anthropic Claude
+
+# Or install all LLM providers
+pip install talkpipe[all]
+```
+
 ## Basic Concepts
 
 TalkPipe provides two ways to build data processing pipelines:

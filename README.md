@@ -62,6 +62,17 @@ Install TalkPipe:
 pip install talkpipe
 ```
 
+For LLM support, install the provider(s) you need:
+```bash
+# Install specific providers
+pip install talkpipe[openai]    # For OpenAI
+pip install talkpipe[ollama]    # For Ollama
+pip install talkpipe[anthropic] # For Anthropic Claude
+
+# Or install all LLM providers
+pip install talkpipe[all]
+```
+
 Create a multi-turn chat function in 2 lines:
 ```python
 from talkpipe.chatterlang import compiler

@@ -3,7 +3,11 @@
 ## 0.9.2 (in development)
 ### Improvements
 - Added ability for sources and segments to have multiple names in chatterlang.
-- Removed signature segments
+- Removed signature segments.
+- Added Anthropic as a chat provider.
+- Updated the install options so that not all the providers have to be installed. Include the provider
+you want as a parameter (e.g. pip install talkpipe[anthropic]). Current options are anthropic, openai,
+and ollama. Use "all" to install all three.
 
 ## 0.9.1
 Forgot to import the lancedb module in talkpipe/__init__.py, so it wasn't registering the segments.
