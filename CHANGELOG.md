@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.9.2 (in development)
+## 0.9.2
 ### Improvements
 - Added ability for sources and segments to have multiple names in chatterlang.
 - Removed signature segments.
