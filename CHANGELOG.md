@@ -3,6 +3,7 @@
 ## 0.9.2 (in development)
 ### Improvements
 - Added ability for sources and segments to have multiple names in chatterlang.
+- Removed signature segments
 
 ## 0.9.1
 Forgot to import the lancedb module in talkpipe/__init__.py, so it wasn't registering the segments.

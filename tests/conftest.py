@@ -58,6 +58,20 @@ def pytest_configure(config):
         config.is_openai_available = False
         logger.warning(f"OpenAI check failed: {e}. Skipping tests that require it.")
 
+    # Check if Anthropic is available (if needed in future)
+    try:
+        from talkpipe.llm.prompt_adapters import AnthropicPromptAdapter
+        anthropic_adapter = AnthropicPromptAdapter("claude-3-5-haiku-latest", temperature=0.0)
+        if anthropic_adapter.is_available():
+            config.is_anthropic_available = True
+            logger.warning("Anthropic is available.")
+        else:
+            config.is_anthropic_available = False
+            logger.warning("Anthropic is not available. Skipping tests that require it.")
+    except Exception as e:
+        config.is_anthropic_available = False
+        logger.warning(f"Anthropic check failed: {e}. Skipping tests that require it.")
+
 @pytest.fixture
 def requires_mongodb(request):
     """
@@ -85,6 +99,20 @@ def requires_ollama(request):
     """
     if not request.config.is_ollama_available:
         pytest.skip("Test requires Ollama with llama3.2, but this model or the server is not available")
+    return True
+
+@pytest.fixture
+def requires_anthropic(request):
+    """
+    Fixture that skips tests if Anthropic is not available.
+    
+    Usage:
+        def test_something(requires_anthropic):
+            # This test will be skipped if Anthropic is not available
+            ...
+    """
+    if not request.config.is_anthropic_available:
+        pytest.skip("Test requires Anthropic, but Anthropic is not available")
     return True
 
 @pytest.fixture

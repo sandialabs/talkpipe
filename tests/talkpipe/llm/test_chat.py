@@ -1,6 +1,6 @@
 from pydantic import BaseModel
 import pytest
-from talkpipe.llm.prompt_adapters import OllamaPromptAdapter, OpenAIPromptAdapter
+from talkpipe.llm.prompt_adapters import OllamaPromptAdapter, OpenAIPromptAdapter, AnthropicPromptAdapter
 from testutils import monkeypatched_env, patch_get_config
 from talkpipe.util import config
 
@@ -30,6 +30,10 @@ def test_is_available(requires_ollama):
     chat = OpenAIPromptAdapter("gpt-4.1-nano", temperature=0.0)
     assert chat.is_available() is True
 
+    chat = AnthropicPromptAdapter("claude-3-5-haiku-latest", temperature=0.0)
+    assert chat.is_available() is True
+
+
 def test_ollamachat(requires_ollama):
     chat = OllamaPromptAdapter("llama3.2", temperature=0.0)
     assert chat.model_name == "llama3.2"
@@ -55,7 +59,7 @@ def test_openai_chat(requires_openai):
     ans = chat.execute("I just told you my first name?  What is it?")
     assert "inigo" in ans.lower()
 
-class TestOpenAIChatGuidedGeneration(BaseModel):
+class TestGuidedGeneration(BaseModel):
     """Test class for OpenAI guided generation."""
     response: str
     explanation: str
@@ -65,18 +69,46 @@ def test_openai_chat_guided_generation(requires_openai):
     "You are a helpful assistant.  Your task is to answer the user's question and provide an explanation for your answer."
     """
 
-    chat = OpenAIPromptAdapter("gpt-4.1-nano", system_prompt=system_prompt, temperature=0.0, output_format=TestOpenAIChatGuidedGeneration)
+    chat = OpenAIPromptAdapter("gpt-4.1-nano", system_prompt=system_prompt, temperature=0.0, output_format=TestGuidedGeneration)
     assert chat.model_name == "gpt-4.1-nano"
     assert chat.source == "openai"
 
     response = chat.execute("What is the capital of France?")
-    assert isinstance(response, TestOpenAIChatGuidedGeneration)
+    assert isinstance(response, TestGuidedGeneration)
     assert "paris" in response.response.lower() 
     assert len(response.explanation) > 0
 
     # Test with a different question
     response = chat.execute("What is the largest planet in our solar system?")
-    assert isinstance(response, TestOpenAIChatGuidedGeneration)
+    assert isinstance(response, TestGuidedGeneration)
+    assert "jupiter" in response.response.lower()
+    assert len(response.explanation) > 0
+
+def test_anthropic_chat(requires_anthropic):
+    chat = AnthropicPromptAdapter("claude-3-5-haiku-latest", temperature=0.0)
+    assert chat.model_name == "claude-3-5-haiku-latest"
+    assert chat.source == "anthropic"
+    ans = chat.execute("Hello.  My name is Inigo Montoya.  You killed my father.  Prepare to die.")
+    ans = chat.execute("I just told you my first name?  What is it?")
+    assert "inigo" in ans.lower()
+
+def test_anthropic_guided_generation(requires_anthropic):
+    system_prompt = """
+    "You are a helpful assistant.  Your task is to answer the user's question and provide an explanation for your answer."
+    """
+
+    chat = AnthropicPromptAdapter("claude-3-5-haiku-latest", system_prompt=system_prompt, temperature=0.0, output_format=TestGuidedGeneration)
+    assert chat.model_name == "claude-3-5-haiku-latest"
+    assert chat.source == "anthropic"
+
+    response = chat.execute("What is the capital of France?")
+    assert isinstance(response, TestGuidedGeneration)
+    assert "paris" in response.response.lower() 
+    assert len(response.explanation) > 0
+
+    # Test with a different question
+    response = chat.execute("What is the largest planet in our solar system?")
+    assert isinstance(response, TestGuidedGeneration)
     assert "jupiter" in response.response.lower()
     assert len(response.explanation) > 0
 
@@ -200,4 +232,3 @@ def test_llmbinaryanswer(requires_ollama):
     assert isinstance(response, dict)
     assert response["sentiment"].answer is True
     assert response["sentiment"].explanation is not None
-

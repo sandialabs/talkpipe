@@ -1,7 +1,6 @@
+import json
 from pydantic import BaseModel
 import logging
-import ollama
-import openai
 
 from abc import ABC, abstractmethod
 
@@ -87,6 +86,13 @@ class OllamaPromptAdapter(AbstractLLMPromptAdapter):
 
         Handles its own multi-turn conversation state.
         """
+        try:
+            import ollama
+        except ImportError:
+            raise ImportError(
+                "Ollama is not installed. Please install it with: pip install talkpipe[ollama]"
+            )
+
         logger.debug(f"Adding user message to chat history: {prompt}")
         self._messages.append({"role": "user", "content": prompt})
 
@@ -118,8 +124,124 @@ class OllamaPromptAdapter(AbstractLLMPromptAdapter):
             bool: True if the model is available, False otherwise.
         """
         try:
+            import ollama
+        except ImportError:
+            raise ImportError(
+                "Ollama is not installed. Please install it with: pip install talkpipe[ollama]"
+            )
+
+        try:
             # Check if the model is available
             response = ollama.chat(self._model_name, messages=[self._system_message], options={"temperature": self._temperature})
+            return True
+        except Exception as e:
+            logger.error(f"Model {self._model_name} is not available: {e}")
+            return False
+
+
+class AnthropicPromptAdapter(AbstractLLMPromptAdapter):
+    """Prompt adapter for Anthropic Claude
+
+    """
+
+    def __init__(self, model: str, system_prompt: str = "You are a helpful assistant.", multi_turn: bool = True, temperature: float = None, output_format: BaseModel = None):
+        try:
+            import anthropic
+        except ImportError:
+            raise ImportError(
+                "Anthropic is not installed. Please install it with: pip install talkpipe[anthropic]"
+            )
+
+        if output_format:
+            self.pydantic_json_schema = json.dumps(output_format.model_json_schema())
+            system_prompt += f"\nThe output should be in the following JSON format:\n{self.pydantic_json_schema}"
+        else:
+            self.pydantic_json_schema = None
+
+        super().__init__(model, "anthropic", system_prompt, multi_turn, temperature, output_format)
+        self.client = anthropic.Anthropic()
+        self._max_tokens = 4096  # Default max tokens for response
+
+    def execute(self, prompt: str) -> str:
+        """Execute the chat model.
+
+        Handles its own multi-turn conversation state.
+        """
+        try:
+            import anthropic
+        except ImportError:
+            raise ImportError(
+                "Anthropic is not installed. Please install it with: pip install talkpipe[anthropic]"
+            )
+
+        logger.debug(f"Adding user message to chat history: {prompt}")
+        self._messages.append({"role": "user", "content": prompt})
+
+        logger.debug(f"Sending chat request to Anthropic model {self._model_name}")
+
+        # Build request parameters
+        request_params = {
+            "model": self._model_name,
+            "messages": self._messages,
+            "system": self._system_message["content"],
+            "max_tokens": self._max_tokens
+        }
+
+        if self._temperature_explicit:
+            request_params["temperature"] = self._temperature
+
+        response = self.client.messages.create(**request_params)
+
+        # Extract text content from response
+        response_text = ""
+        for block in response.content:
+            if hasattr(block, 'text'):
+                response_text += block.text
+
+        if self._multi_turn:
+            logger.debug("Multi-turn enabled, appending assistant response to chat history")
+            self._messages.append({"role": "assistant", "content": response_text})
+        else:
+            logger.debug("Single-turn mode, clearing message history")
+            self._messages = []
+
+        # Handle output format if specified
+        if self._output_format:
+            result = self._output_format.model_validate_json(response_text)
+        else:
+            result = response_text
+
+        logger.debug(f"Returning response: {result}")
+        return result
+
+    def is_available(self) -> bool:
+        """Check if the chat model is available.
+
+        This method should be implemented in each subclass to check if
+        the chat model is available.
+        Returns:
+            bool: True if the model is available, False otherwise.
+        """
+        try:
+            import anthropic
+        except ImportError:
+            raise ImportError(
+                "Anthropic is not installed. Please install it with: pip install talkpipe[anthropic]"
+            )
+
+        try:
+            # Check if the model is available by making a minimal request
+            request_params = {
+                "model": self._model_name,
+                "messages": [{"role": "user", "content": "test"}],
+                "system": self._system_message["content"],
+                "max_tokens": 1
+            }
+
+            if self._temperature_explicit:
+                request_params["temperature"] = self._temperature
+
+            response = self.client.messages.create(**request_params)
             return True
         except Exception as e:
             logger.error(f"Model {self._model_name} is not available: {e}")
@@ -132,6 +254,13 @@ class OpenAIPromptAdapter(AbstractLLMPromptAdapter):
     """
 
     def __init__(self, model: str, system_prompt: str = "You are a helpful assistant.", multi_turn: bool = True, temperature: float = None, output_format: BaseModel = None):
+        try:
+            import openai
+        except ImportError:
+            raise ImportError(
+                "OpenAI is not installed. Please install it with: pip install talkpipe[openai]"
+            )
+
         super().__init__(model, "openai", system_prompt, multi_turn, temperature, output_format)
         self.client = openai.OpenAI()
 
@@ -140,11 +269,18 @@ class OpenAIPromptAdapter(AbstractLLMPromptAdapter):
 
         Handles its own multi-turn conversation state.
         """
+        try:
+            import openai
+        except ImportError:
+            raise ImportError(
+                "OpenAI is not installed. Please install it with: pip install talkpipe[openai]"
+            )
+
         logger.debug(f"Adding user message to chat history: {prompt}")
         self._messages.append({"role": "user", "content": prompt})
 
         logger.debug(f"Sending chat request to OpenAI model {self._model_name}")
-        
+
         # Build request parameters, only including temperature if explicitly set
         request_params = {
             "model": self._model_name,
