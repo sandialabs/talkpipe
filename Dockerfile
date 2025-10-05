@@ -34,8 +34,8 @@ COPY --chown=builder:builder src/ src/
 COPY --chown=builder:builder tests/ tests/
 
 # Install Python dependencies and build the package
-RUN python3 -m pip install --user --upgrade 'pip>=25.3' setuptools wheel build
-RUN python3 -m pip install --user numpy pandas matplotlib scikit-learn scipy
+RUN python3 -m pip install --upgrade pip setuptools wheel build
+RUN python3 -m pip install numpy pandas matplotlib scikit-learn scipy
 ENV SETUPTOOLS_SCM_PRETEND_VERSION_FOR_TALKPIPE=0.1.0
 RUN python3 -m pip install --user -e .[dev,all]
 RUN python3 -m pytest --log-cli-level=DEBUG
@@ -67,7 +67,7 @@ RUN mkdir -p /app/data && \
 COPY --from=builder --chown=app:app /build/dist/*.whl /tmp/
 
 # Install runtime Python dependencies and the application
-RUN python3 -m pip install --no-cache-dir --upgrade 'pip>=25.3' && \
+RUN python3 -m pip install --no-cache-dir --upgrade pip && \
     python3 -m pip install --no-cache-dir \
         numpy pandas matplotlib scikit-learn scipy && \
     python3 -m pip install --no-cache-dir /tmp/*.whl && \
