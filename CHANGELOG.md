@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.9.3 (in development)
+### Improvements
+- Updated tutorials to use lancedb.  
+- Moved tutorial scripts out of shell scripts into their own files
+
 ## 0.9.2
 ### Improvements
 - Added ability for sources and segments to have multiple names in chatterlang.

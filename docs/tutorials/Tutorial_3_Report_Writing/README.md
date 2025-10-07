@@ -131,18 +131,20 @@ Organizations often need executive summaries that distill complex information in
 
 ### The Solution: Structured RAG for Business Communication
 
-Step 1 demonstrates how to transform retrieved documents into professional executive summaries using structured prompts.
+Step 1 demonstrates how to transform retrieved documents into professional executive summaries using structured prompts. The pipeline is defined in `Step_1_ExecutiveSummaryGeneration.script`:
+
+```
+| copy
+| llmEmbed[field="topic", source="ollama", model="mxbai-embed-large", set_as="vector"]
+| searchLanceDB[field="vector", path="../Tutorial_2-Search_by_Example_and_RAG/vector_index", table_name="stories", all_results_at_once=True, set_as="results"]
+| executiveSummaryPrompt
+| llmPrompt[source="ollama", model="llama3.2"]
+```
+
+To run this script:
 
 ```bash
-export TALKPIPE_CHATTERLANG_SCRIPT='
-    | copy  
-    | llmEmbed[field="topic", source="ollama", model="mxbai-embed-large", set_as="vector"]
-    | searchVector[vector_field="vector", path="../Tutorial_2-Search_by_Example_and_RAG/vector_index", all_results_at_once=True, set_as="results"]
-    | executiveSummaryPrompt
-    | llmPrompt[source="ollama", model="llama3.2"]
-'
-
-python -m talkpipe.app.chatterlang_serve --form-config report_topic_ui.yml --load-module step_1_extras.py --display-property topic --script CHATTERLANG_SCRIPT
+chatterlang_serve --form-config report_topic_ui.yml --load-module step_1_extras.py --display-property topic --script Step_1_ExecutiveSummaryGeneration.script
 ```
 
 ### Understanding the Executive Summary Pipeline
@@ -155,9 +157,9 @@ Convert the user's broad topic into a vector for semantic search.
 
 **2. Document Retrieval**
 ```
-| searchVector[..., all_results_at_once=True, set_as="results"]
+| searchLanceDB[..., all_results_at_once=True, set_as="results"]
 ```
-Retrieve multiple relevant documents that will inform the summary.
+Retrieve multiple relevant documents that will inform the summary using LanceDB's efficient vector search.
 
 **3. Summary Generation**
 ```
@@ -184,18 +186,20 @@ Executive summaries provide overviews, but many stakeholders need detailed analy
 
 ### The Solution: Multi-Section Report Architecture
 
-Step 2 creates detailed reports with multiple sections, each generated through specialized prompts and then combined into a cohesive document.
+Step 2 creates detailed reports with multiple sections, each generated through specialized prompts and then combined into a cohesive document. The pipeline is defined in `Step_2_DetailedAnalysisReportGeneration.script`:
+
+```
+| copy
+| llmEmbed[field="topic", source="ollama", model="mxbai-embed-large", set_as="vector"]
+| searchLanceDB[field="vector", path="../Tutorial_2-Search_by_Example_and_RAG/vector_index", table_name="stories", limit=10, all_results_at_once=True, set_as="results"]
+| generateReportSectionPrompts
+| generateDetailedReport[source="ollama", model="llama3.2"]
+```
+
+To run this script:
 
 ```bash
-export TALKPIPE_CHATTERLANG_SCRIPT='
-    | copy
-    | llmEmbed[field="topic", source="ollama", model="mxbai-embed-large", set_as="vector"]
-    | searchVector[vector_field="vector", path="../Tutorial_2-Search_by_Example_and_RAG/vector_index", top_k=10, all_results_at_once=True, set_as="results"]
-    | generateReportSectionPrompts
-    | generateDetailedReport
-'
-
-python -m talkpipe.app.chatterlang_serve --form-config report_topic_ui.yml --load-module step_2_extras.py --display-property topic --script CHATTERLANG_SCRIPT
+chatterlang_serve --form-config report_topic_ui.yml --load-module step_2_extras.py --display-property topic --script Step_2_DetailedAnalysisReportGeneration.script
 ```
 
 ### Understanding Multi-Section Report Generation
@@ -246,17 +250,19 @@ Different stakeholders need the same information presented in different ways. Te
 
 ### The Solution: Dynamic Format Generation
 
-Step 3 creates a sophisticated pipeline that generates multiple report formats from the same underlying research:
+Step 3 creates a sophisticated pipeline that generates multiple report formats from the same underlying research. The pipeline is defined in `Step_3_MultiFormatReportGeneration.script`:
+
+```
+| copy
+| llmEmbed[field="topic", source="ollama", model="mxbai-embed-large", set_as="vector"]
+| searchLanceDB[field="vector", path="../Tutorial_2-Search_by_Example_and_RAG/vector_index", table_name="stories", limit=10, all_results_at_once=True, set_as="results"]
+| generateMultiFormatReport[source="ollama", model="llama3.2"]
+```
+
+To run this script:
 
 ```bash
-export TALKPIPE_CHATTERLANG_SCRIPT='
-    | copy
-    | llmEmbed[field="topic", source="ollama", model="mxbai-embed-large", set_as="vector"]
-    | searchVector[vector_field="vector", path="../Tutorial_2-Search_by_Example_and_RAG/vector_index", top_k=10, all_results_at_once=True, set_as="results"]
-    | generateMultiFormatReport[source="ollama", model="llama3.2"]
-'
-
-python -m talkpipe.app.chatterlang_serve --form-config multi_format_ui.yml --load-module step3_extras.py --display-property topic --script CHATTERLANG_SCRIPT
+chatterlang_serve --form-config multi_format_ui.yml --load-module step3_extras.py --display-property topic --script Step_3_MultiFormatReportGeneration.script
 ```
 
 ### Understanding Multi-Format Generation

@@ -57,20 +57,22 @@ However, for testing and development purposes, we often need synthetic data that
 
 ### The Solution: AI-Generated Stories
 
-The first step uses TalkPipe's ChatterLang scripting language to generate 50 fictional stories about technology development. Here's what happens:
+The first step uses TalkPipe's ChatterLang scripting language to generate 50 fictional stories about technology development. The pipeline is defined in `Step_1_CreateSyntheticData.script`:
+
+```
+LOOP 50 TIMES {
+    INPUT FROM "Write a fictitious five sentence story about technology development in an imaginary country."
+    | llmPrompt[source="ollama", model="llama3.2", multi_turn=False]
+    | toDict[field_list="_:content"]
+    | llmPrompt[source="ollama", model="llama3.2", system_prompt="Write exactly one title for this story in plain text with no markdown", field="content", set_as="title", multi_turn=False]
+    | dumpsJsonl | print;
+}
+```
+
+To run this script:
 
 ```bash
-export TALKPIPE_CHATTERLANG_SCRIPT='
-    LOOP 50 TIMES {
-        INPUT FROM "Write a fictitious five sentence story about technology development in an imaginary country." 
-        | llmPrompt[source="ollama", model="llama3.2", multi_turn=False] 
-        | toDict[field_list="_:content"] 
-        | llmPrompt[source="ollama", model="llama3.2", system_prompt="Write exactly one title for this story in plain text with no markdown", field="content", set_as="title", multi_turn=False] 
-        | dumpsJsonl | print;
-    }
-'
-
-python -m talkpipe.app.chatterlang_script --script CHATTERLANG_SCRIPT > stories.json
+chatterlang_script --script Step_1_CreateSyntheticData.script > stories.json
 ```
 
 ### Breaking Down the Pipeline
@@ -166,17 +168,19 @@ Think of an index like the index at the back of a book, but much more sophistica
 
 ### The Solution: Whoosh Indexing
 
-Step 2 takes our generated stories and creates a searchable index using the Whoosh library:
+Step 2 takes our generated stories and creates a searchable index using the Whoosh library. The pipeline is defined in `Step_2_IndexStories.script`:
+
+```
+INPUT FROM "stories.json"
+| readJsonl
+| progressTicks[tick_count=1, print_count=True]
+| indexWhoosh[index_path="./full_text_index", field_list="content,title", overwrite=True]
+```
+
+To run this script:
 
 ```bash
-export TALKPIPE_CHATTERLANG_SCRIPT='
-    INPUT FROM "stories.json" 
-    | readJsonl 
-    | progressTicks[tick_count=1, print_count=True]
-    | indexWhoosh[index_path="./full_text_index", field_list="content,title", overwrite=True]
-'
-
-python -m talkpipe.app.chatterlang_script --script CHATTERLANG_SCRIPT
+chatterlang_script --script Step_2_IndexStories.script
 ```
 
 ### Understanding the Indexing Pipeline
@@ -283,15 +287,17 @@ Most search implementations require significant custom development, but TalkPipe
 
 ### The Solution: Dual Interface Search
 
-Step 3 creates both an API endpoint and a web interface using a single command:
+Step 3 creates both an API endpoint and a web interface using a single command. The pipeline is defined in `Step_3_SearchStories.script`:
+
+```
+| searchWhoosh[index_path="full_text_index", field="query"]
+| formatItem[field_list="document.title:Title,document.content:Content,score:Score"]
+```
+
+To run this script:
 
 ```bash
-export TALKPIPE_CHATTERLANG_SCRIPT='
-  | searchWhoosh[index_path="full_text_index", field="query"] 
-  | formatItem[field_list="document.title:Title,document.content:Content,score:Score"]
-'
-
-python -m talkpipe.app.chatterlang_serve --form-config story_search_ui.yml --title "Story Search" --display-property query --script CHATTERLANG_SCRIPT
+chatterlang_serve --form-config story_search_ui.yml --title "Story Search" --display-property query --script Step_3_SearchStories.script
 ```
 
 ### Understanding the Search System

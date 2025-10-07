@@ -34,16 +34,20 @@ Vector embeddings solve this by converting text into high-dimensional mathematic
 
 ### The Implementation
 
-```bash
-export TALKPIPE_CHATTERLANG_SCRIPT='
-    INPUT FROM "../Tutorial_1-Document_Indexing/stories.json"
-    | readJsonl 
-    | progressTicks[tick_count=1, print_count=True] 
-    | llmEmbed[field="content", source="ollama", model="mxbai-embed-large", set_as="vector"]
-    | addVector[path="./vector_index", vector_field="vector", metadata_field_list="title,content", overwrite=True]
-'
+The pipeline is defined in `Step_1_CreateVectorDatabase.script`:
 
-python -m talkpipe.app.chatterlang_script --script CHATTERLANG_SCRIPT
+```
+INPUT FROM "../Tutorial_1-Document_Indexing/stories.json"
+| readJsonl
+| progressTicks[tick_count=1, print_count=True]
+| llmEmbed[field="content", source="ollama", model="mxbai-embed-large", set_as="vector"]
+| addToLanceDB[path="./vector_index", table_name="stories", vector_field="vector", metadata_field_list="title,content", overwrite=True]
+```
+
+To run this script:
+
+```bash
+chatterlang_script --script Step_1_CreateVectorDatabase.script
 ```
 
 ### Breaking Down the Pipeline
@@ -67,12 +71,12 @@ The `mxbai-embed-large` model is specifically designed for semantic search - it'
 
 **3. Building the Index**
 ```
-| addVector[path="./vector_index", vector_field="vector", metadata_field_list="title,content", overwrite=True]
+| addToLanceDB[path="./vector_index", table_name="stories", vector_field="vector", metadata_field_list="title,content", overwrite=True]
 ```
 This creates a specialized index that:
-- Stores vectors for similarity search
+- Stores vectors for similarity search in a LanceDB table named "stories"
 - Preserves original metadata (title and content) for retrieval
-- Enables fast nearest-neighbor queries
+- Enables fast nearest-neighbor queries using LanceDB's efficient vector search capabilities
 
 ### Real-World Applications
 
@@ -96,15 +100,19 @@ Your users don't always know the right keywords. Sometimes they have an example 
 
 ### The Solution: Semantic Search Interface
 
-```bash
-export TALKPIPE_CHATTERLANG_SCRIPT='    
-    | copy
-    | llmEmbed[field="example", source="ollama", model="mxbai-embed-large", set_as="vector"]
-    | searchVector[vector_field="vector", path="./vector_index"]
-    | formatItem[field_list="document.title:Title, document.content:Content, score:Score"]
-'
+The pipeline is defined in `Step_2_SearchByExample.script`:
 
-python -m talkpipe.app.chatterlang_serve --form-config story_by_example_ui.yml --display-property example --script CHATTERLANG_SCRIPT
+```
+| copy
+| llmEmbed[field="example", source="ollama", model="mxbai-embed-large", set_as="vector"]
+| searchLanceDB[field="vector", path="./vector_index", table_name="stories", limit=10]
+| formatItem[field_list="document.title:Title, document.content:Content, score:Score"]
+```
+
+To run this script:
+
+```bash
+chatterlang_serve --form-config story_by_example_ui.yml --display-property example --script Step_2_SearchByExample.script
 ```
 
 ### Understanding the Search Pipeline
@@ -123,9 +131,9 @@ The user's example text is converted to a vector using the same model that index
 
 **3. Vector Search**
 ```
-| searchVector[vector_field="vector", path="./vector_index"]
+| searchLanceDB[field="vector", path="./vector_index", table_name="stories", limit=10]
 ```
-This finds the documents whose vectors are closest to the query vector - literally the nearest neighbors in high-dimensional space.
+This finds the documents whose vectors are closest to the query vector - literally the nearest neighbors in high-dimensional space. LanceDB provides efficient approximate nearest neighbor search for fast retrieval.
 
 **4. Result Formatting**
 ```
@@ -167,23 +175,27 @@ Finding relevant documents is helpful, but what users often really want is an an
 
 ### The RAG Implementation
 
-```bash
-export TALKPIPE_CHATTERLANG_SCRIPT='
-    | copy
-    | llmEmbed[field="example", source="ollama", model="mxbai-embed-large", set_as="vector"]
-    | searchVector[vector_field="vector", path="./vector_index", all_results_at_once=True, set_as="results"]
-    | ragPrompt
-    | llmPrompt[source="ollama", model="llama3.2"]
-'
+The pipeline is defined in `Step_3_SpecializedRag.script`:
 
-python -m talkpipe.app.chatterlang_serve --form-config story_by_example_ui.yml --load-module step_3_extras.py --display-property example --script CHATTERLANG_SCRIPT
+```
+| copy
+| llmEmbed[field="example", source="ollama", model="mxbai-embed-large", set_as="vector"]
+| searchLanceDB[field="vector", path="./vector_index", table_name="stories", all_results_at_once=True, set_as="results"]
+| ragPrompt
+| llmPrompt[source="ollama", model="llama3.2"]
+```
+
+To run this script:
+
+```bash
+chatterlang_serve --form-config story_by_example_ui.yml --load-module step_3_extras.py --display-property example --script Step_3_SpecializedRag.script
 ```
 
 ### What's Different in the RAG Pipeline
 
 **1. Batch Results Collection**
 ```
-| searchVector[..., all_results_at_once=True, set_as="results"]
+| searchLanceDB[..., all_results_at_once=True, set_as="results"]
 ```
 Instead of processing results one by one, we collect all search results together. This allows the next step to see the full context.
 
