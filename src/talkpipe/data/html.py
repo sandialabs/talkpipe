@@ -109,10 +109,10 @@ def get_robot_parser(domain, timeout=5):
         content_bytes = response.content
         if content_bytes.startswith(b'\x1f\x8b'):
             # If the content is gzipped, decompress it
-            content = gzip.decompress(content_bytes).decode('utf-8')
+            content = gzip.decompress(content_bytes).decode('utf-8', errors='replace')
         else:
             # If not gzipped, decode it directly
-            content = content_bytes.decode('utf-8')
+            content = content_bytes.decode('utf-8', errors='replace')
         
         try:
             rp.parse(content.splitlines())
