@@ -70,7 +70,8 @@ COPY --from=builder --chown=app:app /build/dist/*.whl /tmp/
 RUN python3 -m pip install --no-cache-dir --upgrade pip && \
     python3 -m pip install --no-cache-dir \
         numpy pandas matplotlib scikit-learn scipy && \
-    python3 -m pip install --no-cache-dir /tmp/*.whl && \
+    WHEEL_FILE=$(ls /tmp/*.whl) && \
+    python3 -m pip install --no-cache-dir "${WHEEL_FILE}[all]" && \
     rm -f /tmp/*.whl
 
 # Copy only necessary runtime files
