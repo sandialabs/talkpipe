@@ -4,6 +4,10 @@
 ### Improvements
 - Updated tutorials to use lancedb.  
 - Moved tutorial scripts out of shell scripts into their own files
+- Fixed issue with Docker container not including all optional installation components
+- Fixed string encoding issue with web page downloads
+- Updated documentation for plugins to fix error
+- Removed invalid script in pyproject.toml
 
 ## 0.9.2
 ### Improvements

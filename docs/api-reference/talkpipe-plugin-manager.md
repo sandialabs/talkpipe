@@ -4,7 +4,7 @@ Command-line tool for managing and inspecting TalkPipe plugins.
 
 ## Overview
 
-The `talkpipe_plugin_manager` command provides utilities to list, reload, and debug TalkPipe plugins that are installed via Python entry points.
+The `talkpipe_plugins` command provides utilities to list, reload, and debug TalkPipe plugins that are installed via Python entry points.
 
 ## Installation
 
@@ -21,7 +21,7 @@ pip install talkpipe
 Display all discovered plugins and their status:
 
 ```bash
-talkpipe_plugin_manager --list
+talkpipe_plugins --list
 ```
 
 **Example output:**
@@ -40,7 +40,7 @@ Failed plugins (1):
 Reload a specific plugin by name (useful during development):
 
 ```bash
-talkpipe_plugin_manager --reload my-data-plugin
+talkpipe_plugins --reload my-data-plugin
 ```
 
 ### Verbose Output
@@ -48,7 +48,7 @@ talkpipe_plugin_manager --reload my-data-plugin
 Show detailed information:
 
 ```bash
-talkpipe_plugin_manager --list --verbose
+talkpipe_plugins --list --verbose
 ```
 
 ## Plugin Discovery
@@ -65,7 +65,7 @@ setup(
     name="my-talkpipe-plugin",
     entry_points={
         "talkpipe.plugins": [
-            "my_plugin = my_plugin.plugin:NetworkPlugin",
+            "my_plugin = my_plugin.plugin",
         ]
     }
 )
@@ -74,20 +74,30 @@ setup(
 **pyproject.toml:**
 ```toml
 [project.entry-points."talkpipe.plugins"]
-my_plugin = "my_plugin.plugin:NetworkPlugin"
+my_plugin = "my_plugin.plugin"
 ```
+
+The entry point should reference the **module** that contains your plugin code. Component registration happens automatically through decorators when the module is imported.
 
 ## How Plugin Loading Works
 
 When TalkPipe discovers a plugin, it performs the following steps:
 
-1. **Import the module**: The plugin loader imports the module specified by the entry point (e.g., `my_plugin.plugin`)
+1. **Load the entry point**: The plugin loader loads whatever the entry point references (typically a module or function)
 2. **Automatic registration**: During import, any sources and segments defined or imported by the module are automatically registered with TalkPipe's registry system through decorators like `@registry.register_segment()`
-3. **Optional initialization**: If the loaded class/module has an `initialize_plugin` function or method, it will be called for additional setup
+3. **Optional initialization**: If the loaded object has an `initialize_plugin` function attribute, it will be called for additional setup
 
 The key insight is that **simply importing the plugin module triggers component registration**. This happens through TalkPipe's decorator-based registry system.
 
+**Important**: The entry point should reference either:
+- A **module** (e.g., `my_plugin.plugin`) that can have a module-level `initialize_plugin()` function
+- A **function** directly (e.g., `my_plugin.plugin:setup_plugin`)
+
+Entry points pointing to classes will have the `initialize_plugin` called on the **class itself** (not an instance), so it would need to be a static method or classmethod if using a class.
+
 ### Example Plugin Structure
+
+**Recommended: Module-level pattern**
 
 ```python
 # my_plugin/plugin.py
@@ -104,19 +114,22 @@ class JsonParseSegment(AbstractSegment):
     """JSON parsing segment - registered automatically on import."""
     pass
 
-class NetworkPlugin:
-    """Main plugin class referenced by entry point."""
-    
-    def initialize_plugin(self):
-        """Optional: Called after module import for additional setup."""
-        print("Network plugin initialized!")
-        # Additional setup if needed
+def initialize_plugin():
+    """Optional: Called after module import for additional setup."""
+    print("Network plugin initialized!")
+    # Additional setup if needed
 ```
 
-When this module is imported:
+**Entry point configuration** (points to the module):
+```toml
+[project.entry-points."talkpipe.plugins"]
+network_plugin = "my_plugin.plugin"
+```
+
+When this module is loaded:
 1. The `@registry.register_source("httpGet")` decorator runs, registering the `HttpGetSource`
-2. The `@registry.register_segment("jsonParse")` decorator runs, registering the `JsonParseSegment`  
-3. The `NetworkPlugin.initialize_plugin()` method is called for any additional setup
+2. The `@registry.register_segment("jsonParse")` decorator runs, registering the `JsonParseSegment`
+3. The module-level `initialize_plugin()` function is called for any additional setup
 
 ### Alternative: Module-Level Registration
 
@@ -157,10 +170,10 @@ During plugin development, you can reload plugins without restarting Python:
 ```bash
 # Make changes to your plugin code
 # Then reload it
-talkpipe_plugin_manager --reload my-plugin
+talkpipe_plugins --reload my-plugin
 
 # Verify it loaded successfully
-talkpipe_plugin_manager --list
+talkpipe_plugins --list
 ```
 
 ## Integration with TalkPipe
