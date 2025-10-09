@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.9.3 (in development)
+## 0.9.3 
 ### Improvements
 - Updated tutorials to use lancedb.  
 - Moved tutorial scripts out of shell scripts into their own files
