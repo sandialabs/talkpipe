@@ -13,7 +13,7 @@ from talkpipe.util.data_manipulation import extract_property, extract_template_f
 from talkpipe.util.data_manipulation import compileLambda
 from talkpipe.util.os import run_command
 from talkpipe.util.data_manipulation import get_type_safely
-from talkpipe.pipe.core import AbstractSegment, source, segment, field_segment
+from talkpipe.pipe.core import AbstractSegment, AbstractFieldSegment, source, segment, field_segment
 import talkpipe.chatterlang.registry as registry
 from talkpipe.util.data_manipulation import fill_template, dict_to_text, toDict
 
@@ -635,57 +635,34 @@ def fillTemplate(item,
     return fill_template(template, values)
 
 @registry.register_segment("lambda")
-class EvalExpression(AbstractSegment):
+class EvalExpression(AbstractFieldSegment):
     """Evaluate a Python expression on each item in the input stream.
     
     This segment pre-compiles the expression during initialization for efficiency 
     and then applies it to each item during transformation. Expressions are evaluated
     in a restricted environment for security.
     
-    The item is available in expressions as 'item'. If the item is a dictionary,
-    its fields can be accessed directly as variables in the expression.
-    
+    The item is available in expressions as 'item'.     
     """
     
     def __init__(self, 
                  expression: Annotated[str, "The Python expression to evaluate"],
                  field: Annotated[Optional[str], "If provided, extract this field from each item before evaluating"] = "_",
-                 set_as: Annotated[Optional[str], "If provided, append the result to each item under this field name"] = None,
-                 fail_on_error: Annotated[bool, "If True, raises exceptions when evaluation fails. If False, logs errors and returns None"] = True):
+                 set_as: Annotated[Optional[str], "If provided, append the result to each item under this field name"] = None):
         super().__init__()
         self.expression = expression
         self.field = field
         self.set_as = set_as
-        self.fail_on_error = fail_on_error
         
         # Compile the expression into a lambda function
-        self.lambda_function = compileLambda(expression, fail_on_error)
+        self.lambda_function = compileLambda(expression)
     
-    def transform(self, input_iter: Iterable[Any]) -> Iterator[Any]:
-        """Process each item from the input stream."""
-        for item in input_iter:
-            logger.debug(f"Processing input item: {item}")
-            
-            # Extract field value if specified
-            if self.field is not None:
-                value = extract_property(item, self.field)
-                logger.debug(f"Extracted value from field {self.field}: {value}")
-            else:
-                value = item
-                logger.debug(f"Using item directly: {value}")
-            
-            # Evaluate the expression on the value
-            result = self.lambda_function(value)
-            logger.debug(f"Evaluation result: {result}")
-            
-            # Handle the result according to set_as
-            if self.set_as is not None and hasattr(item, '__setitem__'):
-                logger.debug(f"Appending result to field {self.set_as}")
-                item[self.set_as] = result
-                yield item
-            else:
-                logger.debug("Yielding result directly")
-                yield result
+    def process_value(self, value):
+        try:
+            return self.lambda_function(value)
+        except Exception as e:
+            logger.error(f"Error evaluating expression '{self.expression}' on value '{value}': {e}")
+            raise
 
 @registry.register_segment("lambdaFilter")
 class FilterExpression(AbstractSegment):
@@ -702,15 +679,13 @@ class FilterExpression(AbstractSegment):
     
     def __init__(self, 
                  expression: Annotated[str, "The Python expression to evaluate"],
-                 field: Annotated[Optional[str], "If provided, extract this field from each item before evaluating"] = "_",
-                 fail_on_error: Annotated[bool, "If True, raises exceptions when evaluation fails. If False, logs errors and returns None"] = True):
+                 field: Annotated[Optional[str], "If provided, extract this field from each item before evaluating"] = "_"):
         super().__init__()
         self.expression = expression
         self.field = field
-        self.fail_on_error = fail_on_error
         
         # Compile the expression into a lambda function
-        self.lambda_function = compileLambda(expression, fail_on_error)
+        self.lambda_function = compileLambda(expression)
         logger.debug(f"Compiled filter expression: {self.expression}")
     
     def transform(self, input_iter: Iterable[Any]) -> Iterator[Any]:

@@ -103,40 +103,39 @@ class TestUserSession:
     
     def test_init_with_script(self):
         """Test UserSession initialization with script content."""
-        with patch('talkpipe.chatterlang.compile') as mock_compile:
+        with patch('talkpipe.app.chatterlang_serve.compile') as mock_compile:
             mock_compiled = Mock()
             mock_compiled.as_function.return_value = mock_compiled
             mock_compile.return_value = mock_compiled
             
-            session = UserSession("test-session-id", "test script")
-            
-            mock_compile.assert_called_once_with("test script")
+            session = UserSession("test-session-id", "| print")
+
+            mock_compile.assert_called_once_with("| print")
             assert session.compiled_script == mock_compiled
     
     def test_compile_script_success(self):
         """Test successful script compilation."""
         session = UserSession("test-session-id")
         
-        with patch('talkpipe.chatterlang.compile') as mock_compile:
+        with patch('talkpipe.app.chatterlang_serve.compile') as mock_compile:
             mock_compiled = Mock()
             mock_compiled.as_function.return_value = mock_compiled
             mock_compile.return_value = mock_compiled
             
-            session.compile_script("test script")
+            session.compile_script("| print")
             
-            mock_compile.assert_called_once_with("test script")
+            mock_compile.assert_called_once_with("| print")
             assert session.compiled_script == mock_compiled
     
     def test_compile_script_failure(self):
         """Test script compilation failure."""
         session = UserSession("test-session-id")
-        
-        with patch('talkpipe.chatterlang.compile') as mock_compile:
-            mock_compile.side_effect = Exception("Compilation error")
-            
-            session.compile_script("invalid script")
-            
-            assert session.compiled_script is None
+
+        # Use actually invalid ChatterLang syntax to trigger a real compilation error
+        with pytest.raises(Exception):
+            session.compile_script("invalid script syntax")
+
+        assert session.compiled_script is None
     
     def test_add_to_history(self):
         """Test adding entries to history."""
@@ -460,10 +459,10 @@ class TestChatterlangServerEndpoints:
         mock_compiled = Mock()
         mock_compiled.return_value = iter(["Script output 1", "Script output 2"])
         
-        with patch('talkpipe.chatterlang.compile') as mock_compile:
+        with patch('talkpipe.app.chatterlang_serve.compile') as mock_compile:
             mock_compile.return_value.as_function.return_value = mock_compiled
             
-            server = ChatterlangServer(script_content="test script")
+            server = ChatterlangServer(script_content="| print")
             client = TestClient(server.app)
             
             test_data = {"prompt": "test message"}

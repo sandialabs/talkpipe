@@ -107,7 +107,7 @@ def get_config(reload=False, path="~/.talkpipe.toml", ignore_env=False):
                 _config = tomllib.load(f)
                 logger.debug(f"Loaded config: {_config}")
         else:
-            logger.warning(f"Config file {config_path} not found, using empty config")
+            logger.debug(f"Config file {config_path} not found, using empty config")
             _config = {}
 
         if not ignore_env:
@@ -247,40 +247,50 @@ def load_module_file(fname: str, fail_on_missing=False) -> Optional[Any]:
 
 def parse_unknown_args(unknown_args):
     """Parse unknown command line arguments as constants.
-    
+
     Processes arguments in the format --CONST_NAME value, attempting to parse
     the values as appropriate Python types (bool, int, float, str).
-    
+    Also supports binary flags (--flag without a value) which are set to True.
+
     Args:
         unknown_args (List[str]): List of unknown command line arguments
-        
+
     Returns:
         Dict[str, Any]: Dictionary mapping constant names to their parsed values
-        
+
     Example:
         >>> parse_unknown_args(['--debug', 'true', '--count', '42', '--name', 'test'])
         {'debug': True, 'count': 42, 'name': 'test'}
+        >>> parse_unknown_args(['--flag', '--key', 'value'])
+        {'flag': True, 'key': 'value'}
     """
     constants = {}
     i = 0
     while i < len(unknown_args):
-        if unknown_args[i].startswith('--') and i + 1 < len(unknown_args):
+        if unknown_args[i].startswith('--'):
             const_name = unknown_args[i][2:]  # Remove '--' prefix
-            const_value = unknown_args[i + 1]
-            
-            # Try to parse value as different types (similar to ChatterLang parameter parsing)
-            if const_value.lower() in ('true', 'false'):
-                constants[const_name] = const_value.lower() == 'true'
-            elif const_value.isdigit() or (const_value.startswith('-') and const_value[1:].isdigit()):
-                constants[const_name] = int(const_value)
-            elif '.' in const_value:
-                try:
-                    constants[const_name] = float(const_value)
-                except ValueError:
+
+            # Check if next arg exists and is not another flag
+            if i + 1 < len(unknown_args) and not unknown_args[i + 1].startswith('--'):
+                const_value = unknown_args[i + 1]
+
+                # Try to parse value as different types (similar to ChatterLang parameter parsing)
+                if const_value.lower() in ('true', 'false'):
+                    constants[const_name] = const_value.lower() == 'true'
+                elif const_value.isdigit() or (const_value.startswith('-') and const_value[1:].isdigit()):
+                    constants[const_name] = int(const_value)
+                elif '.' in const_value:
+                    try:
+                        constants[const_name] = float(const_value)
+                    except ValueError:
+                        constants[const_name] = const_value
+                else:
                     constants[const_name] = const_value
+                i += 2
             else:
-                constants[const_name] = const_value
-            i += 2
+                # Binary flag (no value provided)
+                constants[const_name] = True
+                i += 1
         else:
             i += 1
     return constants

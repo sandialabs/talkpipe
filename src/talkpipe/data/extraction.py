@@ -10,6 +10,8 @@ from pathlib import Path
 import glob
 import os
 
+logger = logging.getLogger(__name__)
+
 @register_segment("readtxt")
 @field_segment()
 def readtxt(file_path: Annotated[str, "Path to the text file to read"]):
@@ -30,15 +32,15 @@ def readtxt(file_path: Annotated[str, "Path to the text file to read"]):
     p = Path(file_path)
 
     if not p.exists():
-        logging.error(f"Path does not exist: {file_path}")
+        logger.error(f"Path does not exist: {file_path}")
         raise FileNotFoundError(f"Path does not exist: {file_path}")
 
     if p.is_file():
-        logging.info(f"Reading text file: {p}")
+        logger.debug(f"Reading text file: {p}")
         with p.open("r") as file:
             return file.read()
     else:
-        logging.error(f"Unsupported path type: {file_path}")
+        logger.error(f"Unsupported path type: {file_path}")
         raise FileNotFoundError(f"Unsupported path type: {file_path}")
         
 @register_segment("readdocx")
@@ -60,18 +62,18 @@ def readdocx(file_path: Annotated[str, "Path to the .docx file to read"]):
     p = Path(file_path)
 
     if not p.exists():
-        logging.error(f"Path does not exist: {file_path}")
+        logger.error(f"Path does not exist: {file_path}")
         raise FileNotFoundError(f"Path does not exist: {file_path}")
 
     if p.is_file():
-        logging.info(f"Reading docx file: {p}")
+        logger.info(f"Reading docx file: {p}")
         doc = Document(p)
         full_text = []
         for para in doc.paragraphs:
             full_text.append(para.text)
         return " ".join(full_text)
     else:
-        logging.error(f"Unsupported path type: {file_path}")
+        logger.error(f"Unsupported path type: {file_path}")
         raise FileNotFoundError(f"Unsupported path type: {file_path}")
 
 @register_segment("listFiles")
@@ -93,8 +95,8 @@ def listFiles(patterns: Annotated[Iterable[str], "Iterable of file patterns or p
         path = Path(expanded_pattern)
         if path.is_dir() and not any(char in expanded_pattern for char in ['*', '?', '[']):
             expanded_pattern = os.path.join(expanded_pattern, '*')
-        
-        logging.info(f"Searching for files matching pattern: {expanded_pattern}")
+
+        logger.info(f"Searching for files matching pattern: {expanded_pattern}")
         matches = glob.glob(expanded_pattern, recursive=True)
         
         for match in sorted(matches):
@@ -105,7 +107,7 @@ def listFiles(patterns: Annotated[Iterable[str], "Iterable of file patterns or p
                 else:
                     yield path.name
             else:
-                logging.debug(f"Skipping non-file: {match}")
+                logger.debug(f"Skipping non-file: {match}")
 
 @register_segment("readFile")
 class ReadFile(AbstractFieldSegment):
@@ -128,21 +130,21 @@ class ReadFile(AbstractFieldSegment):
 
     def __init__(self, field: str = None, set_as: str = None):
         super().__init__(field=field, set_as=set_as)
-        logging.debug("Initializing FileExtractor")
+        logger.debug("Initializing FileExtractor")
         self._extractors = {}
         self.register_extractor("txt", readtxt())
         self.register_extractor("md", readtxt())
         self.register_extractor("docx", readdocx())
 
     def register_extractor(self, file_extension:str, extractor):
-        logging.debug(f"Registering extractor for extension: {file_extension}")
+        logger.debug(f"Registering extractor for extension: {file_extension}")
         self._extractors[file_extension] = extractor
 
     def process_value(self, file_path:Union[str, PosixPath]):
         file_extension = file_path.split(".")[-1] if isinstance(file_path, str) else file_path.suffix[1:]
         if file_extension not in self._extractors:
-            logging.error(f"Unsupported file extension: {file_extension}")
+            logger.error(f"Unsupported file extension: {file_extension}")
             raise Exception(f"File extension {file_extension} not supported")
-        logging.debug(f"Extracting content from file: {file_path}")
+        logger.debug(f"Extracting content from file: {file_path}")
         return next(self._extractors[file_extension]([file_path]))
 

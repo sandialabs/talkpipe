@@ -395,3 +395,8 @@ def test_fill_template_extra_values():
     expected = "Hello, Alice!"
     assert talkpipe.util.data_manipulation.fill_template(template, values) == expected
 
+def test_parse_unknown_args():
+    args = ["--key1", "value1", "--key2", "value2", "--flag", "--key3", "value3", "--key4", "5", "--key5", "1.2", "--key6", "true", "--flag2"]
+    expected_kwargs = {"key1": "value1", "key2": "value2", "flag": True, "key3": "value3", "flag2": True, "key4": 5, "key5": 1.2, "key6": True}
+    kwargs = talkpipe.util.config.parse_unknown_args(args)
+    assert kwargs == expected_kwargs

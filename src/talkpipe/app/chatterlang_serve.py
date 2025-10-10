@@ -51,16 +51,10 @@ class UserSession:
     
     def compile_script(self, script_content: str):
         """Compile a Chatterlang script for this session"""
-        try:
-            from talkpipe.chatterlang import compile as chatterlang_compile
-            
-            # Compile script - configuration values are accessible via $key syntax
-            self.compiled_script = chatterlang_compile(script_content)
-            self.compiled_script = self.compiled_script.as_function(single_in=True, single_out=False)
-            logger.info(f"Session {self.session_id}: Script compiled successfully")
-        except Exception as e:
-            logger.error(f"Session {self.session_id}: Error compiling script: {e}")
-            self.compiled_script = None
+        # Compile script - configuration values are accessible via $key syntax
+        self.compiled_script = compile(script_content)
+        self.compiled_script = self.compiled_script.as_function(single_in=True, single_out=False)
+        logger.info(f"Session {self.session_id}: Script compiled successfully")
     
     def add_to_history(self, entry: dict):
         """Add entry to session history"""

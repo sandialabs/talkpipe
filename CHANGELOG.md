@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.9.4 (in progress)
+### Improvements
+- Changes several logging statements to make the consistent with the rest of the code
+- Refactored **lambda** to use AbstractFieldSegment for consistency
+- Removed fail_on_error parameter in **lambda** and **lambdaFilter**.  This is an API breaking change. 
+  The segments will now always fail on an error and there is no option to silently fail.
+- Changed chatterlang_serve so that it raises and exception an exits if given a script that can't be
+  compiled.  The previous behavior was that it would issue a log message and fall back to the default
+  script.
+- Added unit test for parse_unknown_args and expanded it to support boolean flag parameters 
+
 ## 0.9.3 
 ### Improvements
 - Updated tutorials to use lancedb.  
