@@ -1,3 +1,4 @@
+from deprecated import deprecated
 from typing import Optional, Annotated
 import numpy as np
 import umap
@@ -5,6 +6,7 @@ from sklearn.manifold import TSNE
 from talkpipe import register_segment, AbstractSegment
 
 @register_segment("reduceUMAP")
+@deprecated(reason="This segment is deprecated and will be removed in version 1.0.")
 class ReduceUMAP(AbstractSegment):
     """Use UMAP to reduce dimensionality of provided matrix.
     

@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.9.4 (in progress)
+## 0.10.0 (in progress)
 ### Improvements
 - Changes several logging statements to make the consistent with the rest of the code
 - Refactored **lambda** to use AbstractFieldSegment for consistency
@@ -10,6 +10,11 @@
   compiled.  The previous behavior was that it would issue a log message and fall back to the default
   script.
 - Added unit test for parse_unknown_args and expanded it to support boolean flag parameters 
+- Marked UMAP as deprecated.  It will be removed in 1.0.  It requires additional dependencies that no
+  other core modules need.  
+- Updated the ollama embedding and chat connector so that it uses the OLLAMA_SERVER_URL configuration
+  variable as the host where ollama is installed.  So OLLAMA_SERVER_URL can be set in the TOML configuration
+  file or TALKPIPE_OLLAMA_SERVER_URL can be set as an environment variable.
 
 ## 0.9.3 
 ### Improvements
