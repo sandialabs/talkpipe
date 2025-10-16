@@ -1,8 +1,9 @@
+from abc import ABC, abstractmethod
+import logging
 import json
 from pydantic import BaseModel
-import logging
-
-from abc import ABC, abstractmethod
+from talkpipe.util.config import get_config
+from talkpipe.util.constants import OLLAMA_SERVER_URL
 
 logger = logging.getLogger(__name__)
 
@@ -73,13 +74,25 @@ class AbstractLLMPromptAdapter(ABC):
 class OllamaPromptAdapter(AbstractLLMPromptAdapter):
     """Prompt adapter for Ollama
 
+    Note: By default, ollama assumes localhost for the ollama server.  
+    If your server is running elsewhere, you can set the OLLAMA_SERVER_URL 
+    environment variable or in the configuration, or pass the server_url 
+    parameter.
+
     """
 
-    def __init__(self, model: str, system_prompt: str = "You are a helpful assistant.", multi_turn: bool = True, temperature: float = None, output_format: BaseModel = None):
+    def __init__(self, 
+                 model: str, 
+                 system_prompt: str = "You are a helpful assistant.", 
+                 multi_turn: bool = True, 
+                 temperature: float = None, 
+                 output_format: BaseModel = None, 
+                 server_url: str = None):
         super().__init__(model, "ollama", system_prompt, multi_turn, temperature, output_format)
         # Ollama uses 0.5 as default when temperature is not specified
         if self._temperature is None:
             self._temperature = 0.5
+        self._server_url = server_url
 
     def execute(self, prompt: str) -> str:
         """Execute the chat model.
@@ -97,7 +110,11 @@ class OllamaPromptAdapter(AbstractLLMPromptAdapter):
         self._messages.append({"role": "user", "content": prompt})
 
         logger.debug(f"Sending chat request to Ollama model {self._model_name}")
-        response = ollama.chat(
+        server_url = self._server_url
+        if not server_url:
+            server_url = get_config().get(OLLAMA_SERVER_URL, None)
+        client = ollama.Client(server_url) if server_url else ollama
+        response = client.chat(
             self._model_name,
             messages=[self._system_message] + self._messages,
             format=self._output_format.model_json_schema() if self._output_format else None,

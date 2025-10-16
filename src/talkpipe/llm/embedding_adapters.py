@@ -1,6 +1,7 @@
 from typing import List
-
 import numpy as np
+from talkpipe.util.config import get_config
+from talkpipe.util.constants import OLLAMA_SERVER_URL
 
 class AbstractEmbeddingAdapter:
     """Abstract class for embedding text.
@@ -44,8 +45,9 @@ class AbstractEmbeddingAdapter:
 class OllamaEmbedderAdapter(AbstractEmbeddingAdapter):
     """Embedding adapter for Ollama"""
 
-    def __init__(self, model: str):
+    def __init__(self, model: str, server_url: str = None):
         super().__init__(model, "ollama")
+        self._server_url = server_url
 
     def execute(self, text: str) -> List[float]:
         try:
@@ -55,7 +57,11 @@ class OllamaEmbedderAdapter(AbstractEmbeddingAdapter):
                 "Ollama is not installed. Please install it with: pip install talkpipe[ollama]"
             )
 
-        response = ollama.embed(
+        server_url = self._server_url
+        if not server_url:
+            server_url = get_config().get(OLLAMA_SERVER_URL, None)
+        client = ollama.Client(server_url) if server_url else ollama
+        response = client.embed(
             model=self.model_name,
             input=text
         )
