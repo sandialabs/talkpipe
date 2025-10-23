@@ -327,7 +327,7 @@ def load_script(script_input: str) -> str:
     try:
         is_file = script_path.is_file()
     except OSError as e:
-        logger.warning(f"Script path could not be checked as a file {script_input[0:25]}...: {e}")
+        logger.debug(f"Script path could not be checked as a file {script_input[0:25]}...: {e}")
         is_file = False
     if is_file:
         try:

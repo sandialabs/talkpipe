@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.10.0 (in progress)
+## in progress
 ### Improvements
 - Changes several logging statements to make the consistent with the rest of the code
 - Refactored **lambda** to use AbstractFieldSegment for consistency
@@ -15,6 +15,8 @@
 - Updated the ollama embedding and chat connector so that it uses the OLLAMA_SERVER_URL configuration
   variable as the host where ollama is installed.  So OLLAMA_SERVER_URL can be set in the TOML configuration
   file or TALKPIPE_OLLAMA_SERVER_URL can be set as an environment variable.
+- Implemented better compile errors for when sources or segments are not found.  It had been a key error.
+  It will now be a compile error.
 
 ## 0.9.3 
 ### Improvements
