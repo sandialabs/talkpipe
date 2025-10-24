@@ -4,19 +4,25 @@
 ### Improvements
 - Changes several logging statements to make the consistent with the rest of the code
 - Refactored **lambda** to use AbstractFieldSegment for consistency
-- Removed fail_on_error parameter in **lambda** and **lambdaFilter**.  This is an API breaking change. 
+- Removed fail_on_error parameter in **lambda** and **lambdaFilter**.  This is an API breaking change.
   The segments will now always fail on an error and there is no option to silently fail.
 - Changed chatterlang_serve so that it raises and exception an exits if given a script that can't be
   compiled.  The previous behavior was that it would issue a log message and fall back to the default
   script.
-- Added unit test for parse_unknown_args and expanded it to support boolean flag parameters 
+- Added unit test for parse_unknown_args and expanded it to support boolean flag parameters
 - Marked UMAP as deprecated.  It will be removed in 1.0.  It requires additional dependencies that no
-  other core modules need.  
+  other core modules need.
 - Updated the ollama embedding and chat connector so that it uses the OLLAMA_SERVER_URL configuration
   variable as the host where ollama is installed.  So OLLAMA_SERVER_URL can be set in the TOML configuration
   file or TALKPIPE_OLLAMA_SERVER_URL can be set as an environment variable.
 - Implemented better compile errors for when sources or segments are not found.  It had been a key error.
   It will now be a compile error.
+- Added batch files for the tutorials so it is easier to run them on Windows
+- Enhanced **prompt** source to catch downstream pipeline errors and continue prompting instead of
+  crashing. When a user enters invalid input that causes an exception in downstream segments, the error
+  is displayed with a full traceback, and the prompt continues accepting input. This makes interactive
+  pipelines more robust and user-friendly. The error-resilient behavior is enabled by default but can
+  be disabled by setting `error_resilient=False`.
 
 ## 0.9.3 
 ### Improvements
