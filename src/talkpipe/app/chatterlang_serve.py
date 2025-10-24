@@ -1788,18 +1788,23 @@ def go():
                         help='Property of the input json to display in the stream interface as user input.')
 
     args, unknown_args = parser.parse_known_args()
-    
+
     # Parse unknown arguments and add to configuration so they're accessible via $key syntax
     constants = parse_unknown_args(unknown_args)
-    
+
     # Add command-line constants to the configuration
     if constants:
         add_config_values(constants, override=True)
         print(f"Added command-line values to configuration: {list(constants.keys())}")
-    
+
     if args.load_module:
         for module_file in args.load_module:
             load_module_file(fname=module_file, fail_on_missing=False)
+
+    # Get API key from command line, or fall back to configuration (which checks environment variable)
+    api_key = args.api_key
+    if api_key is None:
+        api_key = get_config().get('API_KEY')
 
     script_content = None
     if args.script:
@@ -1823,7 +1828,7 @@ def go():
     receiver = ChatterlangServer(
         host=args.host,
         port=args.port,
-        api_key=args.api_key,
+        api_key=api_key,
         require_auth=args.require_auth,
         title=args.title,
         form_config=form_config,

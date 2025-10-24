@@ -939,6 +939,50 @@ class TestMainFunction:
                 override=True
             )
 
+    @patch('talkpipe.app.chatterlang_serve.ChatterlangServer')
+    @patch('talkpipe.app.chatterlang_serve.get_config')
+    @patch('sys.argv', ['script.py'])
+    def test_go_api_key_from_config(self, mock_get_config, mock_server_class):
+        """Test go function loads API key from configuration when not provided on command line."""
+        mock_server = Mock()
+        mock_server_class.return_value = mock_server
+
+        # Mock configuration with API_KEY
+        mock_config = {'API_KEY': 'config-api-key'}
+        mock_get_config.return_value = mock_config
+
+        with patch('talkpipe.app.chatterlang_serve.parse_unknown_args', return_value={}), \
+             patch('talkpipe.app.chatterlang_serve.add_config_values'), \
+             patch('talkpipe.app.chatterlang_serve.load_script', return_value=None):
+
+            go()
+
+            # Verify server was created with API key from config
+            call_args = mock_server_class.call_args[1]
+            assert call_args["api_key"] == "config-api-key"
+
+    @patch('talkpipe.app.chatterlang_serve.ChatterlangServer')
+    @patch('talkpipe.app.chatterlang_serve.get_config')
+    @patch('sys.argv', ['script.py', '--api-key', 'cmdline-api-key'])
+    def test_go_api_key_cmdline_overrides_config(self, mock_get_config, mock_server_class):
+        """Test go function uses command line API key over configuration."""
+        mock_server = Mock()
+        mock_server_class.return_value = mock_server
+
+        # Mock configuration with API_KEY
+        mock_config = {'API_KEY': 'config-api-key'}
+        mock_get_config.return_value = mock_config
+
+        with patch('talkpipe.app.chatterlang_serve.parse_unknown_args', return_value={}), \
+             patch('talkpipe.app.chatterlang_serve.add_config_values'), \
+             patch('talkpipe.app.chatterlang_serve.load_script', return_value=None):
+
+            go()
+
+            # Verify server was created with command line API key (takes precedence)
+            call_args = mock_server_class.call_args[1]
+            assert call_args["api_key"] == "cmdline-api-key"
+
 
 class TestAsyncFunctionality:
     """Test async functionality."""

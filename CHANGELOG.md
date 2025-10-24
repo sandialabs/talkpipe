@@ -23,6 +23,10 @@
   is displayed with a full traceback, and the prompt continues accepting input. This makes interactive
   pipelines more robust and user-friendly. The error-resilient behavior is enabled by default but can
   be disabled by setting `error_resilient=False`.
+- Updated **chatterlang_serve** to support API key configuration via the configuration system. When
+  `--api-key` is not specified on the command line, it will check for `API_KEY` in the configuration,
+  which automatically checks the `TALKPIPE_API_KEY` environment variable. This makes it easier to
+  deploy chatterlang_serve in Docker and CI/CD environments without exposing API keys in command history.
 
 ## 0.9.3 
 ### Improvements
