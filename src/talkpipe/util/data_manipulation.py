@@ -283,7 +283,7 @@ def fill_template(template: str, values: dict) -> str:
 
     return result
 
-def compileLambda(expression: str, fail_on_error: bool = True):
+def compileLambda(expression: str):
     """Compile a Python expression into a callable that evaluates safely with a single item parameter.
 
     Args:
@@ -362,10 +362,7 @@ def compileLambda(expression: str, fail_on_error: bool = True):
             return result
         except Exception as e:
             error_msg = f"Error evaluating expression '{expression}' on item {item}: {e}"
-            logger.error(error_msg)
-            if fail_on_error:
-                raise
-            return None
+            raise RuntimeError(error_msg, e)
 
     return lambda_function
 

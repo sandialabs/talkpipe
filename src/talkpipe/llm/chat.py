@@ -9,7 +9,7 @@ from abc import ABC, abstractmethod
 import logging
 from pydantic import BaseModel
 
-from talkpipe.llm.config import TALKPIPE_MODEL_NAME, TALKPIPE_SOURCE
+from talkpipe.util.constants import TALKPIPE_MODEL_NAME, TALKPIPE_SOURCE
 from talkpipe.util.data_manipulation import extract_property
 
 
@@ -31,6 +31,11 @@ class LLMPrompt(AbstractSegment):
     and TALKPIPE_default_source).  If those are not set, the values will be loaded
     from the configuration file (~/.talkpipe.toml).  If none of those are set, an 
     error will be raised.
+
+    Currently supported sources are "ollama," "openai," and "anthropic."  If 
+    you specify "ollama," you can optionally set the OLLAMA_SERVER_URL environment
+    variable or configuration value to point to a different server.  By default,
+    ollama assumes localhost.
     """
 
     def __init__(

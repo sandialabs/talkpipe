@@ -179,15 +179,15 @@ def test_get_config(tmp_path, monkeypatch):
         assert talkpipe.util.config._config is None
 
         # Add environment variables in a controlled way
-        monkeypatch.setenv("TALKPIPE_" + talkpipe.llm.config.TALKPIPE_MODEL_NAME, "llama3.1")
-        monkeypatch.setenv("TALKPIPE_" + talkpipe.llm.config.TALKPIPE_SOURCE, "ollama")
-        
+        monkeypatch.setenv("TALKPIPE_" + talkpipe.util.constants.TALKPIPE_MODEL_NAME, "llama3.1")
+        monkeypatch.setenv("TALKPIPE_" + talkpipe.util.constants.TALKPIPE_SOURCE, "ollama")
+
         # When no configuration file exists, get_config will initialize the config.
         cfg = talkpipe.util.config.get_config(path=test_path)
         assert talkpipe.util.config._config is not None
         assert len(cfg) == 2
-        assert talkpipe.llm.config.TALKPIPE_MODEL_NAME in cfg
-        assert talkpipe.llm.config.TALKPIPE_SOURCE in cfg
+        assert talkpipe.util.constants.TALKPIPE_MODEL_NAME in cfg
+        assert talkpipe.util.constants.TALKPIPE_SOURCE in cfg
 
         # Write a configuration file with values that differ from the env vars.
         with open(test_path, "w") as file:
@@ -195,27 +195,27 @@ def test_get_config(tmp_path, monkeypatch):
                 """
                 %s = "silly"
                 %s = "beans"
-                """ % (talkpipe.llm.config.TALKPIPE_MODEL_NAME, talkpipe.llm.config.TALKPIPE_SOURCE)
+                """ % (talkpipe.util.constants.TALKPIPE_MODEL_NAME, talkpipe.util.constants.TALKPIPE_SOURCE)
             )
 
         # Reload the config: env vars should override the values in the file.
         cfg = talkpipe.util.config.get_config(path=test_path, reload=True)
         assert len(cfg) == 2
         # The environment variable values take precedence over the file.
-        assert cfg[talkpipe.llm.config.TALKPIPE_MODEL_NAME] == "llama3.1"
-        assert cfg[talkpipe.llm.config.TALKPIPE_SOURCE] == "ollama"
+        assert cfg[talkpipe.util.constants.TALKPIPE_MODEL_NAME] == "llama3.1"
+        assert cfg[talkpipe.util.constants.TALKPIPE_SOURCE] == "ollama"
 
         # Remove environment variables to test file-only mode
-        monkeypatch.delenv("TALKPIPE_" + talkpipe.llm.config.TALKPIPE_MODEL_NAME)
-        monkeypatch.delenv("TALKPIPE_" + talkpipe.llm.config.TALKPIPE_SOURCE)
+        monkeypatch.delenv("TALKPIPE_" + talkpipe.util.constants.TALKPIPE_MODEL_NAME)
+        monkeypatch.delenv("TALKPIPE_" + talkpipe.util.constants.TALKPIPE_SOURCE)
         
         talkpipe.util.config.reset_config()
         # Here, ignore_env=True tells get_config to load values directly from the file.
         cfg = talkpipe.util.config.get_config(path=test_path, reload=True, ignore_env=True)
         assert len(cfg) == 2
-        assert cfg[talkpipe.llm.config.TALKPIPE_MODEL_NAME] == "silly"
-        assert cfg[talkpipe.llm.config.TALKPIPE_SOURCE] == "beans"
-    
+        assert cfg[talkpipe.util.constants.TALKPIPE_MODEL_NAME] == "silly"
+        assert cfg[talkpipe.util.constants.TALKPIPE_SOURCE] == "beans"
+
     finally:
         # Ensure we reset everything at the end
         talkpipe.util.config.reset_config()
@@ -395,3 +395,8 @@ def test_fill_template_extra_values():
     expected = "Hello, Alice!"
     assert talkpipe.util.data_manipulation.fill_template(template, values) == expected
 
+def test_parse_unknown_args():
+    args = ["--key1", "value1", "--key2", "value2", "--flag", "--key3", "value3", "--key4", "5", "--key5", "1.2", "--key6", "true", "--flag2"]
+    expected_kwargs = {"key1": "value1", "key2": "value2", "flag": True, "key3": "value3", "flag2": True, "key4": 5, "key5": 1.2, "key6": True}
+    kwargs = talkpipe.util.config.parse_unknown_args(args)
+    assert kwargs == expected_kwargs

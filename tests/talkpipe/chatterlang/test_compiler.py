@@ -293,3 +293,19 @@ def test_environment_variable_support():
         f = f.as_function(single_out=False)
         ans = list(f())
         assert ans == ['a', 'b', 'c', 'd']
+
+def test_compile_error_missing_segment():
+    try:
+        compiler.compile("""INPUT FROM "test" | unknownSegment""")
+    except compiler.CompileError as e:
+        assert "Segment 'unknownSegment' not found" in str(e)
+    else:
+        assert False, "Expected CompileError was not raised"
+
+def test_compile_error_in_source():
+    try:
+        compiler.compile("""INPUT FROM unknownSource""")
+    except compiler.CompileError as e:
+        assert "Source 'unknownSource' not found" in str(e)
+    else:
+        assert False, "Expected CompileError was not raised"

@@ -51,16 +51,10 @@ class UserSession:
     
     def compile_script(self, script_content: str):
         """Compile a Chatterlang script for this session"""
-        try:
-            from talkpipe.chatterlang import compile as chatterlang_compile
-            
-            # Compile script - configuration values are accessible via $key syntax
-            self.compiled_script = chatterlang_compile(script_content)
-            self.compiled_script = self.compiled_script.as_function(single_in=True, single_out=False)
-            logger.info(f"Session {self.session_id}: Script compiled successfully")
-        except Exception as e:
-            logger.error(f"Session {self.session_id}: Error compiling script: {e}")
-            self.compiled_script = None
+        # Compile script - configuration values are accessible via $key syntax
+        self.compiled_script = compile(script_content)
+        self.compiled_script = self.compiled_script.as_function(single_in=True, single_out=False)
+        logger.info(f"Session {self.session_id}: Script compiled successfully")
     
     def add_to_history(self, entry: dict):
         """Add entry to session history"""
@@ -1652,16 +1646,21 @@ class ChatterlangServer:
     
     def start(self, background: bool = False):
         """Start the FastAPI server"""
-        logger.info(f"Starting JSON Data Receiver on http://{self.host}:{self.port}")
-        logger.info(f"Main interface: http://{self.host}:{self.port}/")
-        logger.info(f"Streaming interface: http://{self.host}:{self.port}/stream")
-        logger.info(f"API documentation: http://{self.host}:{self.port}/docs")
+        print(f"\n{'='*60}")
+        print(f"ChatterLang Server Started")
+        print(f"{'='*60}")
+        print(f"User Interface:     http://{self.host}:{self.port}/stream")
+        print(f"API Endpoint:       http://{self.host}:{self.port}/process")
+        print(f"API Documentation:  http://{self.host}:{self.port}/docs")
         if self.require_auth:
-            logger.info(f"Port {self.port}: API key authentication: ENABLED")
-        
-        processor_name = self.processor_function.__name__ 
+            print(f"Authentication:     ENABLED (API key required)")
+        print(f"{'='*60}\n")
+
+        # Also log for debugging purposes
+        logger.info(f"Starting JSON Data Receiver on http://{self.host}:{self.port}")
+        processor_name = self.processor_function.__name__
         logger.info(f"Port {self.port}: Using processor function: {processor_name}")
-        
+
         if background:
             self.server_thread = threading.Thread(
                 target=lambda: uvicorn.run(self.app, host=self.host, port=self.port),
@@ -1794,18 +1793,23 @@ def go():
                         help='Property of the input json to display in the stream interface as user input.')
 
     args, unknown_args = parser.parse_known_args()
-    
+
     # Parse unknown arguments and add to configuration so they're accessible via $key syntax
     constants = parse_unknown_args(unknown_args)
-    
+
     # Add command-line constants to the configuration
     if constants:
         add_config_values(constants, override=True)
         print(f"Added command-line values to configuration: {list(constants.keys())}")
-    
+
     if args.load_module:
         for module_file in args.load_module:
             load_module_file(fname=module_file, fail_on_missing=False)
+
+    # Get API key from command line, or fall back to configuration (which checks environment variable)
+    api_key = args.api_key
+    if api_key is None:
+        api_key = get_config().get('API_KEY')
 
     script_content = None
     if args.script:
@@ -1829,7 +1833,7 @@ def go():
     receiver = ChatterlangServer(
         host=args.host,
         port=args.port,
-        api_key=args.api_key,
+        api_key=api_key,
         require_auth=args.require_auth,
         title=args.title,
         form_config=form_config,

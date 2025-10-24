@@ -16,6 +16,10 @@ from talkpipe.pipe import io
 
 logger = logging.getLogger(__name__)
 
+class CompileError(Exception):
+    """ Exception raised when a compilation error occurs in chatterlang """
+    pass
+
 @singledispatch
 def compile(script: ParsedScript, runtime: RuntimeComponent = None) -> Callable:
     """ Compile a parsed script into a callable function 
@@ -58,7 +62,10 @@ def _(pipeline: ParsedPipeline, runtime: RuntimeComponent) -> Pipeline:
             ans = VariableSource(pipeline.input_node.source.name)
             logger.debug(f"Created variable source with name {pipeline.input_node.source.name}")
         else:
-            ans = registry.input_registry.get(pipeline.input_node.source.name)(**_resolve_params(pipeline.input_node.params, runtime=runtime))
+            try:
+                ans = registry.input_registry.get(pipeline.input_node.source.name)(**_resolve_params(pipeline.input_node.params, runtime=runtime))
+            except KeyError:
+                raise CompileError(f"Source '{pipeline.input_node.source.name}' not found")
             logger.debug(f"Created registered input {pipeline.input_node.source.name}")
         ans.runtime = runtime
 
@@ -68,7 +75,10 @@ def _(pipeline: ParsedPipeline, runtime: RuntimeComponent) -> Pipeline:
             next_transform = VariableSetSegment(transform.name)
             logger.debug(f"Created variable set segment for {transform.name}")
         elif isinstance(transform, SegmentNode):
-            next_transform = registry.segment_registry.get(transform.operation.name)(**_resolve_params(transform.params, runtime=runtime))
+            try:
+                next_transform = registry.segment_registry.get(transform.operation.name)(**_resolve_params(transform.params, runtime=runtime))
+            except KeyError:
+                raise CompileError(f"Segment '{transform.operation.name}' not found")
             logger.debug(f"Created segment {transform.operation.name}")
         elif isinstance(transform, ForkNode):
             next_transform = compile(transform, runtime)

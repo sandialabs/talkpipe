@@ -34,5 +34,3 @@ def getEmbeddingSources()->List[str]:
     return list(_embeddingAdapter.keys())
 
 
-TALKPIPE_MODEL_NAME = "default_model_name"
-TALKPIPE_SOURCE = "default_model_source"

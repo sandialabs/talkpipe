@@ -23,7 +23,7 @@ class TestUnsafeEvalExecution:
         malicious_expression = "__import__('os').system('echo PWNED')"
         
         with pytest.raises((ValueError, NameError, AttributeError)) as exc_info:
-            lambda_func = compileLambda(malicious_expression, fail_on_error=True)
+            lambda_func = compileLambda(malicious_expression)
             result = lambda_func({"test": "data"})
         
         # Should raise security-related error, not execute the command
@@ -38,7 +38,7 @@ class TestUnsafeEvalExecution:
         malicious_expression = "open('/etc/passwd', 'r').read()"
         
         with pytest.raises((ValueError, NameError, AttributeError)) as exc_info:
-            lambda_func = compileLambda(malicious_expression, fail_on_error=True)
+            lambda_func = compileLambda(malicious_expression)
             lambda_func({"test": "data"})
         
         error_msg = str(exc_info.value).lower()
@@ -57,7 +57,7 @@ class TestUnsafeEvalExecution:
         
         for expr in malicious_expressions:
             with pytest.raises((ValueError, NameError, AttributeError)) as exc_info:
-                lambda_func = compileLambda(expr, fail_on_error=True)
+                lambda_func = compileLambda(expr)
                 lambda_func({"test": "data"})
             
             error_msg = str(exc_info.value).lower()
@@ -77,7 +77,7 @@ class TestUnsafeEvalExecution:
         test_data = {"test": 5, "num": 10}
         
         for expr in safe_expressions:
-            lambda_func = compileLambda(expr, fail_on_error=True)
+            lambda_func = compileLambda(expr)
             result = lambda_func(test_data)
             assert result is not None
 
@@ -264,7 +264,7 @@ class TestAdditionalSecurityIssues:
             }
             
             # This should not log the sensitive values
-            lambda_func = compileLambda("len(str(item))", fail_on_error=True)
+            lambda_func = compileLambda("len(str(item))")
             lambda_func(sensitive_data)
             
             log_output = log_capture.getvalue()
