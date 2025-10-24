@@ -1646,16 +1646,21 @@ class ChatterlangServer:
     
     def start(self, background: bool = False):
         """Start the FastAPI server"""
-        logger.info(f"Starting JSON Data Receiver on http://{self.host}:{self.port}")
-        logger.info(f"Main interface: http://{self.host}:{self.port}/")
-        logger.info(f"Streaming interface: http://{self.host}:{self.port}/stream")
-        logger.info(f"API documentation: http://{self.host}:{self.port}/docs")
+        print(f"\n{'='*60}")
+        print(f"ChatterLang Server Started")
+        print(f"{'='*60}")
+        print(f"User Interface:     http://{self.host}:{self.port}/stream")
+        print(f"API Endpoint:       http://{self.host}:{self.port}/process")
+        print(f"API Documentation:  http://{self.host}:{self.port}/docs")
         if self.require_auth:
-            logger.info(f"Port {self.port}: API key authentication: ENABLED")
-        
-        processor_name = self.processor_function.__name__ 
+            print(f"Authentication:     ENABLED (API key required)")
+        print(f"{'='*60}\n")
+
+        # Also log for debugging purposes
+        logger.info(f"Starting JSON Data Receiver on http://{self.host}:{self.port}")
+        processor_name = self.processor_function.__name__
         logger.info(f"Port {self.port}: Using processor function: {processor_name}")
-        
+
         if background:
             self.server_thread = threading.Thread(
                 target=lambda: uvicorn.run(self.app, host=self.host, port=self.port),

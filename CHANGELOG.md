@@ -33,6 +33,9 @@
 - Enhanced **echo** source with an `n` parameter to repeat the output data multiple times. For example,
   `echo[data='a,b', n=3]` will emit: a, b, a, b, a, b. This is useful for testing pipelines and
   generating repeated test data.
+- Improved **chatterlang_serve** startup output to clearly distinguish between the user interface URL
+  and the API endpoint URL. The server now displays a formatted message showing both URLs with clear
+  labels when it starts.
 - Updated tutorial 1, step 1 to show more feedback to the user so it doesn't just seem to be hanging
 
 ## 0.9.3 
