@@ -7,10 +7,16 @@ from talkpipe.chatterlang import parsers
 from talkpipe.util.config import reset_config
 
 def test_quoted_string():
+    # Test double-quoted strings
     assert parsers.quoted_string.parse('"string"') == 'string'
     assert parsers.quoted_string.parse('"string with spaces"') == 'string with spaces'
     assert parsers.quoted_string.parse('"string with ""escaped"" quotes"') == 'string with "escaped" quotes'
-    
+
+    # Test single-quoted strings
+    assert parsers.quoted_string.parse("'string'") == 'string'
+    assert parsers.quoted_string.parse("'string with spaces'") == 'string with spaces'
+    assert parsers.quoted_string.parse("'string with ''escaped'' quotes'") == "string with 'escaped' quotes"
+
 
 def test_lexeme():
     lex = parsers.lexeme(',')

@@ -17,7 +17,7 @@ Other packages in the project other than util include implementations of pipe so
 Util contains various generally usable utility functions, expecially for basic data manipulation and configuration.
 talkpipe/README.md contains a longer overview
 After making a change, update CHANGELOG.md
-When making a change, write a unit test that fails without the change, then make the change and test that the test now passes.  Notify the user if it is not reasonable to write the unit test.
+When making a change, write a unit test that fails without the change, verify that the unit test fails, make the change and then verity that the unit test now passes.  Notify the user if it is not reasonable to write the unit test.
 
 ## Important Commands
 python -m build for creating a new release

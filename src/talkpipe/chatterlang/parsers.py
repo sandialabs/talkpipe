@@ -133,11 +133,12 @@ identifier = regex(r'[a-zA-Z][a-zA-Z0-9_]*').map(lambda s: Identifier(name=s))
 variable = (string('@') >> identifier).map(lambda x: x).map(lambda x: VariableName(name=x.name))
 """A parser for variable names.  Variables are used to store and retrieve data in the pipeline."""
 environmentVariable = (string('$') >> identifier).map(lambda x: get_config()[x.name])
-# quoted_string = regex(r'"[^"]*"').map(lambda s: s[1:-1])
-quoted_string = regex(r'"(?:[^"]|"")*"').map(
-    lambda s: s[1:-1].replace('""', '"')
+# quoted_string supports both double and single quotes with escaping
+quoted_string = (
+    regex(r'"(?:[^"]|"")*"').map(lambda s: s[1:-1].replace('""', '"'))
+    | regex(r"'(?:[^']|'')*'").map(lambda s: s[1:-1].replace("''", "'"))
 )
-"""A parser for quoted strings."""
+"""A parser for quoted strings. Supports both double quotes ("...") and single quotes ('...')."""
 number = regex(r'-?\d+(\.\d+)?').map(lambda s: int(s) if '.' not in s else float(s))
 """A parser for numbers.  Returns both ints and floats."""
 

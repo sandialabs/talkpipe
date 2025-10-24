@@ -27,6 +27,9 @@
   `--api-key` is not specified on the command line, it will check for `API_KEY` in the configuration,
   which automatically checks the `TALKPIPE_API_KEY` environment variable. This makes it easier to
   deploy chatterlang_serve in Docker and CI/CD environments without exposing API keys in command history.
+- Added support for single-quoted strings in ChatterLang scripts. Single quotes work identically to
+  double quotes, including support for escaping quotes by doubling them (`''` → `'`). This provides
+  more flexibility when writing scripts, especially when the string content contains double quotes.
 
 ## 0.9.3 
 ### Improvements
