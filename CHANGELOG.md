@@ -1,6 +1,6 @@
 # Changelog
 
-## in progress
+## 0.9.4
 ### Improvements
 - Changes several logging statements to make the consistent with the rest of the code
 - Refactored **lambda** to use AbstractFieldSegment for consistency
