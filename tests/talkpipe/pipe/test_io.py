@@ -17,6 +17,33 @@ def test_echo_operation():
     ans = list(f())
     assert ans == ["howdy", "do"]
 
+def test_echo_with_n_parameter():
+    """Test echo source with n parameter to repeat output."""
+    # Test repeating multiple items with default delimiter
+    f = compiler.compile('INPUT FROM echo[data="a,b", n=2]').as_function(single_in=True, single_out=False)
+    ans = f(None)
+    assert ans == ["a", "b", "a", "b"]
+
+    # Test repeating multiple items with custom delimiter
+    f = compiler.compile('INPUT FROM echo[data="x|y|z", delimiter="|", n=2]').as_function(single_in=True, single_out=False)
+    ans = f(None)
+    assert ans == ["x", "y", "z", "x", "y", "z"]
+
+    # Test default n=1 behavior (unchanged)
+    f = io.echo(data="test")
+    ans = list(f())
+    assert ans == ["test"]
+
+    # Test direct call with n parameter
+    f = io.echo(data="a,b", n=3)
+    ans = list(f())
+    assert ans == ["a", "b", "a", "b", "a", "b"]
+
+    # Test repeating single item (no delimiter) using direct call
+    f = io.echo(data="hello", delimiter=None, n=3)
+    ans = list(f())
+    assert ans == ["hello", "hello", "hello"]
+
 def test_readJSONL(tmpdir):
     data = [
         {"name": "Alice", "age": 30},

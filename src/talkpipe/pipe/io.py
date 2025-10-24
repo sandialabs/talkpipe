@@ -159,17 +159,22 @@ class Prompt(AbstractSource):
             return super().__or__(other)
 
 @register_source('echo')
-@source(delimiter=',')
-def echo(data: Annotated[str, "The input string to split and generate items from"], 
-         delimiter: Annotated[str, "The delimiter to split the string on"]):
+@source(delimiter=',', n=1)
+def echo(data: Annotated[str, "The input string to split and generate items from"],
+         delimiter: Annotated[str, "The delimiter to split the string on"],
+         n: Annotated[int, "Number of times to emit the data"] = 1):
     """A source that generates input from a string.
 
-    This source will generate input from a string, splitting it on a delimiter.
+    This source will generate input from a string, splitting it on a delimiter,
+    and optionally repeating the output n times.
     """
     if delimiter is None:
-        yield data
+        items = [data]
     else:
-        for item in data.split(delimiter):
+        items = data.split(delimiter)
+
+    for _ in range(n):
+        for item in items:
             yield item
 
 @register_segment('readJsonl')
@@ -227,7 +232,7 @@ def writeString(data,
                 field: Annotated[Optional[str], "Field to extract from each item before writing"] = None, 
                 new_line: Annotated[bool, "If True, a new line will be written after each item"] = True, 
                 first_only: Annotated[bool, "If True, the segment will write only the first item in the input stream"] = False):
-    """Writes each item into a files after casting it to a string.
+    """Writes each item into a file after casting it to a string.
     
     In any event, all items will be yielded.
     """

@@ -30,6 +30,10 @@
 - Added support for single-quoted strings in ChatterLang scripts. Single quotes work identically to
   double quotes, including support for escaping quotes by doubling them (`''` → `'`). This provides
   more flexibility when writing scripts, especially when the string content contains double quotes.
+- Enhanced **echo** source with an `n` parameter to repeat the output data multiple times. For example,
+  `echo[data='a,b', n=3]` will emit: a, b, a, b, a, b. This is useful for testing pipelines and
+  generating repeated test data.
+- Updated tutorial 1, step 1 to show more feedback to the user so it doesn't just seem to be hanging
 
 ## 0.9.3 
 ### Improvements

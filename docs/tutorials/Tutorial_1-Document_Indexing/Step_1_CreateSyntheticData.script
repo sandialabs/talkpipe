@@ -17,10 +17,13 @@
 # 6. The output is redirected to a file named "stories.json".
 ###################################################################################
 
-LOOP 50 TIMES {
-    INPUT FROM "Write a fictitious five sentence story about technology development in an imaginary country."
-    | llmPrompt[source="ollama", model="llama3.2", multi_turn=False]
-    | toDict[field_list="_:content"]
-    | llmPrompt[source="ollama", model="llama3.2", system_prompt="Write exactly one title for this story in plain text with no markdown", field="content", set_as="title", multi_turn=False]
-    | dumpsJsonl | print;
-}
+
+INPUT FROM "Generating 50 synthetic stories into stories.json" | print;
+INPUT FROM echo[data="Write a fictitious five sentence story about technology development in an imaginary country.", n=50]
+| llmPrompt[source="ollama", model="llama3.2", multi_turn=False]
+| toDict[field_list="_:content"]
+| llmPrompt[source="ollama", model="llama3.2", system_prompt="Write exactly one title for this story in plain text with no markdown", field="content", set_as="title", multi_turn=False]
+| progressTicks[tick_count=1, eol_count=10, print_count=true]
+| dumpsJsonl 
+| writeString[fname="stories.json"];
+
