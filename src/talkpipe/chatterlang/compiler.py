@@ -10,7 +10,7 @@ import logging
 from functools import singledispatch
 from talkpipe.chatterlang.parsers import script_parser, ParsedScript, ParsedLoop, ParsedPipeline, VariableName, SegmentNode, Identifier, ForkNode
 from talkpipe.chatterlang import registry 
-from talkpipe.pipe.core import Loop, Pipeline, Script, RuntimeComponent
+from talkpipe.pipe.core import Loop, Pipeline, Script, RuntimeComponent, AbstractSource
 from talkpipe.pipe.fork import ForkSegment
 from talkpipe.pipe import io
 
@@ -163,7 +163,7 @@ def _(script: str, runtime: RuntimeComponent = None) -> Callable:
     preprocessed_script = remove_comments(script)
     return compile(script_parser.parse(preprocessed_script), runtime)
 
-class VariableSource(io.AbstractSource):
+class VariableSource(AbstractSource):
     """A source that gets a variable from the variable store and returns its
     contents item by item. 
     

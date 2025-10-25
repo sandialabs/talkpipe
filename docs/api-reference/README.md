@@ -35,6 +35,15 @@ Manage and inspect TalkPipe plugins installed via Python entry points.
 - Plugin status monitoring
 - Development workflow support
 
+## Performance Optimization
+
+### [Lazy Loading](lazy-loading.md)
+Optimize startup performance with on-demand component loading.
+- 18x faster startup times
+- Reduced memory footprint
+- Environment-based or programmatic configuration
+- Full backward compatibility
+
 ---
 
 *For conceptual overviews, see the [architecture](../architecture/) sections. For working examples, see the [tutorials](../tutorials/) directory.*

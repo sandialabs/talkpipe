@@ -1,5 +1,17 @@
 # Changelog
 
+## In Progress
+### New Features
+- 
+
+### Improvements
+- Added a new registry system with configurable lazy loading via `LAZY_IMPORT` setting. When enabled, 
+  provides an 18-fold performance improvement (from 2.9s to 0.16s in testing) by deferring module 
+  imports until needed. The default behavior remains unchanged for compatibility. Added comprehensive 
+  documentation for the lazy loading feature in `docs/api-reference/lazy-loading.md`,
+  covering configuration, performance characteristics, usage examples, and best practices for module
+  organization and plugin development.
+
 ## 0.9.4
 ### Improvements
 - Changes several logging statements to make the consistent with the rest of the code
