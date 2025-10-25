@@ -5,12 +5,15 @@
 - 
 
 ### Improvements
-- Added a new registry system with configurable lazy loading via `LAZY_IMPORT` setting. When enabled, 
-  provides an 18-fold performance improvement (from 2.9s to 0.16s in testing) by deferring module 
-  imports until needed. The default behavior remains unchanged for compatibility. Added comprehensive 
+- Added a new registry system with configurable lazy loading via `LAZY_IMPORT` setting. When enabled,
+  provides an 18-fold performance improvement (from 2.9s to 0.16s in testing) by deferring module
+  imports until needed. The default behavior remains unchanged for compatibility. Added comprehensive
   documentation for the lazy loading feature in `docs/api-reference/lazy-loading.md`,
   covering configuration, performance characteristics, usage examples, and best practices for module
   organization and plugin development.
+- Fixed security issue in `src/talkpipe/chatterlang/registry.py` where exceptions were being silently
+  ignored (Bandit B110). Replaced bare `except Exception: pass` blocks with proper logging statements
+  to aid in debugging and follow security best practices.
 
 ## 0.9.4
 ### Improvements

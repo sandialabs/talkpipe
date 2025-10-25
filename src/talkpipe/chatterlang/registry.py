@@ -201,14 +201,14 @@ class HybridRegistry(Generic[T]):
                 try:
                     if hasattr(seen[ep.name], 'dist') and hasattr(seen[ep.name].dist, 'name'):
                         existing_pkg = seen[ep.name].dist.name
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.debug(f"Could not get package name for existing entry point '{ep.name}': {e}")
 
                 try:
                     if hasattr(ep, 'dist') and hasattr(ep.dist, 'name'):
                         new_pkg = ep.dist.name
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.debug(f"Could not get package name for new entry point '{ep.name}': {e}")
 
                 conflicts.append(
                     f"  - Component '{ep.name}' defined by:\n"
