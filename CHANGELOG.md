@@ -6,6 +6,8 @@
 - Added **shingleText** segment for creating overlapping n-grams (shingles) from text with support for key-based grouping and configurable overlap
 
 ### Improvements
+- Added an option n to sleep so that it can be configured to sleep every n items rather than 
+  every item.
 - Extended AbstractFieldSegment and the field_segment decorator to support segments that return
   more than one item per input item.  If set_as is specified, the outer object is shallow copied
   for each output and the output is set appropriately. 

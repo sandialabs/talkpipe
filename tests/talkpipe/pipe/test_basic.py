@@ -403,3 +403,14 @@ def test_longestStr():
     assert ans[0]["longest"] == "longest"
     assert ans[1]["longest"] == "longer"
 
+def test_sleep():
+    s = basic.sleep(seconds=1, n=2)
+    s = s.as_function(single_in=False, single_out=False)
+    import time
+    start_time = time.time()
+    ans = list(s([1,2,3,4,5]))
+    end_time = time.time()
+    assert ans == [1,2,3,4,5]
+    elapsed = end_time - start_time
+    # Should have slept approximately 2 times (after 2nd and 4th items)
+    assert 2 <= elapsed < 4

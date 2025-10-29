@@ -21,21 +21,23 @@ logger = logging.getLogger(__name__)
 
 @registry.register_segment("sleep")
 @segment()
-def sleep(items, seconds: Annotated[int, "The number of seconds to sleep after processing each item"]):
-    """Sleep for a specified number of seconds between processing each item.
+def sleep(items, 
+          seconds: Annotated[int, "The number of seconds to sleep after processing n items"],
+          n: Annotated[int, "The number of items to process before sleeping"] = 1):
+    """Sleep for a specified number of seconds after each n items.
     
     This segment introduces a delay between processing each item in the pipeline.
     Useful for rate limiting, testing timing-sensitive code, or simulating slow operations.
-    
-    ChatterLang Usage:
-        sleep[seconds=1]
-        
+            
     Yields:
         Any: Each input item unchanged after the sleep delay.
     """
+    count = 0
     for item in items:
         yield item  # Pass through the item unchanged
-        time.sleep(seconds)  # Sleep after yielding to maintain pipeline flow
+        count += 1
+        if count % n == 0:
+            time.sleep(seconds)  # Sleep after yielding to maintain pipeline flow
 
 @registry.register_segment(name="progressTicks")
 @segment()
@@ -115,7 +117,9 @@ class Cast(AbstractSegment):
     This lets this segment also be used as a filter to remove data that cannot be cast.
     The cast occurs by calling the type object on the data.  
     """
-    def __init__(self, cast_type: Annotated[Union[type, str], "The type to cast the data to."] , fail_silently: Annotated[bool, "Whether to fail silently if the cast fails."] = True):
+    def __init__(self, 
+                 cast_type: Annotated[Union[type, str], "The type to cast the data to."] , 
+                 fail_silently: Annotated[bool, "Whether to fail silently if the cast fails."] = True):
         super().__init__()
         self.cast_type = cast_type if isinstance(cast_type, type) else get_type_safely(cast_type)
         self.fail_silently = fail_silently
