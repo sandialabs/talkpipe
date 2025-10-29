@@ -2,9 +2,13 @@
 
 ## In Progress
 ### New Features
-- 
+- Added **splitText** method to split strings either by length of by delimeter
+- Added **shingleText** segment for creating overlapping n-grams (shingles) from text with support for key-based grouping and configurable overlap
 
 ### Improvements
+- Extended AbstractFieldSegment and the field_segment decorator to support segments that return
+  more than one item per input item.  If set_as is specified, the outer object is shallow copied
+  for each output and the output is set appropriately. 
 - Added a new registry system with configurable lazy loading via `LAZY_IMPORT` setting. When enabled,
   provides an 18-fold performance improvement (from 2.9s to 0.16s in testing) by deferring module
   imports until needed. The default behavior remains unchanged for compatibility. Added comprehensive

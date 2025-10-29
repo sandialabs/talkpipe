@@ -403,7 +403,8 @@ def field_segment(*decorator_args, **decorator_kwargs):
                 merged_kwargs = {**decorator_kwargs, **init_kwargs}
                 field = merged_kwargs.pop('field', None)
                 set_as = merged_kwargs.pop('set_as', None)
-                super().__init__(field=field, set_as=set_as)
+                multi_emit = merged_kwargs.pop('multi_emit', False)
+                super().__init__(field=field, set_as=set_as, multi_emit=multi_emit)
                 self._func = lambda x: func(x, *init_args, **merged_kwargs)
                 # Store reference to original function for documentation access
                 self._original_func = func
@@ -432,12 +433,17 @@ class AbstractFieldSegment(AbstractSegment[T, U]):
         field: The field to extract from each item (optional)
         set_as: The field name to set/append the result as (optional)
     """
-    
-    def __init__(self, field: str = None, set_as: str = None):
+
+    def __init__(self, 
+                 field: Annotated[str, "The field to extract.  If none, use full item."] = None, 
+                 set_as: Annotated[str, "The field to set/append the result as."] = None, 
+                 multi_emit: Annotated[bool, "Whether this class potentially emits multiple results per item."
+                                       "Should be set by the subclass constructor call or the field_segment decorator, not by the user."] = False):
         super().__init__()
         self.field = field
         self.set_as = set_as
-    
+        self.multi_emit = multi_emit
+
     @abstractmethod
     def process_value(self, value: Any) -> Any:
         """Process the extracted field value or the entire item.
@@ -464,12 +470,16 @@ class AbstractFieldSegment(AbstractSegment[T, U]):
         """
         for item in input_iter:
             value = data_manipulation.extract_property(item, self.field) if self.field else item
-            result = self.process_value(value)
-            if self.set_as:
-                item[self.set_as] = result
-                yield item
-            else:
-                yield result
+            processed = self.process_value(value)
+            if not self.multi_emit: # If not multi-emitting, wrap the result in a list
+                processed = [processed]
+            for result in processed:
+                if self.set_as:
+                    ans = item.copy() if self.multi_emit else item
+                    ans[self.set_as] = result
+                    yield ans
+                else:
+                    yield result
 
 class Pipeline(AbstractSegment):
     """A pipeline is a sequence of operations.  Each operation draws from the output of the previous operation
