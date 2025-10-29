@@ -23,9 +23,9 @@ updates:
       day: "monday"
       time: "09:00"
     reviewers:
-      - "tlbauer"
+      - "tlbauer2"
     assignees:  
-      - "tlbauer"
+      - "tlbauer2"
     commit-message:
       prefix: "ci"
       include: "scope"
@@ -38,7 +38,7 @@ updates:
       day: "monday" 
       time: "09:00"
     reviewers:
-      - "tlbauer"
+      - "tlbauer2"
     assignees:
       - "tlbauer2"
     commit-message:
