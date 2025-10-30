@@ -26,7 +26,6 @@ dependencies = [
     'pydantic',
     'requests',
     'numpy',
-    'numba==0.62.1',
     'python-docx',
     'pandas',
     'feedparser',
@@ -36,7 +35,6 @@ dependencies = [
     'fastapi[standard]',
     'ipywidgets',
     'pymongo',
-    'umap-learn',
     'scikit-learn',
     'uvicorn',
     'whoosh',
@@ -103,7 +101,6 @@ rss = "talkpipe.data.rss:rss_source"
 accum = "talkpipe.chatterlang.compiler:Accum"
 addToLancDB = "talkpipe.search.lancedb:add_to_lancedb"
 addToLanceDB = "talkpipe.search.lancedb:add_to_lancedb"
-addVector = "talkpipe.search.simplevectordb:add_vector"
 cast = "talkpipe.pipe.basic:Cast"
 concat = "talkpipe.pipe.basic:concat"
 configureLogger = "talkpipe.pipe.basic:ConfigureLogger"
@@ -153,19 +150,19 @@ readJsonl = "talkpipe.pipe.io:readJsonl"
 readdocx = "talkpipe.data.extraction:readdocx"
 readtxt = "talkpipe.data.extraction:readtxt"
 reduceTSNE = "talkpipe.operations.matrices:ReduceTSNE"
-reduceUMAP = "talkpipe.operations.matrices:ReduceUMAP"
 regexReplace = "talkpipe.operations.transforms:regex_replace"
 scale = "talkpipe.pipe.math:scale"
 searchLancDB = "talkpipe.search.lancedb:search_lancedb"
 searchLanceDB = "talkpipe.search.lancedb:search_lancedb"
-searchVector = "talkpipe.search.simplevectordb:search_vector"
 searchWhoosh = "talkpipe.search.whoosh:searchWhoosh"
 sendEmail = "talkpipe.data.email:sendEmail"
 set = "talkpipe.pipe.basic:assign"
 setAs = "talkpipe.pipe.basic:setAs"
+shingleText = "talkpipe.data.text.chunking_units:ShingleText"
 sleep = "talkpipe.pipe.basic:sleep"
 slice = "talkpipe.pipe.basic:slice"
 snippet = "talkpipe.chatterlang.compiler:Snippet"
+splitText = "talkpipe.data.text.chunking_units:splitText"
 threaded = "talkpipe.operations.thread_ops:threadedSegment"
 toDataFrame = "talkpipe.pipe.basic:ToDataFrame"
 toDict = "talkpipe.pipe.basic:ToDict"

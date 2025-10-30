@@ -2,11 +2,18 @@
 
 ## In Progress
 ### New Features
-- Added **splitText** method to split strings either by length of by delimeter
-- Added **shingleText** segment for creating overlapping n-grams (shingles) from text with support for key-based grouping and configurable overlap
+- Added **splitText** segment to split strings either by length or by delimiter. Now available as an entry point.
+- Added **shingleText** segment for creating overlapping n-grams (shingles) from text with support for key-based grouping and configurable overlap. Now available as an entry point.
+
+### Breaking Changes
+- Removed deprecated **simplevectordb** module. Users should migrate to **LanceDBDocumentStore** from
+  `talkpipe.search.lancedb`, which provides equivalent functionality with improved performance.
+- Removed deprecated **reduceUMAP** segment and `umap-learn` dependency. Users should migrate to
+  **reduceTSNE** or other dimensionality reduction methods.
+- Removed `numba` dependency as it was only required by the removed `umap-learn` package.
 
 ### Improvements
-- Added an option n to sleep so that it can be configured to sleep every n items rather than 
+- Added an option n to sleep so that it can be configured to sleep every n items rather than
   every item.
 - Extended AbstractFieldSegment and the field_segment decorator to support segments that return
   more than one item per input item.  If set_as is specified, the outer object is shallow copied

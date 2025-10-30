@@ -8,6 +8,16 @@ TalkPipe is a Python toolkit that makes it easy to create, test, and deploy work
 - **Create AI Agents** - Build agents that can debate topics, evaluate streams of documents, or monitor RSS feeds
 - **Deploy Anywhere** - Run in Jupyter notebooks, as Docker containers, or as standalone Python applications
 
+## Project Structure
+- talkpipe/app - contains runnable applications
+- talkpipe/chatterlang - contains definitions for the chatterlang external DSL built on top of talkpipe/pipe
+- talkpipe/data - contains basic data manipulation utilities
+- talkpipe/llm - contains chat and embedding utilities
+- talkpipe/operations - contains basic operations for chatterlang
+- talkpipe/pipe - contains a mix of basic definitions creating the internal DSL
+- talkpipe/search - contains data storage and retrieval definitions, including vector databases and full text search
+- talkpipe/util - contains utility functions such as configuration and operations system related operations
+
 ## Development Guidelines 
 pytest unit tests are under tests/
 the code for the library is under src/
@@ -16,8 +26,14 @@ ChatterLang is an external DSL and is defined under talkpipe/chatterlang
 Other packages in the project other than util include implementations of pipe sources and segments
 Util contains various generally usable utility functions, expecially for basic data manipulation and configuration.
 talkpipe/README.md contains a longer overview
-After making a change, update CHANGELOG.md
-When making a change, write a unit test that fails without the change, verify that the unit test fails, make the change and then verity that the unit test now passes.  Notify the user if it is not reasonable to write the unit test.
+After implementing a new feature, update CHANGELOG.md.  
+After making a minor change to an existing feature,  check if the unreleased section of the changelog already 
+    mentions the feature. If so, update that changelog entry.  If not, write a new entry in the changelog.
+When making a change, write a unit test that fails without the change, verify that the unit test fails, 
+    make the change and then verity that the unit test now passes.  Notify the user if it is not reasonable 
+    to write the unit test. 
+User interfaces should be visually appealing and maintain consistency with each other.
+
 
 ## Important Commands
 python -m build for creating a new release
