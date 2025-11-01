@@ -219,6 +219,17 @@ def setAs(item,
         item[k] = v
     return item
 
+@registry.register_segment("extractProperty")
+@field_segment
+def extractProperty(item, 
+                    property: Annotated[str, "The property to extract from the input item."]):
+    """Extracts the specified property from the input item.
+
+    Returns:
+        The value of the specified property.
+    """
+    return extract_property(item, property)
+
 @registry.register_segment("set")
 @segment
 def assign(items: Annotated[Iterator[Any], "The input item to modify"], 

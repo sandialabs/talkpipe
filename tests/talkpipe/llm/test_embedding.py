@@ -17,7 +17,7 @@ def test_create_embedder(requires_ollama):
     response = list(cmd(["Hello"]))
     assert len(response) == 1
     assert all([isinstance(x, float) for x in response[0]])
-    
+
 def test_lingering_nparray_issue(requires_ollama):
     f = compile(
         """

@@ -4,6 +4,11 @@
 ### New Features
 - Added **splitText** segment to split strings either by length or by delimiter. Now available as an entry point.
 - Added **shingleText** segment for creating overlapping n-grams (shingles) from text with support for key-based grouping and configurable overlap. Now available as an entry point.
+- Added **extractProperty** segment that extracts properties using the same methodology as a the
+  property designator in a field list.
+- Added **makeVectorDatabase** segment to create vector databases in LanceDB by embedding documents
+  and storing them with their metadata. Supports custom embedding models, table names, document IDs,
+  and overwrite options.
 
 ### Breaking Changes
 - Removed deprecated **simplevectordb** module. Users should migrate to **LanceDBDocumentStore** from
@@ -17,7 +22,7 @@
   every item.
 - Extended AbstractFieldSegment and the field_segment decorator to support segments that return
   more than one item per input item.  If set_as is specified, the outer object is shallow copied
-  for each output and the output is set appropriately. 
+  for each output and the output is set appropriately.
 - Added a new registry system with configurable lazy loading via `LAZY_IMPORT` setting. When enabled,
   provides an 18-fold performance improvement (from 2.9s to 0.16s in testing) by deferring module
   imports until needed. The default behavior remains unchanged for compatibility. Added comprehensive
@@ -27,6 +32,14 @@
 - Fixed security issue in `src/talkpipe/chatterlang/registry.py` where exceptions were being silently
   ignored (Bandit B110). Replaced bare `except Exception: pass` blocks with proper logging statements
   to aid in debugging and follow security best practices.
+- Added `read_consistency_interval` parameter to **searchLanceDB** segment and **LanceDBDocumentStore**
+  to control how often table metadata is refreshed when multiple connections access the same database.
+  Defaults to 10 seconds.
+- Enhanced `extract_property` to support `_` as a passthrough/no-op in dotted property paths. The `_`
+  character now acts as an identity operation when used within a path. For example, `"X._"` is
+  equivalent to `"X"`, `"X._.1"` is equivalent to `"X.1"`, and `"_.1"` is equivalent to `"1"`. This
+  makes it easier to construct dynamic property paths where some components may need to reference the
+  current object without changing the navigation level.
 
 ## 0.9.4
 ### Improvements

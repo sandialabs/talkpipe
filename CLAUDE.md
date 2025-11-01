@@ -19,6 +19,8 @@ TalkPipe is a Python toolkit that makes it easy to create, test, and deploy work
 - talkpipe/util - contains utility functions such as configuration and operations system related operations
 
 ## Development Guidelines 
+Do not automatically agree.  Question assumptions and point out weaknesses in logic or inconsistences with the
+  rest of the codebase.
 pytest unit tests are under tests/
 the code for the library is under src/
 The core pipe API classes and code is under talkpipe/pipe

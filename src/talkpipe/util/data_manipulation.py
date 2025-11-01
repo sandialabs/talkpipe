@@ -131,7 +131,9 @@ def extract_property(data: Any, prop_list: str, fail_on_missing=False, default=N
 
     Args:
         data (Any): The data structure to extract the property from
-        prop_list (str): The property to extract, using dot notation for nested properties
+        prop_list (str): The property to extract, using dot notation for nested properties.
+            The special character '_' can be used as a passthrough in dotted paths.
+            For example, "X._" is equivalent to "X", and "X._.1" is equivalent to "X.1".
         fail_on_missing (bool): If True, raise an exception if the property is not found
             If False, return None if the property is not found
     """
@@ -139,6 +141,9 @@ def extract_property(data: Any, prop_list: str, fail_on_missing=False, default=N
         return data
     of_interest = data
     for prop_name in prop_list.split("."):
+        # Treat '_' as a passthrough/no-op in dotted paths
+        if prop_name == "_":
+            continue
         if hasattr(of_interest, prop_name):
             prop_actual = getattr(of_interest, prop_name)
             if callable(prop_actual):

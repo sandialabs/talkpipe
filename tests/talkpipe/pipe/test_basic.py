@@ -77,9 +77,87 @@ class TestExtractProperty:
     @property
     def a_property(self):
         return "a_value"
-    
+
     def a_func(self):
         return "a_result"
+
+def test_extractProperty():
+    # Test extracting from a dictionary
+    e = basic.extractProperty(property="name")
+    e = e.as_function(single_in=True, single_out=True)
+    assert e({"name": "Alice", "age": 30}) == "Alice"
+
+    # Test extracting nested properties with dot notation
+    e = basic.extractProperty(property="person.name")
+    e = e.as_function(single_in=True, single_out=True)
+    assert e({"person": {"name": "Bob", "age": 25}}) == "Bob"
+
+    # Test extracting from nested dictionaries (multi-level)
+    e = basic.extractProperty(property="a.b.c")
+    e = e.as_function(single_in=True, single_out=True)
+    assert e({"a": {"b": {"c": "value"}}}) == "value"
+
+    # Test extracting list elements by index
+    e = basic.extractProperty(property="0")
+    e = e.as_function(single_in=True, single_out=True)
+    assert e(["first", "second", "third"]) == "first"
+
+    e = basic.extractProperty(property="2")
+    e = e.as_function(single_in=True, single_out=True)
+    assert e(["a", "b", "c", "d"]) == "c"
+
+    # Test extracting from nested lists in dictionaries
+    e = basic.extractProperty(property="colors.1")
+    e = e.as_function(single_in=True, single_out=True)
+    assert e({"colors": ["red", "green", "blue"]}) == "green"
+
+    # Test the "_" special case (returns entire item)
+    e = basic.extractProperty(property="_")
+    e = e.as_function(single_in=True, single_out=True)
+    assert e({"whole": "object"}) == {"whole": "object"}
+    assert e("string_value") == "string_value"
+
+    # Test extracting object attributes
+    test_obj = TestExtractProperty()
+    e = basic.extractProperty(property="a_dict")
+    e = e.as_function(single_in=True, single_out=True)
+    assert e(test_obj) == {"key": "value"}
+
+    # Test extracting from object attribute that's a list
+    e = basic.extractProperty(property="a_list")
+    e = e.as_function(single_in=True, single_out=True)
+    assert e(test_obj) == ["a", "b", "c"]
+
+    # Test extracting property (getter)
+    e = basic.extractProperty(property="a_property")
+    e = e.as_function(single_in=True, single_out=True)
+    assert e(test_obj) == "a_value"
+
+    # Test extracting callable (method)
+    e = basic.extractProperty(property="a_func")
+    e = e.as_function(single_in=True, single_out=True)
+    assert e(test_obj) == "a_result"
+
+    # Test nested extraction: object attribute that's a dict
+    e = basic.extractProperty(property="a_dict.key")
+    e = e.as_function(single_in=True, single_out=True)
+    assert e(test_obj) == "value"
+
+    # Test nested extraction: object attribute that's a list with index
+    e = basic.extractProperty(property="a_list.1")
+    e = e.as_function(single_in=True, single_out=True)
+    assert e(test_obj) == "b"
+
+    # Test with field parameter (extracting from a specific field first)
+    e = basic.extractProperty(property="name", field="data")
+    e = e.as_function(single_in=True, single_out=True)
+    assert e({"data": {"name": "Charlie"}}) == "Charlie"
+
+    # Test with set_as parameter (adding result as a new field)
+    e = basic.extractProperty(property="name", set_as="extracted_name")
+    e = e.as_function(single_in=True, single_out=True)
+    result = e({"name": "David", "age": 35})
+    assert result == {"name": "David", "age": 35, "extracted_name": "David"}
 
 def test_MakeDictSegment():
     mdt = basic.ToDict()

@@ -3,6 +3,7 @@ import logging
 import lancedb
 import uuid
 import numpy as np
+from datetime import timedelta
 from talkpipe.chatterlang import register_segment
 from talkpipe import segment
 from talkpipe.util.data_manipulation import extract_property, VectorLike, Document, DocID, toDict
@@ -19,7 +20,8 @@ def search_lancedb(items: Annotated[object, "Items with the query vectors"],
                    field: Annotated[str, "Field with the vector"]=None,
                    set_as: Annotated[str, "Set the results as this variable"]=None,
                    limit: Annotated[int, "Number of results to return per query"]=10,
-                   vector_dim: Annotated[Optional[int], "Expected dimension of vectors"]=None
+                   vector_dim: Annotated[Optional[int], "Expected dimension of vectors"]=None,
+                   read_consistency_interval: Annotated[int, "Read consistency interval in seconds"]=10
                 ):
     """Search for similar vectors in LanceDB and return SearchResult objects.
 
@@ -33,7 +35,7 @@ def search_lancedb(items: Annotated[object, "Items with the query vectors"],
         raise ValueError("If 'set_as' is provided, 'all_results_at_once' must be True.")
 
     # Use LanceDBDocumentStore for consistent interface
-    doc_store = LanceDBDocumentStore(path, table_name, vector_dim)
+    doc_store = LanceDBDocumentStore(path, table_name, vector_dim, read_consistency_interval)
 
     for item in items:
         if field:
@@ -111,8 +113,7 @@ def add_to_lancedb(items: Annotated[object, "Items with the vectors and document
             if isinstance(item, dict):
                 metadata = {k: v for k, v in item.items() if k != vector_field}
             else:
-                # If item is not a dict (e.g., raw vector), create minimal metadata
-                metadata = {"item_type": str(type(item).__name__)}
+                raise ValueError("If 'metadata_field_list' is not provided, item must be a dict to extract fields.")
 
         # Convert metadata to Document format (string keys and values)
         document = {str(k): str(v) for k, v in metadata.items()}
@@ -130,7 +131,7 @@ def add_to_lancedb(items: Annotated[object, "Items with the vectors and document
 class LanceDBDocumentStore(DocumentStore, VectorAddable, VectorSearchable):
     """A LanceDB-based document store that implements vector storage and search capabilities."""
 
-    def __init__(self, path: str, table_name: str = "documents", vector_dim: Optional[int] = None):
+    def __init__(self, path: str, table_name: str = "documents", vector_dim: Optional[int] = None, read_consistency_interval: int = 10):
         """
         Initialize the LanceDB document store.
 
@@ -144,11 +145,17 @@ class LanceDBDocumentStore(DocumentStore, VectorAddable, VectorSearchable):
         self.vector_dim = vector_dim
         self._db = None
         self._table = None
+        self.read_consistency_interval = read_consistency_interval
 
     def _get_db(self):
         """Get or create database connection."""
         if self._db is None:
-            self._db = lancedb.connect(self.path)
+            # Convert integer seconds to timedelta if needed
+            if self.read_consistency_interval is not None:
+                interval = timedelta(seconds=self.read_consistency_interval)
+            else:
+                interval = None
+            self._db = lancedb.connect(self.path, read_consistency_interval=interval)
         return self._db
 
     def _get_table(self, schema_if_missing=None):
@@ -324,3 +331,4 @@ class LanceDBDocumentStore(DocumentStore, VectorAddable, VectorSearchable):
             return [result["id"] for result in results]
         except Exception:
             return []
+

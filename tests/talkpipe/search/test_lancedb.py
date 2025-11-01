@@ -2,7 +2,8 @@ import pytest
 from unittest import mock
 import tempfile
 import os
-from talkpipe.search.lancedb import search_lancedb, add_to_lancedb
+import time
+from talkpipe.search.lancedb import search_lancedb, add_to_lancedb, LanceDBDocumentStore
 
 
 @pytest.fixture
@@ -15,8 +16,7 @@ def temp_db_path():
 def sample_items():
     return [
         {"vector": [1.0, 2.0, 3.0], "text": "first item"},
-        {"vector": [4.0, 5.0, 6.0], "text": "second item"},
-        [7.0, 8.0, 9.0]  # Vector without field
+        {"vector": [4.0, 5.0, 6.0], "text": "second item"}
     ]
 
 @pytest.fixture
@@ -64,7 +64,7 @@ class TestSearchLanceDB:
         seg = search_lancedb(path=temp_db_path, table_name="test_table", field="vector", limit=5)
         results = list(seg(items_to_search))
 
-        mock_doc_store_class.assert_called_once_with(temp_db_path, "test_table", None)
+        mock_doc_store_class.assert_called_once_with(temp_db_path, "test_table", None, 10)
         mock_extract_property.assert_called_once_with(sample_items[0], "vector")
         mock_doc_store.vector_search.assert_called_once_with([1.0, 2.0, 3.0], 5)
 
@@ -72,16 +72,17 @@ class TestSearchLanceDB:
         assert results == sample_search_results
 
     @mock.patch('talkpipe.search.lancedb.LanceDBDocumentStore')
-    def test_search_lancedb_without_field(self, mock_doc_store_class, sample_items, sample_search_results, temp_db_path):
+    def test_search_lancedb_without_field(self, mock_doc_store_class, sample_search_results, temp_db_path):
         mock_doc_store = mock.Mock()
         mock_doc_store_class.return_value = mock_doc_store
         mock_doc_store.vector_search.return_value = sample_search_results
 
-        items_to_search = [sample_items[2]]  # Raw vector
+        # Test with a raw vector (not from dict field)
+        items_to_search = [[7.0, 8.0, 9.0]]
         seg = search_lancedb(path=temp_db_path, table_name="test_table", limit=3)
         results = list(seg(items_to_search))
 
-        mock_doc_store_class.assert_called_once_with(temp_db_path, "test_table", None)
+        mock_doc_store_class.assert_called_once_with(temp_db_path, "test_table", None, 10)
         mock_doc_store.vector_search.assert_called_once_with([7.0, 8.0, 9.0], 3)
 
         assert len(results) == 2
@@ -136,12 +137,13 @@ class TestSearchLanceDB:
         assert len(results) == 4  # 2 results per item * 2 items
 
     @mock.patch('talkpipe.search.lancedb.LanceDBDocumentStore')
-    def test_search_lancedb_default_limit(self, mock_doc_store_class, sample_items, sample_search_results, temp_db_path):
+    def test_search_lancedb_default_limit(self, mock_doc_store_class, sample_search_results, temp_db_path):
         mock_doc_store = mock.Mock()
         mock_doc_store_class.return_value = mock_doc_store
         mock_doc_store.vector_search.return_value = sample_search_results
 
-        items_to_search = [sample_items[2]]
+        # Test with a raw vector to verify default limit
+        items_to_search = [[7.0, 8.0, 9.0]]
         seg = search_lancedb(path=temp_db_path, table_name="test_table")
         list(seg(items_to_search))
 
@@ -208,19 +210,17 @@ class TestAddToLanceDB:
     def test_add_to_lancedb_yields_original_items(self, mock_extract_property, mock_doc_store_class, sample_items, temp_db_path):
         mock_doc_store = mock.Mock()
         mock_doc_store_class.return_value = mock_doc_store
-        mock_doc_store.add_vector.side_effect = ["doc1", "doc2", "doc3"]
-        mock_extract_property.side_effect = [[1.0, 2.0, 3.0], [4.0, 5.0, 6.0], [7.0, 8.0, 9.0]]
+        mock_doc_store.add_vector.side_effect = ["doc1", "doc2"]
+        mock_extract_property.side_effect = [[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]]
 
         items_to_add = sample_items
         seg = add_to_lancedb(path=temp_db_path, table_name="test_table", vector_field="vector")
         results = list(seg(items_to_add))
 
-        # Function should yield back the original items with _doc_id added (for dict items only)
-        assert len(results) == 3
+        # Function should yield back the original items with _doc_id added
+        assert len(results) == 2
         assert results[0]["_doc_id"] == "doc1"
         assert results[1]["_doc_id"] == "doc2"
-        # The third item is a list, so it doesn't get _doc_id added
-        assert results[2] == [7.0, 8.0, 9.0]
 
 
 def test_add_and_search_integration(temp_db_path, sample_items_direction_relevant):
@@ -237,3 +237,65 @@ def test_add_and_search_integration(temp_db_path, sample_items_direction_relevan
     assert len(results) == 2  # Should return 2 SearchResult objects
     assert results[0].document["text"] == "third item"
     assert results[1].document["text"] == "second item"
+
+
+def test_read_consistency_interval(temp_db_path):
+    """Test that documents cannot be retrieved before read_consistency_interval passes.
+
+    This test demonstrates that when using a read_consistency_interval, a connection
+    that has cached table metadata will not see new writes from other connections
+    until the interval has passed.
+    """
+    # Create a short read_consistency_interval for testing
+    read_interval = 2  # 2 seconds
+
+    # Create first document store and add initial data to establish the table
+    # This will cache the table metadata
+    reader_store = LanceDBDocumentStore(
+        path=temp_db_path,
+        table_name="consistency_test",
+        vector_dim=3,
+        read_consistency_interval=read_interval
+    )
+
+    # Add initial document to create the table
+    initial_vector = [0.0, 0.0, 0.0]
+    initial_document = {"text": "initial document", "category": "initial"}
+    initial_doc_id = reader_store.add_vector(initial_vector, initial_document)
+
+    # Verify initial document is readable
+    assert reader_store.get_document(initial_doc_id) is not None
+
+    # Force table to be opened and cached by performing a count operation
+    initial_count = reader_store.count()
+    assert initial_count == 1
+
+    # Now create a WRITER connection (separate connection) and add a new document
+    writer_store = LanceDBDocumentStore(
+        path=temp_db_path,
+        table_name="consistency_test",
+        vector_dim=3,
+        read_consistency_interval=read_interval
+    )
+
+    test_vector = [1.0, 2.0, 3.0]
+    test_document = {"text": "new document", "category": "test"}
+    new_doc_id = writer_store.add_vector(test_vector, test_document)
+
+    # The reader connection should still see only 1 document (cached metadata)
+    # because the read_consistency_interval hasn't passed
+    count_before_wait = reader_store.count()
+    assert count_before_wait == 1, f"Reader should not see new document before interval passes, but saw {count_before_wait} documents"
+
+    # Wait for the read_consistency_interval to pass
+    time.sleep(read_interval + 0.5)  # Add 0.5s buffer to ensure interval has passed
+
+    # Now the reader should see the new document after the interval
+    count_after_wait = reader_store.count()
+    assert count_after_wait == 2, f"Reader should see new document after interval passes, but saw {count_after_wait} documents"
+
+    # Verify we can now retrieve the new document
+    retrieved_doc = reader_store.get_document(new_doc_id)
+    assert retrieved_doc is not None, "New document should be retrievable after consistency interval passes"
+    assert retrieved_doc["text"] == "new document"
+    assert retrieved_doc["category"] == "test"
