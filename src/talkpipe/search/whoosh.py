@@ -203,13 +203,13 @@ def WhooshWriter(index_path: str, fields: list[str] = None, overwrite: bool = Fa
             return getattr(self.idx, name)
     
     wrapper = WriterWrapper(idx, writer, commit_seconds)
-    
+
     try:
         yield wrapper
-        writer.commit()
+        wrapper.writer.commit()
         logger.debug("Successfully committed index changes")
     except Exception as e:
-        writer.cancel()
+        wrapper.writer.cancel()
         raise
     finally:
         idx.close()

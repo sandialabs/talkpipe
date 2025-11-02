@@ -231,9 +231,9 @@ def extractProperty(item,
     return extract_property(item, property)
 
 @registry.register_segment("set")
-@segment
-def assign(items: Annotated[Iterator[Any], "The input item to modify"], 
-           value: Annotated[Any, "The value to assign"], 
+@segment()
+def assign(items: Annotated[Iterator[Any], "The input item to modify"],
+           value: Annotated[Any, "The value to assign"],
            set_as: Annotated[str, "The field to assign the value to"]):
     """Assigns the specified value to the specified field.
 

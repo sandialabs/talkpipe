@@ -469,6 +469,12 @@ def test_lambdaFilter():
     ans = list(f([{"x": 3}, {"x": 2}, {"x": 4}]))
     assert ans == [{"x": 3}, {"x": 4}]
 
+    # Test with field=None (use item directly, not extracting a field)
+    f = basic.FilterExpression("item>2", field=None)
+    f = f.as_function()
+    ans = list(f([1, 2, 3, 4]))
+    assert ans == [3, 4]
+
 def test_longestStr():
     f = basic.longestStr(field_list="x,y")
     f = f.as_function(single_in=False, single_out=False)
@@ -492,3 +498,176 @@ def test_sleep():
     elapsed = end_time - start_time
     # Should have slept approximately 2 times (after 2nd and 4th items)
     assert 2 <= elapsed < 4
+
+
+# Additional tests for increased coverage
+
+
+def test_cast_fail_not_silently():
+    """Test Cast with fail_silently=False."""
+    ct = basic.Cast(int, fail_silently=False)
+    assert list(ct.transform([1, "2"])) == [1, 2]
+
+    # Should raise ValueError when cast fails
+    with pytest.raises(ValueError, match="Could not cast"):
+        list(ct.transform(["not_a_number"]))
+
+
+def test_formatted_item():
+    """Test FormattedItem segment."""
+    fi = basic.FormattedItem(field_list="title,content")
+    result = list(fi.transform([{"title": "Hello", "content": "World"}]))
+    assert len(result) == 1
+    assert "title: Hello" in result[0]
+    assert "content: World" in result[0]
+
+    # Test with custom separators
+    fi = basic.FormattedItem(
+        field_list="a,b",
+        field_name_separator=" = ",
+        field_separator=" | ",
+        item_suffix="END"
+    )
+    result = list(fi.transform([{"a": "1", "b": "2"}]))
+    assert len(result) == 1
+    assert "a = 1" in result[0]
+    assert "b = 2" in result[0]
+    assert "END" in result[0]
+
+
+def test_assign_segment():
+    """Test assign (set) segment."""
+    # Call the assign function through the decorator-created class
+    from talkpipe.chatterlang import compile
+    f = compile('| set[value=42, set_as="answer"]')
+    result = list(f([{"x": 1}, {"y": 2}]))
+    assert result == [{"x": 1, "answer": 42}, {"y": 2, "answer": 42}]
+
+
+def test_concat_with_set_as():
+    """Test concat with set_as parameter."""
+    c = basic.concat(fields="a,b", delimiter=" ", set_as="combined")
+    c = c.as_function(single_in=True, single_out=True)
+    result = c({"a": "hello", "b": "world"})
+    assert result == {"a": "hello", "b": "world", "combined": "hello world"}
+
+
+def test_longestStr_with_none_field():
+    """Test longestStr when field is None or missing."""
+    f = basic.longestStr(field_list="x,y,z")
+    f = f.as_function(single_in=False, single_out=False)
+    # Test with missing field (z doesn't exist)
+    result = list(f([{"x": "short", "y": "longest"}]))
+    assert result == ["longest"]
+
+    # Test with set_as
+    f = basic.longestStr(field_list="a,b", set_as="result")
+    f = f.as_function(single_in=False, single_out=False)
+    result = list(f([{"a": "tiny", "b": None}]))
+    assert result[0]["result"] == "tiny"
+
+
+def test_configure_logger():
+    """Test ConfigureLogger segment."""
+    cl = basic.ConfigureLogger(logger_levels="test:DEBUG")
+    result = list(cl.transform([1, 2, 3]))
+    assert result == [1, 2, 3]  # Should pass through unchanged
+
+
+def test_hash_data_with_none_and_fail_on_missing():
+    """Test hash_data when field value is None and fail_on_missing is True."""
+    with pytest.raises(ValueError, match="Field .* value was None"):
+        basic.hash_data({"a": None}, field_list=["a"], fail_on_missing=True)
+
+
+def test_hash_data_with_none_and_not_fail_on_missing():
+    """Test hash_data when field value is None and fail_on_missing is False."""
+    # Should log a warning but not raise
+    result = basic.hash_data({"a": None}, field_list=["a"], fail_on_missing=False)
+    assert isinstance(result, str)
+
+
+def test_hash_data_json_fallback():
+    """Test hash_data JSON serialization fallback for non-JSON-serializable objects."""
+    class CustomObject:
+        def __init__(self, value):
+            self.value = value
+
+        def __repr__(self):
+            return f"CustomObject({self.value})"
+
+        def __str__(self):
+            # Make str() raise an exception to force JSON fallback to repr
+            raise TypeError("Cannot convert to string")
+
+    obj = CustomObject(42)
+    # Should use JSON first, then fallback to repr when JSON fails
+    result = basic.hash_data(obj, use_repr=False)
+    assert isinstance(result, str)
+
+    # Also test with a set, which is not JSON serializable
+    result2 = basic.hash_data({"a": {1, 2, 3}}, field_list=["a"], use_repr=False)
+    assert isinstance(result2, str)
+
+
+def test_hash_invalid_algorithm():
+    """Test Hash segment with invalid algorithm."""
+    with pytest.raises(ValueError, match="Unsupported or insecure hash algorithm"):
+        basic.Hash(algorithm="MD5")
+
+    with pytest.raises(ValueError, match="Unsupported or insecure hash algorithm"):
+        basic.Hash(algorithm="invalid_algo")
+
+
+def test_fillTemplate_none_template():
+    """Test fillTemplate with None template."""
+    f = basic.fillTemplate(template=None)
+    f = f.as_function(single_in=True, single_out=True)
+
+    with pytest.raises(ValueError, match="Template cannot be None"):
+        f({"name": "World"})
+
+
+def test_lambda_error_handling():
+    """Test EvalExpression error handling."""
+    f = basic.EvalExpression("1/item")
+    f = f.as_function()
+
+    # Should raise an error when dividing by zero
+    with pytest.raises(Exception):
+        list(f([0]))
+
+
+def test_copy_segment():
+    """Test copy segment."""
+    c = basic.copy_segment()
+    c = c.as_function(single_in=False, single_out=False)
+
+    original = [{"a": 1}, {"b": 2}]
+    result = list(c(original))
+
+    # Should be equal but not the same object
+    assert result == original
+    assert result[0] is not original[0]
+
+    # Modifying the copy shouldn't affect the original
+    result[0]["a"] = 99
+    assert original[0]["a"] == 1
+
+
+def test_deep_copy_segment():
+    """Test deep copy segment."""
+    dc = basic.deep_copy_segment()
+    dc = dc.as_function(single_in=False, single_out=False)
+
+    original = [{"a": {"nested": 1}}, {"b": [1, 2, 3]}]
+    result = list(dc(original))
+
+    # Should be equal but not the same object
+    assert result == original
+    assert result[0] is not original[0]
+    assert result[0]["a"] is not original[0]["a"]
+
+    # Modifying nested structures shouldn't affect the original
+    result[0]["a"]["nested"] = 99
+    assert original[0]["a"]["nested"] == 1
