@@ -9,6 +9,9 @@
 - Added **makeVectorDatabase** segment to create vector databases in LanceDB by embedding documents
   and storing them with their metadata. Supports custom embedding models, table names, document IDs,
   and overwrite options.
+- Added **searchVectorDatabase** segment to search vector databases in LanceDB. Accepts either string
+  queries or dictionary inputs with a query field. Search results can be yielded directly or attached
+  to the input item. Supports custom embedding models, result limits, and read consistency intervals.
 
 ### Breaking Changes
 - Removed deprecated **simplevectordb** module. Users should migrate to **LanceDBDocumentStore** from
