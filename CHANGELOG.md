@@ -12,6 +12,11 @@
 - Added **searchVectorDatabase** segment to search vector databases in LanceDB. Accepts either string
   queries or dictionary inputs with a query field. Search results can be yielded directly or attached
   to the input item. Supports custom embedding models, result limits, and read consistency intervals.
+- Added **ragToText** end-to-end RAG pipeline convenience segment that combines vector database search,
+  prompt construction, and LLM completion into a single pipeline. Automatically retrieves relevant
+  documents from a vector database, constructs a RAG prompt with background context, and generates
+  completions using the specified LLM. Supports configurable prompt directives, result limits, and
+  field assignments.
 
 ### Breaking Changes
 - Removed deprecated **simplevectordb** module. Users should migrate to **LanceDBDocumentStore** from

@@ -1,4 +1,4 @@
-from typing import List, Optional, Tuple, Union, Protocol
+from typing import List, Optional, Tuple, Union, Annotated, Protocol
 from pydantic import BaseModel
 
 from talkpipe.util.data_manipulation import VectorLike, Document, DocID
@@ -7,6 +7,19 @@ class SearchResult(BaseModel):
     score: float
     doc_id: DocID
     document: Optional[Document] = None
+
+    def prompt_worthy_string(self, priority_fields: Annotated[List[str], "Fields to list first in output string if they exist in the document"]) -> str:
+        """Convert the SearchResult to a string suitable for inclusion in prompts."""
+
+        ans = []
+        for field in priority_fields:
+            if field in self.document:
+                ans.append(f"{field.capitalize()}: {self.document[field]}")
+        for key in self.document:
+            if key not in priority_fields:
+                ans.append(f"{key.capitalize()}: {self.document[key]}")
+        return "\n".join(ans)
+
 
 class DocumentStore(Protocol):
     """Abstract base class for a document store."""

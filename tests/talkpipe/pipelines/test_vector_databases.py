@@ -1,7 +1,7 @@
 import pytest
 import tempfile
 import os
-from talkpipe.pipelines.dataembedders import MakeVectorDatabaseSegment, SearchVectorDatabaseSegment
+from talkpipe.pipelines.vector_databases import MakeVectorDatabaseSegment, SearchVectorDatabaseSegment
 from talkpipe.search.lancedb import LanceDBDocumentStore
 from talkpipe.search.abstract import SearchResult
 
