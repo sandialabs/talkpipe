@@ -41,7 +41,7 @@ dependencies = [
     'lancedb',
     'deprecated',
     'pyyaml',
-    
+
     # Security override: starlette is a transitive dependency, pinned here
     # to fix CVE-2025-62727 (DoS vulnerability). Remove once parent 
     # dependency (e.g., FastAPI) requires starlette>=0.49.1
@@ -109,6 +109,7 @@ addToLanceDB = "talkpipe.talkpipe.search.lancedb:add_to_lancedb"
 cast = "talkpipe.talkpipe.pipe.basic:Cast"
 concat = "talkpipe.talkpipe.pipe.basic:concat"
 configureLogger = "talkpipe.talkpipe.pipe.basic:ConfigureLogger"
+constructRagPrompt = "talkpipe.talkpipe.pipelines.basic_rag:ConstructRAGPrompt"
 copy = "talkpipe.talkpipe.pipe.basic:copy_segment"
 deepCopy = "talkpipe.talkpipe.pipe.basic:deep_copy_segment"
 describe = "talkpipe.talkpipe.pipe.basic:DescribeData"
@@ -146,12 +147,15 @@ longestStr = "talkpipe.talkpipe.pipe.basic:longestStr"
 lt = "talkpipe.talkpipe.pipe.math:lt"
 lte = "talkpipe.talkpipe.pipe.math:lte"
 makeLists = "talkpipe.talkpipe.operations.transforms:MakeLists"
-makeVectorDatabase = "talkpipe.talkpipe.pipelines.dataembedders:MakeVectorDatabaseSegment"
+makeVectorDatabase = "talkpipe.talkpipe.pipelines.vector_databases:MakeVectorDatabaseSegment"
 mongoInsert = "talkpipe.talkpipe.data.mongo:MongoInsert"
 mongoSearch = "talkpipe.talkpipe.data.mongo:MongoSearch"
 neq = "talkpipe.talkpipe.pipe.math:neq"
 print = "talkpipe.talkpipe.pipe.io:Print"
 progressTicks = "talkpipe.talkpipe.pipe.basic:progressTicks"
+ragToBinaryAnswer = "talkpipe.talkpipe.pipelines.basic_rag:RAGToBinaryAnswer"
+ragToScore = "talkpipe.talkpipe.pipelines.basic_rag:RAGToScore"
+ragToText = "talkpipe.talkpipe.pipelines.basic_rag:RAGToText"
 readFile = "talkpipe.talkpipe.data.extraction:ReadFile"
 readJsonl = "talkpipe.talkpipe.pipe.io:readJsonl"
 readdocx = "talkpipe.talkpipe.data.extraction:readdocx"
@@ -161,7 +165,7 @@ regexReplace = "talkpipe.talkpipe.operations.transforms:regex_replace"
 scale = "talkpipe.talkpipe.pipe.math:scale"
 searchLancDB = "talkpipe.talkpipe.search.lancedb:search_lancedb"
 searchLanceDB = "talkpipe.talkpipe.search.lancedb:search_lancedb"
-searchVectorDatabase = "talkpipe.talkpipe.pipelines.dataembedders:SearchVectorDatabaseSegment"
+searchVectorDatabase = "talkpipe.talkpipe.pipelines.vector_databases:SearchVectorDatabaseSegment"
 searchWhoosh = "talkpipe.talkpipe.search.whoosh:searchWhoosh"
 sendEmail = "talkpipe.talkpipe.data.email:sendEmail"
 set = "talkpipe.talkpipe.pipe.basic:assign"

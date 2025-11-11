@@ -668,3 +668,553 @@ def test_rag_to_text_nested_content_field(requires_ollama, temp_vector_db_path, 
     assert result["id"] == "q1"
     assert "answer" in result
     assert isinstance(result["answer"], str)
+
+
+# Tests for RAGToBinaryAnswer segment
+
+def test_rag_to_binary_answer_basic_functionality(requires_ollama, temp_vector_db_path, sample_knowledge_base):
+    """Test basic end-to-end functionality of RAGToBinaryAnswer segment."""
+    from talkpipe.pipelines.vector_databases import MakeVectorDatabaseSegment
+    from talkpipe.pipelines.basic_rag import RAGToBinaryAnswer
+
+    # First, create and populate the vector database
+    make_db_segment = MakeVectorDatabaseSegment(
+        embedding_field="text",
+        embedding_model="mxbai-embed-large",
+        embedding_source="ollama",
+        path=temp_vector_db_path,
+        doc_id_field="id",
+        overwrite=True
+    )
+    list(make_db_segment.transform(sample_knowledge_base))
+
+    # Now test RAGToBinaryAnswer with a query
+    rag_segment = RAGToBinaryAnswer(
+        embedding_model="mxbai-embed-large",
+        embedding_source="ollama",
+        completion_model="llama3.2",
+        completion_source="ollama",
+        path=temp_vector_db_path,
+        content_field="query",
+        prompt_directive="Based on the background information, answer YES or NO: Is Python mentioned as a programming language?",
+        set_as="answer",
+        limit=3
+    )
+
+    # Query about Python
+    query_items = [{"query": "Is Python a programming language?", "id": "q1"}]
+    results = list(rag_segment.transform(query_items))
+
+    # Verify results
+    assert len(results) == 1
+    result = results[0]
+
+    # Original fields should be preserved
+    assert result["query"] == "Is Python a programming language?"
+    assert result["id"] == "q1"
+
+    # Answer should be present and structured
+    assert "answer" in result
+    # Result is a Pydantic model (LlmBinaryAnswer.Answer)
+    answer_obj = result["answer"]
+    assert hasattr(answer_obj, "answer")
+    assert hasattr(answer_obj, "explanation")
+    assert isinstance(answer_obj.answer, bool)
+    assert isinstance(answer_obj.explanation, str)
+
+
+def test_rag_to_binary_answer_without_set_as(requires_ollama, temp_vector_db_path, sample_knowledge_base):
+    """Test RAGToBinaryAnswer when set_as is None (yields binary answer directly)."""
+    from talkpipe.pipelines.vector_databases import MakeVectorDatabaseSegment
+    from talkpipe.pipelines.basic_rag import RAGToBinaryAnswer
+
+    # Create and populate the vector database
+    make_db_segment = MakeVectorDatabaseSegment(
+        embedding_field="text",
+        embedding_model="mxbai-embed-large",
+        embedding_source="ollama",
+        path=temp_vector_db_path,
+        doc_id_field="id",
+        overwrite=True
+    )
+    list(make_db_segment.transform(sample_knowledge_base))
+
+    # Test RAGToBinaryAnswer without set_as
+    rag_segment = RAGToBinaryAnswer(
+        embedding_model="mxbai-embed-large",
+        embedding_source="ollama",
+        completion_model="llama3.2",
+        completion_source="ollama",
+        path=temp_vector_db_path,
+        content_field="query",
+        prompt_directive="Based on the background, answer YES or NO: Is this about technology?",
+        set_as=None,
+        limit=2
+    )
+
+    query_items = [{"query": "Is machine learning related to technology?"}]
+    results = list(rag_segment.transform(query_items))
+
+    # When set_as is None, should yield the binary answer directly
+    assert len(results) == 1
+    result = results[0]
+
+    # Result should be a Pydantic model with answer and explanation
+    assert hasattr(result, "answer")
+    assert hasattr(result, "explanation")
+    assert isinstance(result.answer, bool)
+    assert isinstance(result.explanation, str)
+
+
+def test_rag_to_binary_answer_with_different_limit(requires_ollama, temp_vector_db_path, sample_knowledge_base):
+    """Test RAGToBinaryAnswer with different limit values for search results."""
+    from talkpipe.pipelines.vector_databases import MakeVectorDatabaseSegment
+    from talkpipe.pipelines.basic_rag import RAGToBinaryAnswer
+
+    # Create and populate the vector database
+    make_db_segment = MakeVectorDatabaseSegment(
+        embedding_field="text",
+        embedding_model="mxbai-embed-large",
+        embedding_source="ollama",
+        path=temp_vector_db_path,
+        doc_id_field="id",
+        overwrite=True
+    )
+    list(make_db_segment.transform(sample_knowledge_base))
+
+    # Test with limit=1 (only top result)
+    rag_segment = RAGToBinaryAnswer(
+        embedding_model="mxbai-embed-large",
+        embedding_source="ollama",
+        completion_model="llama3.2",
+        completion_source="ollama",
+        path=temp_vector_db_path,
+        content_field="query",
+        prompt_directive="Answer YES or NO: Does the background mention neural networks?",
+        set_as="answer",
+        limit=1
+    )
+
+    query_items = [{"query": "Are neural networks discussed?"}]
+    results = list(rag_segment.transform(query_items))
+
+    assert len(results) == 1
+    assert "answer" in results[0]
+    answer_obj = results[0]["answer"]
+    assert hasattr(answer_obj, "answer")
+    assert isinstance(answer_obj.answer, bool)
+
+
+def test_rag_to_binary_answer_multiple_queries(requires_ollama, temp_vector_db_path, sample_knowledge_base):
+    """Test RAGToBinaryAnswer processing multiple queries."""
+    from talkpipe.pipelines.vector_databases import MakeVectorDatabaseSegment
+    from talkpipe.pipelines.basic_rag import RAGToBinaryAnswer
+
+    # Create and populate the vector database
+    make_db_segment = MakeVectorDatabaseSegment(
+        embedding_field="text",
+        embedding_model="mxbai-embed-large",
+        embedding_source="ollama",
+        path=temp_vector_db_path,
+        doc_id_field="id",
+        overwrite=True
+    )
+    list(make_db_segment.transform(sample_knowledge_base))
+
+    # Test with multiple queries
+    rag_segment = RAGToBinaryAnswer(
+        embedding_model="mxbai-embed-large",
+        embedding_source="ollama",
+        completion_model="llama3.2",
+        completion_source="ollama",
+        path=temp_vector_db_path,
+        content_field="query",
+        prompt_directive="Answer YES or NO based on the background information.",
+        set_as="answer",
+        limit=2
+    )
+
+    query_items = [
+        {"query": "Is Python discussed?", "id": "q1"},
+        {"query": "Is Java discussed?", "id": "q2"},
+        {"query": "Is pandas discussed?", "id": "q3"}
+    ]
+
+    results = list(rag_segment.transform(query_items))
+
+    # Should process all queries
+    assert len(results) == 3
+
+    # Each result should have a binary answer
+    for i, result in enumerate(results):
+        assert result["id"] == query_items[i]["id"]
+        assert result["query"] == query_items[i]["query"]
+        assert "answer" in result
+        answer_obj = result["answer"]
+        assert hasattr(answer_obj, "answer")
+        assert hasattr(answer_obj, "explanation")
+        assert isinstance(answer_obj.answer, bool)
+        assert isinstance(answer_obj.explanation, str)
+
+
+def test_rag_to_binary_answer_nested_content_field(requires_ollama, temp_vector_db_path, sample_knowledge_base):
+    """Test RAGToBinaryAnswer with nested field access for content."""
+    from talkpipe.pipelines.vector_databases import MakeVectorDatabaseSegment
+    from talkpipe.pipelines.basic_rag import RAGToBinaryAnswer
+
+    # Create and populate the vector database
+    make_db_segment = MakeVectorDatabaseSegment(
+        embedding_field="text",
+        embedding_model="mxbai-embed-large",
+        embedding_source="ollama",
+        path=temp_vector_db_path,
+        doc_id_field="id",
+        overwrite=True
+    )
+    list(make_db_segment.transform(sample_knowledge_base))
+
+    # Test with nested content field
+    rag_segment = RAGToBinaryAnswer(
+        embedding_model="mxbai-embed-large",
+        embedding_source="ollama",
+        completion_model="llama3.2",
+        completion_source="ollama",
+        path=temp_vector_db_path,
+        content_field="user.question",
+        prompt_directive="Answer YES or NO based on the background.",
+        set_as="answer",
+        limit=2
+    )
+
+    query_items = [{"user": {"question": "Is Python mentioned?"}, "id": "q1"}]
+    results = list(rag_segment.transform(query_items))
+
+    assert len(results) == 1
+    result = results[0]
+    assert result["id"] == "q1"
+    assert "answer" in result
+    answer_obj = result["answer"]
+    assert hasattr(answer_obj, "answer")
+    assert isinstance(answer_obj.answer, bool)
+
+
+# Tests for RAGToScore segment
+
+def test_rag_to_score_basic_functionality(requires_ollama, temp_vector_db_path, sample_knowledge_base):
+    """Test basic end-to-end functionality of RAGToScore segment."""
+    from talkpipe.pipelines.vector_databases import MakeVectorDatabaseSegment
+    from talkpipe.pipelines.basic_rag import RAGToScore
+
+    # First, create and populate the vector database
+    make_db_segment = MakeVectorDatabaseSegment(
+        embedding_field="text",
+        embedding_model="mxbai-embed-large",
+        embedding_source="ollama",
+        path=temp_vector_db_path,
+        doc_id_field="id",
+        overwrite=True
+    )
+    list(make_db_segment.transform(sample_knowledge_base))
+
+    # Now test RAGToScore with a query
+    rag_segment = RAGToScore(
+        embedding_model="mxbai-embed-large",
+        embedding_source="ollama",
+        completion_model="llama3.2",
+        completion_source="ollama",
+        path=temp_vector_db_path,
+        content_field="query",
+        prompt_directive="Based on the background information, rate from 0-100 how relevant the background is to the query (0=not relevant, 100=highly relevant).",
+        set_as="score_result",
+        limit=3
+    )
+
+    # Query about Python
+    query_items = [{"query": "Tell me about Python programming", "id": "q1"}]
+    results = list(rag_segment.transform(query_items))
+
+    # Verify results
+    assert len(results) == 1
+    result = results[0]
+
+    # Original fields should be preserved
+    assert result["query"] == "Tell me about Python programming"
+    assert result["id"] == "q1"
+
+    # Score result should be present and structured
+    assert "score_result" in result
+    # Result is a Pydantic model (LlmScore.Score)
+    score_obj = result["score_result"]
+    assert hasattr(score_obj, "score")
+    assert hasattr(score_obj, "explanation")
+    assert isinstance(score_obj.score, int)
+    assert isinstance(score_obj.explanation, str)
+    # Score should be in a reasonable range
+    assert 0 <= score_obj.score <= 100
+
+
+def test_rag_to_score_without_set_as(requires_ollama, temp_vector_db_path, sample_knowledge_base):
+    """Test RAGToScore when set_as is None (yields score directly)."""
+    from talkpipe.pipelines.vector_databases import MakeVectorDatabaseSegment
+    from talkpipe.pipelines.basic_rag import RAGToScore
+
+    # Create and populate the vector database
+    make_db_segment = MakeVectorDatabaseSegment(
+        embedding_field="text",
+        embedding_model="mxbai-embed-large",
+        embedding_source="ollama",
+        path=temp_vector_db_path,
+        doc_id_field="id",
+        overwrite=True
+    )
+    list(make_db_segment.transform(sample_knowledge_base))
+
+    # Test RAGToScore without set_as
+    rag_segment = RAGToScore(
+        embedding_model="mxbai-embed-large",
+        embedding_source="ollama",
+        completion_model="llama3.2",
+        completion_source="ollama",
+        path=temp_vector_db_path,
+        content_field="query",
+        prompt_directive="Rate 0-100 how relevant the background is to machine learning.",
+        set_as=None,
+        limit=2
+    )
+
+    query_items = [{"query": "What is machine learning?"}]
+    results = list(rag_segment.transform(query_items))
+
+    # When set_as is None, should yield the score directly
+    assert len(results) == 1
+    result = results[0]
+
+    # Result should be a Pydantic model with score and explanation
+    assert hasattr(result, "score")
+    assert hasattr(result, "explanation")
+    assert isinstance(result.score, int)
+    assert isinstance(result.explanation, str)
+    assert 0 <= result.score <= 100
+
+
+def test_rag_to_score_with_different_limit(requires_ollama, temp_vector_db_path, sample_knowledge_base):
+    """Test RAGToScore with different limit values for search results."""
+    from talkpipe.pipelines.vector_databases import MakeVectorDatabaseSegment
+    from talkpipe.pipelines.basic_rag import RAGToScore
+
+    # Create and populate the vector database
+    make_db_segment = MakeVectorDatabaseSegment(
+        embedding_field="text",
+        embedding_model="mxbai-embed-large",
+        embedding_source="ollama",
+        path=temp_vector_db_path,
+        doc_id_field="id",
+        overwrite=True
+    )
+    list(make_db_segment.transform(sample_knowledge_base))
+
+    # Test with limit=1 (only top result)
+    rag_segment = RAGToScore(
+        embedding_model="mxbai-embed-large",
+        embedding_source="ollama",
+        completion_model="llama3.2",
+        completion_source="ollama",
+        path=temp_vector_db_path,
+        content_field="query",
+        prompt_directive="Rate 0-100 the relevance of the background to neural networks.",
+        set_as="score_result",
+        limit=1
+    )
+
+    query_items = [{"query": "Tell me about neural networks"}]
+    results = list(rag_segment.transform(query_items))
+
+    assert len(results) == 1
+    assert "score_result" in results[0]
+    score_obj = results[0]["score_result"]
+    assert hasattr(score_obj, "score")
+    assert isinstance(score_obj.score, int)
+    assert 0 <= score_obj.score <= 100
+
+
+def test_rag_to_score_custom_prompt_directive(requires_ollama, temp_vector_db_path, sample_knowledge_base):
+    """Test RAGToScore with a custom prompt directive and scoring scale."""
+    from talkpipe.pipelines.vector_databases import MakeVectorDatabaseSegment
+    from talkpipe.pipelines.basic_rag import RAGToScore
+
+    # Create and populate the vector database
+    make_db_segment = MakeVectorDatabaseSegment(
+        embedding_field="text",
+        embedding_model="mxbai-embed-large",
+        embedding_source="ollama",
+        path=temp_vector_db_path,
+        doc_id_field="id",
+        overwrite=True
+    )
+    list(make_db_segment.transform(sample_knowledge_base))
+
+    # Test with custom prompt directive for quality scoring
+    custom_directive = "Rate the technical accuracy and completeness of the background information from 0-100 (0=inaccurate/incomplete, 100=highly accurate/complete)."
+
+    rag_segment = RAGToScore(
+        embedding_model="mxbai-embed-large",
+        embedding_source="ollama",
+        completion_model="llama3.2",
+        completion_source="ollama",
+        path=temp_vector_db_path,
+        content_field="query",
+        prompt_directive=custom_directive,
+        set_as="quality_score",
+        limit=3
+    )
+
+    query_items = [{"query": "Python programming language information"}]
+    results = list(rag_segment.transform(query_items))
+
+    assert len(results) == 1
+    result = results[0]
+    assert "quality_score" in result
+    score_obj = result["quality_score"]
+    assert hasattr(score_obj, "score")
+    assert hasattr(score_obj, "explanation")
+    assert isinstance(score_obj.score, int)
+    assert 0 <= score_obj.score <= 100
+
+
+def test_rag_to_score_multiple_queries(requires_ollama, temp_vector_db_path, sample_knowledge_base):
+    """Test RAGToScore processing multiple queries."""
+    from talkpipe.pipelines.vector_databases import MakeVectorDatabaseSegment
+    from talkpipe.pipelines.basic_rag import RAGToScore
+
+    # Create and populate the vector database
+    make_db_segment = MakeVectorDatabaseSegment(
+        embedding_field="text",
+        embedding_model="mxbai-embed-large",
+        embedding_source="ollama",
+        path=temp_vector_db_path,
+        doc_id_field="id",
+        overwrite=True
+    )
+    list(make_db_segment.transform(sample_knowledge_base))
+
+    # Test with multiple queries
+    rag_segment = RAGToScore(
+        embedding_model="mxbai-embed-large",
+        embedding_source="ollama",
+        completion_model="llama3.2",
+        completion_source="ollama",
+        path=temp_vector_db_path,
+        content_field="query",
+        prompt_directive="Rate 0-100 how relevant the background is to the query.",
+        set_as="relevance_score",
+        limit=2
+    )
+
+    query_items = [
+        {"query": "Python programming", "id": "q1"},
+        {"query": "Machine learning concepts", "id": "q2"},
+        {"query": "Data analysis with pandas", "id": "q3"}
+    ]
+
+    results = list(rag_segment.transform(query_items))
+
+    # Should process all queries
+    assert len(results) == 3
+
+    # Each result should have a score
+    for i, result in enumerate(results):
+        assert result["id"] == query_items[i]["id"]
+        assert result["query"] == query_items[i]["query"]
+        assert "relevance_score" in result
+        score_obj = result["relevance_score"]
+        assert hasattr(score_obj, "score")
+        assert hasattr(score_obj, "explanation")
+        assert isinstance(score_obj.score, int)
+        assert isinstance(score_obj.explanation, str)
+        assert 0 <= score_obj.score <= 100
+
+
+def test_rag_to_score_nested_content_field(requires_ollama, temp_vector_db_path, sample_knowledge_base):
+    """Test RAGToScore with nested field access for content."""
+    from talkpipe.pipelines.vector_databases import MakeVectorDatabaseSegment
+    from talkpipe.pipelines.basic_rag import RAGToScore
+
+    # Create and populate the vector database
+    make_db_segment = MakeVectorDatabaseSegment(
+        embedding_field="text",
+        embedding_model="mxbai-embed-large",
+        embedding_source="ollama",
+        path=temp_vector_db_path,
+        doc_id_field="id",
+        overwrite=True
+    )
+    list(make_db_segment.transform(sample_knowledge_base))
+
+    # Test with nested content field
+    rag_segment = RAGToScore(
+        embedding_model="mxbai-embed-large",
+        embedding_source="ollama",
+        completion_model="llama3.2",
+        completion_source="ollama",
+        path=temp_vector_db_path,
+        content_field="user.question",
+        prompt_directive="Rate 0-100 the relevance of the background.",
+        set_as="score_result",
+        limit=2
+    )
+
+    query_items = [{"user": {"question": "Python information"}, "id": "q1"}]
+    results = list(rag_segment.transform(query_items))
+
+    assert len(results) == 1
+    result = results[0]
+    assert result["id"] == "q1"
+    assert "score_result" in result
+    score_obj = result["score_result"]
+    assert hasattr(score_obj, "score")
+    assert isinstance(score_obj.score, int)
+    assert 0 <= score_obj.score <= 100
+
+
+def test_rag_to_score_low_relevance_query(requires_ollama, temp_vector_db_path, sample_knowledge_base):
+    """Test RAGToScore with a query that should get a low relevance score."""
+    from talkpipe.pipelines.vector_databases import MakeVectorDatabaseSegment
+    from talkpipe.pipelines.basic_rag import RAGToScore
+
+    # Create and populate the vector database with tech-related documents
+    make_db_segment = MakeVectorDatabaseSegment(
+        embedding_field="text",
+        embedding_model="mxbai-embed-large",
+        embedding_source="ollama",
+        path=temp_vector_db_path,
+        doc_id_field="id",
+        overwrite=True
+    )
+    list(make_db_segment.transform(sample_knowledge_base))
+
+    # Test with a completely unrelated query
+    rag_segment = RAGToScore(
+        embedding_model="mxbai-embed-large",
+        embedding_source="ollama",
+        completion_model="llama3.2",
+        completion_source="ollama",
+        path=temp_vector_db_path,
+        content_field="query",
+        prompt_directive="Rate 0-100 how relevant the background is to the query (0=not relevant, 100=highly relevant).",
+        set_as="score_result",
+        limit=2
+    )
+
+    # Ask about something completely unrelated (cooking, not tech)
+    query_items = [{"query": "What is the best recipe for chocolate cake?"}]
+    results = list(rag_segment.transform(query_items))
+
+    # Should still return a result with a score
+    assert len(results) == 1
+    assert "score_result" in results[0]
+    score_obj = results[0]["score_result"]
+    assert hasattr(score_obj, "score")
+    assert isinstance(score_obj.score, int)
+    assert 0 <= score_obj.score <= 100
+    # The score should ideally be low for an unrelated query, but we don't enforce
+    # a specific threshold as LLM behavior can vary

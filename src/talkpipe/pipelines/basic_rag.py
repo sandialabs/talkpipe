@@ -1,9 +1,10 @@
 """ Basic RAG pipeline implementation """
 from typing import Annotated, List, Union, Any
 import logging
+from abc import ABC, abstractmethod
 from talkpipe import AbstractSegment, AbstractFieldSegment, register_segment
 from talkpipe.search.abstract import SearchResult
-from talkpipe.llm.chat import LlmScore, LLMPrompt
+from talkpipe.llm.chat import LlmScore, LLMPrompt, LlmBinaryAnswer
 from talkpipe.util.data_manipulation import extract_property
 from talkpipe.pipelines.vector_databases import SearchVectorDatabaseSegment
 
@@ -58,8 +59,7 @@ class ConstructRAGPrompt(AbstractSegment):
                 yield prompt
 
 
-@register_segment("ragToText")
-class RAGToText(AbstractSegment):
+class AbstractRAGPipeline(AbstractSegment):
     """ Convenience segment that runs a RAG pipeline from search to prompt creation to LLM completion.
     """
     
@@ -87,7 +87,13 @@ class RAGToText(AbstractSegment):
         self.limit = limit
         self.read_consistency_interval = read_consistency_interval
 
-        self.pipeline = SearchVectorDatabaseSegment(embedding_model=self.embedding_model,
+    @abstractmethod
+    def make_completion_segment(self) -> AbstractSegment:
+        """ Create the segment that performs the completion over the RAG prompt.
+        """
+
+    def make_pipeline(self):
+        return SearchVectorDatabaseSegment(embedding_model=self.embedding_model,
                                                     embedding_source=self.embedding_source,
                                                     path=self.path,
                                                     set_as="_background",
@@ -98,10 +104,109 @@ class RAGToText(AbstractSegment):
                                             background_field="_background",
                                             content_field=self.content_field,
                                             set_as="_ragprompt") | \
-                        LLMPrompt(model=self.completion_model,
-                                  source=self.completion_source,
-                                  field="_ragprompt",
-                                  set_as=self.set_as)
-        
+                        self.make_completion_segment()
+
     def transform(self, input_iter):
-        yield from self.pipeline(input_iter)
+        pipeline = self.make_pipeline()
+        yield from pipeline(input_iter)
+
+@register_segment("ragToText")
+class RAGToText(AbstractRAGPipeline):
+    """ RAG pipeline that outputs text completions from LLM.
+    """
+
+    def __init__(self,
+                 embedding_model: Annotated[str, "Embedding model to use"],
+                 embedding_source: Annotated[str, "Source of text to embed"],
+                 completion_model: Annotated[str, "LLM model to use for completion"],
+                 completion_source: Annotated[str, "Source of prompt for completion"],
+                 path: Annotated[str, "Path to the LanceDB database"],
+                 content_field: Annotated[Any, "Field to evaluate relevance on"],
+                 prompt_directive: Annotated[str, "Directive to guide the evaluation"] = "Respond to the provided content based on the background information. If the background does not contain relevant information, respond with 'No relevant information found.'",
+                 set_as: Annotated[str, "The field to set/append the result as."] = None,
+                 limit: Annotated[int, "Number of search results to retrieve"] = 10,
+                 read_consistency_interval: Annotated[int, "Read consistency interval in seconds"] = 10):
+        super().__init__(embedding_model=embedding_model,
+                         embedding_source=embedding_source,
+                         completion_model=completion_model,
+                         completion_source=completion_source,
+                         path=path,
+                         content_field=content_field,
+                         prompt_directive=prompt_directive,
+                         set_as=set_as,
+                         limit=limit,
+                         read_consistency_interval=read_consistency_interval)
+        
+    def make_completion_segment(self) -> AbstractSegment:
+        return LLMPrompt(model=self.completion_model,
+                         source=self.completion_source,
+                         field="_ragprompt",
+                         set_as=self.set_as)
+    
+@register_segment("ragToBinaryAnswer")
+class RAGToBinaryAnswer(AbstractRAGPipeline):
+    """ RAG pipeline that outputs binary answers from LLM.
+    """
+
+    def __init__(self,
+                 embedding_model: Annotated[str, "Embedding model to use"],
+                 embedding_source: Annotated[str, "Source of text to embed"],
+                 completion_model: Annotated[str, "LLM model to use for completion"],
+                 completion_source: Annotated[str, "Source of prompt for completion"],
+                 path: Annotated[str, "Path to the LanceDB database"],
+                 content_field: Annotated[Any, "Field to evaluate relevance on"],
+                 prompt_directive: Annotated[str, "Directive to guide the evaluation"] = "Answer the provided question as YES or NO. If the background does not contain relevant information, respond with 'NO'.",
+                 set_as: Annotated[str, "The field to set/append the result as."] = None,
+                 limit: Annotated[int, "Number of search results to retrieve"] = 10,
+                 read_consistency_interval: Annotated[int, "Read consistency interval in seconds"] = 10):
+        super().__init__(embedding_model=embedding_model,
+                         embedding_source=embedding_source,
+                         completion_model=completion_model,
+                         completion_source=completion_source,
+                         path=path,
+                         content_field=content_field,
+                         prompt_directive=prompt_directive,
+                         set_as=set_as,
+                         limit=limit,
+                         read_consistency_interval=read_consistency_interval)
+
+    def make_completion_segment(self) -> AbstractSegment:
+        return LlmBinaryAnswer(system_prompt="Answer the question with YES (true) or NO (false) based on the provided information. Provide a brief explanation for your answer.",
+                               model=self.completion_model,
+                               source=self.completion_source,
+                               field="_ragprompt",
+                               set_as=self.set_as)
+
+@register_segment("ragToScore")
+class RAGToScore(AbstractRAGPipeline):
+    """ RAG pipeline that outputs scores from LLM.
+    """
+
+    def __init__(self,
+                 embedding_model: Annotated[str, "Embedding model to use"],
+                 embedding_source: Annotated[str, "Source of text to embed"],
+                 completion_model: Annotated[str, "LLM model to use for completion"],
+                 completion_source: Annotated[str, "Source of prompt for completion"],
+                 path: Annotated[str, "Path to the LanceDB database"],
+                 content_field: Annotated[Any, "Field to evaluate relevance on"],
+                 prompt_directive: Annotated[str, "Directive to guide the evaluation"] = "Answer the provided question as a score from 0 to 100 where 0 means not at all and 100 means completely. If the background does not contain relevant information, Note that in the explanation.",
+                 set_as: Annotated[str, "The field to set/append the result as."] = None,
+                 limit: Annotated[int, "Number of search results to retrieve"] = 10,
+                 read_consistency_interval: Annotated[int, "Read consistency interval in seconds"] = 10):
+        super().__init__(embedding_model=embedding_model,
+                         embedding_source=embedding_source,
+                         completion_model=completion_model,
+                         completion_source=completion_source,
+                         path=path,
+                         content_field=content_field,
+                         prompt_directive=prompt_directive,
+                         set_as=set_as,
+                         limit=limit,
+                         read_consistency_interval=read_consistency_interval)
+
+    def make_completion_segment(self) -> AbstractSegment:
+        return LlmScore(system_prompt="Evaluate the provided content and assign an integer score with a brief explanation. The score should reflect the evaluation criteria specified in the user prompt.",
+                        model=self.completion_model,
+                        source=self.completion_source,
+                        field="_ragprompt",
+                        set_as=self.set_as)

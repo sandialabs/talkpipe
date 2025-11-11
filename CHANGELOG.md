@@ -17,6 +17,14 @@
   documents from a vector database, constructs a RAG prompt with background context, and generates
   completions using the specified LLM. Supports configurable prompt directives, result limits, and
   field assignments.
+- Added **ragToBinaryAnswer** RAG pipeline segment that outputs structured binary (yes/no) answers
+  with explanations from an LLM. Similar to ragToText but uses guided generation to ensure responses
+  follow a boolean answer format with justification.
+- Added **ragToScore** RAG pipeline segment that outputs structured integer scores with explanations
+  from an LLM. Useful for relevance scoring, quality assessment, and other evaluation tasks where
+  numeric ratings are needed along with reasoning.
+- Added comprehensive unit tests for RAGToBinaryAnswer and RAGToScore segments, covering basic
+  functionality, field operations, multiple queries, and edge cases.
 
 ### Breaking Changes
 - Removed deprecated **simplevectordb** module. Users should migrate to **LanceDBDocumentStore** from
