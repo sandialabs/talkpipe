@@ -35,6 +35,8 @@ When making a change, write a unit test that fails without the change, verify th
     make the change and then verity that the unit test now passes.  Notify the user if it is not reasonable 
     to write the unit test. 
 User interfaces should be visually appealing and maintain consistency with each other.
+When writing or updating pipeline examples in documentation, write examples with stand-alone code and 
+    test the examples by running them.
 
 
 ## Important Commands

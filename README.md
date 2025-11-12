@@ -8,8 +8,9 @@ This README introduces TalkPipe at a high level.  See the [complete documentatio
 
 ## What Can You Do With TalkPipe?
 
-- **Chat with LLMs** - Create multi-turn conversations with OpenAI or Ollama models in just 2 lines of code
+- **Chat with LLMs** - Create multi-turn conversations with OpenAI, Ollama, or Anthropic models in just 2 lines of code
 - **Process Documents** - Extract text from PDFs, analyze research papers, score content relevance
+- **Build RAG Pipelines** - Create end-to-end Retrieval-Augmented Generation workflows with vector databases
 - **Analyze Web Content** - Download web pages (respecting robots.txt), extract readable text, and summarize
 - **Build Data Pipelines** - Chain together data transformations, filtering, and analysis with Unix-like simplicity
 - **Create AI Agents** - Build agents that can debate topics, evaluate streams of documents, or monitor RSS feeds
@@ -26,9 +27,9 @@ The Pipe/ChatterLang Foundation layer offers foundational utilities and abstract
 ChatterLang is TalkPipe's external domain-specific language (DSL), enabling you to define workflows using concise, human-readable text scripts. These scripts can be compiled directly in Python, producing callable functions that integrate seamlessly with your codebase. ChatterLang also supports specifying workflows via environment variables or command-line arguments, making it easy to configure and automate pipelines in Docker containers, shell scripts, CI/CD pipelines, and other deployment environments. This flexibility empowers both developers and non-developers to create, share, and modify AI-powered workflows without writing Python code, streamlining experimentation and operationalization.
 
 
-Layer 2, "AI & Data Primitives" is built on Pipe and ChatterLang, provides standardized wrappers for interacting with LLMs, full-text search engines, and a vector database. These components provide a unified interface for core capabilities, making it easy to integrate advanced AI and search features throughout your workflows.
+Layer 2, "AI & Data Primitives" is built on Pipe and ChatterLang, provides standardized wrappers for interacting with LLMs, full-text search engines, and vector databases. These components provide a unified interface for core capabilities, making it easy to integrate advanced AI and search features throughout your workflows.
 
-Layer 3, "Pipeline Application Components" assemble components from the lower layers to provide higher level components that can serve as application components.  They make simplifying assumptions that provide easy access to complex functionality.  These are designed both as examples and as ways to rapidly get complex functionality with reasonable assumptions.  When those assumptions break, the developer can reach deeper into the other layers and build their own custom solutions.
+Layer 3, "Pipeline Application Components" assemble components from the lower layers to provide higher level components that can serve as application components. They make simplifying assumptions that provide easy access to complex functionality. For example, the pipelines package includes ready-to-use RAG (Retrieval-Augmented Generation) workflows that combine vector search, prompt construction, and LLM completion in a single component. These are designed both as examples and as ways to rapidly get complex functionality with reasonable assumptions. When those assumptions break, the developer can reach deeper into the other layers and build their own custom solutions.
 
 The Application Components layer contains runnable applications that provide user interfaces and automation tools for working with TalkPipe pipelines and ChatterLang scripts. These components are designed to make it easy to interact with TalkPipe from the command line, web browser, or as part of automated workflows.
 
@@ -43,11 +44,14 @@ The Application Components layer contains runnable applications that provide use
 - **chatterlang_serve**  
   Exposes ChatterLang pipelines as REST APIs or web forms, allowing you to deploy workflows as web services or user-facing endpoints.
 
-- **chatterlang_reference_browser**  
-An interactive command line application for searching and browsing installed chatterlang sources and segments.
+- **chatterlang_reference_browser**
+  An interactive command line application for searching and browsing installed ChatterLang sources and segments.
 
-- **talkpipe_plugin_manager**
-Talkpipe include a plugin system that lets developers register their own sources and segments with TalkPipe, extending its functionality. This allows the TalkPipe ecosystem to grow through community contributions and domain-specific extensions.  talkpipe_plugin_manager lets people view and manage those plugins.
+- **chatterlang_reference_generator**
+  Generates comprehensive documentation for all available sources and segments in HTML and text formats.
+
+- **talkpipe_plugins**
+  TalkPipe includes a plugin system that lets developers register their own sources and segments, extending its functionality. This allows the TalkPipe ecosystem to grow through community contributions and domain-specific extensions. talkpipe_plugins lets users view and manage those plugins.
 
 These applications are entry points for different usage scenarios, from interactive development to production deployment.
 
@@ -146,8 +150,10 @@ A web UI for writing and testing ChatterLang scripts with real-time execution an
 ### Command-Line Tools
 - `chatterlang_workbench` - Start the interactive web interface for experimenting with ChatterLang
 - `chatterlang_script` - Run ChatterLang scripts from files or command line
-- `talkpipe_ref` - Generate documentation for all available sources and segments
-- `talkpipe_endpoint` - Create a customizable user-accessible web interface and REST API from ChatterLang scripts
+- `chatterlang_reference_generator` - Generate documentation for all available sources and segments
+- `chatterlang_reference_browser` - Interactive command-line browser for sources and segments
+- `chatterlang_serve` - Create a customizable user-accessible web interface and REST API from ChatterLang scripts
+- `talkpipe_plugins` - View and manage TalkPipe plugins
 
 ### Jupyter Integration
 TalkPipe components work seamlessly in Jupyter notebooks for interactive data analysis.
@@ -269,7 +275,7 @@ CONST iot_prompt = "Rate 0-10 how relevant this is to IoT researchers. Consider 
 | llmScore[system_prompt=ai_prompt, field="full_text", set_as="ai_eval", model="llama3.2"]
 | setAs[field_list="ai_eval.score:ai_score,ai_eval.explanation:ai_reason"]
 
-# Score for IoT relevance  
+# Score for IoT relevance
 | llmScore[system_prompt=iot_prompt, field="full_text", set_as="iot_eval", model="llama3.2"]
 | setAs[field_list="iot_eval.score:iot_score,iot_eval.explanation:iot_reason"]
 
@@ -293,6 +299,77 @@ results = evaluator(articles)
 # {'title': 'RAG Systems in Production', 'ai_score': 8, 'iot_score': 2, 'max_score': 8}
 ```
 
+## Example 5: RAG Pipeline with Vector Database
+
+Build a complete RAG (Retrieval-Augmented Generation) system in just a few lines:
+
+```python
+from talkpipe.chatterlang import compiler
+
+# First, index your documents into a vector database
+indexing_script = """
+INPUT FROM echo[data='doc1.txt,doc2.txt,doc3.txt']
+| readFile
+| splitText[max_length=500]  # Split into chunks
+| makeVectorDatabase[
+    path="./my_knowledge_base",
+    embedding_model="nomic-embed-text",
+    embedding_source="ollama",
+    text_field="_"
+  ]
+"""
+compiler.compile(indexing_script).as_function()()
+
+# Now query the knowledge base with RAG
+query_script = """
+| ragToText[
+    path="./my_knowledge_base",
+    embedding_model="nomic-embed-text",
+    embedding_source="ollama",
+    completion_model="llama3.2",
+    completion_source="ollama",
+    content_field="_",
+    prompt_directive="Answer the question based on the background information provided.",
+    limit=5
+  ]
+| print
+"""
+
+rag_pipeline = compiler.compile(query_script).as_function(single_in=True)
+answer = rag_pipeline("What are the key benefits of using TalkPipe?")
+# Returns an LLM-generated answer based on relevant document chunks
+
+# For yes/no questions, use ragToBinaryAnswer:
+binary_rag = """
+| ragToBinaryAnswer[
+    path="./my_knowledge_base",
+    embedding_model="nomic-embed-text",
+    embedding_source="ollama",
+    completion_model="llama3.2",
+    completion_source="ollama",
+    content_field="_",
+    prompt_directive="Does the documentation mention Docker support?",
+    set_as="answer"
+  ]
+| print
+"""
+
+# For scored evaluations, use ragToScore:
+score_rag = """
+| ragToScore[
+    path="./my_knowledge_base",
+    embedding_model="nomic-embed-text",
+    embedding_source="ollama",
+    completion_model="llama3.2",
+    completion_source="ollama",
+    content_field="_",
+    prompt_directive="Rate 0-100 how well the documentation covers deployment options.",
+    set_as="deployment_coverage"
+  ]
+| print
+"""
+```
+
 # Documentation
 
 For comprehensive documentation, and examples, see the **[docs/](docs/)** directory:
@@ -307,10 +384,12 @@ For comprehensive documentation, and examples, see the **[docs/](docs/)** direct
 
 | Command | Purpose | Documentation |
 |---------|---------|---------------|
-| `talkpipe_endpoint` | Create web APIs and forms | [📄](docs/api-reference/chatterlang-server.md) |
+| `chatterlang_serve` | Create web APIs and forms | [📄](docs/api-reference/chatterlang-server.md) |
 | `chatterlang_workbench` | Interactive web interface | [📄](docs/api-reference/chatterlang-workbench.md) |
 | `chatterlang_script` | Run scripts from command line | [📄](docs/api-reference/chatterlang-script.md) |
-| `talkpipe_ref` | Generate documentation | [📄](docs/api-reference/talkpipe-ref.md) |
+| `chatterlang_reference_generator` | Generate documentation | [📄](docs/api-reference/talkpipe-ref.md) |
+| `chatterlang_reference_browser` | Browse sources/segments interactively | - |
+| `talkpipe_plugins` | Manage TalkPipe plugins | [📄](docs/api-reference/talkpipe-plugin-manager.md) |
 
 # Architecture & Development
 
@@ -338,9 +417,12 @@ talkpipe/
 ├── app/          # Runnable applications (servers, CLIs)
 ├── chatterlang/  # ChatterLang parser, compiler, and components
 ├── data/         # Data manipulation and I/O components
-├── llm/          # LLM integrations (OpenAI, Ollama)
+├── llm/          # LLM integrations (OpenAI, Ollama, Anthropic)
 ├── operations/   # Algorithms and data processing
-└── pipe/         # Core pipeline infrastructure
+├── pipe/         # Core pipeline infrastructure
+├── pipelines/    # High-level pipeline components (RAG, vector DB)
+├── search/       # Search engine integrations (Whoosh, LanceDB)
+└── util/         # Utility functions and configuration
 ```
 
 ## Configuration
@@ -360,6 +442,17 @@ Environment variables use the `TALKPIPE_` prefix:
 export TALKPIPE_email_password="your-password"
 export TALKPIPE_openai_api_key="sk-..."
 ```
+
+### Performance Optimization
+
+TalkPipe includes an optional **lazy loading** feature that can dramatically improve startup performance (up to 18x faster) by deferring module imports until needed:
+
+```bash
+# Enable lazy loading for faster startup
+export TALKPIPE_LAZY_IMPORT=true
+```
+
+This is especially useful for CLI tools and scripts that don't use all TalkPipe features. See the [lazy loading documentation](docs/api-reference/lazy-loading.md) for details.
 
 ## Development Guidelines
 
@@ -452,11 +545,12 @@ result = pipeline.as_function(single_in=False, single_out=False)(data)
 
 TalkPipe is under active development. Current priorities:
 
-- **Enhanced LLM Support**: Additional providers (Anthropic, Cohere, local models)
+- **Enhanced LLM Support**: Additional providers (Cohere, more local models), expanded guided generation
 - **Data Connectors**: More database integrations, API clients, file formats
-- **Workflow Features**: Conditional branching, error handling, retry logic
-- **Performance**: Parallel processing, caching, optimization
+- **Workflow Features**: Conditional branching, enhanced error handling, retry logic
+- **Performance**: Parallel processing optimization, enhanced lazy loading, better caching
 - **Developer Tools**: Better debugging, testing utilities, IDE plugins
+- **RAG & Search**: Advanced retrieval strategies, hybrid search, multi-modal embeddings
 
 We welcome contributions! Whether it's new components, bug fixes, documentation, or examples, please check our [GitHub repository](https://github.com/sandialabs/talkpipe) for contribution guidelines.
 
