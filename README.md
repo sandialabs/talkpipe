@@ -35,22 +35,22 @@ The Application Components layer contains runnable applications that provide use
 
 ### Key Applications
 
-- **chatterlang_workbench**  
+- **[chatterlang_workbench](docs/api-reference/chatterlang-workbench.md)**
   Launches an interactive web interface for writing, testing, and running ChatterLang scripts. It provides real-time execution, logging, and documentation lookup.
 
-- **chatterlang_script**  
+- **[chatterlang_script](docs/api-reference/chatterlang-script.md)**
   Runs ChatterLang scripts from files or directly from the command line, enabling batch processing and automation.
 
-- **chatterlang_serve**  
+- **[chatterlang_serve](docs/api-reference/chatterlang-server.md)**
   Exposes ChatterLang pipelines as REST APIs or web forms, allowing you to deploy workflows as web services or user-facing endpoints.
 
 - **chatterlang_reference_browser**
   An interactive command line application for searching and browsing installed ChatterLang sources and segments.
 
-- **chatterlang_reference_generator**
+- **[chatterlang_reference_generator](docs/api-reference/talkpipe-ref.md)**
   Generates comprehensive documentation for all available sources and segments in HTML and text formats.
 
-- **talkpipe_plugins**
+- **[talkpipe_plugins](docs/api-reference/talkpipe-plugin-manager.md)**
   TalkPipe includes a plugin system that lets developers register their own sources and segments, extending its functionality. This allows the TalkPipe ecosystem to grow through community contributions and domain-specific extensions. talkpipe_plugins lets users view and manage those plugins.
 
 These applications are entry points for different usage scenarios, from interactive development to production deployment.
@@ -132,6 +132,34 @@ ChatterLang provides a Unix-like syntax for building pipelines, perfect for rapi
 INPUT FROM echo[data="1,2,hello,3"] | cast[cast_type="int"] | print
 ```
 
+### Registering Custom Components for ChatterLang
+
+To make the `uppercase` segment from section 1 available in ChatterLang, register it with a decorator:
+
+```python
+from talkpipe.pipe import core
+from talkpipe.chatterlang import registry, compiler
+
+@registry.register_segment("uppercase")
+@core.segment()
+def uppercase(items):
+    """Convert each item to uppercase"""
+    for item in items:
+        yield item.upper()
+
+# Now use it in ChatterLang scripts
+script = 'INPUT FROM echo[data="hello,world"] | uppercase | print'
+pipeline = compiler.compile(script).as_function(single_out=False)
+result = pipeline()
+
+# Output:
+# HELLO
+# WORLD
+# Returns: ['HELLO', 'WORLD']
+```
+
+The `@registry.register_segment()` decorator makes your component discoverable by ChatterLang's compiler, allowing you to use it in scripts alongside built-in segments.
+
 ### Key ChatterLang Features
 
 - **Variables**: Store intermediate results with `@variable_name`
@@ -141,19 +169,13 @@ INPUT FROM echo[data="1,2,hello,3"] | cast[cast_type="int"] | print
 
 ## 3. Built-in Applications
 
-### Interactive Web Interface
-```bash
-chatterlang_workbench [--port 8080]
-```
-A web UI for writing and testing ChatterLang scripts with real-time execution and logging.
-
 ### Command-Line Tools
-- `chatterlang_workbench` - Start the interactive web interface for experimenting with ChatterLang
-- `chatterlang_script` - Run ChatterLang scripts from files or command line
-- `chatterlang_reference_generator` - Generate documentation for all available sources and segments
+- [`chatterlang_workbench`](docs/api-reference/chatterlang-workbench.md) - Start the interactive web interface for experimenting with ChatterLang
+- [`chatterlang_script`](docs/api-reference/chatterlang-script.md) - Run ChatterLang scripts from files or command line
+- [`chatterlang_reference_generator`](docs/api-reference/talkpipe-ref.md) - Generate documentation for all available sources and segments
 - `chatterlang_reference_browser` - Interactive command-line browser for sources and segments
-- `chatterlang_serve` - Create a customizable user-accessible web interface and REST API from ChatterLang scripts
-- `talkpipe_plugins` - View and manage TalkPipe plugins
+- [`chatterlang_serve`](docs/api-reference/chatterlang-server.md) - Create a customizable user-accessible web interface and REST API from ChatterLang scripts
+- [`talkpipe_plugins`](docs/api-reference/talkpipe-plugin-manager.md) - View and manage TalkPipe plugins
 
 ### Jupyter Integration
 TalkPipe components work seamlessly in Jupyter notebooks for interactive data analysis.

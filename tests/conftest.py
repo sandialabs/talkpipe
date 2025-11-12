@@ -24,6 +24,7 @@ def pytest_configure(config):
     config.is_ollama_available = False
     config.is_mongodb_available = False
     config.is_openai_available = False
+    config.is_package_installed = False
     
     # Check if Ollama is available
     ollama_adapter = OllamaPromptAdapter("llama3.2", temperature=0.0)
@@ -72,6 +73,24 @@ def pytest_configure(config):
         config.is_anthropic_available = False
         logger.warning(f"Anthropic check failed: {e}. Skipping tests that require it.")
 
+    # Check if the package is installed (has entry points registered)
+    try:
+        from importlib.metadata import entry_points
+        eps = entry_points()
+
+        segment_eps = list(eps.select(group='talkpipe.segments'))
+        source_eps = list(eps.select(group='talkpipe.sources'))
+
+        if segment_eps or source_eps:
+            config.is_package_installed = True
+            logger.warning(f"TalkPipe package is installed with {len(segment_eps)} segments and {len(source_eps)} sources registered.")
+        else:
+            config.is_package_installed = False
+            logger.warning("TalkPipe package is not installed (no entry points found). Skipping tests that require it. Run 'pip install -e .' to enable these tests.")
+    except Exception as e:
+        config.is_package_installed = False
+        logger.warning(f"Could not check package installation: {e}. Skipping tests that require it.")
+
 @pytest.fixture
 def requires_mongodb(request):
     """
@@ -119,7 +138,7 @@ def requires_anthropic(request):
 def requires_openai(request):
     """
     Fixture that skips tests if OpenAI is not available.
-    
+
     Usage:
         def test_something(requires_openai):
             # This test will be skipped if OpenAI is not available
@@ -127,6 +146,20 @@ def requires_openai(request):
     """
     if not request.config.is_openai_available:
         pytest.skip("Test requires OpenAI, but OpenAI is not available")
+    return True
+
+@pytest.fixture
+def requires_package_installed(request):
+    """
+    Fixture that skips tests if the package is not installed (no entry points registered).
+
+    Usage:
+        def test_something(requires_package_installed):
+            # This test will be skipped if 'pip install -e .' has not been run
+            ...
+    """
+    if not request.config.is_package_installed:
+        pytest.skip("Test requires TalkPipe to be installed with entry points. Run 'pip install -e .' to enable this test.")
     return True
 
 @pytest.fixture(scope="class")

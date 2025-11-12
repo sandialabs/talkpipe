@@ -48,6 +48,17 @@
 - Fixed security issue in `src/talkpipe/chatterlang/registry.py` where exceptions were being silently
   ignored (Bandit B110). Replaced bare `except Exception: pass` blocks with proper logging statements
   to aid in debugging and follow security best practices.
+- Added `requires_package_installed` pytest fixture to gracefully skip entry point tests when the
+  package is not installed (e.g., before running `pip install -e .`). Tests now provide clear skip
+  messages instead of failing with confusing errors. This makes the test suite more developer-friendly
+  for new contributors and CI environments.
+- Updated README.md section 2 (ChatterLang External DSL) to demonstrate how to register custom
+  components using `@registry.register_segment()`. The example shows how to take the `uppercase`
+  segment from section 1 (Pipe API) and make it available in ChatterLang scripts, with working
+  code that demonstrates compilation and execution.
+- Added documentation links to all built-in application commands in README.md "Key Applications"
+  and "Built-in Applications" sections, making it easier for users to find detailed documentation
+  for each command-line tool.
 - Added `read_consistency_interval` parameter to **searchLanceDB** segment and **LanceDBDocumentStore**
   to control how often table metadata is refreshed when multiple connections access the same database.
   Defaults to 10 seconds.
