@@ -323,36 +323,45 @@ results = evaluator(articles)
 
 ## Example 5: RAG Pipeline with Vector Database
 
-Build a complete RAG (Retrieval-Augmented Generation) system in just a few lines:
+Build a complete RAG (Retrieval-Augmented Generation) system with standalone data:
 
 ```python
 from talkpipe.chatterlang import compiler
 
+# Sample knowledge base documents
+documents = [
+    "TalkPipe is a Python toolkit for building AI workflows. It provides a Unix-like pipeline syntax for chaining data transformations and LLM operations.",
+    "TalkPipe supports multiple LLM providers including OpenAI, Ollama, and Anthropic. You can switch between providers easily using configuration.",
+    "With TalkPipe, you can build RAG systems, multi-agent debates, and document processing pipelines. It uses Python generators for memory-efficient streaming.",
+    "TalkPipe offers two APIs: the Pipe API (internal DSL) for Python code and ChatterLang (external DSL) for concise script-based workflows.",
+    "Deployment is flexible with TalkPipe - run in Jupyter notebooks, Docker containers, or as standalone applications. The chatterlang_serve tool creates web APIs from scripts."
+]
+
 # First, index your documents into a vector database
 indexing_script = """
-INPUT FROM echo[data='doc1.txt,doc2.txt,doc3.txt']
-| readFile
-| splitText[max_length=500]  # Split into chunks
+| toDict[field_list="_:text"]
 | makeVectorDatabase[
     path="./my_knowledge_base",
     embedding_model="nomic-embed-text",
     embedding_source="ollama",
-    text_field="_"
+    embedding_field="text"
   ]
 """
-compiler.compile(indexing_script).as_function()()
+indexer = compiler.compile(indexing_script).as_function(single_in=False)
+indexer(documents)
 
 # Now query the knowledge base with RAG
 query_script = """
+| toDict[field_list="_:text"]
 | ragToText[
     path="./my_knowledge_base",
     embedding_model="nomic-embed-text",
     embedding_source="ollama",
     completion_model="llama3.2",
     completion_source="ollama",
-    content_field="_",
+    content_field="text",
     prompt_directive="Answer the question based on the background information provided.",
-    limit=5
+    limit=3
   ]
 | print
 """
@@ -362,34 +371,39 @@ answer = rag_pipeline("What are the key benefits of using TalkPipe?")
 # Returns an LLM-generated answer based on relevant document chunks
 
 # For yes/no questions, use ragToBinaryAnswer:
-binary_rag = """
+binary_rag_script = """
+| toDict[field_list="_:text"]
 | ragToBinaryAnswer[
     path="./my_knowledge_base",
     embedding_model="nomic-embed-text",
     embedding_source="ollama",
     completion_model="llama3.2",
     completion_source="ollama",
-    content_field="_",
-    prompt_directive="Does the documentation mention Docker support?",
-    set_as="answer"
-  ]
+    content_field="text"
+]
 | print
 """
+binary_rag = compiler.compile(binary_rag_script).as_function(single_in=True)
+result = binary_rag("Does TalkPipe support Docker?")
+result = binary_rag("Does TalkPipe have a podcast about pipes?")
 
 # For scored evaluations, use ragToScore:
-score_rag = """
+score_rag_script = """
+| toDict[field_list="_:text"]
 | ragToScore[
     path="./my_knowledge_base",
     embedding_model="nomic-embed-text",
     embedding_source="ollama",
     completion_model="llama3.2",
     completion_source="ollama",
-    content_field="_",
-    prompt_directive="Rate 0-100 how well the documentation covers deployment options.",
-    set_as="deployment_coverage"
+    prompt_directive="Answer the provided question on a scale of 1 to 5.",
+    content_field="text"
   ]
 | print
 """
+score_rag = compiler.compile(score_rag_script).as_function(single_in=True)
+score = score_rag("How flexible is talkpipe?")
+score_rag("How well does this text describe pipe smoking?")
 ```
 
 # Documentation
@@ -567,7 +581,7 @@ result = pipeline.as_function(single_in=False, single_out=False)(data)
 
 TalkPipe is under active development. Current priorities:
 
-- **Enhanced LLM Support**: Additional providers (Cohere, more local models), expanded guided generation
+- **Enhanced LLM Support**: Additional providers, expanded guided generation
 - **Data Connectors**: More database integrations, API clients, file formats
 - **Workflow Features**: Conditional branching, enhanced error handling, retry logic
 - **Performance**: Parallel processing optimization, enhanced lazy loading, better caching

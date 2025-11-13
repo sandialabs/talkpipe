@@ -189,7 +189,7 @@ class RAGToScore(AbstractRAGPipeline):
                  completion_source: Annotated[str, "Source of prompt for completion"],
                  path: Annotated[str, "Path to the LanceDB database"],
                  content_field: Annotated[Any, "Field to evaluate relevance on"],
-                 prompt_directive: Annotated[str, "Directive to guide the evaluation"] = "Answer the provided question as a score from 0 to 100 where 0 means not at all and 100 means completely. If the background does not contain relevant information, Note that in the explanation.",
+                 prompt_directive: Annotated[str, "Directive to guide the evaluation"] = "Answer the provided question on a scale of 1 to 10. If the background does not contain relevant information, respond with a score of 1.",
                  set_as: Annotated[str, "The field to set/append the result as."] = None,
                  limit: Annotated[int, "Number of search results to retrieve"] = 10,
                  read_consistency_interval: Annotated[int, "Read consistency interval in seconds"] = 10):

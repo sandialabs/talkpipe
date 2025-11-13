@@ -34,6 +34,9 @@
 - Removed `numba` dependency as it was only required by the removed `umap-learn` package.
 
 ### Improvements
+- Updated README.md Example 5 (RAG Pipeline with Vector Database) to use standalone data instead
+  of relying on external txt files. The example now defines documents as inline strings and uses
+  **toDict** to convert them to dictionaries, making it fully self-contained and easier to run.
 - Added an option n to sleep so that it can be configured to sleep every n items rather than
   every item.
 - Extended AbstractFieldSegment and the field_segment decorator to support segments that return
