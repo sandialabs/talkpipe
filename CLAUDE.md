@@ -37,6 +37,7 @@ When making a change, write a unit test that fails without the change, verify th
 User interfaces should be visually appealing and maintain consistency with each other.
 When writing or updating pipeline examples in documentation, write examples with stand-alone code and 
     test the examples by running them.
+When creating a new source or segment, update pyproject.toml to include it in the endpoints.
 
 
 ## Important Commands

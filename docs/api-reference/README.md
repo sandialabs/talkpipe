@@ -4,7 +4,7 @@ Complete technical reference for all TalkPipe commands, components, and APIs.
 
 ## Command-Line Tools
 
-### [ChatterlangServer / talkpipe_endpoint](chatterlang-server.md)
+### [chatterlang_serve](chatterlang-server.md)
 Create web APIs and interactive forms for processing JSON data through ChatterLang pipelines.
 - REST API endpoints
 - Configurable web forms  

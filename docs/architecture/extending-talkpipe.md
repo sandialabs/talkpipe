@@ -341,10 +341,10 @@ Use the plugin manager CLI to inspect and manage plugins:
 
 ```bash
 # List all plugins
-talkpipe_plugin_manager --list
+talkpipe_plugins --list
 
 # Reload a plugin during development
-talkpipe_plugin_manager --reload network_plugin
+talkpipe_plugins --reload network_plugin
 ```
 
 ### Alternative: Manual Plugin Loading

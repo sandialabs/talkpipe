@@ -67,7 +67,7 @@ Create a web interface for your pipeline from the command line:
 
 ```bash
 # Start a web server with your pipeline
-talkpipe_endpoint --port 2025 --display-property prompt --script "| llmPrompt[model=\"llama3.2\", source=\"ollama\", field=\"prompt\"]"
+chatterlang_serve --port 2025 --display-property prompt --script "| llmPrompt[model=\"llama3.2\", source=\"ollama\", field=\"prompt\"]"
 ```
 
 Note that you may need to change how the double quotes are escaped based on your shell.
@@ -78,7 +78,7 @@ Open http://localhost:2025/stream in your browser to interact with your pipeline
 
 ### Learn the Tools
 
-- **[talkpipe_endpoint](api-reference/chatterlang-server.md)** - Create web APIs and forms
+- **[chatterlang_serve](api-reference/chatterlang-server.md)** - Create web APIs and forms
 - **[chatterlang_workbench](api-reference/chatterlang-workbench.md)** - Interactive development environment
 - **[chatterlang_script](api-reference/chatterlang-script.md)** - Run scripts from files
 
@@ -95,7 +95,7 @@ TalkPipe supports plugins to add custom functionality:
 
 ```bash
 # List installed plugins
-talkpipe_plugin_manager --list
+talkpipe_plugins --list
 
 # Install third-party plugins
 pip install talkpipe-some-plugin
