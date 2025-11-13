@@ -1,6 +1,6 @@
 # Changelog
 
-## In Progress
+## 0.10.0
 ### New Features
 - Added **splitText** segment to split strings either by length or by delimiter. Now available as an entry point.
 - Added **shingleText** segment for creating overlapping n-grams (shingles) from text with support for key-based grouping and configurable overlap. Now available as an entry point.
@@ -62,9 +62,6 @@
 - Added documentation links to all built-in application commands in README.md "Key Applications"
   and "Built-in Applications" sections, making it easier for users to find detailed documentation
   for each command-line tool.
-- Added `read_consistency_interval` parameter to **searchLanceDB** segment and **LanceDBDocumentStore**
-  to control how often table metadata is refreshed when multiple connections access the same database.
-  Defaults to 10 seconds.
 - Enhanced `extract_property` to support `_` as a passthrough/no-op in dotted property paths. The `_`
   character now acts as an identity operation when used within a path. For example, `"X._"` is
   equivalent to `"X"`, `"X._.1"` is equivalent to `"X.1"`, and `"_.1"` is equivalent to `"1"`. This
