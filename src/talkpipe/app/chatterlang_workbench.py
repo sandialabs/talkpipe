@@ -90,6 +90,11 @@ EXAMPLE_SCRIPTS = {
             "name": "Document Evaluation",
             "description": "Score a document on relevance to a topic",
             "code": 'CONST scorePrompt = "On a scale of 1 to 10, rate how relevant the following text is to artificial intelligence. Provide a score and brief explanation.";\n| llmScore[system_prompt=scorePrompt] | print'
+        },
+        {
+            "name": "RAG Pipeline with Vector Database",
+            "description": "Build a complete RAG system with document indexing and querying",
+            "code": '# This example demonstrates a complete RAG (Retrieval-Augmented Generation) workflow.\n# It indexes documents into a vector database and then queries them with an LLM.\n\n# Sample knowledge base documents (in a real scenario, these would be from files or a database)\nCONST docs = "TalkPipe is a Python toolkit for building AI workflows. It provides a Unix-like pipeline syntax for chaining data transformations and LLM operations.|TalkPipe supports multiple LLM providers including OpenAI, Ollama, and Anthropic. You can switch between providers easily using configuration.|With TalkPipe, you can build RAG systems, multi-agent debates, and document processing pipelines. It uses Python generators for memory-efficient streaming.";\n\n# Step 1: Index documents into a vector database\nINPUT FROM echo[data=docs, delimiter="|"] \n    | toDict[field_list="_:text"] \n    | makeVectorDatabase[\n        path="./demo_knowledge_base",\n        embedding_model="nomic-embed-text",\n        embedding_source="ollama",\n        embedding_field="text"\n      ] \n    | print;\n\n# Step 2: Query the knowledge base with RAG\nINPUT FROM echo[data="What are the key benefits of using TalkPipe?"] \n    | toDict[field_list="_:text"] \n    | ragToText[\n        path="./demo_knowledge_base",\n        embedding_model="nomic-embed-text",\n        embedding_source="ollama",\n        completion_model="llama3.2",\n        completion_source="ollama",\n        content_field="text",\n        prompt_directive="Answer the question based on the background information provided.",\n        limit=3\n      ] \n    | print'
         }
     ]
 }
@@ -361,16 +366,17 @@ def get_ui():
       border-right: 1px solid #ddd;
       padding: 0;
       overflow-y: auto;
+      overflow-x: hidden;
       flex-shrink: 0;
-      display: flex;
-      flex-direction: column;
+      height: 100%; /* Use full available height from parent */
     }
-    
+
     .examples-header {
       padding: 15px;
       background: #e0e7ef;
       border-bottom: 1px solid #d0d7df;
       font-weight: 500;
+      flex-shrink: 0; /* Header stays fixed size */
     }
     
     /* Editor container */
