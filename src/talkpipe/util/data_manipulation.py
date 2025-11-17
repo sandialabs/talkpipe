@@ -162,6 +162,44 @@ def extract_property(data: Any, prop_list: str, fail_on_missing=False, default=N
     return of_interest
 
 
+def assign_property(data: Any, prop_name: str, value: Any) -> None:
+    """Assign a value to a property on a data structure.
+
+    This function provides a unified interface for assigning values to different types
+    of objects, similar to how extract_property provides a unified interface for reading.
+
+    Supports:
+    - Dictionaries: Uses bracket notation (data[prop_name] = value)
+    - Objects (including pydantic models): Uses setattr (setattr(data, prop_name, value))
+
+    Args:
+        data (Any): The data structure to assign the property to
+        prop_name (str): The property name to assign
+        value (Any): The value to assign
+
+    Examples:
+        >>> # With a dictionary
+        >>> d = {"a": 1}
+        >>> assign_property(d, "b", 2)
+        >>> d
+        {"a": 1, "b": 2}
+
+        >>> # With a pydantic model
+        >>> class MyModel(BaseModel):
+        ...     a: int
+        >>> model = MyModel(a=1)
+        >>> assign_property(model, "b", 2)
+        >>> model.b
+        2
+    """
+    if isinstance(data, dict):
+        # Use bracket notation for dictionaries
+        data[prop_name] = value
+    else:
+        # Use setattr for pydantic models and other objects
+        setattr(data, prop_name, value)
+
+
 def get_type_safely(type_name, module=None):
     """Get a type by name, handling module imports."""
     if "." in type_name:

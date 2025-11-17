@@ -476,7 +476,7 @@ class AbstractFieldSegment(AbstractSegment[T, U]):
             for result in processed:
                 if self.set_as:
                     ans = item.copy() if self.multi_emit else item
-                    ans[self.set_as] = result
+                    data_manipulation.assign_property(ans, self.set_as, result)
                     yield ans
                 else:
                     yield result

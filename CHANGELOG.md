@@ -1,5 +1,17 @@
 # Changelog
 
+## Unreleased
+### Improvements
+- Added `assign_property()` utility function to `data_manipulation.py` that provides a unified interface
+  for assigning values to both dictionary-like objects (using bracket notation) and regular objects
+  including pydantic models (using setattr). This mirrors the existing `extract_property()` function
+  for reading values.
+- Updated **setAs** segment and all segments with `set_as` parameter to support pydantic models and
+  other objects in addition to dictionaries. This includes segments across the codebase: basic.py
+  (assign, concat, longestStr, isIn, isNotIn, isTrue, isFalse, Hash), core.py (AbstractFieldSegment),
+  search modules (whoosh.py, lancedb.py), llm modules (chat.py, embedding.py), data modules
+  (mongo.py, text/chunking_units.py), and pipelines (basic_rag.py, vector_databases.py).
+
 ## 0.10.0
 ### New Features
 - Added **splitText** segment to split strings either by length or by delimiter. Now available as an entry point.

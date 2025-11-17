@@ -14,7 +14,7 @@ from pymongo.database import Database
 from talkpipe.pipe import core
 from talkpipe.chatterlang import registry
 from talkpipe.util.config import parse_key_value_str
-from talkpipe.util.data_manipulation import extract_property
+from talkpipe.util.data_manipulation import extract_property, assign_property
 from talkpipe.util.config import get_config
 
 logger = logging.getLogger(__name__)
@@ -157,13 +157,7 @@ class MongoInsert(core.AbstractSegment):
                 
                 # Add result to item if requested
                 if self.set_as:
-                    if isinstance(item, dict):
-                        item[self.set_as] = str(result.inserted_id)
-                    else:
-                        logger.warning(
-                            f"Cannot append MongoDB result to non-dict item. "
-                            f"Item type: {type(item)}"
-                        )
+                    assign_property(item, self.set_as, str(result.inserted_id))
                 
                 yield item
                 
@@ -277,7 +271,7 @@ class MongoSearch(core.AbstractSegment):
             # Handle results based on configuration
             if self.set_as:
                 results = list(cursor)
-                item[self.set_as] = results
+                assign_property(item, self.set_as, results)
                 yield item
             else:
                 for result in cursor:

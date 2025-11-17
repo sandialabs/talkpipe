@@ -9,7 +9,7 @@ import hashlib
 import copy
 import pandas as pd
 from talkpipe.util.config import configure_logger, parse_key_value_str
-from talkpipe.util.data_manipulation import extract_property, extract_template_field_names, get_all_attributes, toDict
+from talkpipe.util.data_manipulation import extract_property, extract_template_field_names, get_all_attributes, toDict, assign_property
 from talkpipe.util.data_manipulation import compileLambda
 from talkpipe.util.os import run_command
 from talkpipe.util.data_manipulation import get_type_safely
@@ -204,19 +204,19 @@ class FormattedItem(AbstractSegment):
 
 @registry.register_segment("setAs")
 @field_segment
-def setAs(item, 
+def setAs(item,
           field_list:Annotated[str, "Comma-separated list of field:label pairs."]):
     """Appends the specified fields to the input item.
-    
-    Equivalent to toDict except that that item is modified with the new key/value pairs 
+
+    Equivalent to toDict except that the item is modified with the new key/value pairs
     rather than a new dictionary returned.
 
-    Assumes that the input item can has items assigned using bracket notation ([]).
-    
+    Supports both dictionary-like objects and regular objects (including pydantic models).
+
     """
     new_vals = toDict(item, field_list)
     for k, v in new_vals.items():
-        item[k] = v
+        assign_property(item, k, v)
     return item
 
 @registry.register_segment("extractProperty")
@@ -239,7 +239,7 @@ def assign(items: Annotated[Iterator[Any], "The input item to modify"],
 
     """
     for item in items:
-        item[set_as] = value
+        assign_property(item, set_as, value)
         yield item
 
 @registry.register_segment(name="toDataFrame")
@@ -316,7 +316,7 @@ def concat(items,
                 ans +=delimiter
             ans += str(extract_property(item, prop[0]))            
         if set_as:
-            item[set_as] = ans
+            assign_property(item, set_as, ans)
             yield item
         else:
             yield ans
@@ -380,9 +380,9 @@ def longestStr(items,
             if len(str(data)) > len(longest):
                 longest = str(data)
         if set_as:
-            item[set_as] = longest
+            assign_property(item, set_as, longest)
             yield item
-        else:   
+        else:
             yield longest
 
 @registry.register_segment("isIn")
@@ -402,7 +402,7 @@ def isIn(items,
         ans = value in data
 
         if set_as:
-            item[set_as] = ans
+            assign_property(item, set_as, ans)
             to_return = item
         else:
             to_return = item if as_filter else ans
@@ -412,7 +412,7 @@ def isIn(items,
 
 @registry.register_segment("isNotIn")
 @segment()
-def isNotIn(items, 
+def isNotIn(items,
             field: Annotated[str, "Field name to check for value"],
             value: Annotated[Any, "Value to check for in the field"],
             as_filter: Annotated[bool, "Whether to use this function as a filter. If false, only return True or False. If true, yield the item if the condition is true."] = True,
@@ -427,7 +427,7 @@ def isNotIn(items,
         ans = value not in data
 
         if set_as:
-            item[set_as] = ans
+            assign_property(item, set_as, ans)
             to_return = item
         else:
             to_return = item if as_filter else ans
@@ -437,9 +437,9 @@ def isNotIn(items,
 
 @registry.register_segment("isTrue")
 @segment()
-def isTrue(items, 
-           as_filter: Annotated[bool, "Whether to use this function as a filter. If false, only return True or False. If true, yield the item if the condition is true."] = True, 
-           field: Annotated[str, "The field to check for truthiness. Defaults to '_', which means the entire item."] = "_", 
+def isTrue(items,
+           as_filter: Annotated[bool, "Whether to use this function as a filter. If false, only return True or False. If true, yield the item if the condition is true."] = True,
+           field: Annotated[str, "The field to check for truthiness. Defaults to '_', which means the entire item."] = "_",
            set_as: Annotated[str, "If specified, the result will be added to this field in the item."] = None):
     """
     Checks if the specified field is true.  A field is considered false if it is
@@ -452,7 +452,7 @@ def isTrue(items,
         ans = bool(to_eval) and (to_eval != 0) and (not isinstance(to_eval, str) or len(to_eval.strip()) > 0)
 
         if set_as:
-            item[set_as] = ans
+            assign_property(item, set_as, ans)
             to_return = item
         else:
             to_return = item if as_filter else ans
@@ -462,9 +462,9 @@ def isTrue(items,
 
 @registry.register_segment("isFalse")
 @segment()
-def isFalse(items, 
-             as_filter: Annotated[bool, "Whether to use this function as a filter. If false, only return True or False. If true, yield the item if the condition is true."] = True, 
-             field: Annotated[str, "The field to check for falsiness. Defaults to '_', which means the entire item."] = "_", 
+def isFalse(items,
+             as_filter: Annotated[bool, "Whether to use this function as a filter. If false, only return True or False. If true, yield the item if the condition is true."] = True,
+             field: Annotated[str, "The field to check for falsiness. Defaults to '_', which means the entire item."] = "_",
              set_as: Annotated[str, "If specified, the result will be added to this field in the item."] = None):
     """
     Checks if the specified field is false.  A field is considered false if it is
@@ -477,7 +477,7 @@ def isFalse(items,
         ans = not (bool(to_eval) and (to_eval != 0) and (not isinstance(to_eval, str) or len(to_eval.strip()) > 0))
 
         if set_as:
-            item[set_as] = ans
+            assign_property(item, set_as, ans)
             to_return = item
         else:
             to_return = item if as_filter else ans
@@ -624,10 +624,10 @@ class Hash(AbstractSegment):
             input_iter (Iterable): The input data
         """
         for data in input_iter:
-            digest = hash_data(data, self.algorithm, self.field_list, 
+            digest = hash_data(data, self.algorithm, self.field_list,
                                     self.use_repr, self.fail_on_missing)
             if self.set_as:
-                data[self.set_as] = digest
+                assign_property(data, self.set_as, digest)
                 yield data
             else:
                 yield digest

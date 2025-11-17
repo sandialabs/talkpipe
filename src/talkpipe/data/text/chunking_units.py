@@ -3,6 +3,7 @@ import logging
 from talkpipe.data.text.operations import shingle_generator
 from talkpipe.pipe.core import field_segment, AbstractSegment
 from talkpipe.chatterlang import register_segment
+from talkpipe.util.data_manipulation import assign_property
 
 logger = logging.getLogger(__name__)
 
@@ -73,7 +74,7 @@ class ShingleText(AbstractSegment):
         ):
             if self.set_as:
                 new_item = item.copy() if item else {}
-                new_item[self.set_as] = shingle_text
+                assign_property(new_item, self.set_as, shingle_text)
                 yield new_item
             else:
                 yield shingle_text

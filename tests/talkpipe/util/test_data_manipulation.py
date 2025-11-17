@@ -1,5 +1,6 @@
 import json
 import pytest
+from pydantic import BaseModel
 from talkpipe.util import data_manipulation
 
 # Note that many of the utils for this module are in test_util.py because of an earlier refactor.
@@ -146,5 +147,86 @@ def test_extract_property_underscore_passthrough():
     expected5 = data_manipulation.extract_property(data5, "1")
     assert result5 == expected5, f"_.1 should return {expected5}, but got {result5}"
     assert result5 == "b"
+
+
+def test_assign_property_dict():
+    """Test assign_property works with dictionaries."""
+    data = {"a": 1, "b": 2}
+    data_manipulation.assign_property(data, "c", 3)
+    assert data["c"] == 3
+    assert data == {"a": 1, "b": 2, "c": 3}
+
+    # Test overwriting existing property
+    data_manipulation.assign_property(data, "a", 10)
+    assert data["a"] == 10
+
+
+def test_assign_property_pydantic():
+    """Test assign_property works with pydantic models."""
+
+    class TestModel(BaseModel):
+        model_config = {"extra": "allow"}  # Allow extra fields
+        a: int
+        b: int
+
+    model = TestModel(a=1, b=2)
+
+    # Test 1: Overwrite a declared field
+    data_manipulation.assign_property(model, "a", 10)
+    assert model.a == 10
+    assert model.b == 2
+
+    # Test 2: Overwrite another declared field
+    data_manipulation.assign_property(model, "b", 20)
+    assert model.b == 20
+    assert model.a == 10
+
+    # Test 3: Add a new extra field (requires extra='allow')
+    data_manipulation.assign_property(model, "c", 3)
+    assert model.c == 3
+    assert model.a == 10
+    assert model.b == 20
+
+
+def test_assign_property_plain_object():
+    """Test assign_property works with plain Python objects."""
+
+    class PlainObject:
+        def __init__(self):
+            self.a = 1
+            self.b = 2
+
+    obj = PlainObject()
+
+    # Add a new attribute
+    data_manipulation.assign_property(obj, "c", 3)
+    assert obj.c == 3
+    assert obj.a == 1
+    assert obj.b == 2
+
+    # Overwrite existing attribute
+    data_manipulation.assign_property(obj, "a", 10)
+    assert obj.a == 10
+
+
+def test_assign_property_different_types():
+    """Test assign_property with different value types."""
+    data = {}
+
+    # String value
+    data_manipulation.assign_property(data, "string_field", "hello")
+    assert data["string_field"] == "hello"
+
+    # List value
+    data_manipulation.assign_property(data, "list_field", [1, 2, 3])
+    assert data["list_field"] == [1, 2, 3]
+
+    # Dict value
+    data_manipulation.assign_property(data, "dict_field", {"nested": "value"})
+    assert data["dict_field"] == {"nested": "value"}
+
+    # None value
+    data_manipulation.assign_property(data, "none_field", None)
+    assert data["none_field"] is None
 
 

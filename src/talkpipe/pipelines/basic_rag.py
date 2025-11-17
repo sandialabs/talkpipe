@@ -5,7 +5,7 @@ from abc import ABC, abstractmethod
 from talkpipe import AbstractSegment, AbstractFieldSegment, register_segment
 from talkpipe.search.abstract import SearchResult
 from talkpipe.llm.chat import LlmScore, LLMPrompt, LlmBinaryAnswer
-from talkpipe.util.data_manipulation import extract_property
+from talkpipe.util.data_manipulation import extract_property, assign_property
 from talkpipe.pipelines.vector_databases import SearchVectorDatabaseSegment
 
 logger = logging.getLogger(__name__)
@@ -53,7 +53,7 @@ class ConstructRAGPrompt(AbstractSegment):
 
             prompt = f"{self.prompt_directive}\n\n{background}\n\nContent:\n{content}"
             if self.set_as:
-                item[self.set_as] = prompt
+                assign_property(item, self.set_as, prompt)
                 yield item
             else:
                 yield prompt

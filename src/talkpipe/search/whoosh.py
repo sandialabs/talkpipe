@@ -10,7 +10,7 @@ from whoosh.qparser import MultifieldParser, QueryParserError
 from whoosh.writing import LockError
 from talkpipe.pipe import segment, field_segment
 from talkpipe.chatterlang import register_segment
-from talkpipe.util.data_manipulation import DocID, Document, toDict, extract_property
+from talkpipe.util.data_manipulation import DocID, Document, toDict, extract_property, assign_property
 from talkpipe.util.config import parse_key_value_str
 import time
 
@@ -297,7 +297,7 @@ def searchWhoosh(queries: Annotated[object, "Iterator of query strings"], index_
                 results = idx.text_search(query, limit=limit)
                 if all_results_at_once:
                     if set_as:
-                        item[set_as] = results
+                        assign_property(item, set_as, results)
                         yield item
                     else:
                         yield results

@@ -6,7 +6,7 @@ import numpy as np
 from datetime import timedelta
 from talkpipe.chatterlang import register_segment
 from talkpipe import segment
-from talkpipe.util.data_manipulation import extract_property, VectorLike, Document, DocID, toDict
+from talkpipe.util.data_manipulation import extract_property, VectorLike, Document, DocID, toDict, assign_property
 from .abstract import DocumentStore, VectorAddable, VectorSearchable, SearchResult
 
 logger = logging.getLogger(__name__)
@@ -47,7 +47,7 @@ def search_lancedb(items: Annotated[object, "Items with the query vectors"],
         search_results = doc_store.vector_search(query_vector, limit)
 
         if set_as:
-            item[set_as] = search_results
+            assign_property(item, set_as, search_results)
             yield item
         elif all_results_at_once:
             yield search_results

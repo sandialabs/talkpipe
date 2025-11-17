@@ -5,6 +5,7 @@ from talkpipe.pipe import basic
 import talkpipe.pipe.io
 from talkpipe.chatterlang import compiler
 import logging
+from pydantic import BaseModel
 
 def test_progressTicks_basic(capsys):
     # Should print a tick every 2 items, newline after 4 ticks, no count
@@ -171,6 +172,32 @@ def test_setAs():
     aa = aa.as_function(single_in=True, single_out=True)
     ans = aa({"a": 1, "b": 2, "c": [3,4,5]})
     assert ans == {"a": 1, "b": 2, "c": [3,4,5], "A": 1, "D": 5}
+
+def test_setAs_with_pydantic():
+    """Test that setAs works with pydantic objects"""
+
+    class TestModel(BaseModel):
+        model_config = {"extra": "allow"}  # Allow extra fields
+        a: int
+        b: int
+        c: list
+
+    # Create a pydantic model instance
+    model = TestModel(a=1, b=2, c=[3, 4, 5])
+
+    # Apply setAs to add new fields
+    aa = basic.setAs(field_list="a:A,b,c.2:D")
+    aa = aa.as_function(single_in=True, single_out=True)
+    result = aa(model)
+
+    # Check that original fields are preserved
+    assert result.a == 1
+    assert result.b == 2
+    assert result.c == [3, 4, 5]
+
+    # Check that new fields were added (A and D are extra fields)
+    assert result.A == 1
+    assert result.D == 5
 
 
 def test_MakeDataFrameSegment():

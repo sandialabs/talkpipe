@@ -10,7 +10,7 @@ import logging
 from pydantic import BaseModel
 
 from talkpipe.util.constants import TALKPIPE_MODEL_NAME, TALKPIPE_SOURCE
-from talkpipe.util.data_manipulation import extract_property
+from talkpipe.util.data_manipulation import extract_property, assign_property
 
 
 from .config import getPromptAdapter, getPromptSources
@@ -91,7 +91,7 @@ class LLMPrompt(AbstractSegment):
             
             if self.set_as is not None:
                 logger.debug(f"Appending response to field {self.set_as}")
-                item[self.set_as] = ans
+                assign_property(item, self.set_as, ans)
                 yield item
             else:
                 logger.debug("Yielding response directly")

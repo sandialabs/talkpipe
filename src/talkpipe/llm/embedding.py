@@ -5,7 +5,7 @@ import logging
 from talkpipe.llm.embedding_adapters import OllamaEmbedderAdapter
 from talkpipe.pipe.core import AbstractSegment
 from talkpipe.chatterlang.registry import register_segment
-from talkpipe.util.data_manipulation import extract_property
+from talkpipe.util.data_manipulation import extract_property, assign_property
 from .config import getEmbeddingAdapter, getEmbeddingSources
 from talkpipe.util.config import get_config
 
@@ -71,7 +71,7 @@ class LLMEmbed(AbstractSegment):
 
             if self.set_as is not None:
                 logger.debug(f"Appending embedding to field {self.set_as}")
-                item[self.set_as] = ans
+                assign_property(item, self.set_as, ans)
                 yield item
             else:
                 logger.debug("Yielding embedding directly")
