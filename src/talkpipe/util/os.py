@@ -1,6 +1,11 @@
 import logging
 import subprocess  # nosec B404 - Required for secure command execution with comprehensive validation
 import shlex
+import tempfile
+import atexit
+import shutil
+from pathlib import Path
+from typing import Set
 
 logger = logging.getLogger(__name__)
 
@@ -141,5 +146,108 @@ def _validate_base_command(base_command: str):
         # Log the attempt for security monitoring
         logger.warning(f"Attempted execution of non-whitelisted command: {base_command}")
         raise SecurityError(f"Security violation: Command '{command_name}' is not in the allowed list")
-        
+
     logger.debug(f"Base command '{command_name}' validated successfully")
+
+
+# Module-level tracking for process-wide temporary directories
+_PROCESS_TEMP_DIRS: Set[Path] = set()
+_CLEANUP_REGISTERED = False
+
+
+def get_process_temp_dir(name: str) -> str:
+    """
+    Get a process-wide temporary directory with a given name.
+
+    Creates a temporary directory that is shared within the process (same name
+    returns same path) and automatically cleaned up when the process exits.
+
+    This is useful for:
+    - Temporary databases (e.g., LanceDB with tmp://name URIs)
+    - Process-scoped caches
+    - Temporary file storage that needs to be shared across components
+
+    Args:
+        name: Logical name for the temporary directory. Must be a valid
+              directory name (no path separators).
+
+    Returns:
+        Absolute path to the temporary directory as a string.
+
+    Raises:
+        ValueError: If name contains invalid characters (/, \\, etc.)
+
+    Examples:
+        >>> # First call creates the directory
+        >>> path1 = get_process_temp_dir("my_cache")
+        >>> print(path1)
+        /tmp/talkpipe_tmp/my_cache
+
+        >>> # Subsequent calls with same name return same path
+        >>> path2 = get_process_temp_dir("my_cache")
+        >>> assert path1 == path2
+
+        >>> # Different names get different directories
+        >>> path3 = get_process_temp_dir("other_cache")
+        >>> assert path1 != path3
+
+        >>> # All temp directories cleaned up automatically on exit
+
+    Note:
+        - Directories are created under tempfile.gettempdir()/talkpipe_tmp/
+        - Cleanup happens automatically via atexit on normal process termination
+        - Not cleaned up on abnormal termination (kill -9, crashes, etc.)
+        - Same process always gets same path for same name
+        - Different processes get different paths (OS temp dir is process-specific)
+    """
+    # Validate name doesn't contain path separators
+    if '/' in name or '\\' in name or '..' in name:
+        raise ValueError(
+            f"Invalid temp directory name '{name}': "
+            "must not contain path separators (/, \\) or '..'"
+        )
+
+    # Create base temp directory for all talkpipe temp dirs
+    temp_base = Path(tempfile.gettempdir()) / "talkpipe_tmp"
+    temp_base.mkdir(exist_ok=True)
+
+    # Create named subdirectory
+    temp_dir = temp_base / name
+    temp_dir.mkdir(exist_ok=True)
+
+    # Register for cleanup on first use
+    global _CLEANUP_REGISTERED
+    if not _CLEANUP_REGISTERED:
+        atexit.register(_cleanup_process_temp_dirs)
+        _CLEANUP_REGISTERED = True
+        logger.debug("Registered process temp directory cleanup handler")
+
+    # Track this directory for cleanup
+    _PROCESS_TEMP_DIRS.add(temp_dir)
+
+    logger.debug(f"Process temp directory for '{name}': {temp_dir}")
+    return str(temp_dir)
+
+
+def _cleanup_process_temp_dirs():
+    """
+    Clean up all process temporary directories.
+
+    This is called automatically via atexit when the process terminates normally.
+    """
+    for temp_dir in _PROCESS_TEMP_DIRS:
+        try:
+            if temp_dir.exists():
+                shutil.rmtree(temp_dir)
+                logger.debug(f"Cleaned up temp directory: {temp_dir}")
+        except Exception as e:
+            logger.warning(f"Failed to cleanup temp directory {temp_dir}: {e}")
+
+    # Clean up the base directory if empty
+    try:
+        temp_base = Path(tempfile.gettempdir()) / "talkpipe_tmp"
+        if temp_base.exists() and not any(temp_base.iterdir()):
+            temp_base.rmdir()
+            logger.debug("Removed empty talkpipe_tmp base directory")
+    except Exception as e:
+        logger.debug(f"Could not remove talkpipe_tmp base directory: {e}")

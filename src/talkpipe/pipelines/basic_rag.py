@@ -61,14 +61,19 @@ class ConstructRAGPrompt(AbstractSegment):
 
 class AbstractRAGPipeline(AbstractSegment):
     """ Convenience segment that runs a RAG pipeline from search to prompt creation to LLM completion.
+
+    Path supports multiple URI schemes:
+    - File path: "./my_db" or "/path/to/db" - Persistent storage
+    - Memory: "memory://" - Ephemeral in-memory database (faster, no disk I/O)
+    - Temp: "tmp://name" - Process-scoped temporary database (shared by name, auto-cleanup on exit)
     """
-    
+
     def __init__(self,
                  embedding_model: Annotated[str, "Embedding model to use"],
                  embedding_source: Annotated[str, "Source of text to embed"],
                  completion_model: Annotated[str, "LLM model to use for completion"],
                  completion_source: Annotated[str, "Source of prompt for completion"],
-                 path: Annotated[str, "Path to the LanceDB database"],
+                 path: Annotated[str, "Path to LanceDB database. Supports file paths, 'memory://' for in-memory, or 'tmp://name' for process-scoped temp (auto-cleanup)"],
                  content_field: Annotated[Any, "Field to evaluate relevance on"],
                  prompt_directive: Annotated[str, "Directive to guide the evaluation"] = "Respond to the provided content based on the background information. If the background does not contain relevant information, respond with 'No relevant information found.'",
                  set_as: Annotated[str, "The field to set/append the result as."] = None,
@@ -113,6 +118,11 @@ class AbstractRAGPipeline(AbstractSegment):
 @register_segment("ragToText")
 class RAGToText(AbstractRAGPipeline):
     """ RAG pipeline that outputs text completions from LLM.
+
+    Path supports multiple URI schemes:
+    - File path: "./my_db" or "/path/to/db" - Persistent storage
+    - Memory: "memory://" - Ephemeral in-memory database (faster, no disk I/O)
+    - Temp: "tmp://name" - Process-scoped temporary database (shared by name, auto-cleanup on exit)
     """
 
     def __init__(self,
@@ -120,7 +130,7 @@ class RAGToText(AbstractRAGPipeline):
                  embedding_source: Annotated[str, "Source of text to embed"],
                  completion_model: Annotated[str, "LLM model to use for completion"],
                  completion_source: Annotated[str, "Source of prompt for completion"],
-                 path: Annotated[str, "Path to the LanceDB database"],
+                 path: Annotated[str, "Path to LanceDB database. Supports file paths, 'memory://' for in-memory, or 'tmp://name' for process-scoped temp (auto-cleanup)"],
                  content_field: Annotated[Any, "Field to evaluate relevance on"],
                  prompt_directive: Annotated[str, "Directive to guide the evaluation"] = "Respond to the provided content based on the background information. If the background does not contain relevant information, respond with 'No relevant information found.'",
                  set_as: Annotated[str, "The field to set/append the result as."] = None,
@@ -146,6 +156,11 @@ class RAGToText(AbstractRAGPipeline):
 @register_segment("ragToBinaryAnswer")
 class RAGToBinaryAnswer(AbstractRAGPipeline):
     """ RAG pipeline that outputs binary answers from LLM.
+
+    Path supports multiple URI schemes:
+    - File path: "./my_db" or "/path/to/db" - Persistent storage
+    - Memory: "memory://" - Ephemeral in-memory database (faster, no disk I/O)
+    - Temp: "tmp://name" - Process-scoped temporary database (shared by name, auto-cleanup on exit)
     """
 
     def __init__(self,
@@ -153,7 +168,7 @@ class RAGToBinaryAnswer(AbstractRAGPipeline):
                  embedding_source: Annotated[str, "Source of text to embed"],
                  completion_model: Annotated[str, "LLM model to use for completion"],
                  completion_source: Annotated[str, "Source of prompt for completion"],
-                 path: Annotated[str, "Path to the LanceDB database"],
+                 path: Annotated[str, "Path to LanceDB database. Supports file paths, 'memory://' for in-memory, or 'tmp://name' for process-scoped temp (auto-cleanup)"],
                  content_field: Annotated[Any, "Field to evaluate relevance on"],
                  prompt_directive: Annotated[str, "Directive to guide the evaluation"] = "Answer the provided question as YES or NO. If the background does not contain relevant information, respond with 'NO'.",
                  set_as: Annotated[str, "The field to set/append the result as."] = None,
@@ -180,6 +195,11 @@ class RAGToBinaryAnswer(AbstractRAGPipeline):
 @register_segment("ragToScore")
 class RAGToScore(AbstractRAGPipeline):
     """ RAG pipeline that outputs scores from LLM.
+
+    Path supports multiple URI schemes:
+    - File path: "./my_db" or "/path/to/db" - Persistent storage
+    - Memory: "memory://" - Ephemeral in-memory database (faster, no disk I/O)
+    - Temp: "tmp://name" - Process-scoped temporary database (shared by name, auto-cleanup on exit)
     """
 
     def __init__(self,
@@ -187,7 +207,7 @@ class RAGToScore(AbstractRAGPipeline):
                  embedding_source: Annotated[str, "Source of text to embed"],
                  completion_model: Annotated[str, "LLM model to use for completion"],
                  completion_source: Annotated[str, "Source of prompt for completion"],
-                 path: Annotated[str, "Path to the LanceDB database"],
+                 path: Annotated[str, "Path to LanceDB database. Supports file paths, 'memory://' for in-memory, or 'tmp://name' for process-scoped temp (auto-cleanup)"],
                  content_field: Annotated[Any, "Field to evaluate relevance on"],
                  prompt_directive: Annotated[str, "Directive to guide the evaluation"] = "Answer the provided question on a scale of 1 to 10. If the background does not contain relevant information, respond with a score of 1.",
                  set_as: Annotated[str, "The field to set/append the result as."] = None,

@@ -7,14 +7,56 @@ from datetime import timedelta
 from talkpipe.chatterlang import register_segment
 from talkpipe import segment
 from talkpipe.util.data_manipulation import extract_property, VectorLike, Document, DocID, toDict, assign_property
+from talkpipe.util.os import get_process_temp_dir
 from .abstract import DocumentStore, VectorAddable, VectorSearchable, SearchResult
 
 logger = logging.getLogger(__name__)
 
+
+def parse_db_path(path: str) -> str:
+    """
+    Parse database path, handling special URI schemes.
+
+    Supported schemes:
+    - Regular paths: "/path/to/db" -> "/path/to/db"
+    - Memory DBs: "memory://" or "" -> passes through to LanceDB
+    - Temp DBs: "tmp://name" -> process-wide temp directory path
+
+    Args:
+        path: Database path or URI
+
+    Returns:
+        Resolved path suitable for lancedb.connect()
+
+    Examples:
+        >>> parse_db_path("/data/mydb")
+        "/data/mydb"
+
+        >>> parse_db_path("memory://")
+        "memory://"
+
+        >>> parse_db_path("tmp://my_cache")
+        "/tmp/talkpipe_tmp/my_cache"  # actual temp dir
+
+    Raises:
+        ValueError: If tmp:// URI has no name
+    """
+    if path.startswith("tmp://"):
+        # Extract name from URI
+        name = path[6:]  # Remove "tmp://" prefix
+        if not name:
+            raise ValueError("tmp:// URI requires a name (e.g., tmp://my_db)")
+
+        # Get process-wide temp directory
+        return get_process_temp_dir(name)
+
+    # Pass through other URIs/paths
+    return path
+
 @register_segment("searchLanceDB", "searchLancDB")
 @segment()
 def search_lancedb(items: Annotated[object, "Items with the query vectors"],
-                   path: Annotated[str, "Path to the LanceDB database"],
+                   path: Annotated[str, "Path to the LanceDB database. Supports file paths, 'memory://' for in-memory, or 'tmp://name' for process-scoped temp (auto-cleanup)"],
                    table_name: Annotated[str, "Table name in the LanceDB database"],
                    all_results_at_once: Annotated[bool, "If true, return all results at once"]=False,
                    field: Annotated[str, "Field with the vector"]=None,
@@ -24,6 +66,11 @@ def search_lancedb(items: Annotated[object, "Items with the query vectors"],
                    read_consistency_interval: Annotated[int, "Read consistency interval in seconds"]=10
                 ):
     """Search for similar vectors in LanceDB and return SearchResult objects.
+
+    The path parameter supports multiple URI schemes:
+    - File path: "./my_db" or "/path/to/db" - Persistent storage
+    - Memory: "memory://" - Ephemeral in-memory database (faster, no disk I/O)
+    - Temp: "tmp://name" - Process-scoped temporary database (shared by name, auto-cleanup on exit)
 
     Yields:
         SearchResult objects or lists of SearchResult objects.
@@ -59,7 +106,7 @@ def search_lancedb(items: Annotated[object, "Items with the query vectors"],
 @register_segment("addToLanceDB", "addToLancDB")
 @segment()
 def add_to_lancedb(items: Annotated[object, "Items with the vectors and documents"],
-                   path: Annotated[str, "Path to the LanceDB database"],
+                   path: Annotated[str, "Path to the LanceDB database. Supports file paths, 'memory://' for in-memory, or 'tmp://name' for process-scoped temp (auto-cleanup)"],
                    table_name: Annotated[str, "Table name in the LanceDB database"],
                    vector_field: Annotated[str, "The field containing the vector data"] = "vector",
                    doc_id_field: Annotated[Optional[str], "Field containing document ID"] = None,
@@ -68,6 +115,11 @@ def add_to_lancedb(items: Annotated[object, "Items with the vectors and document
                    vector_dim: Annotated[Optional[int], "Expected dimension of vectors"]=None
                    ):
     """Add vectors and documents to LanceDB using LanceDBDocumentStore.
+
+    The path parameter supports multiple URI schemes:
+    - File path: "./my_db" or "/path/to/db" - Persistent storage
+    - Memory: "memory://" - Ephemeral in-memory database (faster, no disk I/O)
+    - Temp: "tmp://name" - Process-scoped temporary database (shared by name, auto-cleanup on exit)
 
     Returns:
         The original items with the document IDs added.
@@ -136,11 +188,15 @@ class LanceDBDocumentStore(DocumentStore, VectorAddable, VectorSearchable):
         Initialize the LanceDB document store.
 
         Args:
-            path: Path to the LanceDB database
+            path: Path to the LanceDB database. Supports:
+                  - Regular paths: "/path/to/db"
+                  - Memory DBs: "memory://"
+                  - Temp DBs: "tmp://name" (process-wide, auto-cleanup)
             table_name: Name of the table to store documents in
             vector_dim: Expected dimension of vectors (optional, inferred from first vector)
         """
-        self.path = path
+        self.original_path = path  # Keep original for reference
+        self.path = parse_db_path(path)  # Resolve tmp:// and other URIs
         self.table_name = table_name
         self.vector_dim = vector_dim
         self._db = None

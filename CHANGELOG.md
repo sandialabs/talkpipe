@@ -11,6 +11,12 @@
   (assign, concat, longestStr, isIn, isNotIn, isTrue, isFalse, Hash), core.py (AbstractFieldSegment),
   search modules (whoosh.py, lancedb.py), llm modules (chat.py, embedding.py), data modules
   (mongo.py, text/chunking_units.py), and pipelines (basic_rag.py, vector_databases.py).
+- Added get_process_temp_dir() utility to allow creation of temporary directories that are removed
+  when the process exists using `atexit`, but are consistent withing. aprocess. 
+- Added support for `tmp://name` URI scheme in LanceDB path parameters. This enables process-scoped
+  temporary databases that are automatically cleaned up on exit. Temporary databases with the same name
+  share state within a process, making them ideal for testing or ephemeral workflows. Works alongside
+  existing `memory://` (in-memory) and file path options. Implemented via `get_process_temp_dir()`.
 
 ## 0.10.0
 ### New Features

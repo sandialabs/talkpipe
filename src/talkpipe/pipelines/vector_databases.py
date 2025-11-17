@@ -10,13 +10,18 @@ class MakeVectorDatabaseSegment(AbstractSegment):
 
     This segment expects dictionary inputs representing documents.
     It embeds the specified field and stores the documents with their embeddings in LanceDB.
+
+    Path supports multiple URI schemes:
+    - File path: "./my_db" or "/path/to/db" - Persistent storage
+    - Memory: "memory://" - Ephemeral in-memory database (faster, no disk I/O)
+    - Temp: "tmp://name" - Process-scoped temporary database (shared by name, auto-cleanup on exit)
     """
 
     def __init__(self,
                  embedding_field: Annotated[str, "Field to use for embeddings"],
                  embedding_model: Annotated[str, "Embedding model to use"],
                  embedding_source: Annotated[str, "Source of text to embed"],
-                 path: Annotated[str, "Path to the LanceDB database"],
+                 path: Annotated[str, "Path to LanceDB database. Supports file paths, 'memory://', or 'tmp://name'"],
                  table_name: Annotated[str, "Name of the table in the database"] = "docs",
                  doc_id_field: Annotated[Optional[str], "Field containing document ID"] = None,
                  overwrite: Annotated[bool, "If true, overwrite existing table"] = False,
@@ -52,12 +57,17 @@ class SearchVectorDatabaseSegment(AbstractSegment):
       search results are yielded (set_as must be None).
     - If query_field is specified: Expects dictionary inputs, embeds the specified field,
       and search results can be yielded directly (set_as=None) or attached to the input item.
+
+    Path supports multiple URI schemes:
+    - File path: "./my_db" or "/path/to/db" - Persistent storage
+    - Memory: "memory://" - Ephemeral in-memory database (faster, no disk I/O)
+    - Temp: "tmp://name" - Process-scoped temporary database (shared by name, auto-cleanup on exit)
     """
 
     def __init__(self,
                  embedding_model: Annotated[str, "Embedding model to use"],
                  embedding_source: Annotated[str, "Source of text to embed"],
-                 path: Annotated[str, "Path to the LanceDB database"],
+                 path: Annotated[str, "Path to LanceDB database. Supports file paths, 'memory://' for in-memory, or 'tmp://name' for process-scoped temp (auto-cleanup)"],
                  table_name: Annotated[str, "Name of the table in the database"] = "docs",
                  query_field: Annotated[Optional[str], "Field containing the query text to embed. If None, expects string inputs."] = None,
                  limit: Annotated[int, "Number of search results to return"] = 10,
