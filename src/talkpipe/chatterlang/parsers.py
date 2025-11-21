@@ -142,8 +142,23 @@ quoted_string = (
 number = regex(r'-?\d+(\.\d+)?').map(lambda s: int(s) if '.' not in s else float(s))
 """A parser for numbers.  Returns both ints and floats."""
 
-parameter = quoted_string | bool_value | number | identifier | variable | environmentVariable
-"""A parser for parameters.  Parameters can be strings, booleans, numbers, or identifiers."""
+atomic_parameter = quoted_string | bool_value | number | identifier | variable | environmentVariable
+"""A parser for atomic (non-array) parameters."""
+
+@generate
+def array_parameter():
+    """A parser for array parameters like [1, "str", MY_CONST].
+
+    Arrays can contain any valid parameter type including nested arrays.
+    Elements are separated by commas with optional whitespace.
+    """
+    yield lexeme('[')
+    elements = yield parameter.sep_by(lexeme(','), min=0)
+    yield lexeme(']')
+    return elements
+
+parameter = atomic_parameter | array_parameter
+"""A parser for parameters.  Parameters can be strings, booleans, numbers, identifiers, arrays, or variables."""
 
 key_value = seq(
     key=identifier << lexeme('='),

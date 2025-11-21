@@ -38,10 +38,18 @@ def compile(script: ParsedScript, runtime: RuntimeComponent = None) -> Callable:
     logger.debug("Successfully compiled all pipelines")
     return Script(compiled_pipelines)
 
+def _resolve_value(value, runtime):
+    """Resolve a single parameter value, handling constants and arrays recursively."""
+    if isinstance(value, Identifier):
+        return runtime.const_store[value.name]
+    elif isinstance(value, list):
+        return [_resolve_value(elem, runtime) for elem in value]
+    else:
+        return value
+
 def _resolve_params(params, runtime):
     """ Resolve the parameters for a segment """
-    ans = {k: runtime.const_store[params[k].name] if isinstance(params[k], Identifier) else params[k] for k in params}
-    return ans
+    return {k: _resolve_value(params[k], runtime) for k in params}
 
 @compile.register(ParsedPipeline)
 def _(pipeline: ParsedPipeline, runtime: RuntimeComponent) -> Pipeline:

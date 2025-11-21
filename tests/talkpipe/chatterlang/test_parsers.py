@@ -190,8 +190,48 @@ def test_fork():
     assert isinstance(ps.pipelines[0].transforms[1].branches[0], parsers.ParsedPipeline)
     assert isinstance(ps.pipelines[0].transforms[1].branches[1], parsers.ParsedPipeline)
 
+def test_array_parameter():
+    """Test parsing of array parameters like [1, "str", MY_CONST]"""
+    param = parsers.parameter
+
+    # Basic array with numbers
+    result = param.parse('[1, 2, 3]')
+    assert result == [1, 2, 3]
+
+    # Array with mixed types
+    result = param.parse('[1, "str", 3.5]')
+    assert result == [1, "str", 3.5]
+
+    # Array with identifier (constant reference)
+    result = param.parse('[1, MY_CONST, "str"]')
+    assert result == [1, parsers.Identifier('MY_CONST'), "str"]
+
+    # Empty array
+    result = param.parse('[]')
+    assert result == []
+
+    # Array with booleans
+    result = param.parse('[true, false, 1]')
+    assert result == [True, False, 1]
+
+    # Nested arrays
+    result = param.parse('[[1, 2], [3, 4]]')
+    assert result == [[1, 2], [3, 4]]
+
+
+def test_array_in_segment_params():
+    """Test array parameters in segment brackets"""
+    seg = parsers.segment
+    result = seg.parse('my_segment[arr=[1, 2, 3]]')
+    assert result.params['arr'] == [1, 2, 3]
+
+    result = seg.parse('my_segment[arr=[1, "str", MY_CONST], other="value"]')
+    assert result.params['arr'] == [1, "str", parsers.Identifier('MY_CONST')]
+    assert result.params['other'] == "value"
+
+
 def test_environmentVariables():
-    
+
     # Use mock to patch os.environ
     with mock.patch.dict(os.environ, {"TALKPIPE_my_string": "Some_String"}):
         reset_config()

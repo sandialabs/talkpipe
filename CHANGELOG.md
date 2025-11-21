@@ -1,6 +1,12 @@
 # Changelog
 
 ## Unreleased
+### New Features
+- Added array parameter support in ChatterLang syntax. Segments and sources can now accept array
+  parameters using bracket notation, e.g., `my_segment[arr=[1, "str", MY_CONST]]`. Arrays support
+  mixed types (strings, numbers, booleans, identifiers), nested arrays, and constant resolution
+  within array elements.
+
 ### Improvements
 - Added `assign_property()` utility function to `data_manipulation.py` that provides a unified interface
   for assigning values to both dictionary-like objects (using bracket notation) and regular objects

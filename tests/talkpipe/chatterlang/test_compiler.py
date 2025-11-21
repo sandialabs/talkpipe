@@ -309,3 +309,53 @@ def test_compile_error_in_source():
         assert "Source 'unknownSource' not found" in str(e)
     else:
         assert False, "Expected CompileError was not raised"
+
+
+def test_array_parameter_with_constants():
+    """Test that constants inside arrays are properly resolved"""
+    runtime = core.RuntimeComponent()
+
+    # Register a test segment that accepts an array parameter
+    @registry.register_segment("testArrayParam")
+    class TestArrayParam(io.AbstractSegment):
+        def __init__(self, arr):
+            super().__init__()
+            self.arr = arr
+
+        def transform(self, items):
+            for item in items:
+                yield {"input": item, "arr": self.arr}
+
+    # Test with constants in array
+    script = compiler.compile(
+        """
+        CONST MY_CONST = "hello";
+        CONST MY_NUM = 42;
+        INPUT FROM echo[data="test"] | testArrayParam[arr=[1, MY_CONST, MY_NUM]]
+        """, runtime)
+
+    result = list(script())
+    assert len(result) == 1
+    assert result[0]["arr"] == [1, "hello", 42]
+
+
+def test_array_parameter_basic():
+    """Test basic array parameter parsing and compilation"""
+    runtime = core.RuntimeComponent()
+
+    @registry.register_segment("testBasicArray")
+    class TestBasicArray(io.AbstractSegment):
+        def __init__(self, numbers):
+            super().__init__()
+            self.numbers = numbers
+
+        def transform(self, items):
+            for item in items:
+                yield sum(self.numbers)
+
+    script = compiler.compile(
+        """INPUT FROM echo[data="x"] | testBasicArray[numbers=[1, 2, 3]]""",
+        runtime)
+
+    result = list(script())
+    assert result == [6]
