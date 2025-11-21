@@ -1,6 +1,8 @@
 # Changelog
 
 ## Unreleased
+
+## 0.10.1
 ### New Features
 - Added get_process_temp_dir() utility to allow creation of temporary directories that are removed
   when the process exists using `atexit`, but are consistent withing. aprocess. 
