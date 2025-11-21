@@ -28,6 +28,7 @@
   temporary databases that are automatically cleaned up on exit. Temporary databases with the same name
   share state within a process, making them ideal for testing or ephemeral workflows. Works alongside
   existing `memory://` (in-memory) and file path options. Implemented via `get_process_temp_dir()`.
+- Added initial claude code commands for reviewing documentation.
 
 ## 0.10.0
 ### New Features

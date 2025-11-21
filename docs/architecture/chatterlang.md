@@ -467,7 +467,7 @@ LOOP 3 TIMES {
 # Demonstrate hashing and data transformation
 INPUT FROM echo[data="apple,banana,apple,cherry,banana,date", delimiter=","]
 | toDict[field_list="_:item"]
-| hash[field_list="item", algorithm="MD5", set_as="hash_value"]
+| hash[field_list="item", algorithm="SHA256", set_as="hash_value"]
 | formatItem[field_list="_:Fruit,hash_value:Hash"]
 | print
 ```
