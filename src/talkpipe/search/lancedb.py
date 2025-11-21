@@ -112,6 +112,7 @@ def add_to_lancedb(items: Annotated[object, "Items with the vectors and document
                    doc_id_field: Annotated[Optional[str], "Field containing document ID"] = None,
                    metadata_field_list: Annotated[Optional[str], "Optional metadata field list"] = None,
                    overwrite: Annotated[bool, "If true, overwrite existing table"]=False,
+                   upsert: Annotated[bool, "If true (default), update existing documents with same ID. If false, raise error on duplicate ID"]=True,
                    vector_dim: Annotated[Optional[int], "Expected dimension of vectors"]=None
                    ):
     """Add vectors and documents to LanceDB using LanceDBDocumentStore.
@@ -120,6 +121,10 @@ def add_to_lancedb(items: Annotated[object, "Items with the vectors and document
     - File path: "./my_db" or "/path/to/db" - Persistent storage
     - Memory: "memory://" - Ephemeral in-memory database (faster, no disk I/O)
     - Temp: "tmp://name" - Process-scoped temporary database (shared by name, auto-cleanup on exit)
+
+    By default, this segment uses upsert behavior: if a document with the same ID already exists,
+    it will be updated with the new vector and metadata. Set upsert=False to raise an error on
+    duplicate IDs instead.
 
     Returns:
         The original items with the document IDs added.
@@ -170,8 +175,11 @@ def add_to_lancedb(items: Annotated[object, "Items with the vectors and document
         # Convert metadata to Document format (string keys and values)
         document = {str(k): str(v) for k, v in metadata.items()}
 
-        # Add to document store
-        added_doc_id = doc_store.add_vector(vector, document, doc_id)
+        # Add to document store (upsert by default, or strict add if upsert=False)
+        if upsert:
+            added_doc_id = doc_store.upsert_vector(vector, document, doc_id)
+        else:
+            added_doc_id = doc_store.add_vector(vector, document, doc_id)
 
         # Add the document ID to the item for reference (only if item is a dict)
         if isinstance(item, dict):
@@ -281,6 +289,52 @@ class LanceDBDocumentStore(DocumentStore, VectorAddable, VectorSearchable):
         existing = self.get_document(doc_id)
         if existing is not None:
             raise ValueError(f"Document with ID {doc_id} already exists")
+
+        # Prepare schema data for table creation if needed
+        schema_data = [{
+            "id": doc_id,
+            "vector": vec_list,
+            "document": self._serialize_document(document)
+        }]
+
+        table = self._get_table(schema_if_missing=schema_data)
+
+        # If table was just created, data is already there, otherwise add it
+        try:
+            # Check if this is a newly created table by seeing if our data is already there
+            existing_check = table.search().where(f"id = '{doc_id}'").to_list()
+            if not existing_check:
+                table.add(schema_data)
+        except Exception:
+            # If there's any issue with the check, just try to add the data
+            table.add(schema_data)
+
+        return doc_id
+
+    def upsert_vector(self, vector: VectorLike, document: Document, doc_id: Optional[DocID] = None) -> DocID:
+        """Add or update a vector in the store (upsert behavior).
+
+        If a document with the given doc_id exists, it will be updated.
+        If it doesn't exist, a new document will be created.
+
+        Args:
+            vector: The vector to store
+            document: The document metadata to associate with the vector
+            doc_id: Optional document ID. If not provided, a UUID will be generated.
+
+        Returns:
+            The document ID of the added/updated document.
+        """
+        vec_list = self._validate_vector(vector)
+
+        if doc_id is None:
+            doc_id = str(uuid.uuid4())
+
+        # Check if document already exists
+        existing = self.get_document(doc_id)
+        if existing is not None:
+            # Delete existing document first
+            self.delete_document(doc_id)
 
         # Prepare schema data for table creation if needed
         schema_data = [{

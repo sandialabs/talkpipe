@@ -2,12 +2,19 @@
 
 ## Unreleased
 ### New Features
+- Added get_process_temp_dir() utility to allow creation of temporary directories that are removed
+  when the process exists using `atexit`, but are consistent withing. aprocess. 
 - Added array parameter support in ChatterLang syntax. Segments and sources can now accept array
   parameters using bracket notation, e.g., `my_segment[arr=[1, "str", MY_CONST]]`. Arrays support
   mixed types (strings, numbers, booleans, identifiers), nested arrays, and constant resolution
   within array elements.
 
 ### Improvements
+- Fixed discrepencies in documentation
+- Added upsert support to **addToLanceDB** segment. By default, documents with the same ID are now
+  updated instead of raising an error, matching the behavior of **indexWhoosh**. Set `upsert=False`
+  to restore the previous behavior of raising an error on duplicate IDs. Also added `upsert_vector()`
+  method to `LanceDBDocumentStore` class.
 - Added `assign_property()` utility function to `data_manipulation.py` that provides a unified interface
   for assigning values to both dictionary-like objects (using bracket notation) and regular objects
   including pydantic models (using setattr). This mirrors the existing `extract_property()` function
@@ -17,8 +24,6 @@
   (assign, concat, longestStr, isIn, isNotIn, isTrue, isFalse, Hash), core.py (AbstractFieldSegment),
   search modules (whoosh.py, lancedb.py), llm modules (chat.py, embedding.py), data modules
   (mongo.py, text/chunking_units.py), and pipelines (basic_rag.py, vector_databases.py).
-- Added get_process_temp_dir() utility to allow creation of temporary directories that are removed
-  when the process exists using `atexit`, but are consistent withing. aprocess. 
 - Added support for `tmp://name` URI scheme in LanceDB path parameters. This enables process-scoped
   temporary databases that are automatically cleaned up on exit. Temporary databases with the same name
   share state within a process, making them ideal for testing or ephemeral workflows. Works alongside

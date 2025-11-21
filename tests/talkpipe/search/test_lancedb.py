@@ -171,7 +171,7 @@ class TestAddToLanceDB:
     def test_add_to_lancedb_with_vector_field(self, mock_extract_property, mock_doc_store_class, sample_items, temp_db_path):
         mock_doc_store = mock.Mock()
         mock_doc_store_class.return_value = mock_doc_store
-        mock_doc_store.add_vector.return_value = "added_doc_id"
+        mock_doc_store.upsert_vector.return_value = "added_doc_id"  # upsert is default
         mock_extract_property.return_value = [1.0, 2.0, 3.0]
 
         items_to_add = [sample_items[0]]  # Item with vector field
@@ -180,7 +180,7 @@ class TestAddToLanceDB:
 
         mock_doc_store_class.assert_called_once_with(temp_db_path, "test_table", None)
         mock_extract_property.assert_called_once_with(sample_items[0], "vector", fail_on_missing=True)
-        mock_doc_store.add_vector.assert_called_once_with([1.0, 2.0, 3.0], {"text": "first item"}, None)
+        mock_doc_store.upsert_vector.assert_called_once_with([1.0, 2.0, 3.0], {"text": "first item"}, None)
 
         assert len(results) == 1
         assert results[0]["_doc_id"] == "added_doc_id"
@@ -210,7 +210,7 @@ class TestAddToLanceDB:
     def test_add_to_lancedb_yields_original_items(self, mock_extract_property, mock_doc_store_class, sample_items, temp_db_path):
         mock_doc_store = mock.Mock()
         mock_doc_store_class.return_value = mock_doc_store
-        mock_doc_store.add_vector.side_effect = ["doc1", "doc2"]
+        mock_doc_store.upsert_vector.side_effect = ["doc1", "doc2"]  # upsert is default
         mock_extract_property.side_effect = [[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]]
 
         items_to_add = sample_items
@@ -237,6 +237,63 @@ def test_add_and_search_integration(temp_db_path, sample_items_direction_relevan
     assert len(results) == 2  # Should return 2 SearchResult objects
     assert results[0].document["text"] == "third item"
     assert results[1].document["text"] == "second item"
+
+
+def test_upsert_integration(temp_db_path):
+    """Test that addToLanceDB can update existing documents by default (upsert behavior)."""
+    # Add initial documents
+    initial_items = [
+        {"vector": [1.0, 0.0, 0.0], "text": "first version", "doc_id": "doc1"},
+        {"vector": [0.0, 1.0, 0.0], "text": "second item", "doc_id": "doc2"}
+    ]
+    add_segment = add_to_lancedb(path=temp_db_path, table_name="test_table",
+                                vector_field="vector", doc_id_field="doc_id", overwrite=True)
+    list(add_segment(initial_items))
+
+    # Update first document with same doc_id but different content/vector
+    updated_items = [
+        {"vector": [0.5, 0.5, 0.0], "text": "updated version", "doc_id": "doc1"}
+    ]
+    add_segment_update = add_to_lancedb(path=temp_db_path, table_name="test_table",
+                                        vector_field="vector", doc_id_field="doc_id")
+    list(add_segment_update(updated_items))
+
+    # Search to verify the update
+    search_segment = search_lancedb(path=temp_db_path, table_name="test_table",
+                                   field="vector", limit=10)
+    results = list(search_segment([{"vector": [0.5, 0.5, 0.0]}]))
+
+    # Should find the updated document as top result
+    assert len(results) >= 1
+    # The document with doc_id "doc1" should now have "updated version" text
+    doc1_results = [r for r in results if r.doc_id == "doc1"]
+    assert len(doc1_results) == 1
+    assert doc1_results[0].document["text"] == "updated version"
+
+    # Verify there are only 2 documents total (not 3 - no duplicates)
+    store = LanceDBDocumentStore(temp_db_path, "test_table")
+    assert store.count() == 2
+
+
+def test_upsert_can_be_disabled(temp_db_path):
+    """Test that upsert behavior can be disabled to get error on duplicate."""
+    # Add initial document
+    initial_items = [
+        {"vector": [1.0, 0.0, 0.0], "text": "first version", "doc_id": "doc1"}
+    ]
+    add_segment = add_to_lancedb(path=temp_db_path, table_name="test_table",
+                                vector_field="vector", doc_id_field="doc_id", overwrite=True)
+    list(add_segment(initial_items))
+
+    # Try to add duplicate with upsert=False, should raise error
+    duplicate_items = [
+        {"vector": [0.5, 0.5, 0.0], "text": "duplicate", "doc_id": "doc1"}
+    ]
+    add_segment_no_upsert = add_to_lancedb(path=temp_db_path, table_name="test_table",
+                                          vector_field="vector", doc_id_field="doc_id",
+                                          upsert=False)
+    with pytest.raises(ValueError, match="already exists"):
+        list(add_segment_no_upsert(duplicate_items))
 
 
 def test_read_consistency_interval(temp_db_path):
