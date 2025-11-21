@@ -60,37 +60,38 @@ However, for testing and development purposes, we often need synthetic data that
 The first step uses TalkPipe's ChatterLang scripting language to generate 50 fictional stories about technology development. The pipeline is defined in `Step_1_CreateSyntheticData.script`:
 
 ```
-LOOP 50 TIMES {
-    INPUT FROM "Write a fictitious five sentence story about technology development in an imaginary country."
-    | llmPrompt[source="ollama", model="llama3.2", multi_turn=False]
-    | toDict[field_list="_:content"]
-    | llmPrompt[source="ollama", model="llama3.2", system_prompt="Write exactly one title for this story in plain text with no markdown", field="content", set_as="title", multi_turn=False]
-    | dumpsJsonl | print;
-}
+INPUT FROM "Generating 50 synthetic stories into stories.json" | print;
+INPUT FROM echo[data="Write a fictitious five sentence story about technology development in an imaginary country.", n=50]
+| llmPrompt[source="ollama", model="llama3.2", multi_turn=False]
+| toDict[field_list="_:content"]
+| llmPrompt[source="ollama", model="llama3.2", system_prompt="Write exactly one title for this story in plain text with no markdown", field="content", set_as="title", multi_turn=False]
+| progressTicks[tick_count=1, eol_count=10, print_count=true]
+| dumpsJsonl
+| writeString[fname="stories.json"];
 ```
 
 To run this script:
 
 ```bash
-chatterlang_script --script Step_1_CreateSyntheticData.script > stories.json
+chatterlang_script --script Step_1_CreateSyntheticData.script
 ```
 
 ### Breaking Down the Pipeline
 
 Let's understand what each part of this pipeline accomplishes:
 
-**1. The Loop Structure**
+**1. Status Message**
 ```
-LOOP 50 TIMES {
+INPUT FROM "Generating 50 synthetic stories into stories.json" | print;
 ```
-This creates 50 different documents, giving us enough variety to test search functionality while keeping the dataset manageable.
+This prints a status message to let the user know what's happening.
 
-**2. Content Generation**
+**2. Content Generation with Repetition**
 ```
-INPUT FROM "Write a fictitious five sentence story about technology development in an imaginary country."
-| llmPrompt[multi_turn=False]
+INPUT FROM echo[data="Write a fictitious five sentence story about technology development in an imaginary country.", n=50]
+| llmPrompt[source="ollama", model="llama3.2", multi_turn=False]
 ```
-This sends a prompt to a Large Language Model (LLM) to generate the main content. The `multi_turn=False` parameter ensures each story is independent, preventing the AI from building on previous stories.
+The `echo` source generates 50 copies of the prompt, which are then sent to the LLM to generate 50 different stories. The `multi_turn=False` parameter ensures each story is independent, preventing the AI from building on previous stories.
 
 **3. Data Structuring**
 ```
@@ -107,11 +108,13 @@ This step generates appropriate titles for each story. Notice how it:
 - Adds the title to the existing data (`set_as="title"`)
 - Ensures clean output with specific formatting instructions
 
-**5. Output Formatting**
+**5. Progress Tracking and Output**
 ```
-| dumpsJsonl | print
+| progressTicks[tick_count=1, eol_count=10, print_count=true]
+| dumpsJsonl
+| writeString[fname="stories.json"];
 ```
-Finally, each complete document (with both content and title) is formatted as JSON Lines (JSONL) format and saved to `stories.json`.
+The `progressTicks` segment provides visual feedback during processing. Finally, each complete document (with both content and title) is formatted as JSON Lines (JSONL) format and written directly to `stories.json` using `writeString`.
 
 ### Why This Approach Works for Prototyping
 
@@ -140,9 +143,9 @@ INPUT FROM "Write a technical specification for a new software feature in 3 para
 | llmPrompt[model="llama3.2", system_prompt="Generate a category for this document", set_as="category"]
 ```
 
-**Different Volumes**: Adjust the loop count to test with 10 documents or 1,000 documents
+**Different Volumes**: Adjust the count to test with 10 documents or 1,000 documents
 ```bash
-LOOP 1000 TIMES {
+INPUT FROM echo[data="...", n=1000]
 ```
 
 **Real Data Integration**: Replace the generation entirely with real document ingestion. TalkPipe makes it easy to incorporate custom ingestors you write into the Pipe API, so you can seamlessly integrate your own document processing logic

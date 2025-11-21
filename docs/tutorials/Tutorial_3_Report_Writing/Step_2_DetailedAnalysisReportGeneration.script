@@ -9,8 +9,8 @@
 # 2. Make a defensive copy of the input data for browser compatibility.
 # 3. Use the `llmEmbed` segment to convert the topic into a vector.
 # 4. Use the `searchLanceDB` segment to retrieve relevant documents.
-# 5. Use the custom `generateReportSections` segment to create multiple sections.
-# 6. Use the `formatDetailedReport` segment to combine sections into a cohesive document.
+# 5. Use the custom `generateReportSectionPrompts` segment to create multiple sections.
+# 6. Use the `generateDetailedReport` segment to combine sections into a cohesive document.
 ###################################################################################
 
 | copy

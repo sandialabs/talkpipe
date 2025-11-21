@@ -209,7 +209,6 @@ The `generateReportSectionPrompts` segment analyzes the retrieved content and cr
 - **Introduction and Background** - Context and overview
 - **Detailed Analysis** - In-depth exploration of key themes
 - **Technology Deep Dive** - Technical details and innovations
-- **Comparative Analysis** - Relationships and contrasts between findings
 - **Future Implications** - Trends and projections
 - **Recommendations** - Actionable insights and next steps
 

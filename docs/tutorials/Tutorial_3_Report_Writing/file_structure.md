@@ -29,7 +29,7 @@ Tutorial_3-Report_Writing/
 
 **step_1_extras.py**: Contains the `executiveSummaryPrompt` segment that structures retrieved content into professional executive summary format with key findings and strategic implications.
 
-**step_2_extras.py**: Contains `generateReportSections` and `formatDetailedReport` segments that create multi-section reports by generating individual sections and combining them into cohesive documents.
+**step_2_extras.py**: Contains `generateReportSectionPrompts` and `generateDetailedReport` segments that create multi-section reports by generating individual sections and combining them into cohesive documents.
 
 **step_3_extras.py**: Contains `generateMultiFormatReport` segment that adapts the same source material into different formats optimized for different audiences and use cases.
 
