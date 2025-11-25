@@ -42,6 +42,7 @@ class ShingleText(AbstractSegment):
         shingle_size: Size threshold - number of chunks (count mode) or minimum character length (length mode)
         overlap: Number of chunks that overlap between consecutive shingles (default 0)
         size_mode: Either 'count' to count chunks or 'length' to measure character length (default 'count')
+        emit_detail: If True, emits a dictionary with text and paragraph numbers (default False)
     """
     def __init__(self,
                  field: Annotated[str, "Field containing string.  If not, use entire item"] = None,
@@ -50,7 +51,8 @@ class ShingleText(AbstractSegment):
                  delimiter: Annotated[str, "Delimiter to join chunks (default is a single space)"] = " ",
                  shingle_size: Annotated[int, "Size threshold - number of chunks (count) or min char length (length)"] = 3,
                  overlap: Annotated[int, "Number of chunks that overlap between consecutive shingles (default 0)"] = 0,
-                 size_mode: Annotated[str, "Either 'count' (count chunks) or 'length' (measure char length)"] = "count"):
+                 size_mode: Annotated[str, "Either 'count' (count chunks) or 'length' (measure char length)"] = "count",
+                 emit_detail: Annotated[bool, "If True, emits dict with text and paragraph numbers (default False)"] = False):
         super().__init__()
         self.shingle_size = shingle_size
         self.overlap = overlap
@@ -59,22 +61,35 @@ class ShingleText(AbstractSegment):
         self.set_as = set_as
         self.delimiter = delimiter
         self.size_mode = size_mode
+        self.emit_detail = emit_detail
 
     def transform(self, input_iter):
         """Transforms the input iterator by segmenting text into shingles."""
 
-        for item, shingle_text in shingle_generator(
+        for result in shingle_generator(
             input_iter,
             self.field,
             self.key,
             self.shingle_size,
             self.overlap,
             self.delimiter,
-            self.size_mode
+            self.size_mode,
+            include_paragraph_numbers=self.emit_detail
         ):
+            if self.emit_detail:
+                item, shingle_text, first_para, last_para = result
+                output = {
+                    "text": shingle_text,
+                    "first_paragraph": first_para,
+                    "last_paragraph": last_para
+                }
+            else:
+                item, shingle_text = result
+                output = shingle_text
+
             if self.set_as:
                 new_item = item.copy() if item else {}
-                assign_property(new_item, self.set_as, shingle_text)
+                assign_property(new_item, self.set_as, output)
                 yield new_item
             else:
-                yield shingle_text
+                yield output

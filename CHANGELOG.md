@@ -6,6 +6,11 @@
 - Added `table_name` parameter to AbstractRAGPipeline and its descendants (RAGToText, RAGToBinaryAnswer, RAGToScore).
   Users can now specify which LanceDB table to search, enabling multiple knowledge bases within the same database.
   Defaults to "docs" for backward compatibility.
+- Added optional paragraph number tracking to `shingle_generator` function and **shingleText** segment.
+  When `include_paragraph_numbers=True` (for the function) or `emit_detail=True` (for the segment), paragraph
+  numbers are included in the output. The function yields 4-tuples `(item, text, first_para, last_para)` instead
+  of 2-tuples, while the segment returns dictionaries with `text`, `first_paragraph`, and `last_paragraph` keys.
+  This enables tracking of which source paragraphs contributed to each shingle. Defaults to False for backward compatibility.
 
 ## 0.10.1
 ### New Features

@@ -93,3 +93,73 @@ def test_splitText():
     result_field = list(splitter(items))
     expected_field = ["Hello", "world!", "This", "is", "a", "test.", "Another", "sentence", "here."]
     assert result_field == expected_field, f"Expected {expected_field}, got {result_field}"
+
+
+def test_shingleText_emit_detail_without_set_as():
+    """Test that ShingleText with emit_detail=True returns dictionaries with paragraph details."""
+    items = [{"text": word} for word in ["The", "quick", "brown", "fox", "jumps", "over"]]
+
+    # Test with emit_detail but no set_as - should return detail dicts directly
+    shingler = ch.ShingleText(field="text", shingle_size=3, overlap=1, emit_detail=True)
+    shingler = shingler.as_function()
+    result = list(shingler(items))
+
+    # First result should have detail dict
+    assert len(result) > 0
+    assert isinstance(result[0], dict)
+    assert "text" in result[0]
+    assert "first_paragraph" in result[0]
+    assert "last_paragraph" in result[0]
+
+    # Check first shingle
+    assert result[0]["text"] == "The quick brown"
+    assert result[0]["first_paragraph"] == 0
+    assert result[0]["last_paragraph"] == 2
+
+    # Check second shingle (with overlap=1, keeps last chunk which is "brown")
+    assert result[1]["text"] == "brown fox jumps"
+    assert result[1]["first_paragraph"] == 2
+    assert result[1]["last_paragraph"] == 4
+
+
+def test_shingleText_emit_detail_with_set_as():
+    """Test that ShingleText with emit_detail=True and set_as appends detail dict to items."""
+    items = [{"key": 1, "text": word} for word in ["The", "quick", "brown", "fox"]]
+
+    # Test with emit_detail and set_as - should attach detail dict to items
+    shingler = ch.ShingleText(field="text", key="key", set_as="shingle_detail",
+                             shingle_size=2, overlap=0, emit_detail=True)
+    shingler = shingler.as_function()
+    result = list(shingler(items))
+
+    # Should return items with the detail dict attached
+    assert len(result) == 2
+    assert isinstance(result[0], dict)
+    assert "shingle_detail" in result[0]
+    assert isinstance(result[0]["shingle_detail"], dict)
+
+    # Check the detail dict structure
+    detail = result[0]["shingle_detail"]
+    assert detail["text"] == "The quick"
+    assert detail["first_paragraph"] == 0
+    assert detail["last_paragraph"] == 1
+
+    # Original item data should still be present
+    assert result[0]["key"] == 1
+    assert result[0]["text"] == "quick"  # Last item in the shingle
+
+
+def test_shingleText_emit_detail_false_unchanged():
+    """Test that default behavior (emit_detail=False) is unchanged."""
+    items = [{"text": word} for word in ["The", "quick", "brown", "fox"]]
+
+    # Test default behavior
+    shingler = ch.ShingleText(field="text", shingle_size=2, overlap=0)
+    shingler = shingler.as_function()
+    result = list(shingler(items))
+
+    # Should return plain strings, not dicts
+    assert len(result) == 2
+    assert isinstance(result[0], str)
+    assert result[0] == "The quick"
+    assert result[1] == "brown fox"

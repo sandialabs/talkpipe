@@ -134,3 +134,54 @@ def test_shingle_generator_no_field():
     shingles = [shingle_text for _, shingle_text in result]
     expected = ["The quick", "quick brown", "brown fox"]
     assert shingles == expected, f"Expected {expected}, got {shingles}"
+
+
+def test_shingle_generator_with_paragraph_numbers():
+    """Test shingle_generator with paragraph number tracking enabled."""
+    texts = [
+        "The quick brown fox jumps over the lazy dog",
+        "The rain in Spain stays mainly in the plain"
+    ]
+    items = [{"key": 1, "text": word} for word in texts[0].split(" ")]
+    items.extend([{"key": 2, "text": word} for word in texts[1].split(" ")])
+
+    # Test with overlap and paragraph numbers
+    result = list(ops.shingle_generator(
+        items,
+        string_field="text",
+        key_field="key",
+        shingle_size=3,
+        overlap=2,
+        include_paragraph_numbers=True
+    ))
+
+    # Should return tuples of (item, text, first_para, last_para)
+    assert len(result) > 0, "Expected at least one result"
+
+    # Check first result structure
+    first_result = result[0]
+    assert len(first_result) == 4, f"Expected 4-tuple (item, text, first_para, last_para), got {len(first_result)}-tuple"
+
+    item, text, first_para, last_para = first_result
+    assert text == "The quick brown", f"Expected 'The quick brown', got '{text}'"
+    assert first_para == 0, f"Expected first_para=0, got {first_para}"
+    assert last_para == 2, f"Expected last_para=2, got {last_para}"
+
+    # Check a middle result
+    middle_result = result[3]
+    item, text, first_para, last_para = middle_result
+    assert text == "fox jumps over", f"Expected 'fox jumps over', got '{text}'"
+    assert first_para == 3, f"Expected first_para=3, got {first_para}"
+    assert last_para == 5, f"Expected last_para=5, got {last_para}"
+
+    # Test default behavior (no paragraph numbers) - should still work as before
+    result_default = list(ops.shingle_generator(
+        items,
+        string_field="text",
+        key_field="key",
+        shingle_size=3,
+        overlap=2
+    ))
+
+    # Should return 2-tuples by default
+    assert len(result_default[0]) == 2, f"Expected 2-tuple by default, got {len(result_default[0])}-tuple"
