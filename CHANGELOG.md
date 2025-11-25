@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+### Improvements
+- Added `table_name` parameter to AbstractRAGPipeline and its descendants (RAGToText, RAGToBinaryAnswer, RAGToScore).
+  Users can now specify which LanceDB table to search, enabling multiple knowledge bases within the same database.
+  Defaults to "docs" for backward compatibility.
+
 ## 0.10.1
 ### New Features
 - Added get_process_temp_dir() utility to allow creation of temporary directories that are removed

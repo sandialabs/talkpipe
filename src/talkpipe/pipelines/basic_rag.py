@@ -78,6 +78,7 @@ class AbstractRAGPipeline(AbstractSegment):
                  prompt_directive: Annotated[str, "Directive to guide the evaluation"] = "Respond to the provided content based on the background information. If the background does not contain relevant information, respond with 'No relevant information found.'",
                  set_as: Annotated[str, "The field to set/append the result as."] = None,
                  limit: Annotated[int, "Number of search results to retrieve"] = 10,
+                 table_name: Annotated[str, "Name of the table in the LanceDB database"] = "docs",
                  read_consistency_interval: Annotated[int, "Read consistency interval in seconds"] = 10):
 
         super().__init__()
@@ -90,6 +91,7 @@ class AbstractRAGPipeline(AbstractSegment):
         self.content_field = content_field
         self.set_as = set_as
         self.limit = limit
+        self.table_name = table_name
         self.read_consistency_interval = read_consistency_interval
 
     @abstractmethod
@@ -101,6 +103,7 @@ class AbstractRAGPipeline(AbstractSegment):
         return SearchVectorDatabaseSegment(embedding_model=self.embedding_model,
                                                     embedding_source=self.embedding_source,
                                                     path=self.path,
+                                                    table_name=self.table_name,
                                                     set_as="_background",
                                                     limit=self.limit,
                                                     query_field=self.content_field,
@@ -135,6 +138,7 @@ class RAGToText(AbstractRAGPipeline):
                  prompt_directive: Annotated[str, "Directive to guide the evaluation"] = "Respond to the provided content based on the background information. If the background does not contain relevant information, respond with 'No relevant information found.'",
                  set_as: Annotated[str, "The field to set/append the result as."] = None,
                  limit: Annotated[int, "Number of search results to retrieve"] = 10,
+                 table_name: Annotated[str, "Name of the table in the LanceDB database"] = "docs",
                  read_consistency_interval: Annotated[int, "Read consistency interval in seconds"] = 10):
         super().__init__(embedding_model=embedding_model,
                          embedding_source=embedding_source,
@@ -145,6 +149,7 @@ class RAGToText(AbstractRAGPipeline):
                          prompt_directive=prompt_directive,
                          set_as=set_as,
                          limit=limit,
+                         table_name=table_name,
                          read_consistency_interval=read_consistency_interval)
         
     def make_completion_segment(self) -> AbstractSegment:
@@ -173,6 +178,7 @@ class RAGToBinaryAnswer(AbstractRAGPipeline):
                  prompt_directive: Annotated[str, "Directive to guide the evaluation"] = "Answer the provided question as YES or NO. If the background does not contain relevant information, respond with 'NO'.",
                  set_as: Annotated[str, "The field to set/append the result as."] = None,
                  limit: Annotated[int, "Number of search results to retrieve"] = 10,
+                 table_name: Annotated[str, "Name of the table in the LanceDB database"] = "docs",
                  read_consistency_interval: Annotated[int, "Read consistency interval in seconds"] = 10):
         super().__init__(embedding_model=embedding_model,
                          embedding_source=embedding_source,
@@ -183,6 +189,7 @@ class RAGToBinaryAnswer(AbstractRAGPipeline):
                          prompt_directive=prompt_directive,
                          set_as=set_as,
                          limit=limit,
+                         table_name=table_name,
                          read_consistency_interval=read_consistency_interval)
 
     def make_completion_segment(self) -> AbstractSegment:
@@ -212,6 +219,7 @@ class RAGToScore(AbstractRAGPipeline):
                  prompt_directive: Annotated[str, "Directive to guide the evaluation"] = "Answer the provided question on a scale of 1 to 10. If the background does not contain relevant information, respond with a score of 1.",
                  set_as: Annotated[str, "The field to set/append the result as."] = None,
                  limit: Annotated[int, "Number of search results to retrieve"] = 10,
+                 table_name: Annotated[str, "Name of the table in the LanceDB database"] = "docs",
                  read_consistency_interval: Annotated[int, "Read consistency interval in seconds"] = 10):
         super().__init__(embedding_model=embedding_model,
                          embedding_source=embedding_source,
@@ -222,6 +230,7 @@ class RAGToScore(AbstractRAGPipeline):
                          prompt_directive=prompt_directive,
                          set_as=set_as,
                          limit=limit,
+                         table_name=table_name,
                          read_consistency_interval=read_consistency_interval)
 
     def make_completion_segment(self) -> AbstractSegment:
