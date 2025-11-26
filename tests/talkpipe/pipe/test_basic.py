@@ -395,6 +395,11 @@ def test_flatten():
 
     assert list(f([1])) == [1]
 
+    f = basic.flatten(field="x", set_as="y")
+    f = f.as_function(single_in=False, single_out=False)
+    ans = list(f([{"x": [1,2]}, {"x": [3,4]}]))
+    assert ans == [{"x": [1,2], "y":1}, {"x": [1,2], "y":2}, {"x": [3,4], "y":3}, {"x": [3,4], "y":4}]
+
 def test_hash():
     assert basic.hash_data("a") == basic.hash_data("a")
     assert basic.hash_data({"a": 1}) == basic.hash_data({"a": 1})

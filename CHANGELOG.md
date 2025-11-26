@@ -11,6 +11,8 @@
   numbers are included in the output. The function yields 4-tuples `(item, text, first_para, last_para)` instead
   of 2-tuples, while the segment returns dictionaries with `text`, `first_paragraph`, and `last_paragraph` keys.
   This enables tracking of which source paragraphs contributed to each shingle. Defaults to False for backward compatibility.
+- Extended flatten to be a multi-emit field segment so it can flatten fields in an object and return the whole object
+  with individual components.
 
 ## 0.10.1
 ### New Features
