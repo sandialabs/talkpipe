@@ -174,6 +174,13 @@ def test_shingle_generator_with_paragraph_numbers():
     assert first_para == 3, f"Expected first_para=3, got {first_para}"
     assert last_para == 5, f"Expected last_para=5, got {last_para}"
 
+    # Check that paragraph counter resets when key changes (key=2 starts at result[7])
+    key2_result = result[7]
+    item, text, first_para, last_para = key2_result
+    assert text == "The rain in", f"Expected 'The rain in', got '{text}'"
+    assert first_para == 0, f"Expected first_para=0 (counter should reset on key change), got {first_para}"
+    assert last_para == 2, f"Expected last_para=2 (counter should reset on key change), got {last_para}"
+
     # Test default behavior (no paragraph numbers) - should still work as before
     result_default = list(ops.shingle_generator(
         items,

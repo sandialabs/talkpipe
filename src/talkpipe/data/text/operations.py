@@ -20,8 +20,8 @@ def shingle_generator(text_chunks: Iterator[Any], string_field: str, key_field: 
     shingles = []
     current_key = None
     last_item = None
-    paragraph_numbers = []  # Track paragraph numbers for current shingle
-    paragraph_counter = 0  # Global paragraph counter
+    paragraph_numbers = []
+    paragraph_counter = 0
 
     def is_shingle_complete():
         """Check if current shingle meets size threshold."""
@@ -30,21 +30,28 @@ def shingle_generator(text_chunks: Iterator[Any], string_field: str, key_field: 
         else:  # count mode
             return len(shingles) == shingle_size
 
+    def yield_shingle():
+        """Yield current shingle with appropriate format."""
+        yield_item = last_item.copy() if isinstance(last_item, dict) else last_item
+        shingle_text = delimiter.join(shingles)
+        if include_paragraph_numbers:
+            return yield_item, shingle_text, paragraph_numbers[0], paragraph_numbers[-1]
+        else:
+            return yield_item, shingle_text
+
     for item in text_chunks:
         text = extract_property(item, string_field) if string_field else item
+
+        # Check for key change
         if key_field:
-            item_key = extract_property(item, key_field) if key_field else None
+            item_key = extract_property(item, key_field)
             if current_key is not None and item_key != current_key:
+                # Yield remaining shingle before resetting for new key
                 if shingles and (is_shingle_complete() or overlap == 0):
-                    yield_item = last_item.copy() if isinstance(last_item, dict) else last_item
-                    if include_paragraph_numbers:
-                        first_para = paragraph_numbers[0]
-                        last_para = paragraph_numbers[-1]
-                        yield yield_item, delimiter.join(shingles), first_para, last_para
-                    else:
-                        yield yield_item, delimiter.join(shingles)
+                    yield yield_shingle()
                 shingles = []
                 paragraph_numbers = []
+                paragraph_counter = 0
             current_key = item_key
 
         last_item = item
@@ -52,22 +59,12 @@ def shingle_generator(text_chunks: Iterator[Any], string_field: str, key_field: 
         paragraph_numbers.append(paragraph_counter)
         paragraph_counter += 1
 
+        # Yield complete shingle and keep overlap
         if is_shingle_complete():
-            yield_item = last_item.copy() if isinstance(last_item, dict) else last_item
-            if include_paragraph_numbers:
-                first_para = paragraph_numbers[0]
-                last_para = paragraph_numbers[-1]
-                yield yield_item, delimiter.join(shingles), first_para, last_para
-            else:
-                yield yield_item, delimiter.join(shingles)
+            yield yield_shingle()
             shingles = shingles[-overlap:] if overlap > 0 else []
             paragraph_numbers = paragraph_numbers[-overlap:] if overlap > 0 else []
 
+    # Yield final incomplete shingle if applicable
     if shingles and (is_shingle_complete() or overlap == 0):
-        yield_item = last_item.copy() if isinstance(last_item, dict) else last_item
-        if include_paragraph_numbers:
-            first_para = paragraph_numbers[0]
-            last_para = paragraph_numbers[-1]
-            yield yield_item, delimiter.join(shingles), first_para, last_para
-        else:
-            yield yield_item, delimiter.join(shingles)
+        yield yield_shingle()

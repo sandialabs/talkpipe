@@ -52,7 +52,7 @@ class ShingleText(AbstractSegment):
                  shingle_size: Annotated[int, "Size threshold - number of chunks (count) or min char length (length)"] = 3,
                  overlap: Annotated[int, "Number of chunks that overlap between consecutive shingles (default 0)"] = 0,
                  size_mode: Annotated[str, "Either 'count' (count chunks) or 'length' (measure char length)"] = "count",
-                 emit_detail: Annotated[bool, "If True, emits dict with text and paragraph numbers (default False)"] = False):
+                 emit_detail: Annotated[bool, "If True, emits dict with text (called 'text') and paragraph numbers (called 'first_paragraph' and 'last_paragraph') (default False)"] = False):
         super().__init__()
         self.shingle_size = shingle_size
         self.overlap = overlap
