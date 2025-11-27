@@ -264,7 +264,8 @@ Lazy loading is fully supported for all TalkPipe components:
 
 All components are declared as entry points in `pyproject.toml` and use decorator-based registration for seamless lazy loading.
 
-## Taking Advantage of Lazy Loading
+
+### Taking Advantage of Lazy Loading
 
 As a developer building TalkPipe applications or creating custom sources and segments, you can structure your code to maximize the benefits of lazy loading.
 
@@ -277,7 +278,7 @@ Since lazy loading works at the **module level** (importing one component loads 
 Place components that are often used together in the same module:
 
 ```python
-# Good: components in data_io.py that are commonly used together
+# Good: data_io.py - components commonly used together
 from talkpipe.chatterlang.registry import register_segment
 
 @register_segment("readJson")
@@ -289,14 +290,7 @@ class ReadJson(AbstractSegment):
 class WriteJson(AbstractSegment):
     """Write JSON files"""
     pass
-
-@register_segment("validateJson")
-class ValidateJson(AbstractSegment):
-    """Validate JSON against schema"""
-    pass
 ```
-
-If users typically need `readJson`, they likely also need `writeJson`, so loading them together makes sense.
 
 #### 2. Isolate Heavy Dependencies
 
@@ -304,28 +298,23 @@ Place components with heavy or optional dependencies in separate modules:
 
 ```python
 # ml_segments.py - isolated because it requires tensorflow
-from talkpipe.chatterlang.registry import register_segment
 import tensorflow as tf  # Heavy import
 
 @register_segment("tensorflowPredict")
 class TensorFlowPredict(AbstractSegment):
-    """Run tensorflow predictions"""
     pass
 
 # basic_segments.py - no heavy dependencies
-from talkpipe.chatterlang.registry import register_segment
-
 @register_segment("filter")
 class Filter(AbstractSegment):
-    """Basic filtering"""
     pass
 ```
 
 This way, users who don't need TensorFlow won't pay the cost of importing it.
 
-#### 3. Separate by Domain or Functionality
+#### 3. Organize by Domain
 
-Organize components by their domain or purpose:
+Structure components by domain or functionality:
 
 ```python
 # Project structure
@@ -333,78 +322,28 @@ src/myproject/
     sources/
         database.py      # All database sources
         web.py          # All web-related sources
-        file.py         # All file-based sources
     segments/
-        transform.py    # Data transformation segments
-        filter.py       # Filtering segments
-        llm.py          # LLM-related segments (may have heavy deps)
-        export.py       # Export/output segments
+        transform.py    # Data transformation
+        llm.py          # LLM-related (may have heavy deps)
 ```
 
 #### 4. Use Entry Points for Discoverability
 
-Declare your components as entry points in `pyproject.toml` to make them discoverable without importing:
+Declare your components as entry points in `pyproject.toml`:
 
 ```toml
 [project.entry-points."talkpipe.sources"]
 myDatabaseSource = "myproject.sources.database"
-myWebSource = "myproject.sources.web"
 
 [project.entry-points."talkpipe.segments"]
 myTransform = "myproject.segments.transform"
-myFilter = "myproject.segments.filter"
-myLLMSegment = "myproject.segments.llm"
 ```
 
-This allows TalkPipe to:
-- Discover your components without importing them
-- Load them on-demand when requested
-- List them in documentation and help systems
+This allows TalkPipe to discover and load components on-demand without importing them.
 
-**Important: Entry Points Are Additive Across Packages**
+**Important**: Component names must be unique across all installed packages. TalkPipe detects name collisions and raises detailed errors. Use unique prefixes for plugin components (e.g., `myplugin_transform`) to avoid conflicts. See the [Extending TalkPipe](../architecture/extending-talkpipe.md) documentation for details on plugin architecture and collision handling.
 
-Multiple installed packages can all define entry points in the same group (e.g., `"talkpipe.sources"` or `"talkpipe.segments"`), and TalkPipe will discover all of them. Entry points from different packages are merged together automatically.
-
-However, **component names must be unique** across all installed packages. TalkPipe automatically detects name collisions and raises a detailed error when multiple packages try to register components with the same name.
-
-**Collision Detection**: When TalkPipe discovers duplicate entry point names, it will raise a `ValueError` with detailed information about which packages are conflicting:
-
-```
-ValueError: Entry point name collision detected in group 'talkpipe.segments'.
-Multiple packages are trying to register components with the same name:
-  - Component 'transform' defined by:
-      • package1.segments:Transform (from package 'myplugin1')
-      • package2.segments:Transform (from package 'myplugin2')
-
-To resolve this conflict:
-  1. Use unique prefixes for plugin components (e.g., 'myplugin_transform')
-  2. Uninstall conflicting packages
-  3. Contact the plugin authors to coordinate naming
-```
-
-This automatic detection prevents silent overwrites and makes conflicts immediately visible, helping you resolve them quickly.
-
-To avoid conflicts when developing plugins:
-
-1. **Use a unique prefix** for your plugin's components:
-   ```toml
-   [project.entry-points."talkpipe.segments"]
-   # Good: prefixed with your plugin name
-   myplugin_transform = "myplugin.segments.transform"
-   myplugin_filter = "myplugin.segments.filter"
-
-   # Risky: generic names that might conflict
-   transform = "myplugin.segments.transform"
-   filter = "myplugin.segments.filter"
-   ```
-
-2. **Check for existing names** before publishing:
-   ```bash
-   # See what's already registered
-   python -c "from talkpipe.chatterlang.registry import segment_registry; print(segment_registry.list_entry_points())"
-   ```
-
-3. **Document your component names** clearly in your plugin's README so users know what names are being added to their environment
+### When to Enable Lazy Loading
 
 ### When to Enable Lazy Loading
 

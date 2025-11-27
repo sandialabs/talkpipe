@@ -1,7 +1,7 @@
 ## Project Overview
 TalkPipe is a Python toolkit that makes it easy to create, test, and deploy workflows that integrate Generative AI with your existing tools and data sources. TalkPipe treats LLMs as one tool in your arsenal - letting you build practical solutions that combine AI with data processing, file handling, and more.  
 
-- **Chat with LLMs** - Create multi-turn conversations with OpenAI or Ollama models in just 2 lines of code
+- **Chat with LLMs** - Create multi-turn conversations with OpenAI, Ollama, or Anthropic models in just 2 lines of code
 - **Process Documents** - Extract text from PDFs, analyze research papers, score content relevance
 - **Analyze Web Content** - Download web pages (respecting robots.txt), extract readable text, and summarize
 - **Build Data Pipelines** - Chain together data transformations, filtering, and analysis with Unix-like simplicity

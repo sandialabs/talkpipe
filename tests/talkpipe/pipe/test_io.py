@@ -60,6 +60,14 @@ def test_readJSONL(tmpdir):
     ans = list(f([temp_file_path]))
     assert ans == data
 
+    f = io.readJsonl(field="person_info_file")
+    ans = list(f([{"person_info_file": str(temp_file_path)}]))
+    assert ans == data
+
+    f = io.readJsonl(field="person_info_file", set_as="person_info")
+    ans = list(f([{"person_info_file": str(temp_file_path)}]))
+    assert all([ans[i]["person_info"] == data[i] and ans[i]["person_info_file"] == str(temp_file_path) for i in range(len(data))])
+
 def test_dumpsJsonl():
     data = [
         {"name": "Alice", "age": 30},

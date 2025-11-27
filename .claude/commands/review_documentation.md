@@ -42,8 +42,24 @@ For each documentation file, check the following:
 
 ### 6. Code Examples
 - For Python examples: Check that imports would work and APIs are correct
-- For ChatterLang examples: Verify syntax is valid (but don't run LLM-dependent ones)
+- For ChatterLang examples: Verify syntax is valid (including LLM-dependent ones)
 - Flag examples that reference deprecated or renamed components
+- **Ensure snippet intent is explicit**: Each code snippet should clearly communicate whether it is:
+  - **Stand-alone runnable code**: Complete examples that users can copy and execute
+  - **Explanatory fragments**: Partial code showing syntax, concepts, or parts of a larger example
+- For stand-alone snippets: Verify they are complete and runnable (include all necessary imports, INPUT FROM sources, output destinations, etc.)
+- For explanatory fragments: Check that they are properly contextualized through:
+  - Introductory text like "This segment...", "Part of the pipeline above...", or "The following step..."
+  - Placement within a clear breakdown/explanation section
+  - Comments indicating they're part of a larger example
+- When snippet intent is unclear, suggest adding context or completing the example to make it obvious to readers whether code is meant to be copied and run or just studied
+
+### 7. Writing Quality
+- Check that text is concise and focused, not meandering or unnecessarily verbose
+- Identify repetitive content that restates the same ideas multiple times
+- Flag sections where the same concept is explained redundantly
+- Ensure each paragraph adds new information rather than rephrasing previous content
+- Look for overly long explanations that could be condensed without losing clarity
 
 ## Output Format
 
@@ -74,7 +90,7 @@ For each issue found, report:
 ## Important Notes
 
 - Do NOT automatically fix issues. Report them for user review.
-- Focus on factual accuracy, not style or formatting
+- Focus on factual accuracy and clarity - check both technical correctness and writing quality
 - Be thorough but efficient - use search tools to verify claims
 - For ambiguous cases, note the uncertainty rather than assuming an error
 - Consider that some documentation may describe planned features - flag these for clarification

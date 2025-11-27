@@ -84,12 +84,6 @@ The interface provides categorized example scripts:
 - **Log Management**: Clear and refresh capabilities
 - **Persistent Display**: Logs persist across script executions
 
-## Configuration
-
-### Environment Variables
-All TalkPipe configuration variables are supported:
-
-
 ## Development Features
 
 ### Custom Module Loading

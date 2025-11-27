@@ -11,7 +11,7 @@ from prompt_toolkit import PromptSession
 
 from talkpipe.chatterlang.registry import register_source, register_segment
 import talkpipe.chatterlang.registry as registry
-from talkpipe.pipe.core import AbstractSource, source, AbstractSegment, segment, Pipeline
+from talkpipe.pipe.core import AbstractSource, source, AbstractSegment, segment, Pipeline, field_segment
 from talkpipe.util import data_manipulation
 
 
@@ -178,16 +178,15 @@ def echo(data: Annotated[str, "The input string to split and generate items from
             yield item
 
 @register_segment('readJsonl')
-@segment()
-def readJsonl(fnames: Iterable[str]):
+@field_segment(multi_emit=True)
+def readJsonl(item: Annotated[str, "The path to the jsonl file"]):
     """Reads each item from the input stream as a path to a jsonl file. Loads each line of
     each file as a json object and yields each individually.
 
     """
-    for fname in fnames:
-        with open(fname, 'r') as f:
-            for line in f:
-                yield json.loads(line)
+    with open(item, 'r') as f:
+        for line in f:
+            yield json.loads(line)
 
 @register_segment("loadsJsonl")
 @segment()

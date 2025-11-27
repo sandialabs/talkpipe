@@ -118,7 +118,7 @@ pipeline = json_source | json_parser | data_processor
 The `@segment` decorator converts functions into segment classes:
 
 ```python
-from talkpipe.pipe.core import segment
+from talkpipe.pipe.core import segment, field_segment
 
 # Simple segment function
 @segment

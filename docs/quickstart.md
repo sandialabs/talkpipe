@@ -66,11 +66,9 @@ pipeline_func()  # This will prompt for input interactively
 Create a web interface for your pipeline from the command line:
 
 ```bash
-# Start a web server with your pipeline
-chatterlang_serve --port 2025 --display-property prompt --script "| llmPrompt[model=\"llama3.2\", source=\"ollama\", field=\"prompt\"]"
+# Use single quotes to avoid escaping double quotes inside
+chatterlang_serve --port 2025 --display-property prompt --script '| llmPrompt[model="llama3.2", source="ollama", field="prompt"]'
 ```
-
-Note that you may need to change how the double quotes are escaped based on your shell.
 
 Open http://localhost:2025/stream in your browser to interact with your pipeline through a web form.
 

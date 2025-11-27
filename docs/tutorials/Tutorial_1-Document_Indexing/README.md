@@ -1,44 +1,17 @@
 # Prototyping a Searchable Document System with TalkPipe
 
-Imagine you're working on a project where you need to process and search through hundreds or thousands of documents. Maybe you're building a knowledge base for your company, creating a research tool for academic papers, or developing a content management system. The challenge is clear: how do you make large collections of text easily searchable and retrievable?
+This tutorial walks through building a document indexing and search system using TalkPipe. You'll learn how to rapidly prototype and experiment with different approaches to make large collections of text searchable and retrievable.
 
-More importantly, how do you quickly test different approaches to find what works best for your specific use case?
+## What You'll Build
 
-This tutorial walks through the prototyping phase of building a document indexing and search system using TalkPipe's document indexing example. We'll follow the journey from creating test data to implementing full-text search, understanding not just the *how* but the *why* behind each step. This approach lets you rapidly experiment with different indexing strategies, search interfaces, and data processing pipelines before committing to a particular architecture.
+A complete document search system in three steps:
+1. **Creating the Content** - Generate synthetic test documents using LLMs
+2. **Building the Index** - Make documents searchable with full-text indexing
+3. **Implementing Search** - Create web and API interfaces for searching
 
-## About This Tutorial: A Minimalist Introduction
+This tutorial uses minimal LLM integration (only for test data generation) to demonstrate TalkPipe's core pipeline concepts. The actual search functionality uses proven technologies like Whoosh, which comes built-in with TalkPipe - no external databases or services required.
 
-This tutorial intentionally uses minimal LLM (Large Language Model) integration to demonstrate a crucial principle: **in TalkPipe, generative AI is one tool among many, not the centerpiece**. While TalkPipe excels at building AI-powered applications, it's fundamentally a data processing and pipeline framework that happens to include powerful AI capabilities.
-
-You'll notice that we only use LLMs in Step 1 for generating test data - the actual indexing and search functionality relies on traditional, proven technologies like the Whoosh search library. This design choice reflects real-world best practices:
-
-- **LLMs excel at content generation and understanding**, but traditional search engines are faster and more reliable for retrieval
-- **Data processing pipelines** handle the majority of work in most applications
-- **AI components** are most effective when thoughtfully integrated with conventional tools
-- **System reliability** often depends more on solid data engineering than on AI sophistication
-
-This minimalist approach helps you understand TalkPipe's core concepts - pipeline composition, data transformation, and modular architecture - without being distracted by AI complexity. Once you master these fundamentals, you can confidently add more sophisticated AI components where they provide genuine value.
-
-**TalkPipe is also designed to be self-contained.** Everything you need for this tutorial comes built-in when you install TalkPipe - no separate databases, search engines, or external services required. This makes experimentation fast and deployment simple, while still providing clear upgrade paths when you need enterprise-scale infrastructure.
-
-Think of this tutorial as learning to build with digital LEGO blocks: you're mastering the connection principles that will let you build anything, from simple structures to complex AI-powered systems.
-
-## The Prototyping Journey: From Documents to Search
-
-Our prototyping story unfolds in three acts:
-1. **Creating the Content** - Generating synthetic documents to work with
-2. **Building the Index** - Making documents searchable through indexing
-3. **Implementing Search** - Creating interfaces to find and retrieve documents
-
-This approach serves different needs depending on your project scope:
-
-**For Small Projects & Teams**: These three steps might be your complete solution. The built-in interfaces and automatic pipeline management can handle moderate document volumes and user loads without additional infrastructure.
-
-**For Larger Deployments**: These steps become your proof-of-concept and pipeline development phase. Once you've validated your approach, you extract the core pipelines (the actual data processing logic) and integrate them into custom applications with your own user interfaces, databases, and scaling infrastructure.
-
-**For Experimentation**: This framework lets you rapidly test different indexing strategies, search algorithms, and data processing approaches. You can modify any step independently and immediately see the results.
-
-Let's dive into each step and understand both the technical implementation and the experimental mindset behind the approach.
+**Use Cases**: These three steps might be your complete solution for small projects, or your proof-of-concept phase for larger deployments where you'll extract the proven pipelines into custom applications.
 
 ---
 
@@ -70,7 +43,7 @@ INPUT FROM echo[data="Write a fictitious five sentence story about technology de
 | writeString[fname="stories.json"];
 ```
 
-To run this script:
+To run this script (from the `Tutorial_1-Document_Indexing` directory):
 
 ```bash
 chatterlang_script --script Step_1_CreateSyntheticData.script
@@ -129,32 +102,6 @@ The resulting `stories.json` file contains 50 entries, each looking something li
 {"content": "In the nation of Technovia, scientists unveiled a revolutionary quantum computing system...", "title": "Technovia's Quantum Breakthrough"}
 ```
 
-### Prototyping and Experimentation
-
-This step demonstrates the power of TalkPipe for rapid prototyping. Want to test different approaches? You can easily modify the pipeline:
-
-**Different Content Types**: Change the prompt to generate technical documentation, customer reviews, or legal documents
-```bash
-INPUT FROM "Write a technical specification for a new software feature in 3 paragraphs."
-```
-
-**Different Structures**: Add more fields like categories, authors, or timestamps
-```bash
-| llmPrompt[model="llama3.2", system_prompt="Generate a category for this document", set_as="category"]
-```
-
-**Different Volumes**: Adjust the count to test with 10 documents or 1,000 documents
-```bash
-INPUT FROM echo[data="...", n=1000]
-```
-
-**Real Data Integration**: Replace the generation entirely with real document ingestion. TalkPipe makes it easy to incorporate custom ingestors you write into the Pipe API, so you can seamlessly integrate your own document processing logic
-```bash
-INPUT FROM "document_folder/*.txt" | extract | toDict[field_list="_:content"]
-```
-
-Each experiment takes minutes to implement and test, letting you quickly find the right approach for your specific use case.
-
 ---
 
 ## Step 2: Indexing the Stories
@@ -180,7 +127,7 @@ INPUT FROM "stories.json"
 | indexWhoosh[index_path="./full_text_index", field_list="content,title", overwrite=True]
 ```
 
-To run this script:
+To run this script (from the `Tutorial_1-Document_Indexing` directory):
 
 ```bash
 chatterlang_script --script Step_2_IndexStories.script
@@ -244,38 +191,6 @@ Notice how the data changes as it flows through the pipeline:
 
 This demonstrates TalkPipe's power in transforming data while maintaining its flow through the pipeline.
 
-### Prototyping Different Indexing Strategies
-
-The modular nature of this pipeline makes it perfect for experimentation:
-
-**Different Index Fields**: Test which fields provide the best search results
-```bash
-| indexWhoosh[field_list="content,title,category,author"]  # More fields
-| indexWhoosh[field_list="content"]                        # Content only
-```
-
-**Different Index Engines**: Switch between search backends without changing the rest of your pipeline
-```bash
-| indexWhoosh[...]        # Built-in with TalkPipe, perfect for prototyping
-# When you need to scale, TalkPipe makes it easy to write your own:
-| indexElasticsearch[...] # Custom segment for high-volume production systems
-| indexSolr[...]          # Custom segment for enterprise environments
-```
-Currently, only `indexWhoosh` is included with TalkPipe, but TalkPipe's extensible architecture makes it straightforward to implement custom indexing segments for other search engines as your needs grow.
-
-**Performance Testing**: Add monitoring to understand bottlenecks (you can write custom timing segments as needed)
-```bash
-| progressTicks[tick_count=100, print_count=True] | indexWhoosh[...]
-```
-
-This prototyping phase helps you answer critical questions:
-- Which fields should be searchable vs just stored?
-- How does index size affect search performance?
-- What's the optimal balance between index complexity and search speed?
-- How does your chosen approach scale with larger document sets?
-
-For small projects, you might discover that a simple approach works perfectly. For larger systems, these experiments inform your production architecture decisions.
-
 ---
 
 ## Step 3: Implementing Search
@@ -297,7 +212,7 @@ Step 3 creates both an API endpoint and a web interface using a single command. 
 | formatItem[field_list="document.title:Title,document.content:Content,score:Score"]
 ```
 
-To run this script:
+To run this script (from the `Tutorial_1-Document_Indexing` directory):
 
 ```bash
 chatterlang_serve --form-config story_search_ui.yml --title "Story Search" --display-property query --script Step_3_SearchStories.script
@@ -307,11 +222,11 @@ chatterlang_serve --form-config story_search_ui.yml --title "Story Search" --dis
 
 **1. The Endpoint Architecture**
 ```
-chatterlang_serve --form-config story_search_ui.yaml --title "Story Search"
+chatterlang_serve --form-config story_search_ui.yml --title "Story Search"
 ```
 This creates a web server that provides:
 - **An API endpoint** for programmatic access
-- **A web form interface** configured by `story_search_ui.yaml`
+- **A web form interface** configured by `story_search_ui.yml`
 - **Automatic JSON handling** for both input and output
 
 **2. The Search Pipeline**
@@ -350,7 +265,7 @@ When you run the `chatterlang_serve` command, it will start a web server and dis
 
 ### The Power of Configuration
 
-The `story_search_ui.yaml` file (though not shown in the examples) likely contains:
+The `story_search_ui.yml` file (included in the tutorial directory) contains configuration for the web interface:
 - **Form field definitions** - What search options to present
 - **Styling configuration** - How the interface should look
 - **Validation rules** - What types of queries are allowed
@@ -389,31 +304,6 @@ This prototyping pattern works for many different scenarios:
 - **Built-in hosting** that handles moderate traffic loads
 
 **For Larger Deployments**: This step validates your search pipeline, which you then extract for integration into custom applications. TalkPipe's modular design lets you take the proven pipeline logic and embed it in your own systems while maintaining consistency between prototype and production implementations.
-
-### Experimentation and Iteration
-
-The endpoint configuration makes testing different interfaces trivial:
-
-**Different Result Formats**:
-```bash
-# Detailed results
-| formatItem[field_list="document.title:Title,document.content:Content,score:Score,document.metadata:Details"]
-
-# Summary results  
-| formatItem[field_list="document.title:Title,score:Score"]
-```
-
-**Different Search Parameters**:
-```bash
-# Search different index paths
-| searchWhoosh[index_path="full_text_index", field="query"]
-| searchWhoosh[index_path="optimized_index", field="query"]
-
-# Limit result counts
-| searchWhoosh[index_path="full_text_index", field="query"] | firstN[n=10]
-```
-
-**A/B Testing**: Run multiple endpoint configurations simultaneously to compare user preferences and performance characteristics.
 
 ---
 
@@ -468,26 +358,37 @@ For these, TalkPipe becomes your **pipeline development and validation platform*
 
 ```python
 # Production integration example
+from talkpipe.chatterlang import compile
+
+
 class ProductionSearchService:
     def __init__(self):
         # Extract the validated indexing pipeline
-        self.indexing_pipeline = (
-            readJsonl() | 
-            progressTicks(tick_count=1000) |
-            indexWhoosh(index_path="./production_index", field_list="content,title")
-        )
-        
-        # Extract the validated search pipeline  
-        self.search_pipeline = (
-            searchWhoosh(index_path="./production_index") |
-            formatItem(field_list="document.title:Title,document.content:Content,score:Score")
-        )
-    
+        self.indexing_pipeline = compile("""
+            | readJsonl
+            | progressTicks[tick_count=1000]
+            | indexWhoosh[index_path="./production_index", field_list="content,title"]
+        """)
+
+        # Extract the validated search pipeline
+        self.search_pipeline = compile("""
+            | searchWhoosh[index_path="./production_index"]
+            | formatItem[field_list="document.title:Title,document.content:Content,score:Score"]
+        """)
+
     def index_documents(self, document_stream):
+        """Index a stream of documents from JSONL file paths."""
         return list(self.indexing_pipeline(document_stream))
-    
+
     def search(self, query):
+        """Search the index and return formatted results."""
         return list(self.search_pipeline([{'query': query}]))
+
+
+# Example usage:
+# service = ProductionSearchService()
+# service.index_documents(["stories.json"])
+# results = service.search("quantum computing")
 ```
 
 ### Key Benefits of the Prototyping Approach

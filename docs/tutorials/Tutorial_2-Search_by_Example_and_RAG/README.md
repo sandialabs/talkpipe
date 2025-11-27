@@ -208,7 +208,7 @@ This custom segment (defined in `step_3_extras.py`) creates a specialized prompt
 - Structures the user's question
 - Provides clear instructions to the AI
 
-Let's look at the custom segment:
+Let's look at the custom segment (from `step_3_extras.py`):
 
 ```python
 @register_segment("ragPrompt")

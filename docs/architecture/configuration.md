@@ -290,7 +290,7 @@ EOF
    ls -la ~/.talkpipe.toml
    
    # Check TOML syntax
-   python -c "import tomllib; print(tomllib.load(open('/path/to/home/.talkpipe.toml', 'rb')))"
+   python -c "import tomllib; from pathlib import Path; print(tomllib.load(open(Path.home() / '.talkpipe.toml', 'rb')))"
    ```
 
 2. **Environment Variables Not Working**
@@ -329,6 +329,11 @@ This will show detailed information about:
 ### Configuration Functions
 
 #### `get_config(reload=False, path="~/.talkpipe.toml", ignore_env=False)`
+
+```python
+from talkpipe.util.config import get_config
+```
+
 Load configuration from file and environment variables.
 
 **Parameters:**
