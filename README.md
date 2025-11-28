@@ -702,3 +702,6 @@ After talkpipe is installed, a script called "chatterlang_reference_browser" is 
 * **sender_email** - Who the sender of an email should be
 * **smtp_port** - SMTP server port
 * **smtp_server** - SMTP server hostname
+
+---
+Last Reviewed: 20251128

@@ -1,6 +1,6 @@
-# ChatterlangServer Documentation
+# ChatterLang Server
 
-ChatterlangServer is TalkPipe's web API endpoint system that allows you to create interactive web interfaces and REST APIs for processing JSON data through ChatterLang pipelines. It provides both a user-friendly web form and a REST API endpoint that can integrate with external systems.
+ChatterLang Server is Talkpipe's web API system for creating interactive web interfaces and REST APIs that process JSON data through ChatterLang pipelines. It provides both a user-friendly web form and a REST API endpoint that can integrate with external systems.
 
 ## Overview
 
@@ -40,15 +40,16 @@ chatterlang_serve --form-config config.yaml
 
 | Argument | Description | Default |
 |----------|-------------|---------|
-| `--script` | ChatterLang script to process data or and environment variable or path to a file containing the script. | None, required |
+| `--script` | ChatterLang script to process data. Can be an inline script, environment variable, or path to a file containing the script. | None, required |
 | `-p, --port` | Port to listen on | 2025 |
-| `-o, --host` | Host to bind to | 0.0.0.0 |
+| `-o, --host` | Host to bind to | localhost |
 | `--api-key` | Set API key for authentication | None |
 | `--require-auth` | Require API key authentication | False |
-| `--title` | Title for the web interface | "ChatterLang Server" |
-| `--form-config` | Path to form configuration file | None, result is a single text property called "query" |
-| `--load-module` | Path to custom module to import | None |
-| `--display-property` | Property to display as user input | None, result is to display the whole JSON input |
+| `--title` | Title for the web interface | "JSON Data Receiver" |
+| `--form-config` | Path to form configuration file (YAML or JSON) or config variable ($VAR_NAME) | None (default: single text field named "prompt") |
+| `--load-module` | Path to custom module to import (can be specified multiple times) | None |
+| `--display-property` | Property name from JSON input to display as user message in stream interface | None (displays entire JSON object) |
+| `--<key>` | Any additional argument becomes a configuration value accessible via `$key` syntax in scripts | - |
 
 ### Form Configuration YAML/JSON Syntax
 
@@ -317,14 +318,15 @@ chatterlang_serve --port 8080 \
 
 ### Custom Display Properties
 
-Use `--display-property` to control what appears as user input in the stream interface:
+Use `--display-property` to control what appears as user input in the stream interface. By default, the entire JSON object is displayed. Specifying a property name shows only that field's value:
 
 ```bash
+# Show only the 'prompt' field value in the chat interface
 chatterlang_serve --display-property "prompt" \
-  --script "| llmPrompt"
+  --script "| llmPrompt[field=\"prompt\"]"
 ```
 
-This will show the `title` field value instead of the full JSON in the chat.
+This displays just the prompt text instead of the full JSON object in the chat history.
 
 ### Loading Custom Modules
 
@@ -340,14 +342,27 @@ chatterlang_serve --load-module ./my_segments.py \
 Store scripts and configs in `~/.talkpipe.toml`:
 
 ```toml
-my_script = "| llmPrompt[system_prompt='You are a helpful assistant']"
+my_script = "| llmPrompt[system_prompt=\"You are a helpful assistant\"]"
 ```
 
 Then reference them:
 
 ```bash
-chatterlang_serve --script my_script 
+chatterlang_serve --script my_script
 ```
+
+### Dynamic Configuration Values
+
+Pass configuration values directly from the command line. These become accessible in your script using the `$key` syntax:
+
+```bash
+chatterlang_serve \
+  --script '| llmPrompt[model=$model_name, system_prompt=$prompt, field="prompt"]' \
+  --model_name "llama3.2" \
+  --prompt "You are a helpful assistant"
+```
+
+This is useful for parameterizing scripts without editing configuration files.
 
 ## Troubleshooting
 
@@ -387,7 +402,7 @@ chatterlang_serve --script "| print"
 - **API Keys**: Use strong, unique API keys for authentication
 - **Network**: Consider running behind a reverse proxy (nginx, Apache)
 - **HTTPS**: Use HTTPS in production environments
-- **CORS**: The server allows all origins by default - restrict in production
+- **CORS**: The server uses an allowlist for CORS origins (localhost by default). Set `TALKPIPE_ALLOWED_ORIGINS` environment variable to add additional origins
 - **Input Validation**: Form fields provide basic validation, but validate data in your scripts
 - **File Access**: Scripts can access the file system - be cautious with user inputs
 
@@ -400,4 +415,4 @@ chatterlang_serve --script "| print"
 - **Concurrency**: FastAPI handles multiple concurrent requests automatically
 
 ---
-Last Reviewed: 20250813
+Last Reviewed: 20251128

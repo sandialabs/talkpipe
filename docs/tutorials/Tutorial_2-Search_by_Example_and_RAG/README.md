@@ -238,3 +238,6 @@ The formatted prompt is sent to an LLM, which generates a comprehensive answer b
 **Pipelines are composable**: You can mix traditional search (from Tutorial 1) with vector search, or use both in the same application.
 
 **Start simple, enhance gradually**: Begin with basic vector search, then add RAG capabilities as your understanding of user needs develops.
+
+---
+Last Reviewed: 20251128

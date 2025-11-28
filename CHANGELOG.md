@@ -14,7 +14,7 @@
 - Extended flatten to be a multi-emit field segment so it can flatten fields in an object and return the whole object
   with individual components.
 - Made readJsonl a field_segment so it can get the filename from a field and assign each read line back into another field.
-- Reviewed, condensed, and improved documentation
+- Reviewed, condensed, and improved documentation. 
 
 ## 0.10.1
 ### New Features
