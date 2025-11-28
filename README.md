@@ -1,6 +1,6 @@
 <center><img src="docs/TalkPipe.png" width=500></center>
 
-**Build and iterate on smarter AI workflows in minutes.**
+**Build and iterate on AI workflows efficiently.**
 
 TalkPipe is a Python toolkit that makes it easy to create, test, and deploy workflows that integrate Generative AI with your existing tools and data sources. TalkPipe treats LLMs as one tool in your arsenal - letting you build practical solutions that combine AI with data processing, file handling, and more.  
 
@@ -20,7 +20,7 @@ This README introduces TalkPipe at a high level.  See the [complete documentatio
 
 <center><img src="docs/talkpipe_architecture.png" width=700></center>
 
-Talkpipe is structured in three layers: ChatterLang Foundation, AI & Data Primitives, and Pipeline Application components.  Applications can draw from any or all of these layers.
+TalkPipe is structured in three layers: ChatterLang Foundation, AI & Data Primitives, and Pipeline Application components.  Applications can draw from any or all of these layers.
 
 The Pipe/ChatterLang Foundation layer offers foundational utilities and abstractions that ensure consistency across the entire system. Pipe serves as TalkPipe's internal domain-specific language (DSL), enabling you to construct sophisticated workflows directly in Python. By instantiating modular classes and chaining them together using the `|` (pipe) operator, you can seamlessly connect sources, segments, and sinks to process data in a clear, readable, and composable manner. The Pipe layer is ideal for users who prefer programmatic control and want to integrate TalkPipe pipelines into larger Python applications or scripts.
 
@@ -29,7 +29,7 @@ ChatterLang is TalkPipe's external domain-specific language (DSL), enabling you 
 
 Layer 2, "AI & Data Primitives" is built on Pipe and ChatterLang, provides standardized wrappers for interacting with LLMs, full-text search engines, and vector databases. These components provide a unified interface for core capabilities, making it easy to integrate advanced AI and search features throughout your workflows.
 
-Layer 3, "Pipeline Application Components" assemble components from the lower layers to provide higher level components that can serve as application components. They make simplifying assumptions that provide easy access to complex functionality. For example, the pipelines package includes ready-to-use RAG (Retrieval-Augmented Generation) workflows that combine vector search, prompt construction, and LLM completion in a single component. These are designed both as examples and as ways to rapidly get complex functionality with reasonable assumptions. When those assumptions break, the developer can reach deeper into the other layers and build their own custom solutions.
+Layer 3, "Pipeline Application Components" assembles components from the lower layers to provide higher level components that can serve as application components. They make simplifying assumptions that provide easy access to complex functionality. For example, the pipelines package includes ready-to-use RAG (Retrieval-Augmented Generation) workflows that combine vector search, prompt construction, and LLM completion in a single component. These are designed both as examples and as ways to rapidly get complex functionality with reasonable assumptions. When those assumptions break, the developer can reach deeper into the other layers and build their own custom solutions.
 
 The Application Components layer contains runnable applications that provide user interfaces and automation tools for working with TalkPipe pipelines and ChatterLang scripts. These components are designed to make it easy to interact with TalkPipe from the command line, web browser, or as part of automated workflows.
 
@@ -55,7 +55,6 @@ The Application Components layer contains runnable applications that provide use
 
 These applications are entry points for different usage scenarios, from interactive development to production deployment.
 
-The Docker layer provides ready-to-use container images for deploying TalkPipe in different environments. 
 ## Quick Start
 
 Install TalkPipe:
@@ -546,6 +545,7 @@ result = pipeline.as_function(single_out=False)()
 **Field Segments** provide a convenient way to create 1:1 segments:
 ```python
 from datetime import datetime
+from talkpipe.pipe import core, io
 from talkpipe.chatterlang import registry
 
 @registry.register_segment("addTimestamp")
@@ -612,7 +612,7 @@ are not at the start of a pipeline is a Segment.
 
 ### Versioning
 
-This codebase will use [semantic versioning](https://semver.org/) with the addtional convention that during the 0.x.y development that each MINOR version will mostly maintain backward compatibility and PATCH versions will include substantial new capability.  So, for example, every 0.2.x version will be mostly backward compatible, but 0.3.0 might contain code reorganization.
+This codebase will use [semantic versioning](https://semver.org/) with the additional convention that during the 0.x.y development that each MINOR version will mostly maintain backward compatibility and PATCH versions will include substantial new capability.  So, for example, every 0.2.x version will be mostly backward compatible, but 0.3.0 might contain code reorganization.
 
 ### Codebase Structure
 

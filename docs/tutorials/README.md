@@ -1,6 +1,6 @@
 # TalkPipe Examples: Rapid Prototyping for the AI Era
 
-Welcome to the TalkPipe examples directory! These tutorials demonstrate how to build sophisticated data processing pipelines with minimal code. Through three progressive tutorials, you'll learn to create everything from document search systems to AI-powered report generation tools.
+Welcome to the TalkPipe examples directory! These tutorials demonstrate how to build data processing pipelines with minimal code. Through three progressive tutorials, you'll learn to create everything from document search systems to AI-powered report generation tools.
 
 ## Why Rapid Prototyping Matters
 
@@ -48,7 +48,7 @@ When you need enterprise scale, the modular architecture lets you swap component
 TalkPipe handles the boilerplate:
 - Built-in components for common tasks (file I/O, data transformation, search, LLM integration)
 - Streaming architecture for data of any size
-- Modular design for straightforward testing and debugging
+- Modular design that simplifies testing and debugging
 - Production-ready features (progress tracking, error handling, API generation)
 
 ## Tutorial Overview
@@ -69,13 +69,13 @@ Enhance search with AI capabilities:
 
 **Key Learning**: How to add intelligence to existing systems incrementally.
 
-### [Tutorial 3: Report Writing](Tutorial_3-Report_Writing/)
+### [Tutorial 3: Report Writing](Tutorial_3_Report_Writing/)
 Transform search into document generation:
 1. Generate executive summaries from search results
 2. Create multi-section analytical reports
 3. Produce documents in multiple formats for different audiences
 
-**Key Learning**: How to build sophisticated content generation pipelines.
+**Key Learning**: How to build content generation pipelines.
 
 ### From Rapid Prototyping to Production
 
@@ -110,23 +110,20 @@ The web interfaces aren't just demos – they're functional tools:
 Adding new functionality is straightforward with TalkPipe's decorator-based approach:
 
 ```python
-from talkpipe.pipe import core
+from talkpipe.pipe import core, io
 
 @core.segment()
 def customTransform(items):
     """Your innovation goes here"""
     for item in items:
-        # Process and yield results
-        yield transform(item)
+        # Process and yield results - example: uppercase transformation
+        yield item.upper() if isinstance(item, str) else str(item).upper()
 
-# Example: Creating an Elasticsearch search segment
-@core.segment()
-def searchElasticsearch(items, url, field="query"):
-    """Custom segment to search Elasticsearch"""
-    
-    for item in items:
-        # Custom Search Code
-        yield {"query": query, "results": results["hits"]["hits"]}
+# Use in a pipeline
+pipeline = io.echo(data="hello,world") | customTransform() | io.Print()
+result = pipeline.as_function(single_out=False)()
+# Output: HELLO, WORLD
+# Returns: ['HELLO', 'WORLD']
 ```
 
 ## Beyond the Web Interface
@@ -146,13 +143,16 @@ Extract the pipeline logic and use it directly:
 ```python
 from talkpipe.chatterlang import compiler
 
-# Take any pipeline from the tutorials
+# Create a simple data processing pipeline
 pipeline = compiler.compile("""
-    | searchWhoosh[index_path="./index", field="query"]
-""")
+    INPUT FROM echo[data="hello,world,test"]
+    | print
+""").as_function(single_out=False)
 
 # Use it in your code
-results = pipeline({"query": "machine learning"})
+result = pipeline()
+# Output: hello, world, test (each on separate line)
+# Returns: ['hello', 'world', 'test']
 ```
 
 ### Scale to Production
@@ -296,6 +296,6 @@ TalkPipe's built-in search capabilities handle tens of thousands of documents - 
 
 Whether you're exploring how LLMs might enhance your search system, experimenting with RAG for your knowledge base, or prototyping an AI-powered reporting tool, TalkPipe provides the foundation for the rapid experimentation that modern development demands.
 
-Start with these tutorials, embrace the iterative process, and build something amazing. Good software has always emerged from quick iterations – TalkPipe just makes those iterations faster and more powerful than ever.
+Start with these tutorials, embrace the iterative process, and build what you need. Good software has always emerged from quick iterations – TalkPipe makes those iterations faster and more efficient.
 
-Happy prototyping! 🚀
+Happy prototyping!

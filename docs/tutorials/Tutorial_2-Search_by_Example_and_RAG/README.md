@@ -4,19 +4,15 @@ Imagine you're building a knowledge management system for your team. You've alre
 
 - "I want to find documents similar to this one"
 - "Show me all content that talks about the same concepts as this paragraph"
-- "Can you find articles with a similar vibe to what I'm writing?"
+- "Can you find articles with similar themes to what I'm writing?"
 
 Traditional keyword search falls short here. What you need is **semantic search** - the ability to find documents based on meaning and context, not just matching words. Even better, you want to use those search results to generate intelligent summaries and answers. That's where this tutorial comes in.
-
-## The Journey: From Keywords to Understanding
 
 In Tutorial 1, we built a document system using traditional full-text search. Now we'll enhance it with AI-powered capabilities:
 
 1. **Step 1: Create a Vector Database** - Transform documents into mathematical representations that capture meaning
 2. **Step 2: Search by Example** - Find similar documents using semantic similarity instead of keywords
 3. **Step 3: Specialized RAG** - Combine search results with AI to generate contextual answers
-
-This progression mirrors how many real-world systems evolve: starting with basic search, then adding intelligence as user needs become more sophisticated.
 
 ---
 
@@ -78,14 +74,6 @@ This creates a specialized index that:
 - Preserves original metadata (title and content) for retrieval
 - Enables fast nearest-neighbor queries using LanceDB's efficient vector search capabilities
 
-### Real-World Applications
-
-This vector indexing approach powers many modern applications:
-- **Customer Support**: Find previous tickets similar to new issues
-- **Content Recommendation**: Suggest articles based on reading history
-- **Research Tools**: Discover related papers across disciplines
-- **Code Search**: Find functions that solve similar problems
-
 ---
 
 ## Step 2: Search by Example
@@ -121,7 +109,7 @@ chatterlang_serve --form-config story_by_example_ui.yml --display-property examp
 ```
 | copy
 ```
-This creates a copy of the input data - crucial when building web endpoints to prevent unintended data modifications that could affect the browser interface.
+This creates a copy of the input data - important when building web endpoints to prevent unintended data modifications that could affect the browser interface.
 
 **2. Query Embedding**
 ```
@@ -143,7 +131,7 @@ Results are formatted for display, showing similarity scores that indicate how c
 
 ### The User Interface
 
-The `story_by_example_ui.yaml` configuration creates a simple but effective interface:
+The `story_by_example_ui.yml` configuration creates a simple but effective interface:
 
 ```yaml
 title: "Story Search by Example"
@@ -241,58 +229,12 @@ def rag_prompt_segment(item):
 ```
 The formatted prompt is sent to an LLM, which generates a comprehensive answer based on the retrieved documents.
 
-### Real-World RAG Applications
-
-This pattern powers many modern AI applications:
-- **Customer Support Bots**: Answer questions using your knowledge base
-- **Research Assistants**: Synthesize findings from multiple papers
-- **Documentation Systems**: Generate answers from technical docs
-- **Legal Research**: Summarize relevant case law
-- **Medical Information**: Compile information from multiple sources (with appropriate disclaimers)
-
-### Why RAG Matters
-
-RAG solves several critical problems in AI applications:
-
-1. **Accuracy**: Answers are grounded in your actual documents, reducing hallucination
-2. **Currency**: The AI uses your latest information, not just its training data
-3. **Transparency**: You can show which documents informed each answer
-4. **Control**: You decide what information the AI can access
-
----
-
-## Putting It All Together: The Evolution of Search
-
-This tutorial demonstrates a natural progression in search capabilities:
-
-1. **Vector Indexing**: Move beyond keywords to understand meaning
-2. **Semantic Search**: Let users search by example, not just terms
-3. **RAG Integration**: Transform search results into intelligent answers
-
-Each step builds on the previous one, and you can stop at any level that meets your needs:
-- Just need similarity search? Stop after Step 2
-- Want full question-answering? Complete all three steps
-- Need something custom? Modify any pipeline to fit your requirements
-
 ### Key Takeaways
 
-**Vector embeddings are powerful but focused**: They excel at finding semantic similarity but require the right model choice and use case.
+**Vector embeddings are effective but focused**: They excel at finding semantic similarity but require the right model choice and use case.
 
 **Example-based search changes user behavior**: When people can search by pasting examples, they find content they couldn't discover with keywords alone.
-
-**RAG is more than just search + AI**: The quality depends on your retrieval strategy, prompt engineering, and the documents in your index.
 
 **Pipelines are composable**: You can mix traditional search (from Tutorial 1) with vector search, or use both in the same application.
 
 **Start simple, enhance gradually**: Begin with basic vector search, then add RAG capabilities as your understanding of user needs develops.
-
-### Next Steps
-
-With these foundations, you can experiment with:
-- Different embedding models for various domains (legal, medical, technical)
-- Hybrid search combining keywords and vectors
-- Multi-stage RAG with filtering and re-ranking
-- Custom prompt strategies for different use cases
-- Performance optimization for large-scale deployments
-
-Remember: TalkPipe's pipeline approach means you can modify and test each component independently, making it easy to find the perfect configuration for your specific needs.

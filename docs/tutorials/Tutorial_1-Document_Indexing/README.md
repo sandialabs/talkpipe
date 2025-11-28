@@ -9,7 +9,7 @@ A complete document search system in three steps:
 2. **Building the Index** - Make documents searchable with full-text indexing
 3. **Implementing Search** - Create web and API interfaces for searching
 
-This tutorial uses minimal LLM integration (only for test data generation) to demonstrate TalkPipe's core pipeline concepts. The actual search functionality uses proven technologies like Whoosh, which comes built-in with TalkPipe - no external databases or services required.
+This tutorial uses minimal LLM integration (only for test data generation) to demonstrate TalkPipe's core pipeline concepts. The actual search functionality uses Whoosh, a pure-Python full-text search library included with TalkPipe - no external databases or services required.
 
 **Use Cases**: These three steps might be your complete solution for small projects, or your proof-of-concept phase for larger deployments where you'll extract the proven pipelines into custom applications.
 
@@ -89,18 +89,6 @@ This step generates appropriate titles for each story. Notice how it:
 ```
 The `progressTicks` segment provides visual feedback during processing. Finally, each complete document (with both content and title) is formatted as JSON Lines (JSONL) format and written directly to `stories.json` using `writeString`.
 
-### Why This Approach Works for Prototyping
-
-This method creates realistic test data that:
-- **Has natural language patterns** - The AI generates coherent, readable text
-- **Includes relevant metadata** - Each document has both content and title
-- **Maintains consistent structure** - All documents follow the same format
-- **Provides variety** - Each story is unique, giving us diverse content to search
-
-The resulting `stories.json` file contains 50 entries, each looking something like:
-```json
-{"content": "In the nation of Technovia, scientists unveiled a revolutionary quantum computing system...", "title": "Technovia's Quantum Breakthrough"}
-```
 
 ---
 
@@ -166,9 +154,9 @@ Whoosh is a pure-Python search library that provides:
 - **Wildcard support** - Search with partial matches using * and ?
 - **Relevance scoring** - Rank results by how well they match queries
 
-**Crucially for prototyping, Whoosh comes built-in with TalkPipe.** When you install TalkPipe, you immediately have access to a full-featured search engine without any additional setup, configuration, or external dependencies. This self-contained approach means you can start experimenting with search functionality in minutes, not hours or days.
+Whoosh is included with TalkPipe, providing access to full-text search capabilities without additional setup, configuration, or external dependencies. This makes it possible to start experimenting with search functionality quickly.
 
-For production deployments that need to scale beyond Whoosh's capabilities, TalkPipe's modular design makes it straightforward to replace the Whoosh components with enterprise search engines like Elasticsearch or Solr, while keeping the rest of your pipeline unchanged.
+For production deployments that need to scale beyond Whoosh's capabilities, TalkPipe's modular design allows you to replace the Whoosh components with enterprise search engines like Elasticsearch or Solr while keeping the rest of your pipeline unchanged.
 
 ### What Happens During Indexing
 
@@ -263,7 +251,7 @@ When you run the `chatterlang_serve` command, it will start a web server and dis
 3. Integrate search functionality into their own applications
 4. Build more complex interfaces on top of the search API
 
-### The Power of Configuration
+### Configuring chatterlang_serve
 
 The `story_search_ui.yml` file (included in the tutorial directory) contains configuration for the web interface:
 - **Form field definitions** - What search options to present
@@ -276,164 +264,3 @@ This separation of configuration from code means you can:
 - **Customize for different use cases** with different YAML files
 - **Maintain consistency** across multiple search interfaces
 
-### Real-World Applications
-
-This prototyping pattern works for many different scenarios:
-
-**Research Applications**
-- Academic paper search with author, abstract, and keyword fields
-- Legal document search with case law, statutes, and regulations
-- Patent search with inventor, title, and claim text
-
-**Business Applications**
-- Customer support ticket search with categories, priority, and content
-- Product catalog search with descriptions, specifications, and reviews
-- Internal documentation search with departments, topics, and procedures
-
-**Content Management**
-- Blog post search with tags, categories, and full text
-- Media asset search with metadata, descriptions, and transcripts
-- Knowledge base search with topics, difficulty levels, and content
-
-### From Prototype to Production
-
-**For Small Teams and Projects**: The built-in `chatterlang_serve` interface might be your final solution. It provides:
-- **Zero custom development** for basic search functionality
-- **Automatic API generation** for programmatic access
-- **Configuration-driven UI** that non-developers can modify
-- **Built-in hosting** that handles moderate traffic loads
-
-**For Larger Deployments**: This step validates your search pipeline, which you then extract for integration into custom applications. TalkPipe's modular design lets you take the proven pipeline logic and embed it in your own systems while maintaining consistency between prototype and production implementations.
-
----
-
-## Bringing It All Together: The Prototyping Mindset
-
-### The Complete Prototyping Workflow
-
-When you run all three steps in sequence, you create a complete document processing and search system in under an hour:
-
-1. **Data Generation** (Step 1) → Creates 50 diverse, realistic documents (5 minutes)
-2. **Index Creation** (Step 2) → Makes those documents instantly searchable (2 minutes)
-3. **Search Interface** (Step 3) → Provides both API and web access to search (1 minute to start)
-
-This rapid cycle enables true experimental development where you can:
-- **Test hypotheses quickly** - "Does semantic search work better than keyword search for our content?"
-- **Iterate on approaches** - Try different indexing strategies and immediately compare results
-- **Validate with users** - Get feedback on search interfaces before committing to custom development
-- **Scale gradually** - Start with built-in tools, extract pipelines as needs grow
-
-### When This Approach Is Sufficient
-
-**Small Projects (1-1000 documents, 1-10 users)**:
-- Personal research projects
-- Small team knowledge bases
-- Prototype applications
-- Academic research tools
-- Internal documentation systems
-
-For these use cases, TalkPipe's built-in capabilities (including the Whoosh search engine) often provide everything you need without any external dependencies or custom development.
-
-**Medium Projects (1000-10000 documents, 10-100 users)**:
-- Departmental search tools
-- Community knowledge bases
-- Small business applications
-- Specialized research databases
-
-Here you might use TalkPipe's self-contained tools initially, then gradually replace specific components (like switching from Whoosh to Elasticsearch) as your scale demands grow, while keeping the rest of your proven pipeline logic unchanged.
-
-### Transitioning to Production
-
-**Large Projects (10000+ documents, 100+ users)**:
-- Enterprise search systems
-- Public-facing applications
-- High-traffic websites
-- Mission-critical systems
-
-For these, TalkPipe becomes your **pipeline development and validation platform**:
-
-1. **Prototype Phase**: Use the three-step approach to validate your data processing and search logic
-2. **Extraction Phase**: Take the proven pipelines and integrate them into custom applications
-3. **Production Phase**: Deploy with your own interfaces, databases, caching, monitoring, and scaling infrastructure
-
-```python
-# Production integration example
-from talkpipe.chatterlang import compile
-
-
-class ProductionSearchService:
-    def __init__(self):
-        # Extract the validated indexing pipeline
-        self.indexing_pipeline = compile("""
-            | readJsonl
-            | progressTicks[tick_count=1000]
-            | indexWhoosh[index_path="./production_index", field_list="content,title"]
-        """)
-
-        # Extract the validated search pipeline
-        self.search_pipeline = compile("""
-            | searchWhoosh[index_path="./production_index"]
-            | formatItem[field_list="document.title:Title,document.content:Content,score:Score"]
-        """)
-
-    def index_documents(self, document_stream):
-        """Index a stream of documents from JSONL file paths."""
-        return list(self.indexing_pipeline(document_stream))
-
-    def search(self, query):
-        """Search the index and return formatted results."""
-        return list(self.search_pipeline([{'query': query}]))
-
-
-# Example usage:
-# service = ProductionSearchService()
-# service.index_documents(["stories.json"])
-# results = service.search("quantum computing")
-```
-
-### Key Benefits of the Prototyping Approach
-
-**Self-Contained Setup** - Everything needed comes with TalkPipe installation; no external databases, search engines, or services to configure
-**Risk Reduction** - Validate your approach before major development investment
-**Rapid Learning** - Understand your data and user needs through experimentation
-**Modular Development** - Each pipeline component can be independently optimized and replaced
-**Smooth Scaling** - Transition from prototype to production without rewriting core logic
-**Team Alignment** - Stakeholders can interact with working prototypes, not just specifications
-
-### Next Steps and Extensions
-
-This prototyping foundation enables many experimental directions:
-
-**Data Source Experiments** - Replace Step 1 with different document ingestion approaches and compare results
-**Indexing Strategy Tests** - Try different search engines, field configurations, and optimization settings
-**Interface Variations** - Test different search UIs, result formats, and user interaction patterns
-**Performance Analysis** - Add monitoring and profiling to understand scaling characteristics
-**Integration Prototypes** - Test how your pipelines work with different databases, APIs, and external services
-
-The key is maintaining the experimental mindset: each change is a hypothesis to test, not a permanent commitment.
-
-### Learning Outcomes
-
-By working through these three steps with a prototyping mindset, you've learned:
-
-**Technical Skills**:
-- How to generate structured test data using AI for realistic experimentation
-- How full-text indexing transforms documents into searchable assets
-- How to create both programmatic and human interfaces for search
-- How TalkPipe's pipeline approach simplifies complex data processing workflows
-
-**Prototyping Methodology**:
-- How to validate approaches quickly before major development investment
-- When built-in tools are sufficient vs when custom development is needed
-- How to extract proven pipeline logic for integration into larger systems
-- How to design experiments that answer key architectural questions
-
-**Project Planning Insights**:
-- The difference between prototype-scale and production-scale requirements
-- How to plan a gradual transition from experimental to production systems
-- When to invest in custom development vs using existing tools
-- How to balance speed of experimentation with long-term maintainability
-
-The beauty of this example lies not just in its functionality, but in how clearly it demonstrates the progression from rapid prototype to production-ready system. Each step builds logically on the previous one, but more importantly, each step can be independently modified and tested as you refine your understanding of the problem.
-
-Whether you're building a corporate knowledge base, a research tool, or any other searchable document system, this prototyping approach provides a solid foundation for both immediate success and future growth. Start with the three-step prototype, validate your assumptions with real users and real data, then extract the proven pipelines for whatever custom architecture your final requirements demand.
