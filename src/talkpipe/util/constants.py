@@ -1,3 +1,5 @@
+TALKPIPE_EMBEDDING_MODEL_NAME = "default_embedding_model_name"
+TALKPIPE_EMBEDDING_MODEL_SOURCE = "default_embedding_model_source"
 TALKPIPE_MODEL_NAME = "default_model_name"
 TALKPIPE_SOURCE = "default_model_source"
 OLLAMA_SERVER_URL = "OLLAMA_SERVER_URL"

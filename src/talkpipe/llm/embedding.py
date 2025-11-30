@@ -8,6 +8,7 @@ from talkpipe.chatterlang.registry import register_segment
 from talkpipe.util.data_manipulation import extract_property, assign_property
 from .config import getEmbeddingAdapter, getEmbeddingSources
 from talkpipe.util.config import get_config
+from talkpipe.util.constants import TALKPIPE_EMBEDDING_MODEL_NAME, TALKPIPE_EMBEDDING_MODEL_SOURCE
 
 logger = logging.getLogger(__name__)
 
@@ -37,8 +38,8 @@ class LLMEmbed(AbstractSegment):
         """
         super().__init__()
         cfg = get_config()
-        model = model or cfg.get("default_embedding_model_name", None)
-        source = source or cfg.get("default_embedding_source", None)
+        model = model or cfg.get(TALKPIPE_EMBEDDING_MODEL_NAME, None)
+        source = source or cfg.get(TALKPIPE_EMBEDDING_MODEL_SOURCE, None)
         if source not in getEmbeddingSources():
             logger.error(f"Source '{source}' is not supported. Supported sources are: {getEmbeddingSources()}")
             raise ValueError(f"Source '{source}' is not supported. Supported sources are: {getEmbeddingSources()}")

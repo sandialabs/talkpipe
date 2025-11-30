@@ -15,6 +15,7 @@
   with individual components.
 - Made readJsonl a field_segment so it can get the filename from a field and assign each read line back into another field.
 - Reviewed, condensed, and improved documentation. 
+- Fixed incorrect name in default embedding model name configuration key.  Moved constants to the constants module.
 
 ## 0.10.1
 ### New Features
