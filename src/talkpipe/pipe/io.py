@@ -8,6 +8,7 @@ import json
 import traceback
 from pprint import pformat
 from prompt_toolkit import PromptSession
+from prompt_toolkit.history import FileHistory
 
 from talkpipe.chatterlang.registry import register_source, register_segment
 import talkpipe.chatterlang.registry as registry
@@ -129,9 +130,11 @@ class Prompt(AbstractSource):
     by overriding the __or__ method to wrap the downstream in error handling.
     """
 
-    def __init__(self, error_resilient: Annotated[bool, "If True, catches downstream errors and continues prompting"] = True):
+    def __init__(self, error_resilient: Annotated[bool, "If True, catches downstream errors and continues prompting"] = True, 
+                 history_file: Annotated[Optional[str], "File to store prompt history"] = None):
         super().__init__()
-        self.session = PromptSession()
+        self.history_file = os.path.expanduser(history_file) if history_file else None
+        self.session = PromptSession(history=FileHistory(self.history_file))
         self.error_resilient = error_resilient
 
     def generate(self) -> Iterable[str]:
