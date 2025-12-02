@@ -11,11 +11,15 @@
   numbers are included in the output. The function yields 4-tuples `(item, text, first_para, last_para)` instead
   of 2-tuples, while the segment returns dictionaries with `text`, `first_paragraph`, and `last_paragraph` keys.
   This enables tracking of which source paragraphs contributed to each shingle. Defaults to False for backward compatibility.
+- Fixed bug in `shingle_generator` where incomplete shingles would not be emitted when `overlap > 0` if no complete
+  shingle was ever produced for a given key. Now ensures that documents with only incomplete data still produce output.
 - Extended flatten to be a multi-emit field segment so it can flatten fields in an object and return the whole object
   with individual components.
 - Made readJsonl a field_segment so it can get the filename from a field and assign each read line back into another field.
 - Reviewed, condensed, and improved documentation. 
 - Fixed incorrect name in default embedding model name configuration key.  Moved constants to the constants module.
+- Added embedding_prompt parameter to basic_rag pipelines for custom embedding prompts.
+- Added option in prompt to support a history file.  Set to None by default for backward compatibility.
 
 ## 0.10.1
 ### New Features

@@ -163,3 +163,16 @@ def test_shingleText_emit_detail_false_unchanged():
     assert isinstance(result[0], str)
     assert result[0] == "The quick"
     assert result[1] == "brown fox"
+
+def test_shingleText_single_incomplete_shingle():
+    """Test that ShingleText handles single incomplete shingle correctly."""
+    items = [{"text": word} for word in ["Hello", "world"]]
+
+    # Test with shingle_size larger than number of items
+    shingler = ch.ShingleText(field="text", shingle_size=3, overlap=0)
+    shingler = shingler.as_function()
+    result = list(shingler(items))
+
+    # Should return one incomplete shingle
+    assert len(result) == 1
+    assert result[0] == "Hello world"

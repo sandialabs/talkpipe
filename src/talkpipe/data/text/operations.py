@@ -22,6 +22,7 @@ def shingle_generator(text_chunks: Iterator[Any], string_field: str, key_field: 
     last_item = None
     paragraph_numbers = []
     paragraph_counter = 0
+    has_yielded_for_key = False
 
     def is_shingle_complete():
         """Check if current shingle meets size threshold."""
@@ -47,11 +48,13 @@ def shingle_generator(text_chunks: Iterator[Any], string_field: str, key_field: 
             item_key = extract_property(item, key_field)
             if current_key is not None and item_key != current_key:
                 # Yield remaining shingle before resetting for new key
-                if shingles and (is_shingle_complete() or overlap == 0):
+                # Yield if complete, or if incomplete but we never yielded anything for this key
+                if shingles and (is_shingle_complete() or overlap == 0 or not has_yielded_for_key):
                     yield yield_shingle()
                 shingles = []
                 paragraph_numbers = []
                 paragraph_counter = 0
+                has_yielded_for_key = False
             current_key = item_key
 
         last_item = item
@@ -62,9 +65,11 @@ def shingle_generator(text_chunks: Iterator[Any], string_field: str, key_field: 
         # Yield complete shingle and keep overlap
         if is_shingle_complete():
             yield yield_shingle()
+            has_yielded_for_key = True
             shingles = shingles[-overlap:] if overlap > 0 else []
             paragraph_numbers = paragraph_numbers[-overlap:] if overlap > 0 else []
 
-    # Yield final incomplete shingle if applicable
-    if shingles and (is_shingle_complete() or overlap == 0):
+    # Yield final shingle at end of stream
+    # Yield if complete, or if incomplete but we never yielded anything for this key
+    if shingles and (is_shingle_complete() or overlap == 0 or not has_yielded_for_key):
         yield yield_shingle()
