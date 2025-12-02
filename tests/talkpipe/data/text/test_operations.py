@@ -192,3 +192,47 @@ def test_shingle_generator_with_paragraph_numbers():
 
     # Should return 2-tuples by default
     assert len(result_default[0]) == 2, f"Expected 2-tuple by default, got {len(result_default[0])}-tuple"
+
+
+def test_shingle_generator_single_incomplete_shingle_with_overlap():
+    """Test that shingle_generator emits incomplete shingles when there's only one chunk and overlap > 0.
+
+    This is a regression test for a bug where incomplete shingles were not emitted
+    when overlap > 0, even if they were the only data available.
+    """
+    # Case 1: Single chunk, less than shingle_size, with overlap
+    items = [{"key": 1, "text": "hello"}]
+
+    result = list(ops.shingle_generator(
+        items,
+        string_field="text",
+        key_field="key",
+        shingle_size=3,
+        overlap=1
+    ))
+
+    # Should yield the single chunk even though it's incomplete
+    assert len(result) == 1, f"Expected 1 shingle, got {len(result)}"
+    _, shingle_text = result[0]
+    assert shingle_text == "hello", f"Expected 'hello', got '{shingle_text}'"
+
+    # Case 2: Two chunks across different keys, each less than shingle_size, with overlap
+    items = [
+        {"key": 1, "text": "hello"},
+        {"key": 2, "text": "world"}
+    ]
+
+    result = list(ops.shingle_generator(
+        items,
+        string_field="text",
+        key_field="key",
+        shingle_size=3,
+        overlap=1
+    ))
+
+    # Should yield both incomplete shingles
+    assert len(result) == 2, f"Expected 2 shingles, got {len(result)}"
+    _, shingle1 = result[0]
+    _, shingle2 = result[1]
+    assert shingle1 == "hello", f"Expected 'hello', got '{shingle1}'"
+    assert shingle2 == "world", f"Expected 'world', got '{shingle2}'"
