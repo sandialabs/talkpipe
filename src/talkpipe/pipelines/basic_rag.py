@@ -71,6 +71,7 @@ class AbstractRAGPipeline(AbstractSegment):
     def __init__(self,
                  path: Annotated[str, "Path to LanceDB database. Supports file paths, 'memory://' for in-memory, or 'tmp://name' for process-scoped temp (auto-cleanup)"],
                  content_field: Annotated[Any, "Field to evaluate relevance on"],
+                 embedding_prompt: Annotated[str, "Prompt to use for embedding.  If None (default), use the content_field."] = None,
                  embedding_model: Annotated[str, "Embedding model to use"] = None,
                  embedding_source: Annotated[str, "Source of text to embed"] = None,
                  completion_model: Annotated[str, "LLM model to use for completion"] = None,
@@ -89,6 +90,7 @@ class AbstractRAGPipeline(AbstractSegment):
         self.completion_source = completion_source
         self.prompt_directive = prompt_directive
         self.content_field = content_field
+        self.embedding_prompt = embedding_prompt or content_field
         self.set_as = set_as
         self.limit = limit
         self.table_name = table_name
@@ -106,7 +108,7 @@ class AbstractRAGPipeline(AbstractSegment):
                                                     table_name=self.table_name,
                                                     set_as="_background",
                                                     limit=self.limit,
-                                                    query_field=self.content_field,
+                                                    query_field=self.embedding_prompt,
                                                     read_consistency_interval=self.read_consistency_interval) | \
                         ConstructRAGPrompt(prompt_directive=self.prompt_directive,
                                             background_field="_background",
@@ -131,6 +133,7 @@ class RAGToText(AbstractRAGPipeline):
     def __init__(self,
                  path: Annotated[str, "Path to LanceDB database. Supports file paths, 'memory://' for in-memory, or 'tmp://name' for process-scoped temp (auto-cleanup)"],
                  content_field: Annotated[Any, "Field to evaluate relevance on"],
+                 embedding_prompt: Annotated[str, "Prompt to use for embedding.  If None (default), use the content_field."] = None,
                  embedding_model: Annotated[str, "Embedding model to use"] = None,
                  embedding_source: Annotated[str, "Source of text to embed"] = None,
                  completion_model: Annotated[str, "LLM model to use for completion"] = None,
@@ -146,6 +149,7 @@ class RAGToText(AbstractRAGPipeline):
                          completion_source=completion_source,
                          path=path,
                          content_field=content_field,
+                         embedding_prompt=embedding_prompt,
                          prompt_directive=prompt_directive,
                          set_as=set_as,
                          limit=limit,
@@ -175,6 +179,7 @@ class RAGToBinaryAnswer(AbstractRAGPipeline):
                  completion_source: Annotated[str, "Source of prompt for completion"],
                  path: Annotated[str, "Path to LanceDB database. Supports file paths, 'memory://' for in-memory, or 'tmp://name' for process-scoped temp (auto-cleanup)"],
                  content_field: Annotated[Any, "Field to evaluate relevance on"],
+                 embedding_prompt: Annotated[str, "Prompt to use for embedding.  If None (default), use the content_field."] = None,
                  prompt_directive: Annotated[str, "Directive to guide the evaluation"] = "Answer the provided question as YES or NO. If the background does not contain relevant information, respond with 'NO'.",
                  set_as: Annotated[str, "The field to set/append the result as."] = None,
                  limit: Annotated[int, "Number of search results to retrieve"] = 10,
@@ -186,6 +191,7 @@ class RAGToBinaryAnswer(AbstractRAGPipeline):
                          completion_source=completion_source,
                          path=path,
                          content_field=content_field,
+                         embedding_prompt=embedding_prompt,
                          prompt_directive=prompt_directive,
                          set_as=set_as,
                          limit=limit,
@@ -216,6 +222,7 @@ class RAGToScore(AbstractRAGPipeline):
                  completion_source: Annotated[str, "Source of prompt for completion"],
                  path: Annotated[str, "Path to LanceDB database. Supports file paths, 'memory://' for in-memory, or 'tmp://name' for process-scoped temp (auto-cleanup)"],
                  content_field: Annotated[Any, "Field to evaluate relevance on"],
+                 embedding_prompt: Annotated[str, "Prompt to use for embedding.  If None (default), use the content_field."] = None,
                  prompt_directive: Annotated[str, "Directive to guide the evaluation"] = "Answer the provided question on a scale of 1 to 10. If the background does not contain relevant information, respond with a score of 1.",
                  set_as: Annotated[str, "The field to set/append the result as."] = None,
                  limit: Annotated[int, "Number of search results to retrieve"] = 10,
@@ -227,6 +234,7 @@ class RAGToScore(AbstractRAGPipeline):
                          completion_source=completion_source,
                          path=path,
                          content_field=content_field,
+                         embedding_prompt=embedding_prompt,
                          prompt_directive=prompt_directive,
                          set_as=set_as,
                          limit=limit,
