@@ -12,7 +12,9 @@
   of 2-tuples, while the segment returns dictionaries with `text`, `first_paragraph`, and `last_paragraph` keys.
   This enables tracking of which source paragraphs contributed to each shingle. Defaults to False for backward compatibility.
 - Fixed bug in `shingle_generator` where incomplete shingles would not be emitted when `overlap > 0` if no complete
-  shingle was ever produced for a given key. Now ensures that documents with only incomplete data still produce output.
+  shingle was ever produced for a given key. Additionally fixed issue where incomplete final shingles containing new
+  data beyond the overlap were not being emitted in count mode. Now ensures that documents with only incomplete data
+  still produce output, and that all chunks are properly covered when using count mode with overlap.
 - Extended flatten to be a multi-emit field segment so it can flatten fields in an object and return the whole object
   with individual components.
 - Made readJsonl a field_segment so it can get the filename from a field and assign each read line back into another field.

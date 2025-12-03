@@ -166,13 +166,28 @@ def test_shingleText_emit_detail_false_unchanged():
 
 def test_shingleText_single_incomplete_shingle():
     """Test that ShingleText handles single incomplete shingle correctly."""
-    items = [{"text": word} for word in ["Hello", "world"]]
+    chunks = [{"chunk": f"Chunk_{i}", "path": "/test.txt"} for i in range(10)]
 
-    # Test with shingle_size larger than number of items
-    shingler = ch.ShingleText(field="text", shingle_size=3, overlap=0)
-    shingler = shingler.as_function()
-    result = list(shingler(items))
+    # Configure shingling
+    shingle_segment = ch.ShingleText(
+        field="chunk",
+        shingle_size=3,
+        overlap=1,
+        set_as="shingle_detail",
+        key="path",
+        emit_detail=True
+    )
 
-    # Should return one incomplete shingle
-    assert len(result) == 1
-    assert result[0] == "Hello world"
+    # Process
+    results = list(shingle_segment(chunks))
+
+    assert len(results) == 5
+
+    # Results:
+    # - Input: 10 chunks (0-9)
+    # - Output: 4 shingles
+    # - Shingle 0: chunks [0, 1, 2]
+    # - Shingle 1: chunks [2, 3, 4]
+    # - Shingle 2: chunks [4, 5, 6]
+    # - Shingle 3: chunks [6, 7, 8]
+    # - MISSING: Chunk 9 is never included!
