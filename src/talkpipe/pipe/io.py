@@ -8,10 +8,11 @@ import json
 import traceback
 from pprint import pformat
 from prompt_toolkit import PromptSession
+from prompt_toolkit.history import FileHistory
 
 from talkpipe.chatterlang.registry import register_source, register_segment
 import talkpipe.chatterlang.registry as registry
-from talkpipe.pipe.core import AbstractSource, source, AbstractSegment, segment, Pipeline
+from talkpipe.pipe.core import AbstractSource, source, AbstractSegment, segment, Pipeline, field_segment
 from talkpipe.util import data_manipulation
 
 
@@ -129,9 +130,11 @@ class Prompt(AbstractSource):
     by overriding the __or__ method to wrap the downstream in error handling.
     """
 
-    def __init__(self, error_resilient: Annotated[bool, "If True, catches downstream errors and continues prompting"] = True):
+    def __init__(self, error_resilient: Annotated[bool, "If True, catches downstream errors and continues prompting"] = True, 
+                 history_file: Annotated[Optional[str], "File to store prompt history"] = None):
         super().__init__()
-        self.session = PromptSession()
+        self.history_file = os.path.expanduser(history_file) if history_file else None
+        self.session = PromptSession(history=FileHistory(self.history_file))
         self.error_resilient = error_resilient
 
     def generate(self) -> Iterable[str]:
@@ -178,16 +181,15 @@ def echo(data: Annotated[str, "The input string to split and generate items from
             yield item
 
 @register_segment('readJsonl')
-@segment()
-def readJsonl(fnames: Iterable[str]):
+@field_segment(multi_emit=True)
+def readJsonl(item: Annotated[str, "The path to the jsonl file"]):
     """Reads each item from the input stream as a path to a jsonl file. Loads each line of
     each file as a json object and yields each individually.
 
     """
-    for fname in fnames:
-        with open(fname, 'r') as f:
-            for line in f:
-                yield json.loads(line)
+    with open(item, 'r') as f:
+        for line in f:
+            yield json.loads(line)
 
 @register_segment("loadsJsonl")
 @segment()

@@ -65,9 +65,9 @@ class SearchVectorDatabaseSegment(AbstractSegment):
     """
 
     def __init__(self,
-                 embedding_model: Annotated[str, "Embedding model to use"],
-                 embedding_source: Annotated[str, "Source of text to embed"],
-                 path: Annotated[str, "Path to LanceDB database. Supports file paths, 'memory://' for in-memory, or 'tmp://name' for process-scoped temp (auto-cleanup)"],
+                 embedding_model: Annotated[str, "Embedding model to use"]=None,
+                 embedding_source: Annotated[str, "Source of text to embed"]=None,
+                 path: Annotated[str, "Path to LanceDB database. Supports file paths, 'memory://' for in-memory, or 'tmp://name' for process-scoped temp (auto-cleanup)"]=None,
                  table_name: Annotated[str, "Name of the table in the database"] = "docs",
                  query_field: Annotated[Optional[str], "Field containing the query text to embed. If None, expects string inputs."] = None,
                  limit: Annotated[int, "Number of search results to return"] = 10,

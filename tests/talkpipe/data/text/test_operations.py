@@ -134,3 +134,105 @@ def test_shingle_generator_no_field():
     shingles = [shingle_text for _, shingle_text in result]
     expected = ["The quick", "quick brown", "brown fox"]
     assert shingles == expected, f"Expected {expected}, got {shingles}"
+
+
+def test_shingle_generator_with_paragraph_numbers():
+    """Test shingle_generator with paragraph number tracking enabled."""
+    texts = [
+        "The quick brown fox jumps over the lazy dog",
+        "The rain in Spain stays mainly in the plain"
+    ]
+    items = [{"key": 1, "text": word} for word in texts[0].split(" ")]
+    items.extend([{"key": 2, "text": word} for word in texts[1].split(" ")])
+
+    # Test with overlap and paragraph numbers
+    result = list(ops.shingle_generator(
+        items,
+        string_field="text",
+        key_field="key",
+        shingle_size=3,
+        overlap=2,
+        include_paragraph_numbers=True
+    ))
+
+    # Should return tuples of (item, text, first_para, last_para)
+    assert len(result) > 0, "Expected at least one result"
+
+    # Check first result structure
+    first_result = result[0]
+    assert len(first_result) == 4, f"Expected 4-tuple (item, text, first_para, last_para), got {len(first_result)}-tuple"
+
+    item, text, first_para, last_para = first_result
+    assert text == "The quick brown", f"Expected 'The quick brown', got '{text}'"
+    assert first_para == 0, f"Expected first_para=0, got {first_para}"
+    assert last_para == 2, f"Expected last_para=2, got {last_para}"
+
+    # Check a middle result
+    middle_result = result[3]
+    item, text, first_para, last_para = middle_result
+    assert text == "fox jumps over", f"Expected 'fox jumps over', got '{text}'"
+    assert first_para == 3, f"Expected first_para=3, got {first_para}"
+    assert last_para == 5, f"Expected last_para=5, got {last_para}"
+
+    # Check that paragraph counter resets when key changes (key=2 starts at result[7])
+    key2_result = result[7]
+    item, text, first_para, last_para = key2_result
+    assert text == "The rain in", f"Expected 'The rain in', got '{text}'"
+    assert first_para == 0, f"Expected first_para=0 (counter should reset on key change), got {first_para}"
+    assert last_para == 2, f"Expected last_para=2 (counter should reset on key change), got {last_para}"
+
+    # Test default behavior (no paragraph numbers) - should still work as before
+    result_default = list(ops.shingle_generator(
+        items,
+        string_field="text",
+        key_field="key",
+        shingle_size=3,
+        overlap=2
+    ))
+
+    # Should return 2-tuples by default
+    assert len(result_default[0]) == 2, f"Expected 2-tuple by default, got {len(result_default[0])}-tuple"
+
+
+def test_shingle_generator_single_incomplete_shingle_with_overlap():
+    """Test that shingle_generator emits incomplete shingles when there's only one chunk and overlap > 0.
+
+    This is a regression test for a bug where incomplete shingles were not emitted
+    when overlap > 0, even if they were the only data available.
+    """
+    # Case 1: Single chunk, less than shingle_size, with overlap
+    items = [{"key": 1, "text": "hello"}]
+
+    result = list(ops.shingle_generator(
+        items,
+        string_field="text",
+        key_field="key",
+        shingle_size=3,
+        overlap=1
+    ))
+
+    # Should yield the single chunk even though it's incomplete
+    assert len(result) == 1, f"Expected 1 shingle, got {len(result)}"
+    _, shingle_text = result[0]
+    assert shingle_text == "hello", f"Expected 'hello', got '{shingle_text}'"
+
+    # Case 2: Two chunks across different keys, each less than shingle_size, with overlap
+    items = [
+        {"key": 1, "text": "hello"},
+        {"key": 2, "text": "world"}
+    ]
+
+    result = list(ops.shingle_generator(
+        items,
+        string_field="text",
+        key_field="key",
+        shingle_size=3,
+        overlap=1
+    ))
+
+    # Should yield both incomplete shingles
+    assert len(result) == 2, f"Expected 2 shingles, got {len(result)}"
+    _, shingle1 = result[0]
+    _, shingle2 = result[1]
+    assert shingle1 == "hello", f"Expected 'hello', got '{shingle1}'"
+    assert shingle2 == "world", f"Expected 'world', got '{shingle2}'"

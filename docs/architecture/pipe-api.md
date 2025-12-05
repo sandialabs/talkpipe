@@ -26,7 +26,7 @@ The Pipe API consists of three main components:
 
 ### AbstractSource
 
-**File**: `src/talkpipe/pipe/core.py:166`
+**File**: `src/talkpipe/pipe/core.py`
 
 Sources are the entry points for data pipelines. They generate data without requiring upstream input.
 
@@ -53,7 +53,7 @@ class AbstractSource(ABC, HasRuntimeComponent, Generic[U]):
 
 ### AbstractSegment
 
-**File**: `src/talkpipe/pipe/core.py:62`
+**File**: `src/talkpipe/pipe/core.py`
 
 Segments are operations that transform data flowing through the pipeline.
 
@@ -79,7 +79,7 @@ class AbstractSegment(ABC, HasRuntimeComponent, Generic[T, U]):
 
 ### Pipeline
 
-**File**: `src/talkpipe/pipe/core.py:410`
+**File**: `src/talkpipe/pipe/core.py`
 
 Pipelines chain sources and segments together into executable workflows.
 
@@ -123,7 +123,7 @@ The Pipe API provides decorators to easily convert functions into sources and se
 
 ### @source Decorator
 
-**File**: `src/talkpipe/pipe/core.py:252`
+**File**: `src/talkpipe/pipe/core.py`
 
 Converts a function into a source class:
 
@@ -150,7 +150,7 @@ source_instance = parameterized_source(count=5, prefix="data")
 
 ### @segment Decorator
 
-**File**: `src/talkpipe/pipe/core.py:314`
+**File**: `src/talkpipe/pipe/core.py`
 
 Converts a function into a segment class:
 
@@ -177,7 +177,7 @@ pipeline = data_source | scale(multiplier=3)
 
 ### @field_segment Decorator
 
-**File**: `src/talkpipe/pipe/core.py:374`
+**File**: `src/talkpipe/pipe/core.py`
 
 Creates segments that process specific fields and optionally append results:
 
@@ -194,7 +194,7 @@ pipeline = data_source | count_words()
 
 ### RuntimeComponent
 
-**File**: `src/talkpipe/pipe/core.py:21`
+**File**: `src/talkpipe/pipe/core.py`
 
 Provides shared state for pipeline execution:
 
@@ -207,7 +207,7 @@ class RuntimeComponent:
 
 ### HasRuntimeComponent Mixin
 
-**File**: `src/talkpipe/pipe/core.py:49`
+**File**: `src/talkpipe/pipe/core.py`
 
 Adds runtime component access to sources and segments:
 
@@ -227,7 +227,7 @@ This enables segments to:
 
 ### Script
 
-**File**: `src/talkpipe/pipe/core.py:436`
+**File**: `src/talkpipe/pipe/core.py`
 
 Executes segments sequentially, fully resolving each before the next:
 
@@ -243,7 +243,7 @@ class Script(AbstractSegment):
 
 ### Loop
 
-**File**: `src/talkpipe/pipe/core.py:469`
+**File**: `src/talkpipe/pipe/core.py`
 
 Repeats a script multiple times:
 
@@ -256,7 +256,7 @@ class Loop(AbstractSegment):
 
 ### ForkSegment
 
-**File**: `src/talkpipe/pipe/fork.py:25`
+**File**: `src/talkpipe/pipe/fork.py`
 
 Parallel processing with multiple branches:
 
@@ -298,7 +298,7 @@ The registry enables:
 
 ### as_function()
 
-**File**: `src/talkpipe/pipe/core.py:145`
+**File**: `src/talkpipe/pipe/core.py`
 
 Converts segments to callable functions:
 

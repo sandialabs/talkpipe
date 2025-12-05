@@ -504,7 +504,7 @@ def test_rag_to_text_with_different_limit(requires_ollama, temp_vector_db_path, 
 
 
 def test_rag_to_text_custom_prompt_directive(requires_ollama, temp_vector_db_path, sample_knowledge_base):
-    """Test RAGToText with a custom prompt directive."""
+    """Test RAGToText with a custom prompt directive and system prompt."""
     from talkpipe.pipelines.vector_databases import MakeVectorDatabaseSegment
     from talkpipe.pipelines.basic_rag import RAGToText
 
@@ -519,8 +519,9 @@ def test_rag_to_text_custom_prompt_directive(requires_ollama, temp_vector_db_pat
     )
     list(make_db_segment.transform(sample_knowledge_base))
 
-    # Test with custom prompt directive
+    # Test with custom prompt directive and system prompt
     custom_directive = "You are a technical expert. Provide a detailed explanation based on the background information."
+    custom_system_prompt = "You are a helpful technical documentation assistant. Always provide accurate information based on the provided context."
 
     rag_segment = RAGToText(
         embedding_model="mxbai-embed-large",
@@ -530,9 +531,13 @@ def test_rag_to_text_custom_prompt_directive(requires_ollama, temp_vector_db_pat
         path=temp_vector_db_path,
         content_field="query",
         prompt_directive=custom_directive,
+        system_prompt=custom_system_prompt,
         set_as="detailed_answer",
         limit=3
     )
+
+    # Verify system_prompt was stored
+    assert rag_segment.system_prompt == custom_system_prompt
 
     query_items = [{"query": "What is pandas used for?"}]
     results = list(rag_segment.transform(query_items))
@@ -542,6 +547,49 @@ def test_rag_to_text_custom_prompt_directive(requires_ollama, temp_vector_db_pat
     assert "detailed_answer" in result
     assert isinstance(result["detailed_answer"], str)
     assert len(result["detailed_answer"]) > 0
+
+
+def test_rag_to_text_system_prompt_affects_output(requires_ollama, temp_vector_db_path, sample_knowledge_base):
+    """Test that custom system_prompt actually affects LLM output."""
+    from talkpipe.pipelines.vector_databases import MakeVectorDatabaseSegment
+    from talkpipe.pipelines.basic_rag import RAGToText
+
+    # Create and populate the vector database
+    make_db_segment = MakeVectorDatabaseSegment(
+        embedding_field="text",
+        embedding_model="mxbai-embed-large",
+        embedding_source="ollama",
+        path=temp_vector_db_path,
+        doc_id_field="id",
+        overwrite=True
+    )
+    list(make_db_segment.transform(sample_knowledge_base))
+
+    # Use a system prompt that forces a specific output format
+    pirate_system_prompt = "Talk like a pirate. Always start your answer with 'ANSWER:' on its own line."
+
+    rag_segment = RAGToText(
+        embedding_model="mxbai-embed-large",
+        embedding_source="ollama",
+        completion_model="llama3.2",
+        completion_source="ollama",
+        path=temp_vector_db_path,
+        content_field="query",
+        system_prompt=pirate_system_prompt,
+        set_as="answer",
+        limit=3
+    )
+
+    query_items = [{"query": "Who created Python?"}]
+    results = list(rag_segment.transform(query_items))
+
+    assert len(results) == 1
+    result = results[0]
+    assert "answer" in result
+    answer = result["answer"]
+
+    # Verify the system prompt affected the output - should start with ANSWER:
+    assert answer.strip().startswith("ANSWER:"), f"Expected answer to start with 'ANSWER:', got: {answer[:100]}"
 
 
 def test_rag_to_text_multiple_queries(requires_ollama, temp_vector_db_path, sample_knowledge_base):
@@ -1218,3 +1266,137 @@ def test_rag_to_score_low_relevance_query(requires_ollama, temp_vector_db_path, 
     assert 0 <= score_obj.score <= 100
     # The score should ideally be low for an unrelated query, but we don't enforce
     # a specific threshold as LLM behavior can vary
+
+
+# Tests for table_name parameter
+
+def test_rag_to_text_custom_table_name(requires_ollama, temp_vector_db_path, sample_knowledge_base):
+    """Test RAGToText with a custom table name."""
+    from talkpipe.pipelines.vector_databases import MakeVectorDatabaseSegment
+    from talkpipe.pipelines.basic_rag import RAGToText
+
+    # Create and populate the vector database with a custom table name
+    custom_table = "custom_knowledge_table"
+    make_db_segment = MakeVectorDatabaseSegment(
+        embedding_field="text",
+        embedding_model="mxbai-embed-large",
+        embedding_source="ollama",
+        path=temp_vector_db_path,
+        table_name=custom_table,
+        doc_id_field="id",
+        overwrite=True
+    )
+    list(make_db_segment.transform(sample_knowledge_base))
+
+    # Test RAGToText with the same custom table name
+    rag_segment = RAGToText(
+        embedding_model="mxbai-embed-large",
+        embedding_source="ollama",
+        completion_model="llama3.2",
+        completion_source="ollama",
+        path=temp_vector_db_path,
+        table_name=custom_table,
+        content_field="query",
+        set_as="answer",
+        limit=3
+    )
+
+    # Query should work with the custom table
+    query_items = [{"query": "Who created Python?", "id": "q1"}]
+    results = list(rag_segment.transform(query_items))
+
+    # Verify results
+    assert len(results) == 1
+    result = results[0]
+    assert "answer" in result
+    assert isinstance(result["answer"], str)
+    assert len(result["answer"]) > 0
+
+
+def test_rag_to_binary_answer_custom_table_name(requires_ollama, temp_vector_db_path, sample_knowledge_base):
+    """Test RAGToBinaryAnswer with a custom table name."""
+    from talkpipe.pipelines.vector_databases import MakeVectorDatabaseSegment
+    from talkpipe.pipelines.basic_rag import RAGToBinaryAnswer
+
+    # Create and populate the vector database with a custom table name
+    custom_table = "binary_answer_table"
+    make_db_segment = MakeVectorDatabaseSegment(
+        embedding_field="text",
+        embedding_model="mxbai-embed-large",
+        embedding_source="ollama",
+        path=temp_vector_db_path,
+        table_name=custom_table,
+        doc_id_field="id",
+        overwrite=True
+    )
+    list(make_db_segment.transform(sample_knowledge_base))
+
+    # Test RAGToBinaryAnswer with the same custom table name
+    rag_segment = RAGToBinaryAnswer(
+        embedding_model="mxbai-embed-large",
+        embedding_source="ollama",
+        completion_model="llama3.2",
+        completion_source="ollama",
+        path=temp_vector_db_path,
+        table_name=custom_table,
+        content_field="query",
+        set_as="answer",
+        limit=3
+    )
+
+    # Query should work with the custom table
+    query_items = [{"query": "Is Python a programming language?", "id": "q1"}]
+    results = list(rag_segment.transform(query_items))
+
+    # Verify results
+    assert len(results) == 1
+    result = results[0]
+    assert "answer" in result
+    answer_obj = result["answer"]
+    assert hasattr(answer_obj, "answer")
+    assert isinstance(answer_obj.answer, bool)
+
+
+def test_rag_to_score_custom_table_name(requires_ollama, temp_vector_db_path, sample_knowledge_base):
+    """Test RAGToScore with a custom table name."""
+    from talkpipe.pipelines.vector_databases import MakeVectorDatabaseSegment
+    from talkpipe.pipelines.basic_rag import RAGToScore
+
+    # Create and populate the vector database with a custom table name
+    custom_table = "score_table"
+    make_db_segment = MakeVectorDatabaseSegment(
+        embedding_field="text",
+        embedding_model="mxbai-embed-large",
+        embedding_source="ollama",
+        path=temp_vector_db_path,
+        table_name=custom_table,
+        doc_id_field="id",
+        overwrite=True
+    )
+    list(make_db_segment.transform(sample_knowledge_base))
+
+    # Test RAGToScore with the same custom table name
+    rag_segment = RAGToScore(
+        embedding_model="mxbai-embed-large",
+        embedding_source="ollama",
+        completion_model="llama3.2",
+        completion_source="ollama",
+        path=temp_vector_db_path,
+        table_name=custom_table,
+        content_field="query",
+        set_as="score_result",
+        limit=3
+    )
+
+    # Query should work with the custom table
+    query_items = [{"query": "Tell me about Python programming", "id": "q1"}]
+    results = list(rag_segment.transform(query_items))
+
+    # Verify results
+    assert len(results) == 1
+    result = results[0]
+    assert "score_result" in result
+    score_obj = result["score_result"]
+    assert hasattr(score_obj, "score")
+    assert isinstance(score_obj.score, int)
+    assert 0 <= score_obj.score <= 100

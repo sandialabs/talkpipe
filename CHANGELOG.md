@@ -1,6 +1,28 @@
 # Changelog
 
-## Unreleased
+## 0.10.2
+
+### Improvements
+- Added `system_prompt` parameter to RAG pipeline segments (**ragToText**, **ragToBinaryAnswer**, **ragToScore**).
+  Users can now customize the system prompt sent to the completion LLM. Each segment type has an
+  appropriate default: **ragToText** uses a prompt that emphasizes grounding responses in provided context,
+  while **ragToBinaryAnswer** and **ragToScore** use prompts tailored to their respective output formats.
+- Added `table_name` parameter to **ragToText**, **ragToBinaryAnswer**, and **ragToScore** segments.
+  Users can now specify which LanceDB table to search, enabling multiple knowledge bases within the same database.
+  Defaults to "docs" for backward compatibility.
+- Added optional paragraph number tracking to **shingleText** segment via `emit_detail` parameter.
+  When enabled, returns dictionaries with `text`, `first_paragraph`, and `last_paragraph` keys instead of just text strings.
+  This enables tracking of which source paragraphs contributed to each shingle. Defaults to False for backward compatibility.
+- Extended **flatten** to be a multi-emit field segment so it can flatten fields in an object and return the whole object
+  with individual components.
+- Made **readJsonl** a field segment so it can get the filename from a field and assign each read line back into another field.
+- Added `embedding_prompt` parameter to basic RAG pipelines for custom embedding prompts.
+- Added `history` parameter to **prompt** source to support saving/loading command history from a file. Set to None by default for backward compatibility.
+- Fixed bug in **shingleText** where incomplete shingles would not be emitted when `overlap > 0` if no complete
+  shingle was ever produced for a given key. Now ensures that documents with only incomplete data still produce output,
+  and that all chunks are properly covered when using count mode with overlap.
+- Fixed incorrect name in default embedding model configuration key. Moved constants to the constants module.
+- Reviewed, condensed, and improved documentation.
 
 ## 0.10.1
 ### New Features

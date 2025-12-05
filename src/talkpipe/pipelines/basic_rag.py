@@ -10,6 +10,15 @@ from talkpipe.pipelines.vector_databases import SearchVectorDatabaseSegment
 
 logger = logging.getLogger(__name__)
 
+# Default system prompts for RAG pipelines
+DEFAULT_RAG_SYSTEM_PROMPT = """You are a helpful assistant that answers questions based on provided background information.
+Ground your responses in the background context given. If the background does not contain sufficient information to answer the question, acknowledge this limitation rather than speculating or making up information.
+Be concise and accurate in your responses."""
+
+DEFAULT_BINARY_ANSWER_SYSTEM_PROMPT = "Answer the question with YES (true) or NO (false) based on the provided information. Provide a brief explanation for your answer."
+
+DEFAULT_SCORE_SYSTEM_PROMPT = "Evaluate the provided content and assign an integer score with a brief explanation. The score should reflect the evaluation criteria specified in the user prompt."
+
 def construct_background(background: Annotated[Union[str, List[Union[str, SearchResult]]], "Background items against which relevance is evaluated"]) -> List[Union[str, SearchResult]]:
     """ Construct background from input
 
@@ -35,9 +44,9 @@ def construct_background(background: Annotated[Union[str, List[Union[str, Search
 @register_segment("constructRagPrompt")
 class ConstructRAGPrompt(AbstractSegment):
     def __init__(self, 
+                 content_field: Annotated[Any, "Field to evaluate relevance on"],
                  prompt_directive: Annotated[str, "Directive to guide the evaluation"],
                  background_field: Annotated[str, "Field containing background items"],
-                 content_field: Annotated[Any, "Field to evaluate relevance on"],
                  set_as: Annotated[str, "The field to set/append the result as."] = None):
         super().__init__()
         self.background_field = background_field
@@ -69,15 +78,18 @@ class AbstractRAGPipeline(AbstractSegment):
     """
 
     def __init__(self,
-                 embedding_model: Annotated[str, "Embedding model to use"],
-                 embedding_source: Annotated[str, "Source of text to embed"],
-                 completion_model: Annotated[str, "LLM model to use for completion"],
-                 completion_source: Annotated[str, "Source of prompt for completion"],
                  path: Annotated[str, "Path to LanceDB database. Supports file paths, 'memory://' for in-memory, or 'tmp://name' for process-scoped temp (auto-cleanup)"],
                  content_field: Annotated[Any, "Field to evaluate relevance on"],
+                 embedding_prompt: Annotated[str, "Prompt to use for embedding.  If None (default), use the content_field."] = None,
+                 embedding_model: Annotated[str, "Embedding model to use"] = None,
+                 embedding_source: Annotated[str, "Source of text to embed"] = None,
+                 completion_model: Annotated[str, "LLM model to use for completion"] = None,
+                 completion_source: Annotated[str, "Source of prompt for completion"] = None,
                  prompt_directive: Annotated[str, "Directive to guide the evaluation"] = "Respond to the provided content based on the background information. If the background does not contain relevant information, respond with 'No relevant information found.'",
+                 system_prompt: Annotated[str, "System prompt for the completion LLM"] = None,
                  set_as: Annotated[str, "The field to set/append the result as."] = None,
                  limit: Annotated[int, "Number of search results to retrieve"] = 10,
+                 table_name: Annotated[str, "Name of the table in the LanceDB database"] = "docs",
                  read_consistency_interval: Annotated[int, "Read consistency interval in seconds"] = 10):
 
         super().__init__()
@@ -87,9 +99,12 @@ class AbstractRAGPipeline(AbstractSegment):
         self.completion_model = completion_model
         self.completion_source = completion_source
         self.prompt_directive = prompt_directive
+        self.system_prompt = system_prompt
         self.content_field = content_field
+        self.embedding_prompt = embedding_prompt or content_field
         self.set_as = set_as
         self.limit = limit
+        self.table_name = table_name
         self.read_consistency_interval = read_consistency_interval
 
     @abstractmethod
@@ -101,9 +116,10 @@ class AbstractRAGPipeline(AbstractSegment):
         return SearchVectorDatabaseSegment(embedding_model=self.embedding_model,
                                                     embedding_source=self.embedding_source,
                                                     path=self.path,
+                                                    table_name=self.table_name,
                                                     set_as="_background",
                                                     limit=self.limit,
-                                                    query_field=self.content_field,
+                                                    query_field=self.embedding_prompt,
                                                     read_consistency_interval=self.read_consistency_interval) | \
                         ConstructRAGPrompt(prompt_directive=self.prompt_directive,
                                             background_field="_background",
@@ -126,15 +142,18 @@ class RAGToText(AbstractRAGPipeline):
     """
 
     def __init__(self,
-                 embedding_model: Annotated[str, "Embedding model to use"],
-                 embedding_source: Annotated[str, "Source of text to embed"],
-                 completion_model: Annotated[str, "LLM model to use for completion"],
-                 completion_source: Annotated[str, "Source of prompt for completion"],
                  path: Annotated[str, "Path to LanceDB database. Supports file paths, 'memory://' for in-memory, or 'tmp://name' for process-scoped temp (auto-cleanup)"],
                  content_field: Annotated[Any, "Field to evaluate relevance on"],
+                 embedding_prompt: Annotated[str, "Prompt to use for embedding.  If None (default), use the content_field."] = None,
+                 embedding_model: Annotated[str, "Embedding model to use"] = None,
+                 embedding_source: Annotated[str, "Source of text to embed"] = None,
+                 completion_model: Annotated[str, "LLM model to use for completion"] = None,
+                 completion_source: Annotated[str, "Source of prompt for completion"] = None,
                  prompt_directive: Annotated[str, "Directive to guide the evaluation"] = "Respond to the provided content based on the background information. If the background does not contain relevant information, respond with 'No relevant information found.'",
+                 system_prompt: Annotated[str, "System prompt for the completion LLM"] = DEFAULT_RAG_SYSTEM_PROMPT,
                  set_as: Annotated[str, "The field to set/append the result as."] = None,
                  limit: Annotated[int, "Number of search results to retrieve"] = 10,
+                 table_name: Annotated[str, "Name of the table in the LanceDB database"] = "docs",
                  read_consistency_interval: Annotated[int, "Read consistency interval in seconds"] = 10):
         super().__init__(embedding_model=embedding_model,
                          embedding_source=embedding_source,
@@ -142,14 +161,18 @@ class RAGToText(AbstractRAGPipeline):
                          completion_source=completion_source,
                          path=path,
                          content_field=content_field,
+                         embedding_prompt=embedding_prompt,
                          prompt_directive=prompt_directive,
+                         system_prompt=system_prompt,
                          set_as=set_as,
                          limit=limit,
+                         table_name=table_name,
                          read_consistency_interval=read_consistency_interval)
-        
+
     def make_completion_segment(self) -> AbstractSegment:
         return LLMPrompt(model=self.completion_model,
                          source=self.completion_source,
+                         system_prompt=self.system_prompt,
                          field="_ragprompt",
                          set_as=self.set_as)
     
@@ -170,9 +193,12 @@ class RAGToBinaryAnswer(AbstractRAGPipeline):
                  completion_source: Annotated[str, "Source of prompt for completion"],
                  path: Annotated[str, "Path to LanceDB database. Supports file paths, 'memory://' for in-memory, or 'tmp://name' for process-scoped temp (auto-cleanup)"],
                  content_field: Annotated[Any, "Field to evaluate relevance on"],
+                 embedding_prompt: Annotated[str, "Prompt to use for embedding.  If None (default), use the content_field."] = None,
                  prompt_directive: Annotated[str, "Directive to guide the evaluation"] = "Answer the provided question as YES or NO. If the background does not contain relevant information, respond with 'NO'.",
+                 system_prompt: Annotated[str, "System prompt for the completion LLM"] = DEFAULT_BINARY_ANSWER_SYSTEM_PROMPT,
                  set_as: Annotated[str, "The field to set/append the result as."] = None,
                  limit: Annotated[int, "Number of search results to retrieve"] = 10,
+                 table_name: Annotated[str, "Name of the table in the LanceDB database"] = "docs",
                  read_consistency_interval: Annotated[int, "Read consistency interval in seconds"] = 10):
         super().__init__(embedding_model=embedding_model,
                          embedding_source=embedding_source,
@@ -180,13 +206,16 @@ class RAGToBinaryAnswer(AbstractRAGPipeline):
                          completion_source=completion_source,
                          path=path,
                          content_field=content_field,
+                         embedding_prompt=embedding_prompt,
                          prompt_directive=prompt_directive,
+                         system_prompt=system_prompt,
                          set_as=set_as,
                          limit=limit,
+                         table_name=table_name,
                          read_consistency_interval=read_consistency_interval)
 
     def make_completion_segment(self) -> AbstractSegment:
-        return LlmBinaryAnswer(system_prompt="Answer the question with YES (true) or NO (false) based on the provided information. Provide a brief explanation for your answer.",
+        return LlmBinaryAnswer(system_prompt=self.system_prompt,
                                model=self.completion_model,
                                source=self.completion_source,
                                field="_ragprompt",
@@ -209,9 +238,12 @@ class RAGToScore(AbstractRAGPipeline):
                  completion_source: Annotated[str, "Source of prompt for completion"],
                  path: Annotated[str, "Path to LanceDB database. Supports file paths, 'memory://' for in-memory, or 'tmp://name' for process-scoped temp (auto-cleanup)"],
                  content_field: Annotated[Any, "Field to evaluate relevance on"],
+                 embedding_prompt: Annotated[str, "Prompt to use for embedding.  If None (default), use the content_field."] = None,
                  prompt_directive: Annotated[str, "Directive to guide the evaluation"] = "Answer the provided question on a scale of 1 to 10. If the background does not contain relevant information, respond with a score of 1.",
+                 system_prompt: Annotated[str, "System prompt for the completion LLM"] = DEFAULT_SCORE_SYSTEM_PROMPT,
                  set_as: Annotated[str, "The field to set/append the result as."] = None,
                  limit: Annotated[int, "Number of search results to retrieve"] = 10,
+                 table_name: Annotated[str, "Name of the table in the LanceDB database"] = "docs",
                  read_consistency_interval: Annotated[int, "Read consistency interval in seconds"] = 10):
         super().__init__(embedding_model=embedding_model,
                          embedding_source=embedding_source,
@@ -219,13 +251,16 @@ class RAGToScore(AbstractRAGPipeline):
                          completion_source=completion_source,
                          path=path,
                          content_field=content_field,
+                         embedding_prompt=embedding_prompt,
                          prompt_directive=prompt_directive,
+                         system_prompt=system_prompt,
                          set_as=set_as,
                          limit=limit,
+                         table_name=table_name,
                          read_consistency_interval=read_consistency_interval)
 
     def make_completion_segment(self) -> AbstractSegment:
-        return LlmScore(system_prompt="Evaluate the provided content and assign an integer score with a brief explanation. The score should reflect the evaluation criteria specified in the user prompt.",
+        return LlmScore(system_prompt=self.system_prompt,
                         model=self.completion_model,
                         source=self.completion_source,
                         field="_ragprompt",

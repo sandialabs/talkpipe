@@ -498,21 +498,20 @@ def everyN(items, n: Annotated[int, "Number of items to skip between each yield"
             yield item
 
 @registry.register_segment("flatten")
-@segment()
-def flatten(items):
+@field_segment(multi_emit=True)
+def flatten(item):
     """Flattens a nested list of items.
 
     Yields:
         Flattened list of items
     """
-    for item in items:
-        if isinstance(item, dict):
-            yield from item.items()
-        else:
-            try:
-                yield from item
-            except TypeError:
-                yield item
+    if isinstance(item, dict):
+        yield from item.items()
+    else:
+        try:
+            yield from item
+        except TypeError:
+            yield item
 
 @registry.register_segment("configureLogger")
 class ConfigureLogger(AbstractSegment):

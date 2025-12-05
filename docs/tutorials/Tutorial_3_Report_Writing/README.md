@@ -2,7 +2,7 @@
 
 Imagine you're working in a research organization, consulting firm, or corporate environment where you regularly need to generate detailed reports based on large document collections. Maybe you're analyzing market trends from research papers, creating executive summaries from technical documentation, or preparing client reports from case studies. The challenge goes beyond simple question-answering: you need structured, comprehensive documents that synthesize information from multiple sources into coherent, professional reports.
 
-This tutorial demonstrates how to build a report generation system using TalkPipe's RAG (Retrieval-Augmented Generation) capabilities. We'll extend the vector search functionality from Tutorial 2 to create sophisticated reporting pipelines that can generate anything from executive summaries to detailed analytical reports.
+This tutorial demonstrates how to build a report generation system using TalkPipe's RAG (Retrieval-Augmented Generation) capabilities. We'll extend the vector search functionality from Tutorial 2 to create reporting pipelines that can generate anything from executive summaries to detailed analytical reports.
 
 ## About This Tutorial: From Questions to Documents
 
@@ -14,39 +14,12 @@ While Tutorial 2 focused on answering specific questions using RAG, this tutoria
 - **Comprehensive coverage** - Ensuring all relevant aspects of a topic are addressed
 - **Professional presentation** - Creating output that meets business and academic standards
 
-This tutorial shows how TalkPipe's modular pipeline approach makes it straightforward to build sophisticated document generation systems. You'll learn to create custom reporting segments, structure complex prompts, and orchestrate multi-step document creation processes.
+This tutorial shows how TalkPipe's modular pipeline approach enables building document generation systems. You'll learn to create custom reporting segments, structure complex prompts, and orchestrate multi-step document creation processes.
 
 **Building on Previous Work**: This tutorial assumes you've completed Tutorials 1 and 2, as it uses the same vector index and synthetic story data. The progression is intentional:
 1. **Tutorial 1** - Basic document indexing and search
 2. **Tutorial 2** - RAG for question answering  
 3. **Tutorial 3** - Report generation (this tutorial)
-
-This sequence mirrors real-world development: you typically start with basic search, evolve to interactive Q&A, then advance to automated document generation.
-
-## The Reporting Journey: From Retrieval to Publication
-
-Our reporting story unfolds in three sophisticated steps:
-1. **Executive Summary Generation** - Creating concise overviews from search results
-2. **Detailed Analysis Reports** - Comprehensive documents with multiple sections
-3. **Multi-Format Report Pipeline** - Generating reports in different styles and formats
-
-This approach serves different organizational needs:
-
-**For Research Teams**: Generate literature reviews, research summaries, and analysis reports from large document collections without manual compilation.
-
-**Consulting Firms**: Create detailed analysis reports for teams, executive summaries for clients, and presentation materials for meetings.
-
-**Technology Companies**: Produce technical documentation for developers, marketing materials for customers, and strategic briefings for executives.
-
-**Government Agencies**: Generate policy briefs for legislators, technical reports for specialists, and public communications for citizens.
-
-### From Prototype to Production
-
-**For Small Organizations**: The built-in reporting pipeline might serve as your complete documentation solution, providing professional reports without custom development.
-
-**For Enterprise Deployments**: These pipelines become the foundation for larger document generation systems, with the proven logic extracted and integrated into existing workflows and content management systems.
-
-**For Product Integration**: The modular nature of TalkPipe pipelines makes it straightforward to embed report generation capabilities into existing applications, whether through API integration or direct pipeline embedding.
 
 ---
 
@@ -93,20 +66,17 @@ To run this tutorial, you'll need to complete Tutorials 1 and 2 first, as this t
 
 1. **Executive Summary Generation:**
    ```bash
-   cd Tutorial_3-Report_Writing
-   chmod +x Step_1_ExecutiveSummaryGeneration.sh
+   cd Tutorial_3_Report_Writing
    ./Step_1_ExecutiveSummaryGeneration.sh
    ```
 
 2. **Detailed Analysis Reports:**
    ```bash
-   chmod +x Step_2_DetailedAnalysisReportGeneration.sh
    ./Step_2_DetailedAnalysisReportGeneration.sh
    ```
 
 3. **Multi-Format Report Pipeline:**
    ```bash
-   chmod +x Step_3_MultiFormatReportGeneration.sh
    ./Step_3_MultiFormatReportGeneration.sh
    ```
 
@@ -129,9 +99,9 @@ The system will retrieve relevant documents from the synthetic story collection 
 ### The Challenge
 Organizations often need executive summaries that distill complex information into concise, actionable overviews. Traditional manual summarization is time-consuming and may miss important connections across multiple documents.
 
-### The Solution: Structured RAG for Business Communication
+### The Solution: Structured RAG for Communication
 
-Step 1 demonstrates how to transform retrieved documents into professional executive summaries using structured prompts. The pipeline is defined in `Step_1_ExecutiveSummaryGeneration.script`:
+Step 1 demonstrates how to transform retrieved documents into  executive summaries using structured prompts. The pipeline is defined in `Step_1_ExecutiveSummaryGeneration.script`:
 
 ```
 | copy
@@ -167,14 +137,6 @@ Retrieve multiple relevant documents that will inform the summary using LanceDB'
 | llmPrompt
 ```
 The `executiveSummaryPrompt` segment (defined in `step_1_extras.py`) structures the retrieved content into a professional format with key findings, strategic implications, and recommendations.
-
-### Business-Focused Output
-
-Unlike simple Q&A, executive summaries require:
-- **Strategic perspective** on the implications of findings
-- **Actionable recommendations** based on the analysis
-- **Professional formatting** appropriate for leadership consumption
-- **Synthesis across sources** rather than isolated facts
 
 ---
 
@@ -249,7 +211,7 @@ Different stakeholders need the same information presented in different ways. Te
 
 ### The Solution: Dynamic Format Generation
 
-Step 3 creates a sophisticated pipeline that generates multiple report formats from the same underlying research. The pipeline is defined in `Step_3_MultiFormatReportGeneration.script`:
+Step 3 creates a pipeline that generates multiple report formats from the same underlying research. The pipeline is defined in `Step_3_MultiFormatReportGeneration.script`:
 
 ```
 | copy
@@ -288,26 +250,6 @@ Despite different formats, the system maintains:
 - **Appropriate citations** and source attribution
 - **Professional standards** for each format type
 
-### Real-World Applications
-
-This multi-format approach addresses common organizational challenges:
-
-**Research Organizations**: Generate academic papers, grant proposals, and public summaries from the same research data.
-
-**Consulting Firms**: Create detailed analysis reports for teams, executive summaries for clients, and presentation materials for meetings.
-
-**Technology Companies**: Produce technical documentation for developers, marketing materials for customers, and strategic briefings for executives.
-
-**Government Agencies**: Generate policy briefs for legislators, technical reports for specialists, and public communications for citizens.
-
-### From Prototype to Production
-
-**For Small Organizations**: The built-in reporting pipeline might serve as your complete documentation solution, providing professional reports without custom development.
-
-**For Enterprise Deployments**: These pipelines become the foundation for larger document generation systems, with the proven logic extracted and integrated into existing workflows and content management systems.
-
-**For Product Integration**: The modular nature of TalkPipe pipelines makes it straightforward to embed report generation capabilities into existing applications, whether through API integration or direct pipeline embedding.
-
 ---
 
 ## File Structure
@@ -315,51 +257,44 @@ This multi-format approach addresses common organizational challenges:
 This tutorial creates the following files:
 
 ```
-Tutorial_3-Report_Writing/
-├── README.md                      # Main tutorial documentation  
-├── step1.sh                       # Executive summary generation script
-├── step2.sh                       # Detailed multi-section reports
-├── step3.sh                       # Multi-format report generation
-├── step_1_extras.py               # Custom segment for executive summaries
-├── step_2_extras.py               # Custom segments for detailed reports  
-├── step_3_extras.py               # Custom segment for multi-format reports
-├── report_topic_ui.yaml           # UI config for topic-based reporting
-└── multi_format_ui.yaml           # UI config for format selection
+Tutorial_3_Report_Writing/
+├── README.md                                        # Main tutorial documentation
+├── Step_1_ExecutiveSummaryGeneration.sh            # Executive summary generation script
+├── Step_1_ExecutiveSummaryGeneration.script        # Executive summary ChatterLang script
+├── Step_2_DetailedAnalysisReportGeneration.sh      # Detailed multi-section reports script
+├── Step_2_DetailedAnalysisReportGeneration.script  # Detailed analysis ChatterLang script
+├── Step_3_MultiFormatReportGeneration.sh           # Multi-format report generation script
+├── Step_3_MultiFormatReportGeneration.script       # Multi-format ChatterLang script
+├── step_1_extras.py                                # Custom segment for executive summaries
+├── step_2_extras.py                                # Custom segments for detailed reports
+├── step3_extras.py                                 # Custom segment for multi-format reports
+├── report_topic_ui.yml                             # UI config for topic-based reporting
+└── multi_format_ui.yml                             # UI config for format selection
 ```
 
 ### File Descriptions
 
-**step1.sh**: Creates professional executive summaries using RAG. Builds on Tutorial 2's vector search but focuses on structured business communication rather than Q&A.
+**Step_1_ExecutiveSummaryGeneration.sh**: Shell script that launches the executive summary generation web interface.
 
-**step2.sh**: Generates comprehensive multi-section reports with introduction, analysis, technology deep-dive, future implications, and recommendations sections.
+**Step_1_ExecutiveSummaryGeneration.script**: ChatterLang pipeline that creates professional executive summaries using RAG. Builds on Tutorial 2's vector search but focuses on structured business communication rather than Q&A.
 
-**step3.sh**: Creates the same report content in different formats (executive brief, technical report, client summary, research memo, presentation outline) based on user selection.
+**Step_2_DetailedAnalysisReportGeneration.sh**: Shell script that launches the detailed analysis report generation web interface.
+
+**Step_2_DetailedAnalysisReportGeneration.script**: ChatterLang pipeline that generates comprehensive multi-section reports with introduction, analysis, technology deep-dive, future implications, and recommendations sections.
+
+**Step_3_MultiFormatReportGeneration.sh**: Shell script that launches the multi-format report generation web interface.
+
+**Step_3_MultiFormatReportGeneration.script**: ChatterLang pipeline that creates the same report content in different formats (executive brief, technical report, client summary, research memo, presentation outline) based on user selection.
 
 **step_1_extras.py**: Contains the `executiveSummaryPrompt` segment that structures retrieved content into professional executive summary format with key findings and strategic implications.
 
 **step_2_extras.py**: Contains `generateReportSectionPrompts` and `generateDetailedReport` segments that create multi-section reports by generating individual sections and combining them into cohesive documents.
 
-**step_3_extras.py**: Contains `generateMultiFormatReport` segment that adapts the same source material into different formats optimized for different audiences and use cases.
+**step3_extras.py**: Contains `generateMultiFormatReport` segment that adapts the same source material into different formats optimized for different audiences and use cases.
 
-**report_topic_ui.yaml**: Web interface configuration for topic-based report generation, allowing users to specify broad topics rather than specific questions.
+**report_topic_ui.yml**: Web interface configuration for topic-based report generation, allowing users to specify broad topics rather than specific questions.
 
-**multi_format_ui.yaml**: Extended web interface that includes both topic selection and format selection, enabling users to choose their preferred report style.
+**multi_format_ui.yml**: Extended web interface that includes both topic selection and format selection, enabling users to choose their preferred report style.
 
 ---
-
-## Next Steps
-
-After completing this tutorial, you'll have hands-on experience with:
-- Building sophisticated document generation pipelines
-- Creating custom segments for complex text processing
-- Orchestrating multi-step document workflows
-- Designing user interfaces for content generation systems
-
-**Potential Extensions:**
-- **Document Templates**: Create reusable templates for specific report types
-- **Quality Validation**: Add automated checks for consistency and completeness
-- **Multi-Language Support**: Generate reports in different languages
-- **Integration Workflows**: Connect to document management systems or collaboration tools
-- **Advanced Formatting**: Add charts, tables, and visual elements to reports
-
-The patterns demonstrated in this tutorial provide a foundation for building production-scale document generation systems that can transform how organizations create and maintain their written materials.
+Last Reviewed: 20251128
