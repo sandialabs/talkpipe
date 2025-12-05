@@ -418,3 +418,53 @@ def test_search_vector_database_preserves_metadata(populated_db_path, sample_doc
     assert "text" in top_result.document
     assert "title" in top_result.document
     assert "id" in top_result.document
+
+
+def test_vector_database_stores_non_embedding_fields(requires_ollama, temp_db_path):
+    """Test that fields not used for embedding (like 'path') are stored and retrieved."""
+    # Documents where 'content' is for embedding, but 'path' and 'author' are metadata
+    docs = [
+        {"content": "Python is a versatile programming language", "path": "/docs/python.txt", "author": "Alice", "id": "doc1"},
+        {"content": "Machine learning enables pattern recognition", "path": "/docs/ml.txt", "author": "Bob", "id": "doc2"},
+        {"content": "Data science combines statistics and programming", "path": "/docs/datascience.txt", "author": "Charlie", "id": "doc3"},
+    ]
+
+    # Create database - embedding only the 'content' field
+    make_segment = MakeVectorDatabaseSegment(
+        embedding_field="content",
+        embedding_model="mxbai-embed-large",
+        embedding_source="ollama",
+        path=temp_db_path,
+        doc_id_field="id",
+        overwrite=True
+    )
+    list(make_segment.transform(docs))
+
+    # Verify non-embedding fields are stored in the database
+    db_store = LanceDBDocumentStore(path=temp_db_path, table_name="docs", vector_dim=1024)
+    stored_doc = db_store.get_document("doc1")
+    assert stored_doc is not None
+    assert stored_doc["path"] == "/docs/python.txt"
+    assert stored_doc["author"] == "Alice"
+    assert stored_doc["content"] == "Python is a versatile programming language"
+
+    # Search and verify non-embedding fields are in search results
+    search_segment = SearchVectorDatabaseSegment(
+        embedding_model="mxbai-embed-large",
+        embedding_source="ollama",
+        path=temp_db_path,
+        limit=3
+    )
+    results = list(search_segment.transform(["programming language"]))
+
+    assert len(results) == 1
+    search_results = results[0]
+    assert len(search_results) > 0
+
+    # Check that retrieved documents contain the non-embedding fields
+    for result in search_results:
+        assert "path" in result.document, "Non-embedding field 'path' should be in search results"
+        assert "author" in result.document, "Non-embedding field 'author' should be in search results"
+        assert "content" in result.document
+        assert result.document["path"].startswith("/docs/")
+        assert result.document["author"] in ["Alice", "Bob", "Charlie"]

@@ -504,7 +504,7 @@ def test_rag_to_text_with_different_limit(requires_ollama, temp_vector_db_path, 
 
 
 def test_rag_to_text_custom_prompt_directive(requires_ollama, temp_vector_db_path, sample_knowledge_base):
-    """Test RAGToText with a custom prompt directive."""
+    """Test RAGToText with a custom prompt directive and system prompt."""
     from talkpipe.pipelines.vector_databases import MakeVectorDatabaseSegment
     from talkpipe.pipelines.basic_rag import RAGToText
 
@@ -519,8 +519,9 @@ def test_rag_to_text_custom_prompt_directive(requires_ollama, temp_vector_db_pat
     )
     list(make_db_segment.transform(sample_knowledge_base))
 
-    # Test with custom prompt directive
+    # Test with custom prompt directive and system prompt
     custom_directive = "You are a technical expert. Provide a detailed explanation based on the background information."
+    custom_system_prompt = "You are a helpful technical documentation assistant. Always provide accurate information based on the provided context."
 
     rag_segment = RAGToText(
         embedding_model="mxbai-embed-large",
@@ -530,9 +531,13 @@ def test_rag_to_text_custom_prompt_directive(requires_ollama, temp_vector_db_pat
         path=temp_vector_db_path,
         content_field="query",
         prompt_directive=custom_directive,
+        system_prompt=custom_system_prompt,
         set_as="detailed_answer",
         limit=3
     )
+
+    # Verify system_prompt was stored
+    assert rag_segment.system_prompt == custom_system_prompt
 
     query_items = [{"query": "What is pandas used for?"}]
     results = list(rag_segment.transform(query_items))
@@ -542,6 +547,49 @@ def test_rag_to_text_custom_prompt_directive(requires_ollama, temp_vector_db_pat
     assert "detailed_answer" in result
     assert isinstance(result["detailed_answer"], str)
     assert len(result["detailed_answer"]) > 0
+
+
+def test_rag_to_text_system_prompt_affects_output(requires_ollama, temp_vector_db_path, sample_knowledge_base):
+    """Test that custom system_prompt actually affects LLM output."""
+    from talkpipe.pipelines.vector_databases import MakeVectorDatabaseSegment
+    from talkpipe.pipelines.basic_rag import RAGToText
+
+    # Create and populate the vector database
+    make_db_segment = MakeVectorDatabaseSegment(
+        embedding_field="text",
+        embedding_model="mxbai-embed-large",
+        embedding_source="ollama",
+        path=temp_vector_db_path,
+        doc_id_field="id",
+        overwrite=True
+    )
+    list(make_db_segment.transform(sample_knowledge_base))
+
+    # Use a system prompt that forces a specific output format
+    pirate_system_prompt = "Talk like a pirate. Always start your answer with 'ANSWER:' on its own line."
+
+    rag_segment = RAGToText(
+        embedding_model="mxbai-embed-large",
+        embedding_source="ollama",
+        completion_model="llama3.2",
+        completion_source="ollama",
+        path=temp_vector_db_path,
+        content_field="query",
+        system_prompt=pirate_system_prompt,
+        set_as="answer",
+        limit=3
+    )
+
+    query_items = [{"query": "Who created Python?"}]
+    results = list(rag_segment.transform(query_items))
+
+    assert len(results) == 1
+    result = results[0]
+    assert "answer" in result
+    answer = result["answer"]
+
+    # Verify the system prompt affected the output - should start with ANSWER:
+    assert answer.strip().startswith("ANSWER:"), f"Expected answer to start with 'ANSWER:', got: {answer[:100]}"
 
 
 def test_rag_to_text_multiple_queries(requires_ollama, temp_vector_db_path, sample_knowledge_base):
