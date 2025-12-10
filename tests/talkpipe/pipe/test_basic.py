@@ -7,6 +7,173 @@ from talkpipe.chatterlang import compiler
 import logging
 from pydantic import BaseModel
 
+"""Unit tests for the DiagPrint segment."""
+
+import pytest
+from talkpipe import compile
+
+
+class TestDiagPrint:
+    """Test suite for DiagPrint segment."""
+
+    def test_yields_all_items(self):
+        """Test that DiagPrint yields all input items unchanged."""
+        items = [1, 2, 3, "test", {"key": "value"}]
+        pipeline = basic.DiagPrint()
+        result = list(pipeline(items))
+        assert result == items
+
+    def test_output_to_stdout_by_default(self, capsys):
+        """Test that output goes to stdout by default."""
+        items = ["hello"]
+        pipeline = basic.DiagPrint()
+        list(pipeline(items))
+
+        captured = capsys.readouterr()
+        assert "hello" in captured.out
+        assert captured.err == ""
+
+    def test_output_to_stderr(self, capsys):
+        """Test that output goes to stderr when output='stderr'."""
+        items = ["hello"]
+        pipeline = basic.DiagPrint(output="stderr")
+        list(pipeline(items))
+
+        captured = capsys.readouterr()
+        assert captured.out == ""
+        assert "hello" in captured.err
+
+    def test_prints_type_and_value(self, capsys):
+        """Test that type and value are printed."""
+        items = [42]
+        pipeline = basic.DiagPrint()
+        list(pipeline(items))
+
+        captured = capsys.readouterr()
+        assert "Type:" in captured.out
+        assert "<class 'int'>" in captured.out
+        assert "Value: 42" in captured.out
+
+    def test_field_list_parameter(self, capsys):
+        """Test that field_list extracts and displays specified fields."""
+        items = [{"name": "Alice", "age": 30, "city": "NYC"}]
+        pipeline = basic.DiagPrint(field_list="name,age")
+        list(pipeline(items))
+
+        captured = capsys.readouterr()
+        assert "Fields:" in captured.out
+        assert "name: Alice" in captured.out
+        assert "age: 30" in captured.out
+
+    def test_expression_parameter(self, capsys):
+        """Test that expression is evaluated and printed."""
+        items = [10]
+        pipeline = basic.DiagPrint(expression="item * 2")
+        list(pipeline(items))
+
+        captured = capsys.readouterr()
+        assert "Expression:" in captured.out
+        assert "Value: 20" in captured.out
+
+    def test_via_pipeline_compile(self, capsys):
+        """Test DiagPrint works when invoked via pipeline compilation."""
+        pipeline = compile(" | diagPrint")
+        result = list(pipeline(["test_item"]))
+
+        assert result == ["test_item"]
+        captured = capsys.readouterr()
+        assert "test_item" in captured.out
+
+    def test_via_pipeline_with_stderr(self, capsys):
+        """Test DiagPrint with output='stderr' via pipeline compilation."""
+        pipeline = basic.DiagPrint(output="stderr")
+        result = list(pipeline(["stderr_test"]))
+
+        assert result == ["stderr_test"]
+        captured = capsys.readouterr()
+        assert captured.out == ""
+        assert "stderr_test" in captured.err
+
+    def test_output_to_logger_default_level(self, caplog):
+        """Test that output goes to a logger when output is a logger name."""
+        items = ["log_test_item"]
+        with caplog.at_level(logging.DEBUG, logger="test.diagprint"):
+            pipeline = basic.DiagPrint(output="test.diagprint")
+            result = list(pipeline(items))
+
+        assert result == items
+        # Check that log messages were captured at DEBUG level
+        assert len(caplog.records) > 0
+        log_text = "\n".join(record.message for record in caplog.records)
+        assert "log_test_item" in log_text
+        assert "Type:" in log_text
+        assert all(record.levelno == logging.DEBUG for record in caplog.records)
+
+    def test_output_to_logger_info_level(self, caplog):
+        """Test that output goes to a logger at INFO level."""
+        items = [{"key": "value"}]
+        with caplog.at_level(logging.INFO, logger="test.diagprint.info"):
+            pipeline = basic.DiagPrint(output="test.diagprint.info", level="INFO")
+            result = list(pipeline(items))
+
+        assert result == items
+        assert len(caplog.records) > 0
+        log_text = "\n".join(record.message for record in caplog.records)
+        assert "key" in log_text or "value" in log_text
+        assert all(record.levelno == logging.INFO for record in caplog.records)
+
+    def test_output_to_logger_with_field_list(self, caplog):
+        """Test logger output with field_list parameter."""
+        items = [{"name": "Alice", "age": 30}]
+        with caplog.at_level(logging.DEBUG, logger="test.diagprint.fields"):
+            pipeline = basic.DiagPrint(output="test.diagprint.fields", field_list="name,age")
+            result = list(pipeline(items))
+
+        assert result == items
+        log_text = "\n".join(record.message for record in caplog.records)
+        assert "Fields:" in log_text
+        assert "name: Alice" in log_text
+        assert "age: 30" in log_text
+
+    def test_output_to_logger_with_expression(self, caplog):
+        """Test logger output with expression parameter."""
+        items = [5]
+        with caplog.at_level(logging.WARNING, logger="test.diagprint.expr"):
+            pipeline = basic.DiagPrint(output="test.diagprint.expr", level="WARNING", expression="item * 3")
+            result = list(pipeline(items))
+
+        assert result == items
+        log_text = "\n".join(record.message for record in caplog.records)
+        assert "Expression:" in log_text
+        assert "Value: 15" in log_text
+        assert all(record.levelno == logging.WARNING for record in caplog.records)
+
+    def test_output_none_suppresses_output(self, capsys):
+        """Test that output=None suppresses all diagnostic output.
+
+        This is used by basic_rag.py pipelines via diagPrintOutput parameter.
+        """
+        items = [1, 2, "test", {"key": "value"}]
+        pipeline = basic.DiagPrint(output=None)
+        result = list(pipeline(items))
+
+        assert result == items
+        captured = capsys.readouterr()
+        assert captured.out == ""
+        assert captured.err == ""
+
+    def test_output_none_string_suppresses_output(self, capsys):
+        """Test that output='None' (string) also suppresses all diagnostic output."""
+        items = ["hello", 42]
+        pipeline = basic.DiagPrint(output="None")
+        result = list(pipeline(items))
+
+        assert result == items
+        captured = capsys.readouterr()
+        assert captured.out == ""
+        assert captured.err == ""
+
+
 def test_progressTicks_basic(capsys):
     # Should print a tick every 2 items, newline after 4 ticks, no count
     t = basic.progressTicks(tick="*", tick_count=2, eol_count=4, print_count=False)

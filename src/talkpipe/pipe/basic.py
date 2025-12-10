@@ -19,6 +19,56 @@ from talkpipe.util.data_manipulation import fill_template, dict_to_text, toDict
 
 logger = logging.getLogger(__name__)
 
+@registry.register_segment("diagPrint")
+@segment()
+def DiagPrint(
+    items: Iterator[Any],
+    field_list: Annotated[
+        Optional[str],
+        "Comma-separated fields to extract in form 'field[:new_name],...' where _ means the whole item"
+    ] = None,
+    expression: Annotated[
+        Optional[str],
+        "A Python expression using 'item' as the variable (e.g., 'item * 2')"
+    ] = None,
+    output: Annotated[
+        str,
+        "If 'stderr', output to stderr.  If 'stdout', output to stdout.  Otherwise write to a logger with this name.  If None or the string 'None', do not write output."
+    ] = "stdout",
+    level: Annotated[str, "Logging level if output is to a logger."] = "DEBUG"
+) -> Iterator[Any]:
+    """
+    A segment that prints items for diagnostic purposes.
+
+    Output can be directed to stdout (default) or stderr.
+    """
+    if output is None or output.lower() == "none":
+        output_fn = None
+    elif output.lower() == "stderr":
+        output_fn = lambda msg: print(msg, file=sys.stderr, flush=True)
+    elif output.lower() == "stdout":
+        output_fn = lambda msg: print(msg, file=sys.stdout, flush=True)
+    else:
+        output_fn = lambda msg: logging.getLogger(output).log(msg=msg, level=logging.getLevelName(level.upper()))
+
+    if expression:
+        f = compileLambda(expression)
+
+    for item in items:
+        if output_fn:
+            output_fn("================================")
+            output_fn(f"Type: {type(item)}")
+            output_fn(f"Value: {item}")
+            if field_list:
+                output_fn("-------\nFields:")
+                item_dict = toDict(item, field_list=field_list)
+                for key, value in item_dict.items():
+                    output_fn(f"{key}: {value}")
+            if expression:
+                output_fn("-------\nExpression:")
+                output_fn(f"Value: {f(item)}")
+        yield item
+
 @registry.register_segment("sleep")
 @segment()
 def sleep(items, 

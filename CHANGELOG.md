@@ -1,5 +1,11 @@
 # Changelog
 
+## In Progress
+- Added a diagPrint segment that prints information about items passing through the pipline
+  This can be placed between segments and sources to help debug more complex pipelines.
+- Added diagPrint segments among each step in the pipelines package with output set to
+  None by default.
+
 ## 0.10.2
 
 ### Improvements
