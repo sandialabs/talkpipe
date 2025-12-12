@@ -1,7 +1,9 @@
+from typing import Annotated
 from abc import ABC, abstractmethod
 import logging
 import json
 from pydantic import BaseModel
+from talkpipe.util.data_manipulation import parse_key_value_str
 from talkpipe.util.config import get_config
 from talkpipe.util.constants import OLLAMA_SERVER_URL
 
@@ -19,21 +21,41 @@ class AbstractLLMPromptAdapter(ABC):
     _messages: list
     _multi_turn: bool
 
-    def __init__(self, model: str,
-                 source: str,
-                 system_prompt: str = "You are a helpful assistant.",
-                 multi_turn: bool = True,
-                 temperature: float = None,
-                 output_format: BaseModel = None):
+    def __init__(self, 
+                 model: Annotated[str, "The name of the model"],
+                 source: Annotated[str, "The source of the model"],
+                 system_prompt: Annotated[str, "The system prompt for the model"] = "You are a helpful assistant.",
+                 multi_turn: Annotated[bool, "Whether the model supports multi-turn conversations"] = True,
+                 temperature: Annotated[float, "The temperature for the model"] = None,
+                 output_format: Annotated[BaseModel, "The output format for the model"] = None,
+                 role_map: Annotated[str, "The role map for the model in the form 'role:message,role:message'. If the system role is included here, it overrides the system_prompt message"] = None):
+
         """Initialize the chat model"""
         self._model_name = model
         self._source = source
-        self._system_message = {"role": "system", "content": system_prompt}
         self._multi_turn = multi_turn
         self._temperature = temperature
         self._temperature_explicit = temperature is not None
         self._output_format = output_format
         self._messages = []
+
+        # Initialize system message and prefix messages
+        self._system_message = {"role": "system", "content": system_prompt}
+        self._prefix_messages = [self._system_message]
+
+        if role_map:
+            role_messages = parse_key_value_str(role_map)
+            self._prefix_messages = []
+            found_system = False
+            for role, message in role_messages.items():
+                self._prefix_messages.append({"role": role, "content": message})
+                if role.lower() == "system":
+                    found_system = True
+                    self._system_message = {"role": "system", "content": message}
+            if found_system:
+                logger.debug("System role found in role_map, overriding system_prompt")
+            else:
+                self._prefix_messages.insert(0, self._system_message)
 
     @property
     def model_name(self) -> str:
@@ -81,14 +103,15 @@ class OllamaPromptAdapter(AbstractLLMPromptAdapter):
 
     """
 
-    def __init__(self, 
-                 model: str, 
-                 system_prompt: str = "You are a helpful assistant.", 
-                 multi_turn: bool = True, 
-                 temperature: float = None, 
-                 output_format: BaseModel = None, 
-                 server_url: str = None):
-        super().__init__(model, "ollama", system_prompt, multi_turn, temperature, output_format)
+    def __init__(self,
+                 model: str,
+                 system_prompt: str = "You are a helpful assistant.",
+                 multi_turn: bool = True,
+                 temperature: float = None,
+                 output_format: BaseModel = None,
+                 server_url: str = None,
+                 role_map: str = None):
+        super().__init__(model, "ollama", system_prompt, multi_turn, temperature, output_format, role_map)
         # Ollama uses 0.5 as default when temperature is not specified
         if self._temperature is None:
             self._temperature = 0.5
@@ -116,7 +139,7 @@ class OllamaPromptAdapter(AbstractLLMPromptAdapter):
         client = ollama.Client(server_url) if server_url else ollama
         response = client.chat(
             self._model_name,
-            messages=[self._system_message] + self._messages,
+            messages=self._prefix_messages + self._messages,
             format=self._output_format.model_json_schema() if self._output_format else None,
             options={"temperature": self._temperature}
             )
@@ -161,7 +184,7 @@ class AnthropicPromptAdapter(AbstractLLMPromptAdapter):
 
     """
 
-    def __init__(self, model: str, system_prompt: str = "You are a helpful assistant.", multi_turn: bool = True, temperature: float = None, output_format: BaseModel = None):
+    def __init__(self, model: str, system_prompt: str = "You are a helpful assistant.", multi_turn: bool = True, temperature: float = None, output_format: BaseModel = None, role_map: str = None):
         try:
             import anthropic
         except ImportError:
@@ -175,7 +198,7 @@ class AnthropicPromptAdapter(AbstractLLMPromptAdapter):
         else:
             self.pydantic_json_schema = None
 
-        super().__init__(model, "anthropic", system_prompt, multi_turn, temperature, output_format)
+        super().__init__(model, "anthropic", system_prompt, multi_turn, temperature, output_format, role_map)
         self.client = anthropic.Anthropic()
         self._max_tokens = 4096  # Default max tokens for response
 
@@ -197,9 +220,11 @@ class AnthropicPromptAdapter(AbstractLLMPromptAdapter):
         logger.debug(f"Sending chat request to Anthropic model {self._model_name}")
 
         # Build request parameters
+        # Anthropic uses a separate system parameter, so we filter out system messages from prefix_messages
+        non_system_prefix = [msg for msg in self._prefix_messages if msg["role"].lower() != "system"]
         request_params = {
             "model": self._model_name,
-            "messages": self._messages,
+            "messages": non_system_prefix + self._messages,
             "system": self._system_message["content"],
             "max_tokens": self._max_tokens
         }
@@ -270,7 +295,7 @@ class OpenAIPromptAdapter(AbstractLLMPromptAdapter):
 
     """
 
-    def __init__(self, model: str, system_prompt: str = "You are a helpful assistant.", multi_turn: bool = True, temperature: float = None, output_format: BaseModel = None):
+    def __init__(self, model: str, system_prompt: str = "You are a helpful assistant.", multi_turn: bool = True, temperature: float = None, output_format: BaseModel = None, role_map: str = None):
         try:
             import openai
         except ImportError:
@@ -278,7 +303,7 @@ class OpenAIPromptAdapter(AbstractLLMPromptAdapter):
                 "OpenAI is not installed. Please install it with: pip install talkpipe[openai]"
             )
 
-        super().__init__(model, "openai", system_prompt, multi_turn, temperature, output_format)
+        super().__init__(model, "openai", system_prompt, multi_turn, temperature, output_format, role_map)
         self.client = openai.OpenAI()
 
     def execute(self, prompt: str) -> str:
@@ -301,7 +326,7 @@ class OpenAIPromptAdapter(AbstractLLMPromptAdapter):
         # Build request parameters, only including temperature if explicitly set
         request_params = {
             "model": self._model_name,
-            "input": [self._system_message] + self._messages,
+            "input": self._prefix_messages + self._messages,
             "text_format": openai.NOT_GIVEN if self._output_format is None else self._output_format
         }
         
