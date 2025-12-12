@@ -151,7 +151,11 @@ def test_extractor_registry(tmp_path):
     with open(tmp_path / "test.txt", "w") as f:
         f.write("Hello World")
 
-    assert list(registry.extract(tmp_path / "test.txt")) == ["Hello World"]
+    results = list(registry.extract(tmp_path / "test.txt"))
+    assert len(results) == 1
+    assert isinstance(results[0], ExtractionResult)
+    assert results[0].content == "Hello World"
+    assert results[0].title == "test.txt"
 
     # Test that unregistered extension raises ValueError when no default
     with open(tmp_path / "test.xyz", "w") as f:
@@ -204,7 +208,10 @@ def test_get_default_registry(tmp_path):
     # Test extraction works
     with open(tmp_path / "test.txt", "w") as f:
         f.write("Default registry test")
-    assert list(registry.extract(tmp_path / "test.txt")) == ["Default registry test"]
+    results = list(registry.extract(tmp_path / "test.txt"))
+    assert len(results) == 1
+    assert isinstance(results[0], ExtractionResult)
+    assert results[0].content == "Default registry test"
 
     # Test default skips unknown files
     with open(tmp_path / "test.unknown", "w") as f:
@@ -240,7 +247,11 @@ def test_standalone_extractors(tmp_path):
     # Test extract_text
     with open(tmp_path / "test.txt", "w") as f:
         f.write("Standalone text")
-    assert list(extract_text(tmp_path / "test.txt")) == ["Standalone text"]
+    results = list(extract_text(tmp_path / "test.txt"))
+    assert len(results) == 1
+    assert isinstance(results[0], ExtractionResult)
+    assert results[0].content == "Standalone text"
+    assert results[0].title == "test.txt"
 
     # Test extract_text with non-existent file
     with pytest.raises(FileNotFoundError):
@@ -261,16 +272,28 @@ def test_global_extractor_registry(tmp_path):
     # Verify extraction works
     with open(tmp_path / "global_test.txt", "w") as f:
         f.write("Global registry test")
-    assert list(global_extractor_registry.extract(tmp_path / "global_test.txt")) == ["Global registry test"]
+    results = list(global_extractor_registry.extract(tmp_path / "global_test.txt"))
+    assert len(results) == 1
+    assert isinstance(results[0], ExtractionResult)
+    assert results[0].content == "Global registry test"
 
 
 def test_multi_emit_extractor(tmp_path):
     """Test that extractors can yield multiple items."""
     # Create a multi-emit extractor (like for CSV or JSONL)
     def extract_lines(file_path):
+        from pathlib import Path
+        p = Path(file_path)
+        source_str = str(p.resolve())
         with open(file_path, "r") as f:
-            for line in f:
-                yield line.strip()
+            for idx, line in enumerate(f):
+                result_id = source_str if idx == 0 else f"{source_str}:{idx}"
+                yield ExtractionResult(
+                    content=line.strip(),
+                    source=source_str,
+                    id=result_id,
+                    title=f"{p.name}:line{idx+1}"
+                )
 
     registry = ExtractorRegistry()
     registry.register("lines", extract_lines)
@@ -279,9 +302,13 @@ def test_multi_emit_extractor(tmp_path):
     with open(tmp_path / "test.lines", "w") as f:
         f.write("line1\nline2\nline3\n")
 
-    # Verify multi-emit works at registry level (raw strings)
+    # Verify multi-emit works at registry level
     results = list(registry.extract(tmp_path / "test.lines"))
-    assert results == ["line1", "line2", "line3"]
+    assert len(results) == 3
+    assert all(isinstance(r, ExtractionResult) for r in results)
+    assert results[0].content == "line1"
+    assert results[1].content == "line2"
+    assert results[2].content == "line3"
 
     # Test with ReadFile - returns ExtractionResult objects
     fe = ReadFile(registry=registry)
@@ -296,3 +323,8 @@ def test_multi_emit_extractor(tmp_path):
     assert results[0].id == results[0].source  # First item: id == source
     assert results[1].id == f"{results[1].source}:1"  # Second item: source:1
     assert results[2].id == f"{results[2].source}:2"  # Third item: source:2
+
+    # Verify titles include line numbers
+    assert "line1" in results[0].title
+    assert "line2" in results[1].title
+    assert "line3" in results[2].title

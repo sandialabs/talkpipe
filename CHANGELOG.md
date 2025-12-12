@@ -15,11 +15,14 @@
   skipped (yield nothing) by default; pass `skip_unsupported=False` to raise exceptions.
   Added standalone extractor functions (`extract_text`, `extract_docx`, `skip_file`),
   `get_default_registry()` factory, and `global_extractor_registry` instance.
-- Added `ExtractionResult` Pydantic model with `content`, `source`, and `id` fields.
-  `ReadFile`, `readtxt`, and `readdocx` now yield `ExtractionResult` objects instead of
-  raw strings. For multi-emit extractions, the `id` field includes an index suffix
-  (e.g., `source:1`, `source:2`) to ensure uniqueness. The model uses `extra="allow"`
-  to permit additional fields to be added by downstream segments.
+- Added `ExtractionResult` Pydantic model with `content`, `source`, `id`, and `title` fields.
+  `ExtractorFunc` now yields `ExtractionResult` objects instead of raw strings, giving
+  extractors full control over metadata. `ReadFile`, `readtxt`, and `readdocx` yield
+  `ExtractionResult` objects. For multi-emit extractions, extractors should include an
+  index suffix in the `id` field (e.g., `source:1`, `source:2`) to ensure uniqueness,
+  and should set descriptive `title` values (e.g., `filename:line1`). The model uses
+  `extra="allow"` to permit additional fields to be added by downstream segments.
+- Allow for silently failing (with a log message) when an embedding fails.  
 
 ## 0.10.2
 

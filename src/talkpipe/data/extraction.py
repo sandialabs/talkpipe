@@ -19,9 +19,10 @@ class ExtractionResult(BaseModel):
     content: Annotated[str, "Extracted text content from the file"]
     source: Annotated[str, "Source file path"]
     id: Annotated[str, "Unique identifier for the extraction result.  Typically will be source unless multiple results are emitted per source."]
+    title: Annotated[str, "Title or description of the extracted content. Generally includes filename and part of file if appropriate."]
 
-# Type alias for extractor functions: take a path, yield strings (or nothing for skip)
-ExtractorFunc = Callable[[Union[str, Path]], Iterator[str]]
+# Type alias for extractor functions: take a path, yield ExtractionResult objects (or nothing for skip)
+ExtractorFunc = Callable[[Union[str, Path]], Iterator[ExtractionResult]]
 
 class ExtractorRegistry:
     """
@@ -80,7 +81,7 @@ class ExtractorRegistry:
             return self._extractors[extension]
         return self._default_extractor
 
-    def extract(self, file_path: Union[str, Path]) -> Iterator[str]:
+    def extract(self, file_path: Union[str, Path]) -> Iterator[ExtractionResult]:
         """
         Extract text from a file using the appropriate extractor.
 
@@ -88,7 +89,7 @@ class ExtractorRegistry:
             file_path: Path to the file.
 
         Yields:
-            Extracted text strings from the file.
+            ExtractionResult objects from the file.
 
         Raises:
             ValueError: If no extractor is registered for the file type and no default exists.
@@ -114,7 +115,7 @@ class ExtractorRegistry:
 
 # Standalone extractor functions for use with the registry
 
-def extract_text(file_path: Union[str, Path]) -> Iterator[str]:
+def extract_text(file_path: Union[str, Path]) -> Iterator[ExtractionResult]:
     """
     Extract text from a plain text file.
 
@@ -122,7 +123,7 @@ def extract_text(file_path: Union[str, Path]) -> Iterator[str]:
         file_path: Path to the text file.
 
     Yields:
-        The text content of the file as a single string.
+        ExtractionResult with the text content of the file.
 
     Raises:
         FileNotFoundError: If the file does not exist.
@@ -136,11 +137,18 @@ def extract_text(file_path: Union[str, Path]) -> Iterator[str]:
         raise FileNotFoundError(f"Unsupported path type: {file_path}")
 
     logger.debug(f"Reading text file: {p}")
+    source_str = str(p.resolve())
     with p.open("r") as file:
-        yield file.read()
+        content = file.read()
+        yield ExtractionResult(
+            content=content,
+            source=source_str,
+            id=source_str,
+            title=p.name
+        )
 
 
-def extract_docx(file_path: Union[str, Path]) -> Iterator[str]:
+def extract_docx(file_path: Union[str, Path]) -> Iterator[ExtractionResult]:
     """
     Extract text from a Microsoft Word (.docx) file.
 
@@ -148,7 +156,7 @@ def extract_docx(file_path: Union[str, Path]) -> Iterator[str]:
         file_path: Path to the .docx file.
 
     Yields:
-        The text content of the document with paragraphs joined by spaces.
+        ExtractionResult with the text content of the document.
 
     Raises:
         FileNotFoundError: If the file does not exist.
@@ -162,14 +170,21 @@ def extract_docx(file_path: Union[str, Path]) -> Iterator[str]:
         raise FileNotFoundError(f"Unsupported path type: {file_path}")
 
     logger.info(f"Reading docx file: {p}")
+    source_str = str(p.resolve())
     doc = Document(p)
     full_text = []
     for para in doc.paragraphs:
         full_text.append(para.text)
-    yield " ".join(full_text)
+    content = " ".join(full_text)
+    yield ExtractionResult(
+        content=content,
+        source=source_str,
+        id=source_str,
+        title=p.name
+    )
 
 
-def skip_file(file_path: Union[str, Path]) -> Iterator[str]:
+def skip_file(file_path: Union[str, Path]) -> Iterator[ExtractionResult]:
     """Default extractor that skips files by yielding nothing."""
     logger.debug(f"Skipping unsupported file: {file_path}")
     if False:
@@ -204,17 +219,13 @@ def readtxt(file_path: Annotated[str, "Path to the text file to read"]):
     Reads text files from given file paths or directories and yields their contents.
 
     Yields:
-        ExtractionResult: Result containing content, source path, and id.
+        ExtractionResult: Result containing content, source path, id, and title.
 
     Raises:
         FileNotFoundError: If a path does not exist.
         IOError: If there is an error reading any of the files.
     """
-    path = Path(file_path)
-    source_str = str(path.resolve())
-    for idx, content in enumerate(extract_text(file_path)):
-        result_id = source_str if idx == 0 else f"{source_str}:{idx}"
-        yield ExtractionResult(content=content, source=source_str, id=result_id)
+    yield from extract_text(file_path)
 
 
 @register_segment("readdocx")
@@ -223,18 +234,14 @@ def readdocx(file_path: Annotated[str, "Path to the .docx file to read"]):
     """Read and extract text from Microsoft Word (.docx) files.
 
     Yields:
-        ExtractionResult: Result containing content, source path, and id.
+        ExtractionResult: Result containing content, source path, id, and title.
 
     Raises:
         FileNotFoundError: If a path does not exist.
         IOError: If there is an error reading any of the files.
 
     """
-    path = Path(file_path)
-    source_str = str(path.resolve())
-    for idx, content in enumerate(extract_docx(file_path)):
-        result_id = source_str if idx == 0 else f"{source_str}:{idx}"
-        yield ExtractionResult(content=content, source=source_str, id=result_id)
+    yield from extract_docx(file_path)
 
 @register_segment("listFiles")
 @segment()
@@ -336,14 +343,13 @@ class ReadFile(AbstractFieldSegment):
             file_path: Path to the file to extract.
 
         Yields:
-            ExtractionResult objects containing extracted content, source path, and id.
+            ExtractionResult objects containing extracted content, source path, id, and title.
 
         Raises:
             Exception: If the file extension is not supported and skip_unsupported is False.
         """
         path = Path(file_path) if isinstance(file_path, str) else file_path
         extension = path.suffix[1:].lower() if path.suffix else ""
-        source_str = str(path.resolve())
 
         # Check if there's a specific extractor for this extension
         if extension not in self._registry.registered_extensions:
@@ -359,11 +365,5 @@ class ReadFile(AbstractFieldSegment):
             extractor = self._registry.get_extractor(file_path)
 
         logger.debug(f"Extracting content from file: {file_path}")
-
-        # Wrap extracted content in ExtractionResult objects
-        for idx, content in enumerate(extractor(file_path)):
-            # For single-item extractions, id is the source path
-            # For multi-item extractions, id includes an index
-            result_id = source_str if idx == 0 else f"{source_str}:{idx}"
-            yield ExtractionResult(content=content, source=source_str, id=result_id)
+        yield from extractor(file_path)
 
