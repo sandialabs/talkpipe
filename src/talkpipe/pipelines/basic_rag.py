@@ -61,7 +61,7 @@ class ConstructRAGPrompt(AbstractSegment):
             background = construct_background(extract_property(item, self.background_field))
             content = extract_property(item, self.content_field)
 
-            prompt = f"{self.prompt_directive}\n\n{background}\n\nContent:\n{content}"
+            prompt = f"{background}\n\n{self.prompt_directive}\n\nContent:\n{content}"
             if self.set_as:
                 assign_property(item, self.set_as, prompt)
                 yield item
@@ -89,11 +89,12 @@ class AbstractRAGPipeline(AbstractSegment):
                  prompt_directive: Annotated[str, "Directive to guide the evaluation"] = "Respond to the provided content based on the background information. If the background does not contain relevant information, respond with 'No relevant information found.'",
                  system_prompt: Annotated[str, "System prompt for the completion LLM"] = None,
                  set_as: Annotated[str, "The field to set/append the result as."] = None,
-                 limit: Annotated[int, "Number of search results to retrieve"] = 10,
+                 limit: Annotated[int, "Number of search results to retrieve"] = 5,
                  table_name: Annotated[str, "Name of the table in the LanceDB database"] = "docs",
                  read_consistency_interval: Annotated[int, "Read consistency interval in seconds"] = 10,
                  diagPrintOutput: Annotated[bool, "Diagnostic Print Parameter"] = None,
-                 logging_level: Annotated[int, "Logging level for the pipeline"] = logging.DEBUG):
+                 logging_level: Annotated[int, "Logging level for the pipeline"] = logging.DEBUG,
+                 role_map: Annotated[str, "Initial conversation context as 'role:message,role:message'"] = None):
 
         super().__init__()
         self.embedding_model = embedding_model
@@ -111,6 +112,7 @@ class AbstractRAGPipeline(AbstractSegment):
         self.read_consistency_interval = read_consistency_interval
         self.diagPrintOutput = diagPrintOutput
         self.logging_level = logging_level
+        self.role_map = role_map
 
     @abstractmethod
     def make_completion_segment(self) -> AbstractSegment:
@@ -163,7 +165,8 @@ class RAGToText(AbstractRAGPipeline):
                  table_name: Annotated[str, "Name of the table in the LanceDB database"] = "docs",
                  read_consistency_interval: Annotated[int, "Read consistency interval in seconds"] = 10,
                  diagPrintOutput: Annotated[bool, "If true, print diagnostic output"] = None,
-                 logging_level: Annotated[int, "Logging level for the pipeline"] = logging.DEBUG):
+                 logging_level: Annotated[int, "Logging level for the pipeline"] = logging.DEBUG,
+                 role_map: Annotated[str, "Initial conversation context as 'role:message,role:message'"] = None):
         super().__init__(embedding_model=embedding_model,
                          embedding_source=embedding_source,
                          completion_model=completion_model,
@@ -178,14 +181,17 @@ class RAGToText(AbstractRAGPipeline):
                          table_name=table_name,
                          read_consistency_interval=read_consistency_interval,
                          diagPrintOutput=diagPrintOutput,
-                         logging_level=logging_level)
+                         logging_level=logging_level,
+                         role_map=role_map)
 
     def make_completion_segment(self) -> AbstractSegment:
         return LLMPrompt(model=self.completion_model,
                          source=self.completion_source,
                          system_prompt=self.system_prompt,
                          field="_ragprompt",
-                         set_as=self.set_as)
+                         set_as=self.set_as,
+                         role_map=self.role_map)
+
     
 @register_segment("ragToBinaryAnswer")
 class RAGToBinaryAnswer(AbstractRAGPipeline):
@@ -212,7 +218,8 @@ class RAGToBinaryAnswer(AbstractRAGPipeline):
                  table_name: Annotated[str, "Name of the table in the LanceDB database"] = "docs",
                  read_consistency_interval: Annotated[int, "Read consistency interval in seconds"] = 10,
                  diagPrintOutput: Annotated[bool, "If true, print diagnostic output"] = None,
-                 logging_level: Annotated[int, "Logging level for the pipeline"] = logging.DEBUG):
+                 logging_level: Annotated[int, "Logging level for the pipeline"] = logging.DEBUG,
+                 role_map: Annotated[str, "Initial conversation context as 'role:message,role:message'"] = None):
         super().__init__(embedding_model=embedding_model,
                          embedding_source=embedding_source,
                          completion_model=completion_model,
@@ -227,14 +234,16 @@ class RAGToBinaryAnswer(AbstractRAGPipeline):
                          table_name=table_name,
                          read_consistency_interval=read_consistency_interval,
                          diagPrintOutput=diagPrintOutput,
-                         logging_level=logging_level)
+                         logging_level=logging_level,
+                         role_map=role_map)
 
     def make_completion_segment(self) -> AbstractSegment:
         return LlmBinaryAnswer(system_prompt=self.system_prompt,
                                model=self.completion_model,
                                source=self.completion_source,
                                field="_ragprompt",
-                               set_as=self.set_as)
+                               set_as=self.set_as,
+                               role_map=self.role_map)
 
 @register_segment("ragToScore")
 class RAGToScore(AbstractRAGPipeline):
@@ -261,7 +270,8 @@ class RAGToScore(AbstractRAGPipeline):
                  table_name: Annotated[str, "Name of the table in the LanceDB database"] = "docs",
                  read_consistency_interval: Annotated[int, "Read consistency interval in seconds"] = 10,
                  diagPrintOutput: Annotated[bool, "If true, print diagnostic output"] = None,
-                 logging_level: Annotated[int, "Logging level for the pipeline"] = logging.DEBUG):
+                 logging_level: Annotated[int, "Logging level for the pipeline"] = logging.DEBUG,
+                 role_map: Annotated[str, "Initial conversation context as 'role:message,role:message'"] = None):
         super().__init__(embedding_model=embedding_model,
                          embedding_source=embedding_source,
                          completion_model=completion_model,
@@ -276,11 +286,13 @@ class RAGToScore(AbstractRAGPipeline):
                          table_name=table_name,
                          read_consistency_interval=read_consistency_interval,
                          diagPrintOutput=diagPrintOutput,
-                         logging_level=logging_level)
+                         logging_level=logging_level,
+                         role_map=role_map)
 
     def make_completion_segment(self) -> AbstractSegment:
         return LlmScore(system_prompt=self.system_prompt,
                         model=self.completion_model,
                         source=self.completion_source,
                         field="_ragprompt",
-                        set_as=self.set_as)
+                        set_as=self.set_as,
+                        role_map=self.role_map)

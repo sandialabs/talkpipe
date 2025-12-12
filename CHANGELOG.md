@@ -5,6 +5,21 @@
   This can be placed between segments and sources to help debug more complex pipelines.
 - Added diagPrint segments among each step in the pipelines package with output set to
   None by default.
+- Added `role_map` parameter to LLM prompt adapters (Ollama, OpenAI, Anthropic) for setting up
+  initial conversation context with pre-defined role messages.
+- Refactored `extraction.py` to add `ExtractorRegistry` class for managing file text extractors.
+  The registry maps file extensions to extractor callables and supports a default extractor
+  for unregistered extensions. Extractors are now generators that yield strings, allowing
+  multi-record file formats (CSV, JSONL) to emit multiple items per file. `ReadFile` is now
+  a multi-emit segment using `global_extractor_registry` by default. Unsupported files are
+  skipped (yield nothing) by default; pass `skip_unsupported=False` to raise exceptions.
+  Added standalone extractor functions (`extract_text`, `extract_docx`, `skip_file`),
+  `get_default_registry()` factory, and `global_extractor_registry` instance.
+- Added `ExtractionResult` Pydantic model with `content`, `source`, and `id` fields.
+  `ReadFile`, `readtxt`, and `readdocx` now yield `ExtractionResult` objects instead of
+  raw strings. For multi-emit extractions, the `id` field includes an index suffix
+  (e.g., `source:1`, `source:2`) to ensure uniqueness. The model uses `extra="allow"`
+  to permit additional fields to be added by downstream segments.
 
 ## 0.10.2
 

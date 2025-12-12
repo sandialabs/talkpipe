@@ -6,6 +6,8 @@ Comprehensive guide to extending TalkPipe with custom functionality.
 
 TalkPipe is designed to be highly extensible, allowing developers to create custom data sources, processing segments, and complete pipeline components. The framework provides multiple extension mechanisms that integrate seamlessly with the existing pipeline architecture.
 
+> **Note**: Before creating custom components, review the [Data Protocol](protocol.md) documentation to understand the conventions for data flowing through pipelines, particularly the dictionary convention used at the `talkpipe/pipelines` level.
+
 ## Creating Custom Sources and Segments
 
 ### Understanding the Core Abstractions

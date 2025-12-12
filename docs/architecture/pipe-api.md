@@ -314,6 +314,8 @@ result = func(input_item)
 
 ## Best Practices
 
+> **See Also**: The [Data Protocol](protocol.md) documentation covers conventions for data flowing through pipelines, including the dictionary convention and field access patterns.
+
 ### 1. Lazy Evaluation
 
 Use `yield` in transform methods for memory efficiency:

@@ -277,8 +277,8 @@ def test_construct_rag_prompt_format_structure():
     q_text_pos = prompt.find("Question text")
 
     # Verify ordering
-    assert directive_pos < background_pos
-    assert background_pos < content_pos
+    assert background_pos < directive_pos
+    assert directive_pos < content_pos
     assert background_pos < bg_text_pos
     assert content_pos < q_text_pos
 
