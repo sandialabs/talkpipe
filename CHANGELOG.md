@@ -22,7 +22,9 @@
   index suffix in the `id` field (e.g., `source:1`, `source:2`) to ensure uniqueness,
   and should set descriptive `title` values (e.g., `filename:line1`). The model uses
   `extra="allow"` to permit additional fields to be added by downstream segments.
-- Allow for silently failing (with a log message) when an embedding fails.  
+- Allow for silently failing (with a log message) when an embedding fails. Fixed a bug where
+  `embedder.execute()` was called twice, once inside a try-except block and once outside,
+  causing errors to be raised even when `fail_on_error=False`.  
 
 ## 0.10.2
 

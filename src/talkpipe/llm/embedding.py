@@ -77,7 +77,6 @@ class LLMEmbed(AbstractSegment):
                     raise e
                 else:
                     continue
-            ans = self.embedder.execute(str(text))
             logger.debug(f"Received embedding: {ans}")
 
             if self.set_as is not None:
