@@ -25,6 +25,7 @@ class MakeVectorDatabaseSegment(AbstractSegment):
                  table_name: Annotated[str, "Name of the table in the database"] = "docs",
                  doc_id_field: Annotated[Optional[str], "Field containing document ID"] = None,
                  overwrite: Annotated[bool, "If true, overwrite existing table"] = False,
+                 fail_on_error: Annotated[bool, "If true, fail on error instead of logging"] = True,
                  ):
         super().__init__()
         self.embedding_model = embedding_model
@@ -34,11 +35,13 @@ class MakeVectorDatabaseSegment(AbstractSegment):
         self.table_name = table_name
         self.doc_id_field = doc_id_field
         self.overwrite = overwrite
+        self.fail_on_error = fail_on_error
 
         self.pipeline = LLMEmbed(model=self.embedding_model,
                                 source=self.embedding_source,
                                 field=self.embedding_field,
-                                set_as="vector") | \
+                                set_as="vector",
+                                fail_on_error=self.fail_on_error) | \
                         add_to_lancedb(path=self.path,
                                        table_name=self.table_name,
                                        doc_id_field=self.doc_id_field,
