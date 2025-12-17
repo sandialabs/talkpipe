@@ -114,6 +114,7 @@ def add_to_lancedb(items: Annotated[object, "Items with the vectors and document
                    overwrite: Annotated[bool, "If true, overwrite existing table"]=False,
                    vector_dim: Annotated[Optional[int], "Expected dimension of vectors"]=None,
                    batch_size: Annotated[int, "Batch size for adding vectors"]=1,
+                   optimize_on_batch: Annotated[bool, "If true, optimize the table after each batch.  Otherwise optimize after last batch."]=False,
                    ):
     """Add vectors and documents to LanceDB using LanceDBDocumentStore.
 
@@ -181,12 +182,15 @@ def add_to_lancedb(items: Annotated[object, "Items with the vectors and document
         if len(cached_docs) >= batch_size:
             doc_store.add_vectors(cached_docs)
             cached_docs = []
+            if optimize_on_batch:
+                doc_store._get_table()[0].optimize()
 
         yield item
         
     if len(cached_docs) > 0:
         doc_store.add_vectors(cached_docs)
         cached_docs = []
+        doc_store._get_table()[0].optimize() 
 
 
 class LanceDBDocumentStore(DocumentStore, VectorAddable, VectorSearchable):

@@ -27,6 +27,7 @@ class MakeVectorDatabaseSegment(AbstractSegment):
                  overwrite: Annotated[bool, "If true, overwrite existing table"] = False,
                  fail_on_error: Annotated[bool, "If true, fail on error instead of logging"] = True,
                  batch_size: Annotated[int, "Batch size for committing in the vector database"] = 100,
+                 optimize_on_batch: Annotated[bool, "If true, optimize the table after each batch.  Otherwise optimize after last batch."]=False,
                  ):
         super().__init__()
         self.embedding_model = embedding_model
@@ -47,7 +48,9 @@ class MakeVectorDatabaseSegment(AbstractSegment):
                                        table_name=self.table_name,
                                        doc_id_field=self.doc_id_field,
                                        overwrite=self.overwrite,
-                                       batch_size=batch_size)
+                                       batch_size=batch_size,
+                                       optimize_on_batch=optimize_on_batch,
+                                       )
 
     def transform(self, input_iter):
         yield from self.pipeline.transform(input_iter)
