@@ -112,8 +112,8 @@ def add_to_lancedb(items: Annotated[object, "Items with the vectors and document
                    doc_id_field: Annotated[Optional[str], "Field containing document ID"] = None,
                    metadata_field_list: Annotated[Optional[str], "Optional metadata field list"] = None,
                    overwrite: Annotated[bool, "If true, overwrite existing table"]=False,
-                   upsert: Annotated[bool, "If true (default), update existing documents with same ID. If false, raise error on duplicate ID"]=True,
-                   vector_dim: Annotated[Optional[int], "Expected dimension of vectors"]=None
+                   vector_dim: Annotated[Optional[int], "Expected dimension of vectors"]=None,
+                   batch_size: Annotated[int, "Batch size for adding vectors"]=1,
                    ):
     """Add vectors and documents to LanceDB using LanceDBDocumentStore.
 
@@ -151,16 +151,18 @@ def add_to_lancedb(items: Annotated[object, "Items with the vectors and document
             # If there's any issue with dropping, continue
             logger.warning(f"Could not drop table '{table_name}' for overwrite. Continuing without dropping.")
 
+    cached_docs = []
     for item in items:
         # Extract vector
         vector = extract_property(item, vector_field, fail_on_missing=True)
         if not isinstance(vector, (list, tuple, np.ndarray)):
             raise ValueError(f"Vector field '{vector_field}' must be a list, tuple, or numpy array")
 
-        # Extract document ID if specified
-        doc_id = None
         if doc_id_field:
             doc_id = extract_property(item, doc_id_field, fail_on_missing=False)
+        else:
+            doc_id = str(uuid.uuid4())
+            assign_property(item, "_doc_id", doc_id)
 
         # Extract metadata
         if metadata_field_list:
@@ -171,21 +173,20 @@ def add_to_lancedb(items: Annotated[object, "Items with the vectors and document
                 metadata = {k: v for k, v in item.items() if k != vector_field}
             else:
                 raise ValueError("If 'metadata_field_list' is not provided, item must be a dict to extract fields.")
-
+            
         # Convert metadata to Document format (string keys and values)
         document = {str(k): str(v) for k, v in metadata.items()}
 
-        # Add to document store (upsert by default, or strict add if upsert=False)
-        if upsert:
-            added_doc_id = doc_store.upsert_vector(vector, document, doc_id)
-        else:
-            added_doc_id = doc_store.add_vector(vector, document, doc_id)
-
-        # Add the document ID to the item for reference (only if item is a dict)
-        if isinstance(item, dict):
-            item["_doc_id"] = added_doc_id
+        cached_docs.append((vector, document, doc_id))
+        if len(cached_docs) >= batch_size:
+            doc_store.add_vectors(cached_docs)
+            cached_docs = []
 
         yield item
+        
+    if len(cached_docs) > 0:
+        doc_store.add_vectors(cached_docs)
+        cached_docs = []
 
 
 class LanceDBDocumentStore(DocumentStore, VectorAddable, VectorSearchable):
@@ -224,6 +225,7 @@ class LanceDBDocumentStore(DocumentStore, VectorAddable, VectorSearchable):
 
     def _get_table(self, schema_if_missing=None):
         """Get or create table with provided schema."""
+        created_and_updated = False
         if self._table is None:
             db = self._get_db()
             try:
@@ -232,9 +234,10 @@ class LanceDBDocumentStore(DocumentStore, VectorAddable, VectorSearchable):
                 if schema_if_missing is not None:
                     # Create table with provided schema data
                     self._table = db.create_table(self.table_name, schema_if_missing)
+                    created_and_updated = True
                 else:
                     raise ValueError(f"Table '{self.table_name}' not found and no schema provided. Please provide a LanceDB compatible schema.")
-        return self._table
+        return self._table, created_and_updated
 
     def _validate_vector(self, vector: VectorLike) -> List[float]:
         """Validate vector and return as list of floats."""
@@ -269,7 +272,7 @@ class LanceDBDocumentStore(DocumentStore, VectorAddable, VectorSearchable):
     def get_document(self, doc_id: DocID) -> Optional[Document]:
         """Retrieve a document by ID."""
         try:
-            table = self._get_table()
+            table, created_and_updated = self._get_table()
             results = table.search().where(f"id = '{doc_id}'").to_list()
             if results:
                 return self._deserialize_document(results[0]["document"])
@@ -279,83 +282,47 @@ class LanceDBDocumentStore(DocumentStore, VectorAddable, VectorSearchable):
 
     # VectorAddable protocol implementation
     def add_vector(self, vector: VectorLike, document: Document, doc_id: Optional[DocID] = None) -> DocID:
-        """Add a vector to the store."""
-        vec_list = self._validate_vector(vector)
+        return self.add_vectors([(vector, document, doc_id)])[0]
 
-        if doc_id is None:
-            doc_id = str(uuid.uuid4())
-
-        # Check if document already exists
-        existing = self.get_document(doc_id)
-        if existing is not None:
-            raise ValueError(f"Document with ID {doc_id} already exists")
-
-        # Prepare schema data for table creation if needed
-        schema_data = [{
-            "id": doc_id,
-            "vector": vec_list,
-            "document": self._serialize_document(document)
-        }]
-
-        table = self._get_table(schema_if_missing=schema_data)
-
-        # If table was just created, data is already there, otherwise add it
-        try:
-            # Check if this is a newly created table by seeing if our data is already there
-            existing_check = table.search().where(f"id = '{doc_id}'").to_list()
-            if not existing_check:
-                table.add(schema_data)
-        except Exception:
-            # If there's any issue with the check, just try to add the data
-            table.add(schema_data)
-
-        return doc_id
-
-    def upsert_vector(self, vector: VectorLike, document: Document, doc_id: Optional[DocID] = None) -> DocID:
-        """Add or update a vector in the store (upsert behavior).
-
-        If a document with the given doc_id exists, it will be updated.
-        If it doesn't exist, a new document will be created.
-
+    def add_vectors(self, documents: List[tuple]) -> List[DocID]:
+        """Add multiple vectors to the store in a batch operation.
+        
         Args:
-            vector: The vector to store
-            document: The document metadata to associate with the vector
-            doc_id: Optional document ID. If not provided, a UUID will be generated.
-
+            documents: List of tuples in format (vector, document, doc_id) where:
+                      - vector: VectorLike - the vector data
+                      - document: Document - the document metadata
+                      - doc_id: Optional[DocID] - document ID (generated if None)
+        
         Returns:
-            The document ID of the added/updated document.
+            List of document IDs for the added vectors
         """
-        vec_list = self._validate_vector(vector)
-
-        if doc_id is None:
-            doc_id = str(uuid.uuid4())
-
-        # Check if document already exists
-        existing = self.get_document(doc_id)
-        if existing is not None:
-            # Delete existing document first
-            self.delete_document(doc_id)
-
-        # Prepare schema data for table creation if needed
-        schema_data = [{
-            "id": doc_id,
-            "vector": vec_list,
-            "document": self._serialize_document(document)
-        }]
-
-        table = self._get_table(schema_if_missing=schema_data)
-
-        # If table was just created, data is already there, otherwise add it
-        try:
-            # Check if this is a newly created table by seeing if our data is already there
-            existing_check = table.search().where(f"id = '{doc_id}'").to_list()
-            if not existing_check:
-                table.add(schema_data)
-        except Exception:
-            # If there's any issue with the check, just try to add the data
-            table.add(schema_data)
-
-        return doc_id
+        if not documents:
+            return []
+        
+        doc_ids = []
+        schema_data = []
+        
+        for vector, document, doc_id in documents:
+            vec_list = self._validate_vector(vector)
+            
+            if doc_id is None:
+                doc_id = str(uuid.uuid4())
+            
+            doc_ids.append(doc_id)
+            
+            schema_data.append({
+                "id": doc_id,
+                "vector": vec_list,
+                "document": self._serialize_document(document)
+            })
+        
+        table, created_and_updated = self._get_table(schema_if_missing=schema_data)
+        
+        if not created_and_updated:
+            # Table exists, use merge_insert for upsert behavior
+            table.merge_insert('id').when_matched_update_all().when_not_matched_insert_all().execute(schema_data)
+        
+        return doc_ids
 
     # VectorSearchable protocol implementation
     def vector_search(self, vector: VectorLike, limit: int = 10) -> List[SearchResult]:
@@ -363,7 +330,7 @@ class LanceDBDocumentStore(DocumentStore, VectorAddable, VectorSearchable):
         vec_list = self._validate_vector(vector)
 
         try:
-            table = self._get_table()
+            table, created_and_updated = self._get_table()
             results = table.search(vec_list).limit(limit).to_list()
 
             search_results = []
@@ -387,7 +354,7 @@ class LanceDBDocumentStore(DocumentStore, VectorAddable, VectorSearchable):
     def delete_document(self, doc_id: DocID) -> bool:
         """Delete a document by ID."""
         try:
-            table = self._get_table()
+            table, created_and_updated = self._get_table()
             table = table.delete(f"id = '{doc_id}'")
             return True
         except Exception:
@@ -409,7 +376,7 @@ class LanceDBDocumentStore(DocumentStore, VectorAddable, VectorSearchable):
                 vec_list = self._validate_vector(vector)
             else:
                 # Get the old vector from the table before deletion
-                table = self._get_table()
+                table, created_and_updated = self._get_table()
                 results = table.search().where(f"id = '{doc_id}'").to_list()
                 if not results:
                     return False
@@ -424,7 +391,7 @@ class LanceDBDocumentStore(DocumentStore, VectorAddable, VectorSearchable):
     def count(self) -> int:
         """Return the number of documents in the store."""
         try:
-            table = self._get_table()
+            table, created_and_updated = self._get_table()
             # Use count_rows method if available, otherwise fallback to counting all results
             if hasattr(table, 'count_rows'):
                 return table.count_rows()
@@ -436,7 +403,7 @@ class LanceDBDocumentStore(DocumentStore, VectorAddable, VectorSearchable):
     def list_ids(self) -> List[DocID]:
         """Return a list of all document IDs."""
         try:
-            table = self._get_table()
+            table, created_and_updated = self._get_table()
             results = table.search().select(["id"]).to_list()
             return [result["id"] for result in results]
         except Exception:

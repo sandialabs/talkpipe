@@ -171,7 +171,6 @@ class TestAddToLanceDB:
     def test_add_to_lancedb_with_vector_field(self, mock_extract_property, mock_doc_store_class, sample_items, temp_db_path):
         mock_doc_store = mock.Mock()
         mock_doc_store_class.return_value = mock_doc_store
-        mock_doc_store.upsert_vector.return_value = "added_doc_id"  # upsert is default
         mock_extract_property.return_value = [1.0, 2.0, 3.0]
 
         items_to_add = [sample_items[0]]  # Item with vector field
@@ -180,10 +179,10 @@ class TestAddToLanceDB:
 
         mock_doc_store_class.assert_called_once_with(temp_db_path, "test_table", None)
         mock_extract_property.assert_called_once_with(sample_items[0], "vector", fail_on_missing=True)
-        mock_doc_store.upsert_vector.assert_called_once_with([1.0, 2.0, 3.0], {"text": "first item"}, None)
+        mock_doc_store.add_vectors.assert_called_once()
 
         assert len(results) == 1
-        assert results[0]["_doc_id"] == "added_doc_id"
+        assert results[0]["_doc_id"] is not None
 
     @mock.patch('talkpipe.search.lancedb.LanceDBDocumentStore')
     @mock.patch('talkpipe.search.lancedb.extract_property')
@@ -210,7 +209,6 @@ class TestAddToLanceDB:
     def test_add_to_lancedb_yields_original_items(self, mock_extract_property, mock_doc_store_class, sample_items, temp_db_path):
         mock_doc_store = mock.Mock()
         mock_doc_store_class.return_value = mock_doc_store
-        mock_doc_store.upsert_vector.side_effect = ["doc1", "doc2"]  # upsert is default
         mock_extract_property.side_effect = [[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]]
 
         items_to_add = sample_items
@@ -219,8 +217,8 @@ class TestAddToLanceDB:
 
         # Function should yield back the original items with _doc_id added
         assert len(results) == 2
-        assert results[0]["_doc_id"] == "doc1"
-        assert results[1]["_doc_id"] == "doc2"
+        assert results[0]["_doc_id"] is not None
+        assert results[1]["_doc_id"] is not None
 
 
 def test_add_and_search_integration(temp_db_path, sample_items_direction_relevant):
@@ -273,27 +271,6 @@ def test_upsert_integration(temp_db_path):
     # Verify there are only 2 documents total (not 3 - no duplicates)
     store = LanceDBDocumentStore(temp_db_path, "test_table")
     assert store.count() == 2
-
-
-def test_upsert_can_be_disabled(temp_db_path):
-    """Test that upsert behavior can be disabled to get error on duplicate."""
-    # Add initial document
-    initial_items = [
-        {"vector": [1.0, 0.0, 0.0], "text": "first version", "doc_id": "doc1"}
-    ]
-    add_segment = add_to_lancedb(path=temp_db_path, table_name="test_table",
-                                vector_field="vector", doc_id_field="doc_id", overwrite=True)
-    list(add_segment(initial_items))
-
-    # Try to add duplicate with upsert=False, should raise error
-    duplicate_items = [
-        {"vector": [0.5, 0.5, 0.0], "text": "duplicate", "doc_id": "doc1"}
-    ]
-    add_segment_no_upsert = add_to_lancedb(path=temp_db_path, table_name="test_table",
-                                          vector_field="vector", doc_id_field="doc_id",
-                                          upsert=False)
-    with pytest.raises(ValueError, match="already exists"):
-        list(add_segment_no_upsert(duplicate_items))
 
 
 def test_read_consistency_interval(temp_db_path):
@@ -356,3 +333,84 @@ def test_read_consistency_interval(temp_db_path):
     assert retrieved_doc is not None, "New document should be retrievable after consistency interval passes"
     assert retrieved_doc["text"] == "new document"
     assert retrieved_doc["category"] == "test"
+
+
+def test_add_vectors_batch_operation(temp_db_path):
+    """Test the add_vectors method for batch operations."""
+    store = LanceDBDocumentStore(temp_db_path, "test_table")
+    
+    # Prepare batch data
+    documents = [
+        ([1.0, 2.0, 3.0], {"text": "first doc", "category": "A"}, "doc1"),
+        ([4.0, 5.0, 6.0], {"text": "second doc", "category": "B"}, "doc2"),
+        ([7.0, 8.0, 9.0], {"text": "third doc", "category": "C"}, None)  # No doc_id provided
+    ]
+    
+    # Add vectors in batch
+    doc_ids = store.add_vectors(documents)
+    
+    # Verify return values
+    assert len(doc_ids) == 3
+    assert doc_ids[0] == "doc1"
+    assert doc_ids[1] == "doc2" 
+    assert doc_ids[2] is not None  # Auto-generated UUID
+    
+    # Verify documents were added correctly
+    assert store.count() == 3
+    
+    # Verify first document
+    doc1 = store.get_document("doc1")
+    assert doc1 is not None
+    assert doc1["text"] == "first doc"
+    assert doc1["category"] == "A"
+    
+    # Verify second document
+    doc2 = store.get_document("doc2")
+    assert doc2 is not None
+    assert doc2["text"] == "second doc"
+    assert doc2["category"] == "B"
+    
+    # Verify third document (auto-generated ID)
+    doc3 = store.get_document(doc_ids[2])
+    assert doc3 is not None
+    assert doc3["text"] == "third doc"
+    assert doc3["category"] == "C"
+
+
+def test_add_vectors_empty_list(temp_db_path):
+    """Test add_vectors with empty list returns empty list."""
+    store = LanceDBDocumentStore(temp_db_path, "test_table")
+    doc_ids = store.add_vectors([])
+    assert doc_ids == []
+    assert store.count() == 0
+
+
+def test_add_vectors_with_existing_documents(temp_db_path):
+    """Test add_vectors can update existing documents (upsert behavior)."""
+    store = LanceDBDocumentStore(temp_db_path, "test_table")
+    
+    # Add initial document
+    initial_doc_id = store.add_vector([1.0, 2.0, 3.0], {"text": "original", "version": "1"}, "doc1")
+    assert store.count() == 1
+    
+    # Use add_vectors to update existing document and add new one
+    documents = [
+        ([1.5, 2.5, 3.5], {"text": "updated", "version": "2"}, "doc1"),  # Update existing
+        ([4.0, 5.0, 6.0], {"text": "new doc", "version": "1"}, "doc2")   # Add new
+    ]
+    
+    doc_ids = store.add_vectors(documents)
+    
+    # Should still have 2 documents (not 3)
+    assert store.count() == 2
+    assert doc_ids == ["doc1", "doc2"]
+    
+    # Verify updated document
+    updated_doc = store.get_document("doc1")
+    assert updated_doc["text"] == "updated"
+    assert updated_doc["version"] == "2"
+    
+    # Verify new document
+    new_doc = store.get_document("doc2")
+    assert new_doc["text"] == "new doc"
+    assert new_doc["version"] == "1"

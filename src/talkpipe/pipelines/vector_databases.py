@@ -26,6 +26,7 @@ class MakeVectorDatabaseSegment(AbstractSegment):
                  doc_id_field: Annotated[Optional[str], "Field containing document ID"] = None,
                  overwrite: Annotated[bool, "If true, overwrite existing table"] = False,
                  fail_on_error: Annotated[bool, "If true, fail on error instead of logging"] = True,
+                 batch_size: Annotated[int, "Batch size for committing in the vector database"] = 100,
                  ):
         super().__init__()
         self.embedding_model = embedding_model
@@ -45,7 +46,8 @@ class MakeVectorDatabaseSegment(AbstractSegment):
                         add_to_lancedb(path=self.path,
                                        table_name=self.table_name,
                                        doc_id_field=self.doc_id_field,
-                                       overwrite=self.overwrite)
+                                       overwrite=self.overwrite,
+                                       batch_size=batch_size)
 
     def transform(self, input_iter):
         yield from self.pipeline.transform(input_iter)

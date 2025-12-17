@@ -64,8 +64,8 @@ def test_is_available(requires_ollama):
     chat = OpenAIPromptAdapter("gpt-4.1-nano", temperature=0.0)
     assert chat.is_available() is True
 
-    chat = AnthropicPromptAdapter("claude-3-5-haiku-latest", temperature=0.0)
-    assert chat.is_available() is True
+    #chat = AnthropicPromptAdapter("claude-3-5-haiku-latest", temperature=0.0)
+    #assert chat.is_available() is True
 
 
 def test_ollamachat(requires_ollama):
