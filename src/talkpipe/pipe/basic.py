@@ -27,6 +27,10 @@ def DiagPrint(
         Optional[str],
         "Comma-separated fields to extract in form 'field[:new_name],...' where _ means the whole item"
     ] = None,
+    label: Annotated[
+        Optional[str],
+        "Optional label to print below the separator each time."
+    ] = None,
     expression: Annotated[
         Optional[str],
         "A Python expression using 'item' as the variable (e.g., 'item * 2')"
@@ -41,7 +45,10 @@ def DiagPrint(
     A segment that prints items for diagnostic purposes.
 
     Output can be directed to stdout (default) or stderr.
+    If provided, 'label' is printed below the separator for each item.
     """
+    # Track elapsed time between calls for this DiagPrint instance
+    last_time: Optional[float] = None
     if output is None or output.lower() == "none":
         output_fn = None
     elif output.lower() == "stderr":
@@ -56,7 +63,16 @@ def DiagPrint(
 
     for item in items:
         if output_fn:
+            now = time.perf_counter()
+            if last_time is None:
+                elapsed_str = "0.000s"
+            else:
+                elapsed_str = f"{now - last_time:.3f}s"
+            last_time = now
             output_fn("================================")
+            if label:
+                output_fn(label)
+            output_fn(f"Elapsed: {elapsed_str} since last call")
             output_fn(f"Type: {type(item)}")
             output_fn(f"Value: {item}")
             if field_list:
