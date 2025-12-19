@@ -1,6 +1,8 @@
 # Changelog
 
-## In Progress
+## 0.11.0
+
+### New Features
 - Added fileDelete segment for deleting files in a pipline after they have been processed.
 - Added fileExistsFilter segment for filtering out paths that can't be resolved.
 - Added debounce segment.  This is a filter that looks for a key and emits one item with
@@ -10,9 +12,11 @@
   This can be placed between segments and sources to help debug more complex pipelines.
 - Added diagPrint segments among each step in the pipelines package with output set to
   None by default.
-- Added `role_map` parameter to LLM prompt adapters (Ollama, OpenAI, Anthropic) for setting up
-  initial conversation context with pre-defined role messages.
-- Refactored `extraction.py` to add `ExtractorRegistry` class for managing file text extractors.
+
+
+### Improvements
+- Significant, API breaking refactor to `extraction.py` and how file extraction is done.
+  Added `ExtractorRegistry` class for managing file text extractors.
   The registry maps file extensions to extractor callables and supports a default extractor
   for unregistered extensions. Extractors are now generators that yield strings, allowing
   multi-record file formats (CSV, JSONL) to emit multiple items per file. `ReadFile` is now
@@ -20,6 +24,8 @@
   skipped (yield nothing) by default; pass `skip_unsupported=False` to raise exceptions.
   Added standalone extractor functions (`extract_text`, `extract_docx`, `skip_file`),
   `get_default_registry()` factory, and `global_extractor_registry` instance.
+- Added `role_map` parameter to LLM prompt adapters (Ollama, OpenAI, Anthropic) for setting up
+  initial conversation context with pre-defined role messages.
 - Added `ExtractionResult` Pydantic model with `content`, `source`, `id`, and `title` fields.
   `ExtractorFunc` now yields `ExtractionResult` objects instead of raw strings, giving
   extractors full control over metadata. `ReadFile`, `readtxt`, and `readdocx` yield
