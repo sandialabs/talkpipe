@@ -52,7 +52,8 @@ class TestDiagPrint:
         captured = capsys.readouterr()
         assert "Type:" in captured.out
         assert "<class 'int'>" in captured.out
-        assert "Value: 42" in captured.out
+        assert "Value:" in captured.out
+        assert "42" in captured.out
 
     def test_field_list_parameter(self, capsys):
         """Test that field_list extracts and displays specified fields."""
@@ -73,7 +74,7 @@ class TestDiagPrint:
 
         captured = capsys.readouterr()
         assert "Expression:" in captured.out
-        assert "Value: 20" in captured.out
+        assert "item * 2 = 20" in captured.out
 
     def test_via_pipeline_compile(self, capsys):
         """Test DiagPrint works when invoked via pipeline compilation."""
@@ -145,8 +146,26 @@ class TestDiagPrint:
         assert result == items
         log_text = "\n".join(record.message for record in caplog.records)
         assert "Expression:" in log_text
-        assert "Value: 15" in log_text
+        assert "item * 3 = 15" in log_text
         assert all(record.levelno == logging.WARNING for record in caplog.records)
+
+    def test_output_config_prefix_uses_config_value(self, monkeypatch, capsys):
+        """Test that config: prefix resolves output target via get_config()."""
+        items = ["config_test"]
+
+        def fake_get_config():
+            return {"diag_output": "stderr"}
+
+        monkeypatch.setattr(basic, "get_config", fake_get_config)
+
+        pipeline = basic.DiagPrint(output="config:diag_output")
+        result = list(pipeline(items))
+
+        assert result == items
+
+        captured = capsys.readouterr()
+        assert captured.out == ""
+        assert "config_test" in captured.err
 
     def test_output_none_suppresses_output(self, capsys):
         """Test that output=None suppresses all diagnostic output.
@@ -870,3 +889,135 @@ def test_deep_copy_segment():
     # Modifying nested structures shouldn't affect the original
     result[0]["a"]["nested"] = 99
     assert original[0]["a"]["nested"] == 1
+
+
+def test_debounce_basic():
+    """Test Debounce segment with basic functionality."""
+    import time
+    
+    # Create items with path field
+    items = [
+        {"path": "file1.txt", "data": "first"},
+        {"path": "file2.txt", "data": "second"},
+    ]
+    
+    debounce = basic.Debounce(debounce_seconds=0.2)
+    debounce_fn = debounce.as_function(single_in=False, single_out=False)
+    result = list(debounce_fn(items))
+    
+    # Both items should be yielded since they have different keys
+    assert len(result) == 2
+    assert result[0]["path"] == "file1.txt"
+    assert result[1]["path"] == "file2.txt"
+
+
+def test_debounce_same_key_updates():
+    """Test Debounce when same key arrives multiple times - only last should be yielded."""
+    import time
+    
+    def item_generator():
+        yield {"path": "file.txt", "version": 1}
+        time.sleep(0.05)
+        yield {"path": "file.txt", "version": 2}
+        time.sleep(0.05)
+        yield {"path": "file.txt", "version": 3}
+    
+    debounce = basic.Debounce(key_field="path", debounce_seconds=0.2)
+    debounce_fn = debounce.as_function(single_in=False, single_out=False)
+    result = list(debounce_fn(item_generator()))
+    
+    # Only the last version should be yielded after debouncing
+    assert len(result) == 1
+    assert result[0]["version"] == 3
+
+
+def test_debounce_multiple_keys():
+    """Test Debounce with multiple keys being updated."""
+    import time
+    
+    def item_generator():
+        yield {"path": "file1.txt", "data": "v1"}
+        time.sleep(0.05)
+        yield {"path": "file2.txt", "data": "v1"}
+        time.sleep(0.05)
+        yield {"path": "file1.txt", "data": "v2"}
+        time.sleep(0.05)
+        yield {"path": "file2.txt", "data": "v2"}
+    
+    debounce = basic.Debounce(key_field="path", debounce_seconds=0.2)
+    debounce_fn = debounce.as_function(single_in=False, single_out=False)
+    result = list(debounce_fn(item_generator()))
+    
+    # Should get the last update for each key
+    assert len(result) == 2
+    paths = {item["path"] for item in result}
+    assert paths == {"file1.txt", "file2.txt"}
+    
+    # All should have v2 data (latest)
+    for item in result:
+        assert item["data"] == "v2"
+
+
+def test_debounce_custom_key_field():
+    """Test Debounce with a custom key field."""
+    import time
+    
+    items = [
+        {"id": "doc1", "content": "first"},
+        {"id": "doc2", "content": "second"},
+        {"id": "doc1", "content": "updated"},
+    ]
+    
+    debounce = basic.Debounce(key_field="id", debounce_seconds=0.1)
+    debounce_fn = debounce.as_function(single_in=False, single_out=False)
+    result = list(debounce_fn(items))
+    
+    # Should get 2 items (doc1 updated, doc2)
+    assert len(result) == 2
+    ids = {item["id"] for item in result}
+    assert ids == {"doc1", "doc2"}
+    
+    # doc1 should have the updated content
+    doc1 = next(item for item in result if item["id"] == "doc1")
+    assert doc1["content"] == "updated"
+
+
+def test_debounce_no_key_field():
+    """Test Debounce when items don't have the key field - should pass through immediately."""
+    items = [
+        {"data": "no path field"},
+        "plain string",
+        123,
+    ]
+    
+    debounce = basic.Debounce(key_field="path", debounce_seconds=0.1)
+    debounce_fn = debounce.as_function(single_in=False, single_out=False)
+    result = list(debounce_fn(items))
+    
+    # All items without key field should pass through
+    assert len(result) == 3
+    assert result[0] == {"data": "no path field"}
+    assert result[1] == "plain string"
+    assert result[2] == 123
+
+
+def test_debounce_timing():
+    """Test that debounce actually waits for the specified duration."""
+    import time
+    
+    def item_generator():
+        yield {"path": "file.txt", "data": "v1"}
+        time.sleep(0.05)
+        yield {"path": "file.txt", "data": "v2"}
+    
+    start = time.time()
+    debounce = basic.Debounce(key_field="path", debounce_seconds=0.2)
+    debounce_fn = debounce.as_function(single_in=False, single_out=False)
+    result = list(debounce_fn(item_generator()))
+    elapsed = time.time() - start
+    
+    # Should have waited at least the debounce duration
+    assert elapsed >= 0.2
+    # Should get only the last item
+    assert len(result) == 1
+    assert result[0]["data"] == "v2"

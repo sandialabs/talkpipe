@@ -1,6 +1,6 @@
 """Utility segments and sources for io operations.
 """
-from typing import Optional, Iterable, Iterator, Annotated
+from typing import Optional, Iterable, Iterator, Annotated, Any
 import logging
 import os
 import pickle  # nosec B403 - Used only for write operations, not loading untrusted data
@@ -286,4 +286,53 @@ def writeString(data,
                 first = False
             yield item
 
+
+@register_segment("fileExistsFilter")
+@segment()
+def FileExistsFilter(items: Any,
+                       path_field: Annotated[str, "Field name containing the file path to check"] = "path"):
+    """
+    Segment that filters out items where the file path doesn't exist.
+
+    Expects input items as dicts with a field containing a file path.
+    Only yields items where the file exists on the filesystem.
+
+    This is useful for handling race conditions where files are deleted
+    between watchdog detection and processing, or for filtering out
+    temporary files that may have been cleaned up.
+
+    Yields items where the specified path field points to an existing file.
+    """
+    for item in items:
+        path = item.get(path_field)
+        if path and os.path.exists(path):
+            yield item
+
+
+@register_segment("deleteFile")
+@segment()
+def DeleteFile(items: Any,
+               path_field: Annotated[str, "Field name containing the file path to delete"] = "source"):
+    """
+    Segment that deletes source files after yielding items.
+
+    Expects input items as dicts or pydantic objects with a field containing a file path.
+    Yields all items unchanged, but deletes the source file after each item is yielded.
+
+    This is useful for cleaning up source files after they've been successfully
+    indexed into the vault. Use with caution as deletion is permanent.
+
+    Silently skips deletion if the file doesn't exist or can't be deleted.
+    """
+    for item in items:
+        yield item
+        # Delete the file after yielding to ensure downstream processing can complete
+        path = data_manipulation.extract_property(item, path_field, fail_on_missing=True)
+        if path and os.path.exists(path):
+            try:
+                os.remove(path)
+            except (OSError, PermissionError) as e:
+                # Log but don't fail if we can't delete
+                import logging
+                logging.warning(f"Failed to delete {path}: {e}")
 

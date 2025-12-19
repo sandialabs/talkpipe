@@ -450,3 +450,298 @@ def test_prompt_eof_terminates():
             assert False, "Generator should have stopped on EOFError"
         except StopIteration:
             pass  # Expected behavior
+
+
+def test_fileExistsFilter_basic(tmpdir):
+    """Test fileExistsFilter with existing and non-existing files."""
+    # Create some test files
+    existing_file1 = tmpdir.join("exists1.txt")
+    existing_file1.write("content1")
+    existing_file2 = tmpdir.join("exists2.txt")
+    existing_file2.write("content2")
+    
+    items = [
+        {"path": str(existing_file1), "data": "first"},
+        {"path": str(tmpdir.join("missing.txt")), "data": "second"},
+        {"path": str(existing_file2), "data": "third"},
+        {"path": str(tmpdir.join("also_missing.txt")), "data": "fourth"},
+    ]
+    
+    f = io.FileExistsFilter()
+    result = list(f(items))
+    
+    # Only items with existing files should pass through
+    assert len(result) == 2
+    assert result[0]["data"] == "first"
+    assert result[1]["data"] == "third"
+
+
+def test_fileExistsFilter_custom_path_field(tmpdir):
+    """Test fileExistsFilter with a custom path field name."""
+    # Create a test file
+    existing_file = tmpdir.join("custom.txt")
+    existing_file.write("content")
+    
+    items = [
+        {"filepath": str(existing_file), "data": "exists"},
+        {"filepath": str(tmpdir.join("missing.txt")), "data": "missing"},
+    ]
+    
+    f = io.FileExistsFilter(path_field="filepath")
+    result = list(f(items))
+    
+    # Only the item with existing file should pass through
+    assert len(result) == 1
+    assert result[0]["data"] == "exists"
+
+
+def test_fileExistsFilter_no_path_field():
+    """Test fileExistsFilter when items don't have the path field."""
+    items = [
+        {"data": "no path field"},
+        {"other_field": "also no path"},
+    ]
+    
+    f = io.FileExistsFilter()
+    result = list(f(items))
+    
+    # Items without path field should be filtered out
+    assert len(result) == 0
+
+
+def test_fileExistsFilter_empty_path():
+    """Test fileExistsFilter with empty or None path values."""
+    items = [
+        {"path": None, "data": "null path"},
+        {"path": "", "data": "empty path"},
+    ]
+    
+    f = io.FileExistsFilter()
+    result = list(f(items))
+    
+    # Items with None or empty paths should be filtered out
+    assert len(result) == 0
+
+
+def test_fileExistsFilter_directories(tmpdir):
+    """Test fileExistsFilter works with directories too."""
+    # Create a directory
+    test_dir = tmpdir.mkdir("testdir")
+    
+    items = [
+        {"path": str(test_dir), "data": "directory"},
+        {"path": str(tmpdir.join("nonexistent_dir")), "data": "missing dir"},
+    ]
+    
+    f = io.FileExistsFilter()
+    result = list(f(items))
+    
+    # Directory should pass through as it exists
+    assert len(result) == 1
+    assert result[0]["data"] == "directory"
+
+
+def test_deleteFile_basic(tmpdir):
+    """Test deleteFile basic functionality - deletes file after yielding."""
+    # Create test files
+    file1 = tmpdir.join("delete1.txt")
+    file1.write("content1")
+    file2 = tmpdir.join("delete2.txt")
+    file2.write("content2")
+    
+    items = [
+        {"source": str(file1), "data": "first"},
+        {"source": str(file2), "data": "second"},
+    ]
+    
+    # Verify files exist before
+    assert os.path.exists(str(file1))
+    assert os.path.exists(str(file2))
+    
+    f = io.DeleteFile()
+    result = list(f(items))
+    
+    # All items should be yielded unchanged
+    assert len(result) == 2
+    assert result[0]["data"] == "first"
+    assert result[1]["data"] == "second"
+    
+    # Files should be deleted after yielding
+    assert not os.path.exists(str(file1))
+    assert not os.path.exists(str(file2))
+
+
+def test_deleteFile_custom_path_field(tmpdir):
+    """Test deleteFile with a custom path field name."""
+    # Create a test file
+    test_file = tmpdir.join("custom.txt")
+    test_file.write("content")
+    
+    items = [
+        {"filepath": str(test_file), "data": "test"},
+    ]
+    
+    assert os.path.exists(str(test_file))
+    
+    f = io.DeleteFile(path_field="filepath")
+    result = list(f(items))
+    
+    # Item should be yielded
+    assert len(result) == 1
+    assert result[0]["data"] == "test"
+    
+    # File should be deleted
+    assert not os.path.exists(str(test_file))
+
+
+def test_deleteFile_nonexistent_file():
+    """Test deleteFile silently handles non-existent files."""
+    items = [
+        {"source": "/tmp/nonexistent_file_12345.txt", "data": "test"},
+    ]
+    
+    f = io.DeleteFile()
+    # Should not raise an exception
+    result = list(f(items))
+    
+    # Item should still be yielded
+    assert len(result) == 1
+    assert result[0]["data"] == "test"
+
+
+def test_deleteFile_nested_path_field(tmpdir):
+    """Test deleteFile with nested path field using dot notation."""
+    # Create a test file
+    test_file = tmpdir.join("nested.txt")
+    test_file.write("content")
+    
+    items = [
+        {"file": {"path": str(test_file)}, "data": "test"},
+    ]
+    
+    assert os.path.exists(str(test_file))
+    
+    f = io.DeleteFile(path_field="file.path")
+    result = list(f(items))
+    
+    # Item should be yielded
+    assert len(result) == 1
+    assert result[0]["data"] == "test"
+    
+    # File should be deleted
+    assert not os.path.exists(str(test_file))
+
+
+def test_deleteFile_permission_error(tmpdir, caplog):
+    """Test deleteFile handles permission errors gracefully."""
+    import logging
+    
+    # Create a test file
+    test_file = tmpdir.join("readonly.txt")
+    test_file.write("content")
+    
+    items = [
+        {"source": str(test_file), "data": "test"},
+    ]
+    
+    # Mock os.remove to raise PermissionError
+    with patch('os.remove', side_effect=PermissionError("Permission denied")):
+        with caplog.at_level(logging.WARNING):
+            f = io.DeleteFile()
+            result = list(f(items))
+            
+            # Item should still be yielded
+            assert len(result) == 1
+            assert result[0]["data"] == "test"
+            
+            # Should have logged a warning
+            assert any("Failed to delete" in record.message for record in caplog.records)
+
+
+def test_deleteFile_os_error(tmpdir, caplog):
+    """Test deleteFile handles OS errors gracefully."""
+    import logging
+    
+    # Create a test file
+    test_file = tmpdir.join("error.txt")
+    test_file.write("content")
+    
+    items = [
+        {"source": str(test_file), "data": "test"},
+    ]
+    
+    # Mock os.remove to raise OSError
+    with patch('os.remove', side_effect=OSError("Disk error")):
+        with caplog.at_level(logging.WARNING):
+            f = io.DeleteFile()
+            result = list(f(items))
+            
+            # Item should still be yielded
+            assert len(result) == 1
+            assert result[0]["data"] == "test"
+            
+            # Should have logged a warning
+            assert any("Failed to delete" in record.message for record in caplog.records)
+
+
+def test_deleteFile_sequential_processing(tmpdir):
+    """Test that deleteFile processes items sequentially and files exist during iteration."""
+    # Create test files  
+    file1 = tmpdir.join("seq_test1.txt")
+    file1.write("content1")
+    file2 = tmpdir.join("seq_test2.txt")
+    file2.write("content2")
+    
+    items = [
+        {"source": str(file1), "data": "first"},
+        {"source": str(file2), "data": "second"},
+    ]
+    
+    # Files should exist before processing
+    assert os.path.exists(str(file1))
+    assert os.path.exists(str(file2))
+    
+    f = io.DeleteFile()
+    results = []
+    
+    # Process items and track which files exist
+    for item in f(items):
+        results.append(item)
+    
+    # All items should be yielded
+    assert len(results) == 2
+    assert results[0]["data"] == "first"
+    assert results[1]["data"] == "second"
+    
+    # Files should be deleted after full processing
+    assert not os.path.exists(str(file1))
+    assert not os.path.exists(str(file2))
+
+
+def test_deleteFile_compiler_integration(tmpdir):
+    """Test deleteFile integration with compiler system."""
+    # Create test files
+    file1 = tmpdir.join("compile1.txt")
+    file1.write("content1")
+    file2 = tmpdir.join("compile2.txt")
+    file2.write("content2")
+    
+    items = [
+        {"source": str(file1), "data": "first"},
+        {"source": str(file2), "data": "second"},
+    ]
+    
+    assert os.path.exists(str(file1))
+    assert os.path.exists(str(file2))
+    
+    # Test compilation and execution
+    pipeline = compiler.compile('| deleteFile')
+    f = pipeline.as_function(single_in=False, single_out=False)
+    result = f(items)
+    
+    # Items should be yielded
+    assert len(result) == 2
+    
+    # Files should be deleted
+    assert not os.path.exists(str(file1))
+    assert not os.path.exists(str(file2))

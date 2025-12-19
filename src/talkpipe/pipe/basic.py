@@ -7,8 +7,10 @@ import sys
 import json
 import hashlib
 import copy
+import threading
+from queue import Queue
 import pandas as pd
-from talkpipe.util.config import configure_logger, parse_key_value_str
+from talkpipe.util.config import configure_logger, parse_key_value_str, get_config
 from talkpipe.util.data_manipulation import extract_property, extract_template_field_names, get_all_attributes, toDict, assign_property
 from talkpipe.util.data_manipulation import compileLambda
 from talkpipe.util.os import run_command
@@ -23,10 +25,9 @@ logger = logging.getLogger(__name__)
 @segment()
 def DiagPrint(
     items: Iterator[Any],
-    field_list: Annotated[
-        Optional[str],
+    field_list: Annotated[str,
         "Comma-separated fields to extract in form 'field[:new_name],...' where _ means the whole item"
-    ] = None,
+    ] = "_",
     label: Annotated[
         Optional[str],
         "Optional label to print below the separator each time."
@@ -42,21 +43,44 @@ def DiagPrint(
     level: Annotated[str, "Logging level if output is to a logger."] = "DEBUG"
 ) -> Iterator[Any]:
     """
-    A segment that prints items for diagnostic purposes.
+    Print pass-through diagnostics for each item in a stream.
 
-    Output can be directed to stdout (default) or stderr.
-    If provided, 'label' is printed below the separator for each item.
+    Behavior:
+    - Emits a separator, optional label, elapsed time since the last item, type, and value.
+    - Optionally prints selected fields (`field_list`) and an evaluated expression (`expression`).
+    - Always yields the original items unchanged.
+
+    Output routing:
+    - `stdout` (default) prints to standard output.
+    - `stderr` prints to standard error.
+    - Any other string is treated as a logger name; messages are emitted at `level`.
+    - `None` or `"None"` disables all output.
+    - `config:<key>` looks up the target (stdout, stderr, or logger name) from `get_config()[<key>]`.
+
+    Common uses:
+    - Quick inspection while composing pipelines.
+    - Lightweight timing between items (elapsed time column).
+    - Field-focused debugging by passing `field_list="a,b,c"` to avoid dumping entire items.
+    - Expression checks, e.g. `expression="item['score'] > 0.8"`.
+
+    Examples:
+    - Pipe API: `DiagPrint(label="chunk", field_list="id,text", output="stderr")`
+    - ChatterLang: `| diagPrint[label="chunk", field_list="id,text", expression="len(item['text'])"]`
+    - Config-driven: set `diag_output="stderr"` in your config, then use `output="config:diag_output"`.
     """
     # Track elapsed time between calls for this DiagPrint instance
     last_time: Optional[float] = None
     if output is None or output.lower() == "none":
         output_fn = None
-    elif output.lower() == "stderr":
-        output_fn = lambda msg: print(msg, file=sys.stderr, flush=True)
-    elif output.lower() == "stdout":
-        output_fn = lambda msg: print(msg, file=sys.stdout, flush=True)
     else:
-        output_fn = lambda msg: logging.getLogger(output).log(msg=msg, level=logging.getLevelName(level.upper()))
+        if output.lower().startswith("config:"):
+            output = get_config().get(output[len("config:"):].strip(), None)
+        if output and output.lower() == "stderr":
+            output_fn = lambda msg: print(msg, file=sys.stderr, flush=True)
+        elif output and output.lower() == "stdout":
+            output_fn = lambda msg: print(msg, file=sys.stdout, flush=True)
+        else:
+            output_fn = lambda msg: logging.getLogger(output).log(msg=msg, level=logging.getLevelName(level.upper()))
 
     if expression:
         f = compileLambda(expression)
@@ -74,15 +98,17 @@ def DiagPrint(
                 output_fn(label)
             output_fn(f"Elapsed: {elapsed_str} since last call")
             output_fn(f"Type: {type(item)}")
-            output_fn(f"Value: {item}")
-            if field_list:
+            if field_list != "_":
                 output_fn("-------\nFields:")
-                item_dict = toDict(item, field_list=field_list)
+                item_dict = toDict(item, field_list=field_list, fail_on_missing=False)
                 for key, value in item_dict.items():
                     output_fn(f"{key}: {value}")
+            else:
+                output_fn("-------\nValue:")
+                output_fn(f"{item}")
             if expression:
                 output_fn("-------\nExpression:")
-                output_fn(f"Value: {f(item)}")
+                output_fn(f"{expression} = {f(item)}")
         yield item
 
 @registry.register_segment("sleep")
@@ -943,3 +969,81 @@ def deep_copy_segment(items):
     """
     for item in items:
         yield copy.deepcopy(item)
+
+@registry.register_segment("debounce")
+@segment()
+def Debounce(items: Any,
+             key_field: Annotated[str, "Field name to use as the debounce key"] = "path",
+             debounce_seconds: Annotated[float, "Seconds to wait for stability before yielding"] = 1.0):
+    """
+    Segment that debounces events by a key field, waiting for stability before yielding.
+
+    Expects input items as dicts with a field to use as the debounce key (default: "path").
+    When multiple events arrive for the same key, only the last event is yielded after
+    no new events have arrived for that key within the debounce period.
+
+    This is useful for handling race conditions where files are created and then
+    immediately modified (e.g., create with 0 bytes, then write content). The debounce
+    ensures processing only happens after the file has stabilized.
+
+    Yields the most recent event for each key after the debounce period expires.
+    """
+    pending = {}  # key -> (item, timestamp)
+    lock = threading.Lock()
+    output_queue = Queue()
+    stop_event = threading.Event()
+    input_done = threading.Event()
+
+    def add_pending(item):
+        key = item.get(key_field) if isinstance(item, dict) else None
+        if key is None:
+            output_queue.put(item)
+            return
+        with lock:
+            pending[key] = (item, time.time())
+
+    def input_consumer():
+        try:
+            for item in items:
+                if stop_event.is_set():
+                    break
+                add_pending(item)
+        finally:
+            input_done.set()
+
+    def checker():
+        while not stop_event.is_set():
+            time.sleep(0.1)
+            now = time.time()
+            with lock:
+                stable_keys = [
+                    k for k, (item, ts) in pending.items()
+                    if now - ts >= debounce_seconds
+                ]
+                for k in stable_keys:
+                    item, _ = pending.pop(k)
+                    output_queue.put(item)
+
+            # Signal completion when input is done and no pending items
+            if input_done.is_set():
+                with lock:
+                    if not pending:
+                        output_queue.put(None)  # Sentinel to signal done
+                        break
+
+    input_thread = threading.Thread(target=input_consumer, daemon=True)
+    checker_thread = threading.Thread(target=checker, daemon=True)
+    input_thread.start()
+    checker_thread.start()
+
+    try:
+        while True:
+            item = output_queue.get()
+            if item is None:  # Sentinel
+                break
+            yield item
+    finally:
+        stop_event.set()
+        input_thread.join(timeout=1.0)
+        checker_thread.join(timeout=1.0)
+

@@ -1,6 +1,11 @@
 # Changelog
 
 ## In Progress
+- Added fileDelete segment for deleting files in a pipline after they have been processed.
+- Added fileExistsFilter segment for filtering out paths that can't be resolved.
+- Added debounce segment.  This is a filter that looks for a key and emits one item with
+  that key after it stops seeing the key for a specified time.  Originally written for 
+  emitting file events after a file is done changing.
 - Added a diagPrint segment that prints information about items passing through the pipline
   This can be placed between segments and sources to help debug more complex pipelines.
 - Added diagPrint segments among each step in the pipelines package with output set to
