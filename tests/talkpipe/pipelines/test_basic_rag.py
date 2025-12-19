@@ -344,7 +344,7 @@ def test_rag_to_text_diagPrintOutput_parameter_stored():
 
     # Test with diagPrintOutput=None (default, suppresses output)
     rag_segment = RAGToText(
-        path="memory://",
+        path="tmp://rag_test",
         content_field="query",
         diagPrintOutput=None
     )
@@ -352,7 +352,7 @@ def test_rag_to_text_diagPrintOutput_parameter_stored():
 
     # Test with diagPrintOutput="stdout"
     rag_segment_stdout = RAGToText(
-        path="memory://",
+        path="tmp://rag_test",
         content_field="query",
         diagPrintOutput="stdout"
     )
@@ -360,7 +360,7 @@ def test_rag_to_text_diagPrintOutput_parameter_stored():
 
     # Test with diagPrintOutput="stderr"
     rag_segment_stderr = RAGToText(
-        path="memory://",
+        path="tmp://rag_test",
         content_field="query",
         diagPrintOutput="stderr"
     )
@@ -374,7 +374,7 @@ def test_rag_to_text_diagPrintOutput_in_pipeline(capsys):
 
     # Create RAGToText with diagPrintOutput="stdout"
     rag_segment = RAGToText(
-        path="memory://",
+        path="tmp://rag_test",
         content_field="query",
         diagPrintOutput="stdout"
     )
@@ -398,7 +398,7 @@ def test_rag_to_text_diagPrintOutput_none_suppresses_output(capsys):
 
     # Create RAGToText with diagPrintOutput=None (should suppress output)
     rag_segment = RAGToText(
-        path="memory://",
+        path="tmp://rag_test",
         content_field="query",
         diagPrintOutput=None
     )

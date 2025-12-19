@@ -19,7 +19,6 @@ def parse_db_path(path: str) -> str:
 
     Supported schemes:
     - Regular paths: "/path/to/db" -> "/path/to/db"
-    - Memory DBs: "memory://" or "" -> passes through to LanceDB
     - Temp DBs: "tmp://name" -> process-wide temp directory path
 
     Args:
@@ -33,14 +32,16 @@ def parse_db_path(path: str) -> str:
         "/data/mydb"
 
         >>> parse_db_path("memory://")
-        "memory://"
+        ValueError: memory:// is no longer supported
 
         >>> parse_db_path("tmp://my_cache")
         "/tmp/talkpipe_tmp/my_cache"  # actual temp dir
 
     Raises:
-        ValueError: If tmp:// URI has no name
+        ValueError: If tmp:// URI has no name, or if memory:// is used
     """
+    if path.startswith("memory://"):
+        raise ValueError("memory:// is no longer supported. Use 'tmp://<name>' for process-scoped temp DBs or a filesystem path.")
     if path.startswith("tmp://"):
         # Extract name from URI
         name = path[6:]  # Remove "tmp://" prefix
@@ -56,7 +57,7 @@ def parse_db_path(path: str) -> str:
 @register_segment("searchLanceDB", "searchLancDB")
 @segment()
 def search_lancedb(items: Annotated[object, "Items with the query vectors"],
-                   path: Annotated[str, "Path to the LanceDB database. Supports file paths, 'memory://' for in-memory, or 'tmp://name' for process-scoped temp (auto-cleanup)"],
+                   path: Annotated[str, "Path to the LanceDB database. Supports file paths or 'tmp://name' for process-scoped temp (auto-cleanup)"],
                    table_name: Annotated[str, "Table name in the LanceDB database"],
                    all_results_at_once: Annotated[bool, "If true, return all results at once"]=False,
                    field: Annotated[str, "Field with the vector"]=None,
@@ -75,8 +76,7 @@ def search_lancedb(items: Annotated[object, "Items with the query vectors"],
     neighbor (ANN) search for efficient similarity matching. Results are scored by
     similarity distance.
     
-    Path supports multiple storage options:
-    - "memory://": Fast in-memory database (ephemeral, lost on exit)
+    Path supports storage options:
     - "/path/to/db": Persistent file-based database
     - "tmp://name": Process-scoped temporary database (shared by name, auto-cleanup on exit)
     
@@ -120,7 +120,7 @@ def search_lancedb(items: Annotated[object, "Items with the query vectors"],
 @register_segment("addToLanceDB", "addToLancDB")
 @segment()
 def add_to_lancedb(items: Annotated[object, "Items with the vectors and documents"],
-                   path: Annotated[str, "Path to the LanceDB database. Supports file paths, 'memory://' for in-memory, or 'tmp://name' for process-scoped temp (auto-cleanup)"],
+                   path: Annotated[str, "Path to the LanceDB database. Supports file paths or 'tmp://name' for process-scoped temp (auto-cleanup)"],
                    table_name: Annotated[str, "Table name in the LanceDB database"],
                    vector_field: Annotated[str, "The field containing the vector data"] = "vector",
                    doc_id_field: Annotated[Optional[str], "Field containing document ID"] = None,
@@ -139,8 +139,7 @@ def add_to_lancedb(items: Annotated[object, "Items with the vectors and document
     LanceDB stores both the vectors for similarity search and the associated documents
     for retrieval. Vectors are indexed for efficient approximate nearest neighbor search.
     
-    Path supports multiple storage options:
-    - "memory://": Fast in-memory database (ephemeral, lost on exit)
+    Path supports storage options:
     - "/path/to/db": Persistent file-based database
     - "tmp://name": Process-scoped temporary database (shared by name, auto-cleanup on exit)
     
@@ -230,7 +229,6 @@ class LanceDBDocumentStore(DocumentStore, VectorAddable, VectorSearchable):
         Args:
             path: Path to the LanceDB database. Supports:
                   - Regular paths: "/path/to/db"
-                  - Memory DBs: "memory://"
                   - Temp DBs: "tmp://name" (process-wide, auto-cleanup)
             table_name: Name of the table to store documents in
             vector_dim: Expected dimension of vectors (optional, inferred from first vector)

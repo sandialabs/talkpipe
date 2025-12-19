@@ -74,12 +74,11 @@ class AbstractRAGPipeline(AbstractSegment):
 
     Path supports multiple URI schemes:
     - File path: "./my_db" or "/path/to/db" - Persistent storage
-    - Memory: "memory://" - Ephemeral in-memory database (faster, no disk I/O)
     - Temp: "tmp://name" - Process-scoped temporary database (shared by name, auto-cleanup on exit)
     """
 
     def __init__(self,
-                 path: Annotated[str, "Path to LanceDB database. Supports file paths, 'memory://' for in-memory, or 'tmp://name' for process-scoped temp (auto-cleanup)"],
+                 path: Annotated[str, "Path to LanceDB database. Supports file paths or 'tmp://name' for process-scoped temp (auto-cleanup)"],
                  content_field: Annotated[Any, "Field to evaluate relevance on"],
                  embedding_prompt: Annotated[str, "Prompt to use for embedding.  If None (default), use the content_field."] = None,
                  embedding_model: Annotated[str, "Embedding model to use"] = None,
@@ -146,12 +145,11 @@ class RAGToText(AbstractRAGPipeline):
 
     Path supports multiple URI schemes:
     - File path: "./my_db" or "/path/to/db" - Persistent storage
-    - Memory: "memory://" - Ephemeral in-memory database (faster, no disk I/O)
     - Temp: "tmp://name" - Process-scoped temporary database (shared by name, auto-cleanup on exit)
     """
 
     def __init__(self,
-                 path: Annotated[str, "Path to LanceDB database. Supports file paths, 'memory://' for in-memory, or 'tmp://name' for process-scoped temp (auto-cleanup)"],
+                 path: Annotated[str, "Path to LanceDB database. Supports file paths or 'tmp://name' for process-scoped temp (auto-cleanup)"],
                  content_field: Annotated[Any, "Field to evaluate relevance on"],
                  embedding_prompt: Annotated[str, "Prompt to use for embedding.  If None (default), use the content_field."] = None,
                  embedding_model: Annotated[str, "Embedding model to use"] = None,
@@ -199,7 +197,6 @@ class RAGToBinaryAnswer(AbstractRAGPipeline):
 
     Path supports multiple URI schemes:
     - File path: "./my_db" or "/path/to/db" - Persistent storage
-    - Memory: "memory://" - Ephemeral in-memory database (faster, no disk I/O)
     - Temp: "tmp://name" - Process-scoped temporary database (shared by name, auto-cleanup on exit)
     """
 
@@ -208,7 +205,7 @@ class RAGToBinaryAnswer(AbstractRAGPipeline):
                  embedding_source: Annotated[str, "Source of text to embed"],
                  completion_model: Annotated[str, "LLM model to use for completion"],
                  completion_source: Annotated[str, "Source of prompt for completion"],
-                 path: Annotated[str, "Path to LanceDB database. Supports file paths, 'memory://' for in-memory, or 'tmp://name' for process-scoped temp (auto-cleanup)"],
+                 path: Annotated[str, "Path to LanceDB database. Supports file paths or 'tmp://name' for process-scoped temp (auto-cleanup)"],
                  content_field: Annotated[Any, "Field to evaluate relevance on"],
                  embedding_prompt: Annotated[str, "Prompt to use for embedding.  If None (default), use the content_field."] = None,
                  prompt_directive: Annotated[str, "Directive to guide the evaluation"] = "Answer the provided question as YES or NO. If the background does not contain relevant information, respond with 'NO'.",
@@ -251,7 +248,6 @@ class RAGToScore(AbstractRAGPipeline):
 
     Path supports multiple URI schemes:
     - File path: "./my_db" or "/path/to/db" - Persistent storage
-    - Memory: "memory://" - Ephemeral in-memory database (faster, no disk I/O)
     - Temp: "tmp://name" - Process-scoped temporary database (shared by name, auto-cleanup on exit)
     """
 
@@ -260,7 +256,7 @@ class RAGToScore(AbstractRAGPipeline):
                  embedding_source: Annotated[str, "Source of text to embed"],
                  completion_model: Annotated[str, "LLM model to use for completion"],
                  completion_source: Annotated[str, "Source of prompt for completion"],
-                 path: Annotated[str, "Path to LanceDB database. Supports file paths, 'memory://' for in-memory, or 'tmp://name' for process-scoped temp (auto-cleanup)"],
+                 path: Annotated[str, "Path to LanceDB database. Supports file paths or 'tmp://name' for process-scoped temp (auto-cleanup)"],
                  content_field: Annotated[Any, "Field to evaluate relevance on"],
                  embedding_prompt: Annotated[str, "Prompt to use for embedding.  If None (default), use the content_field."] = None,
                  prompt_directive: Annotated[str, "Directive to guide the evaluation"] = "Answer the provided question on a scale of 1 to 10. If the background does not contain relevant information, respond with a score of 1.",

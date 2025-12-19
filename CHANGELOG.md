@@ -31,6 +31,9 @@
   `embedder.execute()` was called twice, once inside a try-except block and once outside,
   causing errors to be raised even when `fail_on_error=False`.  
 - Improved documentation and added github copilot instructions
+- Removed `memory://` support from LanceDB integrations. Use `tmp://<name>` for process-scoped 
+  temporary databases or filesystem paths for persistence. Updated `parse_db_path` to reject 
+  `memory://`, refreshed docstrings, and migrated tests to `tmp://` URIs.
 
 ## 0.10.2
 
@@ -82,8 +85,8 @@
   (mongo.py, text/chunking_units.py), and pipelines (basic_rag.py, vector_databases.py).
 - Added support for `tmp://name` URI scheme in LanceDB path parameters. This enables process-scoped
   temporary databases that are automatically cleaned up on exit. Temporary databases with the same name
-  share state within a process, making them ideal for testing or ephemeral workflows. Works alongside
-  existing `memory://` (in-memory) and file path options. Implemented via `get_process_temp_dir()`.
+  share state within a process, making them ideal for testing or ephemeral workflows. Implemented via
+  `get_process_temp_dir()`.
 - Added initial claude code commands for reviewing documentation.
 
 ## 0.10.0
