@@ -255,7 +255,22 @@ def WhooshSearcher(index_path: str, reload_seconds: int = -1):
 def indexWhoosh(items: Annotated[object, "Iterator of items to index"], index_path: Annotated[str, "Path to the Whoosh index directory"], field_list: Annotated[list[str], "List of fields to index"] = ["_:content"], 
                 yield_doc: Annotated[bool, "If True, yield each indexed document. Otherwise yield the original item"] = False, continue_on_error: Annotated[bool, "If True, continue processing other documents when one fails"] = True, overwrite: Annotated[bool, "If True, clear existing index before indexing"] = False,
                 commit_seconds: Annotated[int, "If > 0, commit changes if it has been this many seconds since the last commit"] = -1):
-    """Index documents using Whoosh full-text indexing.
+    """Index documents using Whoosh full-text search engine.
+    
+    Creates a searchable full-text index from items. Each item is indexed with specified
+    fields, allowing fast text search using searchWhoosh. Indexes are persistent and can
+    be updated incrementally by calling indexWhoosh again on new items.
+    
+    The Whoosh index is optimized for searching and supports complex query syntax including
+    boolean operators (AND, OR, NOT), field-specific searches, and phrase queries.
+    
+    Useful for:
+    - Building searchable document repositories
+    - Creating local search capabilities for text data
+    - Indexing log files, emails, or document collections
+    
+    Yields:
+        Indexed documents (if yield_doc=True) or original items otherwise.
     """
     field_list_dict = parse_key_value_str(field_list)
     indexed_count = 0
@@ -288,7 +303,32 @@ def indexWhoosh(items: Annotated[object, "Iterator of items to index"], index_pa
 def searchWhoosh(queries: Annotated[object, "Iterator of query strings"], index_path: Annotated[str, "Path to the Whoosh index directory"], limit: Annotated[int, "Maximum number of results to return for each query"] = 100, 
                  all_results_at_once: Annotated[bool, "If True, yield all results at once. Otherwise, yield one result at a time"] = False, continue_on_error: Annotated[bool, "If True, continue with next query when one fails"] = True,
                  reload_seconds: Annotated[int, "If > 0, reload the index if the last search was at least this many seconds ago"] = 60, field: Annotated[str, "Field to extract query from"] = "_", set_as: Annotated[Optional[str], "Field name to set results on input items"] = None):
-    """Search documents using Whoosh full-text indexing.
+    """Search a Whoosh full-text index for matching documents.
+    
+    Searches a previously indexed Whoosh index using text queries. Supports complex
+    query syntax including boolean operators (AND, OR, NOT), field-specific searches,
+    wildcards, and phrase queries wrapped in quotes.
+    
+    Results are returned as SearchResult objects containing the document ID, relevance
+    score, and the document content. Can return all results for a query at once or
+    stream individual results one at a time.
+    
+    Useful for:
+    - Searching previously indexed document collections
+    - Building interactive search interfaces
+    - Filtering documents by text content
+    
+    Query Examples:
+    - "hello world": phrase search
+    - hello AND world: documents containing both words
+    - hello OR world: documents containing either word
+    - hello NOT world: documents with hello but not world
+    - content:python: search in specific field
+    - hel*: wildcard search (prefix matching)
+    
+    Yields:
+        SearchResult objects if all_results_at_once=False (one per result).
+        List of SearchResult objects if all_results_at_once=True (all per query).
     """
     with WhooshSearcher(index_path, reload_seconds=reload_seconds) as idx:
         for item in queries:

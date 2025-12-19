@@ -30,6 +30,7 @@ class LLMEmbed(AbstractSegment):
             source: Annotated[Optional[str], "The source of the embedding model (e.g., 'ollama')"] = None,
             field: Annotated[Optional[str], "If provided, extract text from this field in the input items"] = None,
             set_as: Annotated[Optional[str], "If provided, append embeddings to input items under this field name"] = None,
+            fail_on_error: Annotated[bool, "Whether to raise an error on failure or to silently ignore it"] = True
             ):
         """Initialize the embedding segment with the specified parameters.
         
@@ -46,6 +47,7 @@ class LLMEmbed(AbstractSegment):
         self.embedder = getEmbeddingAdapter(source)(model=model)
         self.field = field
         self.set_as = set_as
+        self.fail_on_error = fail_on_error
 
     def transform(self, input_iter):
         """Transform input items by creating embeddings.
@@ -67,7 +69,14 @@ class LLMEmbed(AbstractSegment):
                 logging.debug(f"Using item as text: {text}")
 
             logger.debug(f"Embedding text: {text}")
-            ans = self.embedder.execute(str(text))
+            try:
+                ans = self.embedder.execute(str(text))
+            except Exception as e:
+                logger.error(f"Error during embedding: {e}")
+                if self.fail_on_error:
+                    raise e
+                else:
+                    continue
             logger.debug(f"Received embedding: {ans}")
 
             if self.set_as is not None:

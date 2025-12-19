@@ -1,5 +1,46 @@
 # Changelog
 
+## 0.11.0
+
+### New Features
+- Added fileDelete segment for deleting files in a pipline after they have been processed.
+- Added fileExistsFilter segment for filtering out paths that can't be resolved.
+- Added debounce segment.  This is a filter that looks for a key and emits one item with
+  that key after it stops seeing the key for a specified time.  Originally written for 
+  emitting file events after a file is done changing.
+- Added a diagPrint segment that prints information about items passing through the pipline
+  This can be placed between segments and sources to help debug more complex pipelines.
+- Added diagPrint segments among each step in the pipelines package with output set to
+  None by default.
+
+
+### Improvements
+- Significant, API breaking refactor to `extraction.py` and how file extraction is done.
+  Added `ExtractorRegistry` class for managing file text extractors.
+  The registry maps file extensions to extractor callables and supports a default extractor
+  for unregistered extensions. Extractors are now generators that yield strings, allowing
+  multi-record file formats (CSV, JSONL) to emit multiple items per file. `ReadFile` is now
+  a multi-emit segment using `global_extractor_registry` by default. Unsupported files are
+  skipped (yield nothing) by default; pass `skip_unsupported=False` to raise exceptions.
+  Added standalone extractor functions (`extract_text`, `extract_docx`, `skip_file`),
+  `get_default_registry()` factory, and `global_extractor_registry` instance.
+- Added `role_map` parameter to LLM prompt adapters (Ollama, OpenAI, Anthropic) for setting up
+  initial conversation context with pre-defined role messages.
+- Added `ExtractionResult` Pydantic model with `content`, `source`, `id`, and `title` fields.
+  `ExtractorFunc` now yields `ExtractionResult` objects instead of raw strings, giving
+  extractors full control over metadata. `ReadFile`, `readtxt`, and `readdocx` yield
+  `ExtractionResult` objects. For multi-emit extractions, extractors should include an
+  index suffix in the `id` field (e.g., `source:1`, `source:2`) to ensure uniqueness,
+  and should set descriptive `title` values (e.g., `filename:line1`). The model uses
+  `extra="allow"` to permit additional fields to be added by downstream segments.
+- Allow for silently failing (with a log message) when an embedding fails. Fixed a bug where
+  `embedder.execute()` was called twice, once inside a try-except block and once outside,
+  causing errors to be raised even when `fail_on_error=False`.  
+- Improved documentation and added github copilot instructions
+- Removed `memory://` support from LanceDB integrations. Use `tmp://<name>` for process-scoped 
+  temporary databases or filesystem paths for persistence. Updated `parse_db_path` to reject 
+  `memory://`, refreshed docstrings, and migrated tests to `tmp://` URIs.
+
 ## 0.10.2
 
 ### Improvements
@@ -50,8 +91,8 @@
   (mongo.py, text/chunking_units.py), and pipelines (basic_rag.py, vector_databases.py).
 - Added support for `tmp://name` URI scheme in LanceDB path parameters. This enables process-scoped
   temporary databases that are automatically cleaned up on exit. Temporary databases with the same name
-  share state within a process, making them ideal for testing or ephemeral workflows. Works alongside
-  existing `memory://` (in-memory) and file path options. Implemented via `get_process_temp_dir()`.
+  share state within a process, making them ideal for testing or ephemeral workflows. Implemented via
+  `get_process_temp_dir()`.
 - Added initial claude code commands for reviewing documentation.
 
 ## 0.10.0

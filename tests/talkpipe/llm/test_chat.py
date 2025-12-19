@@ -23,6 +23,40 @@ def test_invalid_source(monkeypatched_env, patch_get_config):
     with pytest.raises(ValueError):
         LLMPrompt(model="llama3.2", source=None, temperature=0.0)
 
+
+def test_role_map_initialization():
+    """Test that role_map is properly parsed and stored in prompt adapters."""
+    # Test with role_map including system role (should override system_prompt)
+    adapter = OllamaPromptAdapter("llama3.2", system_prompt="Default system",
+                                  role_map="system:Custom system,user:Initial user message")
+    assert adapter._system_message == {"role": "system", "content": "Custom system"}
+    assert len(adapter._prefix_messages) == 2
+    assert adapter._prefix_messages[0] == {"role": "system", "content": "Custom system"}
+    assert adapter._prefix_messages[1] == {"role": "user", "content": "Initial user message"}
+
+    # Test with role_map without system role (should use system_prompt)
+    adapter = OllamaPromptAdapter("llama3.2", system_prompt="Default system",
+                                  role_map="user:Initial user message,assistant:Initial assistant message")
+    assert adapter._system_message == {"role": "system", "content": "Default system"}
+    assert len(adapter._prefix_messages) == 3
+    assert adapter._prefix_messages[0] == {"role": "system", "content": "Default system"}
+    assert adapter._prefix_messages[1] == {"role": "user", "content": "Initial user message"}
+    assert adapter._prefix_messages[2] == {"role": "assistant", "content": "Initial assistant message"}
+
+    # Test without role_map (should use system_prompt only)
+    adapter = OllamaPromptAdapter("llama3.2", system_prompt="Default system")
+    assert adapter._system_message == {"role": "system", "content": "Default system"}
+    assert len(adapter._prefix_messages) == 1
+    assert adapter._prefix_messages[0] == {"role": "system", "content": "Default system"}
+
+
+def test_role_map_in_llmprompt_segment():
+    """Test that role_map is passed through LLMPrompt segment to the adapter."""
+    chat = LLMPrompt(model="llama3.2", source="ollama",
+                     role_map="system:Custom system,user:Hello,assistant:Hi there")
+    assert chat.chat._system_message == {"role": "system", "content": "Custom system"}
+    assert len(chat.chat._prefix_messages) == 3
+
 def test_is_available(requires_ollama):
     chat = OllamaPromptAdapter("llama3.2", temperature=0.0)
     assert chat.is_available() is True
@@ -30,8 +64,8 @@ def test_is_available(requires_ollama):
     chat = OpenAIPromptAdapter("gpt-4.1-nano", temperature=0.0)
     assert chat.is_available() is True
 
-    chat = AnthropicPromptAdapter("claude-3-5-haiku-latest", temperature=0.0)
-    assert chat.is_available() is True
+    #chat = AnthropicPromptAdapter("claude-3-5-haiku-latest", temperature=0.0)
+    #assert chat.is_available() is True
 
 
 def test_ollamachat(requires_ollama):

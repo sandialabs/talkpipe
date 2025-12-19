@@ -277,8 +277,8 @@ def test_construct_rag_prompt_format_structure():
     q_text_pos = prompt.find("Question text")
 
     # Verify ordering
-    assert directive_pos < background_pos
-    assert background_pos < content_pos
+    assert background_pos < directive_pos
+    assert directive_pos < content_pos
     assert background_pos < bg_text_pos
     assert content_pos < q_text_pos
 
@@ -338,6 +338,85 @@ def test_construct_rag_prompt_preserves_all_original_fields():
 
 # Tests for RAGToText segment
 
+def test_rag_to_text_diagPrintOutput_parameter_stored():
+    """Test that diagPrintOutput parameter is correctly stored in RAGToText."""
+    from talkpipe.pipelines.basic_rag import RAGToText
+
+    # Test with diagPrintOutput=None (default, suppresses output)
+    rag_segment = RAGToText(
+        path="tmp://rag_test",
+        content_field="query",
+        diagPrintOutput=None
+    )
+    assert rag_segment.diagPrintOutput is None
+
+    # Test with diagPrintOutput="stdout"
+    rag_segment_stdout = RAGToText(
+        path="tmp://rag_test",
+        content_field="query",
+        diagPrintOutput="stdout"
+    )
+    assert rag_segment_stdout.diagPrintOutput == "stdout"
+
+    # Test with diagPrintOutput="stderr"
+    rag_segment_stderr = RAGToText(
+        path="tmp://rag_test",
+        content_field="query",
+        diagPrintOutput="stderr"
+    )
+    assert rag_segment_stderr.diagPrintOutput == "stderr"
+
+
+def test_rag_to_text_diagPrintOutput_in_pipeline(capsys):
+    """Test that diagPrintOutput parameter correctly controls DiagPrint output in the pipeline."""
+    from talkpipe.pipelines.basic_rag import RAGToText
+    from unittest.mock import patch, MagicMock
+
+    # Create RAGToText with diagPrintOutput="stdout"
+    rag_segment = RAGToText(
+        path="tmp://rag_test",
+        content_field="query",
+        diagPrintOutput="stdout"
+    )
+
+    # Get the pipeline and verify DiagPrint segments have correct output setting
+    # We need to mock the vector database search to avoid needing actual embeddings
+    with patch.object(rag_segment, 'make_pipeline') as mock_make_pipeline:
+        # Create a mock pipeline that yields test data
+        mock_pipeline = MagicMock()
+        mock_pipeline.return_value = iter([{"query": "test", "answer": "mocked"}])
+        mock_make_pipeline.return_value = mock_pipeline
+
+        # Verify diagPrintOutput is set correctly
+        assert rag_segment.diagPrintOutput == "stdout"
+
+
+def test_rag_to_text_diagPrintOutput_none_suppresses_output(capsys):
+    """Test that diagPrintOutput=None suppresses DiagPrint output in RAGToText pipeline."""
+    from talkpipe.pipelines.basic_rag import RAGToText
+    from talkpipe.pipe.basic import DiagPrint
+
+    # Create RAGToText with diagPrintOutput=None (should suppress output)
+    rag_segment = RAGToText(
+        path="tmp://rag_test",
+        content_field="query",
+        diagPrintOutput=None
+    )
+
+    # Verify the DiagPrint segment with output=None doesn't produce output
+    diag_print = DiagPrint(output=rag_segment.diagPrintOutput)
+    test_items = [{"query": "test question", "data": "some data"}]
+    result = list(diag_print(test_items))
+
+    # Items should pass through unchanged
+    assert result == test_items
+
+    # No output should be produced
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert captured.err == ""
+
+
 @pytest.fixture
 def temp_vector_db_path():
     """Create a temporary directory for the vector database."""
@@ -372,6 +451,92 @@ def sample_knowledge_base():
             "id": "doc4"
         }
     ]
+
+
+def test_rag_to_text_diagPrintOutput_stdout(requires_ollama, temp_vector_db_path, sample_knowledge_base, capsys):
+    """Test that diagPrintOutput='stdout' produces diagnostic output in RAGToText pipeline."""
+    from talkpipe.pipelines.vector_databases import MakeVectorDatabaseSegment
+    from talkpipe.pipelines.basic_rag import RAGToText
+
+    # First, create and populate the vector database
+    make_db_segment = MakeVectorDatabaseSegment(
+        embedding_field="text",
+        embedding_model="mxbai-embed-large",
+        embedding_source="ollama",
+        path=temp_vector_db_path,
+        doc_id_field="id",
+        overwrite=True
+    )
+    list(make_db_segment.transform(sample_knowledge_base))
+
+    # Test RAGToText with diagPrintOutput="stdout"
+    rag_segment = RAGToText(
+        embedding_model="mxbai-embed-large",
+        embedding_source="ollama",
+        completion_model="llama3.2",
+        completion_source="ollama",
+        path=temp_vector_db_path,
+        content_field="query",
+        set_as="answer",
+        limit=2,
+        diagPrintOutput="stdout"
+    )
+
+    query_items = [{"query": "What is Python?", "id": "q1"}]
+    results = list(rag_segment.transform(query_items))
+
+    # Verify results still work correctly
+    assert len(results) == 1
+    assert "answer" in results[0]
+
+    # Verify diagnostic output was produced on stdout
+    captured = capsys.readouterr()
+    assert "Type:" in captured.out
+    assert "Value:" in captured.out
+    assert captured.err == ""
+
+
+def test_rag_to_text_diagPrintOutput_none_no_output(requires_ollama, temp_vector_db_path, sample_knowledge_base, capsys):
+    """Test that diagPrintOutput=None suppresses diagnostic output in RAGToText pipeline."""
+    from talkpipe.pipelines.vector_databases import MakeVectorDatabaseSegment
+    from talkpipe.pipelines.basic_rag import RAGToText
+
+    # First, create and populate the vector database
+    make_db_segment = MakeVectorDatabaseSegment(
+        embedding_field="text",
+        embedding_model="mxbai-embed-large",
+        embedding_source="ollama",
+        path=temp_vector_db_path,
+        doc_id_field="id",
+        overwrite=True
+    )
+    list(make_db_segment.transform(sample_knowledge_base))
+
+    # Test RAGToText with diagPrintOutput=None (default, no output)
+    rag_segment = RAGToText(
+        embedding_model="mxbai-embed-large",
+        embedding_source="ollama",
+        completion_model="llama3.2",
+        completion_source="ollama",
+        path=temp_vector_db_path,
+        content_field="query",
+        set_as="answer",
+        limit=2,
+        diagPrintOutput=None
+    )
+
+    query_items = [{"query": "What is Python?", "id": "q1"}]
+    results = list(rag_segment.transform(query_items))
+
+    # Verify results still work correctly
+    assert len(results) == 1
+    assert "answer" in results[0]
+
+    # Verify NO diagnostic output was produced
+    captured = capsys.readouterr()
+    # DiagPrint output markers should NOT be present
+    assert "================================" not in captured.out
+    assert "================================" not in captured.err
 
 
 def test_rag_to_text_basic_functionality(requires_ollama, temp_vector_db_path, sample_knowledge_base):

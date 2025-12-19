@@ -7,8 +7,10 @@ import sys
 import json
 import hashlib
 import copy
+import threading
+from queue import Queue
 import pandas as pd
-from talkpipe.util.config import configure_logger, parse_key_value_str
+from talkpipe.util.config import configure_logger, parse_key_value_str, get_config
 from talkpipe.util.data_manipulation import extract_property, extract_template_field_names, get_all_attributes, toDict, assign_property
 from talkpipe.util.data_manipulation import compileLambda
 from talkpipe.util.os import run_command
@@ -18,6 +20,96 @@ import talkpipe.chatterlang.registry as registry
 from talkpipe.util.data_manipulation import fill_template, dict_to_text, toDict
 
 logger = logging.getLogger(__name__)
+
+@registry.register_segment("diagPrint")
+@segment()
+def DiagPrint(
+    items: Iterator[Any],
+    field_list: Annotated[str,
+        "Comma-separated fields to extract in form 'field[:new_name],...' where _ means the whole item"
+    ] = "_",
+    label: Annotated[
+        Optional[str],
+        "Optional label to print below the separator each time."
+    ] = None,
+    expression: Annotated[
+        Optional[str],
+        "A Python expression using 'item' as the variable (e.g., 'item * 2')"
+    ] = None,
+    output: Annotated[
+        str,
+        "If 'stderr', output to stderr.  If 'stdout', output to stdout.  Otherwise write to a logger with this name.  If None or the string 'None', do not write output."
+    ] = "stdout",
+    level: Annotated[str, "Logging level if output is to a logger."] = "DEBUG"
+) -> Iterator[Any]:
+    """
+    Print pass-through diagnostics for each item in a stream.
+
+    Behavior:
+    - Emits a separator, optional label, elapsed time since the last item, type, and value.
+    - Optionally prints selected fields (`field_list`) and an evaluated expression (`expression`).
+    - Always yields the original items unchanged.
+
+    Output routing:
+    - `stdout` (default) prints to standard output.
+    - `stderr` prints to standard error.
+    - Any other string is treated as a logger name; messages are emitted at `level`.
+    - `None` or `"None"` disables all output.
+    - `config:<key>` looks up the target (stdout, stderr, or logger name) from `get_config()[<key>]`.
+
+    Common uses:
+    - Quick inspection while composing pipelines.
+    - Lightweight timing between items (elapsed time column).
+    - Field-focused debugging by passing `field_list="a,b,c"` to avoid dumping entire items.
+    - Expression checks, e.g. `expression="item['score'] > 0.8"`.
+
+    Examples:
+    - Pipe API: `DiagPrint(label="chunk", field_list="id,text", output="stderr")`
+    - ChatterLang: `| diagPrint[label="chunk", field_list="id,text", expression="len(item['text'])"]`
+    - Config-driven: set `diag_output="stderr"` in your config, then use `output="config:diag_output"`.
+    """
+    # Track elapsed time between calls for this DiagPrint instance
+    last_time: Optional[float] = None
+    if output is None or output.lower() == "none":
+        output_fn = None
+    else:
+        if output.lower().startswith("config:"):
+            output = get_config().get(output[len("config:"):].strip(), None)
+        if output and output.lower() == "stderr":
+            output_fn = lambda msg: print(msg, file=sys.stderr, flush=True)
+        elif output and output.lower() == "stdout":
+            output_fn = lambda msg: print(msg, file=sys.stdout, flush=True)
+        else:
+            output_fn = lambda msg: logging.getLogger(output).log(msg=msg, level=logging.getLevelName(level.upper()))
+
+    if expression:
+        f = compileLambda(expression)
+
+    for item in items:
+        if output_fn:
+            now = time.perf_counter()
+            if last_time is None:
+                elapsed_str = "0.000s"
+            else:
+                elapsed_str = f"{now - last_time:.3f}s"
+            last_time = now
+            output_fn("================================")
+            if label:
+                output_fn(label)
+            output_fn(f"Elapsed: {elapsed_str} since last call")
+            output_fn(f"Type: {type(item)}")
+            if field_list != "_":
+                output_fn("-------\nFields:")
+                item_dict = toDict(item, field_list=field_list, fail_on_missing=False)
+                for key, value in item_dict.items():
+                    output_fn(f"{key}: {value}")
+            else:
+                output_fn("-------\nValue:")
+                output_fn(f"{item}")
+            if expression:
+                output_fn("-------\nExpression:")
+                output_fn(f"{expression} = {f(item)}")
+        yield item
 
 @registry.register_segment("sleep")
 @segment()
@@ -235,8 +327,17 @@ def extractProperty(item,
 def assign(items: Annotated[Iterator[Any], "The input item to modify"],
            value: Annotated[Any, "The value to assign"],
            set_as: Annotated[str, "The field to assign the value to"]):
-    """Assigns the specified value to the specified field.
-
+    """Set a field to a constant value on each item in the pipeline.
+    
+    This segment modifies each input item by setting a specified field to the same
+    value for every item. The modified items are then passed through for downstream
+    processing.
+    
+    Useful for adding metadata, enriching items with constants, or setting default values.
+    Works with dictionaries, objects, and Pydantic models.
+    
+    Yields:
+        Modified items with the specified field set to the given value.
     """
     for item in items:
         assign_property(item, set_as, value)
@@ -302,11 +403,18 @@ def concat(items,
            fields: Annotated[str, "Comma-separated list of fields to concatenate."],
            delimiter: Annotated[str, "String to insert between concatenated fields."] = "\n\n", 
            set_as: Annotated[str, "If specified, adds concatenated result as new field with this name."] = None):
-    """Concatenates specified fields from each item with a delimiter.
-
+    """Concatenate specified fields from each item into a single string.
+    
+    This segment extracts multiple fields from each item, converts them to strings,
+    and joins them with the specified delimiter. Can either replace the item with
+    the concatenated string or add the result as a new field on the original item.
+    
+    Useful for combining text from multiple fields, creating composite keys, or
+    generating summaries from item components.
+    
     Yields:
-        If set_as is specified, yields the original item with concatenated result added as new field.
-        Otherwise, yields just the concatenated string.
+        If set_as is specified: Original item with concatenated result added as new field.
+        Otherwise: Just the concatenated string.
     """
     props = parse_key_value_str(fields)
     for item in items:
@@ -362,13 +470,19 @@ def slice(item, range: Annotated[str, "String in format 'start:end' where both s
 def longestStr(items, 
                field_list: Annotated[str, "Comma-separated list of fields to check for longest string."],
                set_as: Annotated[str, "If specified, adds longest string as new field with this name."] = None):
-    """Finds the longest string among specified fields in the input item.  If 
-    a field is not present or is not a string, it is ignored.  If two or more
-    fields have the same length, the first one encountered is returned.  If
-    none of the specified fields are present, and empty string is yielded.
-
+    """Find the longest string value among specified fields in each item.
+    
+    Compares the string representations of multiple fields and returns the one
+    with the greatest length. Non-string fields are converted to strings before
+    comparison. Missing fields are ignored. If multiple fields have equal length,
+    the first one is returned.
+    
+    Useful for selecting the most detailed description from multiple fields,
+    or finding the fullest version of redundant data.
+    
     Yields:
-        The longest string found in the specified fields of the input items.
+        The longest string found. If set_as is specified: original item with
+        the longest string added as a new field. Otherwise: just the string.
     """
     fields = parse_key_value_str(field_list)
     for item in items:
@@ -392,10 +506,20 @@ def isIn(items,
          value: Annotated[Any, "Value to check for in the field"],
          as_filter: Annotated[bool, "Whether to use this function as a filter. If false, only return True or False. If true, yield the item if the condition is true."] = True,
          set_as: Annotated[str, "If specified, the result will be added to this field in the item."] = None):
-    """Filters items based on whether a field contains a specified value.
-
+    """Check if a field contains a value, optionally filtering items.
+    
+    Tests whether a specified value is contained in a field using Python's 'in' operator.
+    Can operate in two modes:
+    - Filter mode (as_filter=True): yields items where the condition is true
+    - Boolean mode (as_filter=False): yields boolean results for all items
+    
+    Useful for searching strings for substrings, checking list membership, or
+    checking dictionary key existence.
+    
     Yields:
-        Items where the specified field contains the specified value.
+        In filter mode: items where value is in the field.
+        In boolean mode: True/False for each item.
+        If set_as is specified: item with boolean result added as new field.
     """
     for item in items:
         data = extract_property(item, field)
@@ -417,10 +541,20 @@ def isNotIn(items,
             value: Annotated[Any, "Value to check for in the field"],
             as_filter: Annotated[bool, "Whether to use this function as a filter. If false, only return True or False. If true, yield the item if the condition is true."] = True,
             set_as: Annotated[str, "If specified, the result will be added to this field in the item."] = None):
-    """Filters items based on whether a field does not contain a specified value.
-
+    """Check if a field does not contain a value, optionally filtering items.
+    
+    Tests whether a specified value is NOT contained in a field using Python's 'not in' operator.
+    Can operate in two modes:
+    - Filter mode (as_filter=True): yields items where the condition is true
+    - Boolean mode (as_filter=False): yields boolean results for all items
+    
+    Useful for excluding items with specific patterns, filtering out unwanted strings,
+    or checking that values are absent.
+    
     Yields:
-        Items where the specified field does not contain the specified value.
+        In filter mode: items where value is NOT in the field.
+        In boolean mode: True/False for each item.
+        If set_as is specified: item with boolean result added as new field.
     """
     for item in items:
         data = extract_property(item, field)
@@ -441,10 +575,20 @@ def isTrue(items,
            as_filter: Annotated[bool, "Whether to use this function as a filter. If false, only return True or False. If true, yield the item if the condition is true."] = True,
            field: Annotated[str, "The field to check for truthiness. Defaults to '_', which means the entire item."] = "_",
            set_as: Annotated[str, "If specified, the result will be added to this field in the item."] = None):
-    """
-    Checks if the specified field is true.  A field is considered false if it is
-    None, False, an integer 0, or an empty string.  It is True otherwise.
-
+    """Check if a field is truthy, optionally filtering items.
+    
+    Tests whether the specified field is considered true. A value is considered false
+    if it is None, False, an integer 0, or an empty string. All other values are true.
+    Can operate in two modes:
+    - Filter mode (as_filter=True): yields items where the field is truthy
+    - Boolean mode (as_filter=False): yields boolean results for all items
+    
+    Useful for filtering items by presence of content, non-empty fields, or truthy values.
+    
+    Yields:
+        In filter mode: items where the field is truthy.
+        In boolean mode: True/False for each item.
+        If set_as is specified: item with boolean result added as new field.
     """
     for item in items:
         to_eval = extract_property(item, field)
@@ -466,10 +610,20 @@ def isFalse(items,
              as_filter: Annotated[bool, "Whether to use this function as a filter. If false, only return True or False. If true, yield the item if the condition is true."] = True,
              field: Annotated[str, "The field to check for falsiness. Defaults to '_', which means the entire item."] = "_",
              set_as: Annotated[str, "If specified, the result will be added to this field in the item."] = None):
-    """
-    Checks if the specified field is false.  A field is considered false if it is
-    None, False, an integer 0, or an empty string.  It is True otherwise.
-
+    """Check if a field is falsy, optionally filtering items.
+    
+    Tests whether the specified field is considered false. A value is considered false
+    if it is None, False, an integer 0, or an empty string. All other values are true.
+    Can operate in two modes:
+    - Filter mode (as_filter=True): yields items where the field is falsy
+    - Boolean mode (as_filter=False): yields boolean results for all items
+    
+    Useful for filtering items with missing data, empty fields, or falsy values.
+    
+    Yields:
+        In filter mode: items where the field is falsy.
+        In boolean mode: True/False for each item.
+        If set_as is specified: item with boolean result added as new field.
     """
     for item in items:
         to_eval = extract_property(item, field)
@@ -488,8 +642,15 @@ def isFalse(items,
 @registry.register_segment("everyN")
 @segment()
 def everyN(items, n: Annotated[int, "Number of items to skip between each yield"]):
-    """Yields every nth item from the input stream.
-
+    """Yield every nth item from the input stream, creating a sampling effect.
+    
+    This segment yields only items at positions that are multiples of n, effectively
+    sampling every nth item from the stream. Useful for reducing data volume, creating
+    summaries, or testing with subset of large datasets.
+    
+    For example, with n=5: yields items 5, 10, 15, 20, etc. (items at positions 5, 10, 15...).
+    With n=1: yields all items. With n=2: yields every other item.
+    
     Yields:
         Every nth item from the input stream.
     """
@@ -500,10 +661,19 @@ def everyN(items, n: Annotated[int, "Number of items to skip between each yield"
 @registry.register_segment("flatten")
 @field_segment(multi_emit=True)
 def flatten(item):
-    """Flattens a nested list of items.
-
+    """Flatten a nested collection by emitting its individual elements.
+    
+    For dictionaries: yields key-value tuples (like .items())
+    For iterables: yields each element in the collection
+    For non-iterables: yields the item unchanged
+    
+    Useful for expanding nested lists, unpacking collections, or flattening
+    hierarchical data structures into individual items.
+    
+    Multi-emit segment: each input item can produce multiple output items.
+    
     Yields:
-        Flattened list of items
+        Individual elements from dictionaries, iterables, or the item itself.
     """
     if isinstance(item, dict):
         yield from item.items()
@@ -637,7 +807,35 @@ def fillTemplate(item,
                  template: Annotated[str, "The template string with placeholders for values"], 
                  fail_on_missing: Annotated[bool, "Whether to fail on missing fields"] = True, 
                  default: Annotated[Optional[Any], "Default value to use for missing fields"] = ""):
-    """Fill a template string with values from the input item.
+    """Fill a template string with values from the input `item`.
+
+        Template writing guide:
+        - Placeholders: Use `{path}` where `path` is a dot-notation path
+            resolved on `item` via `extract_property`. Examples: `{user.name}`,
+            `{address.city}`, `{tags.0}` (numeric index for lists/tuples).
+        - Whole item: `{_}` inserts the entire `item`. `_.field` acts as a
+            passthrough, so `{_.name}` is equivalent to `{name}`.
+        - Literal braces: Use `{{` and `}}` to render literal `{` and `}`
+            characters in output.
+        - Missing values: Controlled by `fail_on_missing` and `default`.
+            If `fail_on_missing` is True, missing fields raise an error; otherwise,
+            missing fields are replaced with `default` (empty string by default).
+
+        Examples:
+        - Dict item:
+            item = {"user": {"name": "Alice"}, "day": "Monday"}
+            template = "Hello {user.name}, today is {day}."
+            -> "Hello Alice, today is Monday."
+
+        - Lists and indices:
+            item = {"tags": ["news", "tech"]}
+            template = "First tag: {tags.0}"
+            -> "First tag: news"
+
+        - Literal braces:
+            item = {"user": {"name": "Alice"}}
+            template = "{{Escaped}} {_.user.name}"
+            -> "{Escaped} Alice"
 
     Returns:
         str: The filled template string
@@ -727,13 +925,23 @@ class FilterExpression(AbstractSegment):
 @registry.register_segment("copy")
 @segment
 def copy_segment(items):
-    """A segment that creates a shallow copy of each item in the input iterable.
+    """Create shallow copies of each item in the pipeline.
     
-    This can be used to create a defensive copy of items in the pipline, ensuring that modifications
-    to the items do not affect the original items in the input stream.  
-
-    Args:
-        items (Iterable): An iterable of items to copy.
+    This segment creates a shallow copy of each item, suitable when you need to
+    prevent downstream modifications from affecting the original items. Shallow
+    copies share references to nested objects (lists, dicts within dicts), so
+    modifications to nested structures will still affect originals.
+    
+    Use deepCopy instead if you need complete independence from the originals,
+    though deepCopy is slower and more memory-intensive.
+    
+    Useful for:
+    - Preventing accidental mutations in complex pipelines
+    - Creating independent item instances before modification
+    - Preserving original data while processing
+    
+    Yields:
+        Shallow copies of each input item.
     """
     for item in items:
         yield copy.copy(item)
@@ -741,12 +949,101 @@ def copy_segment(items):
 @registry.register_segment("deepCopy")
 @segment
 def deep_copy_segment(items):
-    """A segment that creates a deep copy of each item in the input iterable.
+    """Create complete independent deep copies of each item in the pipeline.
     
-    This can be used to create a defensive copy of items in the pipeline, ensuring that modifications
-    to the items do not affect the original items in the input stream.
-    Args:
-        items (Iterable): An iterable of items to copy.
+    This segment creates a deep copy of each item, recursively copying all nested
+    structures (lists, dicts, and objects within them). This ensures complete
+    independence from the originals - modifications to any nested structure won't
+    affect the original items.
+    
+    Deep copy is slower and more memory-intensive than shallow copy. Use copy
+    instead if nested structures don't need to be independent.
+    
+    Useful for:
+    - Complex nested data that will be heavily modified
+    - When you need complete independence from original data
+    - Pipelines where multiple branches process the same item
+    
+    Yields:
+        Deep copies of each input item.
     """
     for item in items:
         yield copy.deepcopy(item)
+
+@registry.register_segment("debounce")
+@segment()
+def Debounce(items: Any,
+             key_field: Annotated[str, "Field name to use as the debounce key"] = "path",
+             debounce_seconds: Annotated[float, "Seconds to wait for stability before yielding"] = 1.0):
+    """
+    Segment that debounces events by a key field, waiting for stability before yielding.
+
+    Expects input items as dicts with a field to use as the debounce key (default: "path").
+    When multiple events arrive for the same key, only the last event is yielded after
+    no new events have arrived for that key within the debounce period.
+
+    This is useful for handling race conditions where files are created and then
+    immediately modified (e.g., create with 0 bytes, then write content). The debounce
+    ensures processing only happens after the file has stabilized.
+
+    Yields the most recent event for each key after the debounce period expires.
+    """
+    pending = {}  # key -> (item, timestamp)
+    lock = threading.Lock()
+    output_queue = Queue()
+    stop_event = threading.Event()
+    input_done = threading.Event()
+
+    def add_pending(item):
+        key = item.get(key_field) if isinstance(item, dict) else None
+        if key is None:
+            output_queue.put(item)
+            return
+        with lock:
+            pending[key] = (item, time.time())
+
+    def input_consumer():
+        try:
+            for item in items:
+                if stop_event.is_set():
+                    break
+                add_pending(item)
+        finally:
+            input_done.set()
+
+    def checker():
+        while not stop_event.is_set():
+            time.sleep(0.1)
+            now = time.time()
+            with lock:
+                stable_keys = [
+                    k for k, (item, ts) in pending.items()
+                    if now - ts >= debounce_seconds
+                ]
+                for k in stable_keys:
+                    item, _ = pending.pop(k)
+                    output_queue.put(item)
+
+            # Signal completion when input is done and no pending items
+            if input_done.is_set():
+                with lock:
+                    if not pending:
+                        output_queue.put(None)  # Sentinel to signal done
+                        break
+
+    input_thread = threading.Thread(target=input_consumer, daemon=True)
+    checker_thread = threading.Thread(target=checker, daemon=True)
+    input_thread.start()
+    checker_thread.start()
+
+    try:
+        while True:
+            item = output_queue.get()
+            if item is None:  # Sentinel
+                break
+            yield item
+    finally:
+        stop_event.set()
+        input_thread.join(timeout=1.0)
+        checker_thread.join(timeout=1.0)
+

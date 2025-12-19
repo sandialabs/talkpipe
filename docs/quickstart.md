@@ -72,6 +72,50 @@ chatterlang_serve --port 2025 --display-property prompt --script '| llmPrompt[mo
 
 Open http://localhost:2025/stream in your browser to interact with your pipeline through a web form.
 
+## Debug Pipelines with diagPrint
+
+Use `diagPrint` to inspect data as it flows through a pipeline without altering outputs.
+
+### Pipe API
+
+```python
+from talkpipe.pipe import basic
+
+debug = basic.DiagPrint(
+	label="chunk",
+	field_list="id,text",
+	expression="len(item['text'])",
+	output="stderr",  # or a logger name
+)
+pipeline = debug | basic.firstN(n=3)
+list(pipeline([{"id": 1, "text": "hello world"}]))
+```
+
+### ChatterLang
+
+```
+| diagPrint[label="chunk", field_list="id,text", expression="len(item['text'])", output="stderr"]
+```
+
+### Config-driven output
+
+Set a config key (e.g., in `~/.talkpipe.toml`):
+
+```toml
+diag_output = "stderr"
+```
+
+Then point `diagPrint` to it:
+
+```
+| diagPrint[output="config:diag_output"]
+```
+
+Tips:
+- Use `field_list` to print only the fields you need.
+- `None` or `"None"` for `output` suppresses all diagnostic output.
+- The elapsed time line shows spacing between successive items.
+
 ## Next Steps
 
 ### Learn the Tools

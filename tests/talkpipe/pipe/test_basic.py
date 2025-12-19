@@ -7,6 +7,192 @@ from talkpipe.chatterlang import compiler
 import logging
 from pydantic import BaseModel
 
+"""Unit tests for the DiagPrint segment."""
+
+import pytest
+from talkpipe import compile
+
+
+class TestDiagPrint:
+    """Test suite for DiagPrint segment."""
+
+    def test_yields_all_items(self):
+        """Test that DiagPrint yields all input items unchanged."""
+        items = [1, 2, 3, "test", {"key": "value"}]
+        pipeline = basic.DiagPrint()
+        result = list(pipeline(items))
+        assert result == items
+
+    def test_output_to_stdout_by_default(self, capsys):
+        """Test that output goes to stdout by default."""
+        items = ["hello"]
+        pipeline = basic.DiagPrint()
+        list(pipeline(items))
+
+        captured = capsys.readouterr()
+        assert "hello" in captured.out
+        assert captured.err == ""
+
+    def test_output_to_stderr(self, capsys):
+        """Test that output goes to stderr when output='stderr'."""
+        items = ["hello"]
+        pipeline = basic.DiagPrint(output="stderr")
+        list(pipeline(items))
+
+        captured = capsys.readouterr()
+        assert captured.out == ""
+        assert "hello" in captured.err
+
+    def test_prints_type_and_value(self, capsys):
+        """Test that type and value are printed."""
+        items = [42]
+        pipeline = basic.DiagPrint()
+        list(pipeline(items))
+
+        captured = capsys.readouterr()
+        assert "Type:" in captured.out
+        assert "<class 'int'>" in captured.out
+        assert "Value:" in captured.out
+        assert "42" in captured.out
+
+    def test_field_list_parameter(self, capsys):
+        """Test that field_list extracts and displays specified fields."""
+        items = [{"name": "Alice", "age": 30, "city": "NYC"}]
+        pipeline = basic.DiagPrint(field_list="name,age")
+        list(pipeline(items))
+
+        captured = capsys.readouterr()
+        assert "Fields:" in captured.out
+        assert "name: Alice" in captured.out
+        assert "age: 30" in captured.out
+
+    def test_expression_parameter(self, capsys):
+        """Test that expression is evaluated and printed."""
+        items = [10]
+        pipeline = basic.DiagPrint(expression="item * 2")
+        list(pipeline(items))
+
+        captured = capsys.readouterr()
+        assert "Expression:" in captured.out
+        assert "item * 2 = 20" in captured.out
+
+    def test_via_pipeline_compile(self, capsys):
+        """Test DiagPrint works when invoked via pipeline compilation."""
+        pipeline = compile(" | diagPrint")
+        result = list(pipeline(["test_item"]))
+
+        assert result == ["test_item"]
+        captured = capsys.readouterr()
+        assert "test_item" in captured.out
+
+    def test_via_pipeline_with_stderr(self, capsys):
+        """Test DiagPrint with output='stderr' via pipeline compilation."""
+        pipeline = basic.DiagPrint(output="stderr")
+        result = list(pipeline(["stderr_test"]))
+
+        assert result == ["stderr_test"]
+        captured = capsys.readouterr()
+        assert captured.out == ""
+        assert "stderr_test" in captured.err
+
+    def test_output_to_logger_default_level(self, caplog):
+        """Test that output goes to a logger when output is a logger name."""
+        items = ["log_test_item"]
+        with caplog.at_level(logging.DEBUG, logger="test.diagprint"):
+            pipeline = basic.DiagPrint(output="test.diagprint")
+            result = list(pipeline(items))
+
+        assert result == items
+        # Check that log messages were captured at DEBUG level
+        assert len(caplog.records) > 0
+        log_text = "\n".join(record.message for record in caplog.records)
+        assert "log_test_item" in log_text
+        assert "Type:" in log_text
+        assert all(record.levelno == logging.DEBUG for record in caplog.records)
+
+    def test_output_to_logger_info_level(self, caplog):
+        """Test that output goes to a logger at INFO level."""
+        items = [{"key": "value"}]
+        with caplog.at_level(logging.INFO, logger="test.diagprint.info"):
+            pipeline = basic.DiagPrint(output="test.diagprint.info", level="INFO")
+            result = list(pipeline(items))
+
+        assert result == items
+        assert len(caplog.records) > 0
+        log_text = "\n".join(record.message for record in caplog.records)
+        assert "key" in log_text or "value" in log_text
+        assert all(record.levelno == logging.INFO for record in caplog.records)
+
+    def test_output_to_logger_with_field_list(self, caplog):
+        """Test logger output with field_list parameter."""
+        items = [{"name": "Alice", "age": 30}]
+        with caplog.at_level(logging.DEBUG, logger="test.diagprint.fields"):
+            pipeline = basic.DiagPrint(output="test.diagprint.fields", field_list="name,age")
+            result = list(pipeline(items))
+
+        assert result == items
+        log_text = "\n".join(record.message for record in caplog.records)
+        assert "Fields:" in log_text
+        assert "name: Alice" in log_text
+        assert "age: 30" in log_text
+
+    def test_output_to_logger_with_expression(self, caplog):
+        """Test logger output with expression parameter."""
+        items = [5]
+        with caplog.at_level(logging.WARNING, logger="test.diagprint.expr"):
+            pipeline = basic.DiagPrint(output="test.diagprint.expr", level="WARNING", expression="item * 3")
+            result = list(pipeline(items))
+
+        assert result == items
+        log_text = "\n".join(record.message for record in caplog.records)
+        assert "Expression:" in log_text
+        assert "item * 3 = 15" in log_text
+        assert all(record.levelno == logging.WARNING for record in caplog.records)
+
+    def test_output_config_prefix_uses_config_value(self, monkeypatch, capsys):
+        """Test that config: prefix resolves output target via get_config()."""
+        items = ["config_test"]
+
+        def fake_get_config():
+            return {"diag_output": "stderr"}
+
+        monkeypatch.setattr(basic, "get_config", fake_get_config)
+
+        pipeline = basic.DiagPrint(output="config:diag_output")
+        result = list(pipeline(items))
+
+        assert result == items
+
+        captured = capsys.readouterr()
+        assert captured.out == ""
+        assert "config_test" in captured.err
+
+    def test_output_none_suppresses_output(self, capsys):
+        """Test that output=None suppresses all diagnostic output.
+
+        This is used by basic_rag.py pipelines via diagPrintOutput parameter.
+        """
+        items = [1, 2, "test", {"key": "value"}]
+        pipeline = basic.DiagPrint(output=None)
+        result = list(pipeline(items))
+
+        assert result == items
+        captured = capsys.readouterr()
+        assert captured.out == ""
+        assert captured.err == ""
+
+    def test_output_none_string_suppresses_output(self, capsys):
+        """Test that output='None' (string) also suppresses all diagnostic output."""
+        items = ["hello", 42]
+        pipeline = basic.DiagPrint(output="None")
+        result = list(pipeline(items))
+
+        assert result == items
+        captured = capsys.readouterr()
+        assert captured.out == ""
+        assert captured.err == ""
+
+
 def test_progressTicks_basic(capsys):
     # Should print a tick every 2 items, newline after 4 ticks, no count
     t = basic.progressTicks(tick="*", tick_count=2, eol_count=4, print_count=False)
@@ -703,3 +889,135 @@ def test_deep_copy_segment():
     # Modifying nested structures shouldn't affect the original
     result[0]["a"]["nested"] = 99
     assert original[0]["a"]["nested"] == 1
+
+
+def test_debounce_basic():
+    """Test Debounce segment with basic functionality."""
+    import time
+    
+    # Create items with path field
+    items = [
+        {"path": "file1.txt", "data": "first"},
+        {"path": "file2.txt", "data": "second"},
+    ]
+    
+    debounce = basic.Debounce(debounce_seconds=0.2)
+    debounce_fn = debounce.as_function(single_in=False, single_out=False)
+    result = list(debounce_fn(items))
+    
+    # Both items should be yielded since they have different keys
+    assert len(result) == 2
+    assert result[0]["path"] == "file1.txt"
+    assert result[1]["path"] == "file2.txt"
+
+
+def test_debounce_same_key_updates():
+    """Test Debounce when same key arrives multiple times - only last should be yielded."""
+    import time
+    
+    def item_generator():
+        yield {"path": "file.txt", "version": 1}
+        time.sleep(0.05)
+        yield {"path": "file.txt", "version": 2}
+        time.sleep(0.05)
+        yield {"path": "file.txt", "version": 3}
+    
+    debounce = basic.Debounce(key_field="path", debounce_seconds=0.2)
+    debounce_fn = debounce.as_function(single_in=False, single_out=False)
+    result = list(debounce_fn(item_generator()))
+    
+    # Only the last version should be yielded after debouncing
+    assert len(result) == 1
+    assert result[0]["version"] == 3
+
+
+def test_debounce_multiple_keys():
+    """Test Debounce with multiple keys being updated."""
+    import time
+    
+    def item_generator():
+        yield {"path": "file1.txt", "data": "v1"}
+        time.sleep(0.05)
+        yield {"path": "file2.txt", "data": "v1"}
+        time.sleep(0.05)
+        yield {"path": "file1.txt", "data": "v2"}
+        time.sleep(0.05)
+        yield {"path": "file2.txt", "data": "v2"}
+    
+    debounce = basic.Debounce(key_field="path", debounce_seconds=0.2)
+    debounce_fn = debounce.as_function(single_in=False, single_out=False)
+    result = list(debounce_fn(item_generator()))
+    
+    # Should get the last update for each key
+    assert len(result) == 2
+    paths = {item["path"] for item in result}
+    assert paths == {"file1.txt", "file2.txt"}
+    
+    # All should have v2 data (latest)
+    for item in result:
+        assert item["data"] == "v2"
+
+
+def test_debounce_custom_key_field():
+    """Test Debounce with a custom key field."""
+    import time
+    
+    items = [
+        {"id": "doc1", "content": "first"},
+        {"id": "doc2", "content": "second"},
+        {"id": "doc1", "content": "updated"},
+    ]
+    
+    debounce = basic.Debounce(key_field="id", debounce_seconds=0.1)
+    debounce_fn = debounce.as_function(single_in=False, single_out=False)
+    result = list(debounce_fn(items))
+    
+    # Should get 2 items (doc1 updated, doc2)
+    assert len(result) == 2
+    ids = {item["id"] for item in result}
+    assert ids == {"doc1", "doc2"}
+    
+    # doc1 should have the updated content
+    doc1 = next(item for item in result if item["id"] == "doc1")
+    assert doc1["content"] == "updated"
+
+
+def test_debounce_no_key_field():
+    """Test Debounce when items don't have the key field - should pass through immediately."""
+    items = [
+        {"data": "no path field"},
+        "plain string",
+        123,
+    ]
+    
+    debounce = basic.Debounce(key_field="path", debounce_seconds=0.1)
+    debounce_fn = debounce.as_function(single_in=False, single_out=False)
+    result = list(debounce_fn(items))
+    
+    # All items without key field should pass through
+    assert len(result) == 3
+    assert result[0] == {"data": "no path field"}
+    assert result[1] == "plain string"
+    assert result[2] == 123
+
+
+def test_debounce_timing():
+    """Test that debounce actually waits for the specified duration."""
+    import time
+    
+    def item_generator():
+        yield {"path": "file.txt", "data": "v1"}
+        time.sleep(0.05)
+        yield {"path": "file.txt", "data": "v2"}
+    
+    start = time.time()
+    debounce = basic.Debounce(key_field="path", debounce_seconds=0.2)
+    debounce_fn = debounce.as_function(single_in=False, single_out=False)
+    result = list(debounce_fn(item_generator()))
+    elapsed = time.time() - start
+    
+    # Should have waited at least the debounce duration
+    assert elapsed >= 0.2
+    # Should get only the last item
+    assert len(result) == 1
+    assert result[0]["data"] == "v2"

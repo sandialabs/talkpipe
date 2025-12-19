@@ -318,13 +318,18 @@ def generate_html(analyzed_items: List[AnalyzedItem], output_file: str) -> None:
                 filtered_params = filtered_params[1:] if len(filtered_params) > 1 else filtered_params
 
             if filtered_params:
+                def _one_line(text) -> str:
+                    if text is None:
+                        return ""
+                    s = str(text)
+                    return " ".join(s.split())
                 html_content += '  <h3>Parameters:</h3>\n  <ul class="param-list">\n'
                 for p in filtered_params:
                     line_parts = [p.name]
                     if p.annotation:
-                        line_parts.append(f": {p.annotation}")
+                        line_parts.append(f": {_one_line(p.annotation)}")
                     if p.default:
-                        line_parts.append(f" = {p.default}")
+                        line_parts.append(f" = {_one_line(p.default)}")
                     param_line = "".join(line_parts)
                     # Use html.escape for param_line
                     html_content += f"    <li>{html.escape(param_line)}</li>\n"
@@ -402,13 +407,18 @@ def generate_text(analyzed_items: List[AnalyzedItem], output_file: str) -> None:
                 filtered_params = filtered_params[1:] if len(filtered_params) > 1 else filtered_params
 
             if filtered_params:
+                def _one_line(text) -> str:
+                    if text is None:
+                        return ""
+                    s = str(text)
+                    return " ".join(s.split())
                 lines.append("  Parameters:")
                 for p in filtered_params:
                     param_str = f"    {p.name}"
                     if p.annotation:
-                        param_str += f": {p.annotation}"
+                        param_str += f": {_one_line(p.annotation)}"
                     if p.default:
-                        param_str += f" = {p.default}"
+                        param_str += f" = {_one_line(p.default)}"
                     lines.append(param_str)
             lines.append("")
 

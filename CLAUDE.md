@@ -31,13 +31,17 @@ talkpipe/README.md contains a longer overview
 After implementing a new feature, update CHANGELOG.md.  
 After making a minor change to an existing feature,  check if the unreleased section of the changelog already 
     mentions the feature. If so, update that changelog entry.  If not, write a new entry in the changelog.
-When making a change, write a unit test that fails without the change, verify that the unit test fails, 
+When making a change, write a unit test that fails without the change or update an existing test, verify that the unit test fails, 
     make the change and then verity that the unit test now passes.  Notify the user if it is not reasonable 
     to write the unit test. 
+When writing unit tests, update and augment existing unit tests is possible and appropriate rather than writing
+    new unit tests.
+Unit tests should be as short as possible while still testing the functionality as completely as possible.
 User interfaces should be visually appealing and maintain consistency with each other.
 When writing or updating pipeline examples in documentation, write examples with stand-alone code and 
     test the examples by running them.
 When creating a new source or segment, update pyproject.toml to include it in the endpoints.
+docs/architecture/protocol.md names protocol conventions to use when writing new sources and segments.
 
 
 ## Important Commands

@@ -39,23 +39,24 @@ class LLMPrompt(AbstractSegment):
     """
 
     def __init__(
-            self, 
-            model: Annotated[Optional[str], "The name of the model to chat with"] = None, 
-            source: Annotated[Optional[str], "The source of the model (openai or ollama)"] = None, 
-            system_prompt: Annotated[str, "The system prompt for the model"] = "You are a helpful assistant.", 
+            self,
+            model: Annotated[Optional[str], "The name of the model to chat with"] = None,
+            source: Annotated[Optional[str], "The source of the model (openai or ollama)"] = None,
+            system_prompt: Annotated[str, "The system prompt for the model"] = "You are a helpful assistant.",
             multi_turn: Annotated[bool, "Whether the chat is multi-turn"] = True,
             pass_prompts: Annotated[bool, "Whether to pass the prompts through to the output"] = False,
             field: Annotated[Optional[str], "The field in the input item containing the prompt"] = None,
             set_as: Annotated[Optional[str], "The field to append the response to"] = None,
             temperature: Annotated[Optional[float], "The temperature to use for the model"] = None,
-            output_format: Annotated[Optional[BaseModel], "A class used for guided generation"] = None):
+            output_format: Annotated[Optional[BaseModel], "A class used for guided generation"] = None,
+            role_map: Annotated[Optional[str], "Initial conversation context as 'role:message,role:message'"] = None):
         super().__init__()
         logging.debug(f"Initializing LLMPrompt with name={model}, source={source}")
         cfg = get_config()
         model = model or cfg.get(TALKPIPE_MODEL_NAME, None)
         source = source or cfg.get(TALKPIPE_SOURCE, None)
         logging.debug(f"Resolved model name={model}, source={source}")
-        
+
         if model is None or source is None:
             logging.error("Model name and source must be provided")
             raise ValueError("Model name and source must be provided, specified in the configuration file, or in environment variables.")
@@ -65,7 +66,7 @@ class LLMPrompt(AbstractSegment):
             raise ValueError(f"Unknown source: {source}")
 
         logging.debug(f"Creating chat model with name: {model}")
-        self.chat = getPromptAdapter(source)(model=model, system_prompt=system_prompt, multi_turn=multi_turn, temperature=temperature, output_format=output_format)
+        self.chat = getPromptAdapter(source)(model=model, system_prompt=system_prompt, multi_turn=multi_turn, temperature=temperature, output_format=output_format, role_map=role_map)
 
         self.pass_prompts = pass_prompts
         self.field = field
@@ -111,26 +112,28 @@ class AbstractLLMGuidedGeneration(LLMPrompt):
         pass
 
     def __init__(
-            self, 
-            system_prompt: Annotated[str, "The system prompt for the LLM"], 
-            model: Annotated[Optional[str], "The name of the model to chat with"] = None, 
-            source: Annotated[Optional[str], "The source of the model (openai or ollama)"] = None, 
+            self,
+            system_prompt: Annotated[str, "The system prompt for the LLM"],
+            model: Annotated[Optional[str], "The name of the model to chat with"] = None,
+            source: Annotated[Optional[str], "The source of the model (openai or ollama)"] = None,
             multi_turn: Annotated[bool, "Whether the chat is multi-turn"] = False,
             pass_prompts: Annotated[bool, "Whether to pass the prompts through to the output"] = False,
             field: Annotated[Optional[str], "The field in the input item containing the prompt"] = None,
             temperature: Annotated[Optional[float], "The temperature to use for the model"] = None,
-            set_as: Annotated[Optional[str], "The field to append the response to"] = None):
-        
+            set_as: Annotated[Optional[str], "The field to append the response to"] = None,
+            role_map: Annotated[Optional[str], "Initial conversation context as 'role:message,role:message'"] = None):
+
         super().__init__(
-            model, 
-            source=source, 
-            system_prompt=system_prompt, 
-            multi_turn=multi_turn, 
-            pass_prompts=pass_prompts, 
-            field=field, 
-            set_as=set_as, 
-            temperature=temperature, 
-            output_format=self.__class__.get_output_format())
+            model,
+            source=source,
+            system_prompt=system_prompt,
+            multi_turn=multi_turn,
+            pass_prompts=pass_prompts,
+            field=field,
+            set_as=set_as,
+            temperature=temperature,
+            output_format=self.__class__.get_output_format(),
+            role_map=role_map)
         
 
 @register_segment("llmScore")

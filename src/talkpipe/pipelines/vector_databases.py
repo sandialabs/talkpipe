@@ -13,7 +13,6 @@ class MakeVectorDatabaseSegment(AbstractSegment):
 
     Path supports multiple URI schemes:
     - File path: "./my_db" or "/path/to/db" - Persistent storage
-    - Memory: "memory://" - Ephemeral in-memory database (faster, no disk I/O)
     - Temp: "tmp://name" - Process-scoped temporary database (shared by name, auto-cleanup on exit)
     """
 
@@ -21,10 +20,13 @@ class MakeVectorDatabaseSegment(AbstractSegment):
                  embedding_field: Annotated[str, "Field to use for embeddings"],
                  embedding_model: Annotated[str, "Embedding model to use"],
                  embedding_source: Annotated[str, "Source of text to embed"],
-                 path: Annotated[str, "Path to LanceDB database. Supports file paths, 'memory://', or 'tmp://name'"],
+                 path: Annotated[str, "Path to LanceDB database. Supports file paths or 'tmp://name'"],
                  table_name: Annotated[str, "Name of the table in the database"] = "docs",
                  doc_id_field: Annotated[Optional[str], "Field containing document ID"] = None,
                  overwrite: Annotated[bool, "If true, overwrite existing table"] = False,
+                 fail_on_error: Annotated[bool, "If true, fail on error instead of logging"] = True,
+                 batch_size: Annotated[int, "Batch size for committing in the vector database"] = 100,
+                 optimize_on_batch: Annotated[bool, "If true, optimize the table after each batch.  Otherwise optimize after last batch."]=False,
                  ):
         super().__init__()
         self.embedding_model = embedding_model
@@ -34,15 +36,20 @@ class MakeVectorDatabaseSegment(AbstractSegment):
         self.table_name = table_name
         self.doc_id_field = doc_id_field
         self.overwrite = overwrite
+        self.fail_on_error = fail_on_error
 
         self.pipeline = LLMEmbed(model=self.embedding_model,
                                 source=self.embedding_source,
                                 field=self.embedding_field,
-                                set_as="vector") | \
+                                set_as="vector",
+                                fail_on_error=self.fail_on_error) | \
                         add_to_lancedb(path=self.path,
                                        table_name=self.table_name,
                                        doc_id_field=self.doc_id_field,
-                                       overwrite=self.overwrite)
+                                       overwrite=self.overwrite,
+                                       batch_size=batch_size,
+                                       optimize_on_batch=optimize_on_batch,
+                                       )
 
     def transform(self, input_iter):
         yield from self.pipeline.transform(input_iter)
@@ -60,14 +67,13 @@ class SearchVectorDatabaseSegment(AbstractSegment):
 
     Path supports multiple URI schemes:
     - File path: "./my_db" or "/path/to/db" - Persistent storage
-    - Memory: "memory://" - Ephemeral in-memory database (faster, no disk I/O)
     - Temp: "tmp://name" - Process-scoped temporary database (shared by name, auto-cleanup on exit)
     """
 
     def __init__(self,
                  embedding_model: Annotated[str, "Embedding model to use"]=None,
                  embedding_source: Annotated[str, "Source of text to embed"]=None,
-                 path: Annotated[str, "Path to LanceDB database. Supports file paths, 'memory://' for in-memory, or 'tmp://name' for process-scoped temp (auto-cleanup)"]=None,
+                 path: Annotated[str, "Path to LanceDB database. Supports file paths or 'tmp://name' for process-scoped temp (auto-cleanup)"]=None,
                  table_name: Annotated[str, "Name of the table in the database"] = "docs",
                  query_field: Annotated[Optional[str], "Field containing the query text to embed. If None, expects string inputs."] = None,
                  limit: Annotated[int, "Number of search results to return"] = 10,

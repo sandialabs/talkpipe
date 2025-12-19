@@ -11,6 +11,13 @@ TalkPipe's internal Python DSL for building data processing pipelines.
 - Generator-based streaming architecture
 - Component composition patterns
 
+### [Data Protocol](protocol.md)
+Conventions and protocols for data flowing through TalkPipe pipelines.
+- Core principles: generators, arbitrary objects, cardinality
+- Dictionary convention for higher-level pipelines
+- Field access utilities and patterns
+- Protocol layers and best practices
+
 ### [ChatterLang](chatterlang.md)
 TalkPipe's external domain-specific language for defining workflows.
 - Language syntax and grammar
