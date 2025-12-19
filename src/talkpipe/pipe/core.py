@@ -131,11 +131,25 @@ class AbstractSegment(ABC, HasRuntimeComponent, Generic[T, U]):
         """
 
     def registerUpstream(self, upstream: 'AbstractSegment'):
-        """Register an upstream segment.  This is used in the Pipe API to track dependencies."""
+        """Register an upstream segment.
+        
+        Used internally by the Pipe API to track dependencies when chaining segments.
+        This allows the segment to know what segment is feeding it data.
+        
+        Args:
+            upstream: The upstream segment that feeds data into this segment
+        """
         self.upstream.append(upstream)
 
     def registerDownstream(self, downstream: 'AbstractSegment'):
-        """Register a downstream segment.  This is used in the Pipe API to track dependencies."""
+        """Register a downstream segment.
+        
+        Used internally by the Pipe API to track dependencies when chaining segments.
+        This allows the segment to know what segments consume its output.
+        
+        Args:
+            downstream: The downstream segment that consumes this segment's output
+        """
         self.downstream.append(downstream)
 
     def __or__(self, other: 'AbstractSegment[U, Any]') -> 'Pipeline':
@@ -239,7 +253,14 @@ class AbstractSource(ABC, HasRuntimeComponent, Generic[U]):
         raise RuntimeError("Cannot register an upstream segment for a source.")
 
     def registerDownstream(self, downstream: 'AbstractSegment'):
-        """Register a downstream segment.  This is used in the Pipe API to track dependencies."""
+        """Register a downstream segment.
+        
+        Used internally by the Pipe API to track dependencies when chaining sources with segments.
+        This allows the source to know what segments consume its output.
+        
+        Args:
+            downstream: The downstream segment that consumes this source's output
+        """
         self.downstream.append(downstream)
 
     def __or__(self, other: 'AbstractSegment[U, Any]') -> 'Pipeline':
@@ -257,17 +278,39 @@ class AbstractSource(ABC, HasRuntimeComponent, Generic[U]):
 
 def source(*decorator_args: Annotated[Any, "Positional arguments for the input generator"], 
            **decorator_kwargs: Annotated[Any, "Keyword arguments for the input generator"]):
-    """Decorator to convert a function into an source class with optional parameters.
+    """Decorator to convert a function into a source class with optional parameters.
+    
+    Sources are entry points for pipelines. They generate data without requiring input.
+    This decorator converts a generator function into a reusable Source class.
     
     Can be used with or without arguments:
-    @input 
-    def func(): ...
     
-    @input(param1=value1, param2=value2)
-    def func(): ...
+        # Without arguments - function takes no parameters
+        @source
+        def myNumbers():
+            for i in range(10):
+                yield i
+        
+        # With arguments - function parameters become instance parameters
+        @source()
+        def myLines(filename: str):
+            with open(filename) as f:
+                for line in f:
+                    yield line.strip()
+    
+    The decorated function should yield items to be consumed by segments downstream.
     
     Returns:
-        Callable: A decorator that creates an Input subclass
+        A Source class that can be instantiated and chained into pipelines.
+        The class preserves the original function's docstring for documentation.
+    
+    Examples:
+        # Create and use sources
+        numbers = myNumbers()
+        lines = myLines("data.txt")
+        
+        # Chain with segments
+        pipeline = myNumbers() | some_segment | output_segment
     """
     # Determine if used with or without arguments
     if len(decorator_args) == 1 and callable(decorator_args[0]):
@@ -325,17 +368,41 @@ def source(*decorator_args: Annotated[Any, "Positional arguments for the input g
 
 def segment(*decorator_args: Annotated[Any, "Positional arguments for the operation"], 
             **decorator_kwargs: Annotated[Any, "Keyword arguments for the operation"]):
-    """Decorator to convert a function into an segment class with optional parameters.
+    """Decorator to convert a function into a segment class with optional parameters.
+    
+    Segments are operations that transform data flowing through pipelines.
+    This decorator converts a transformation function into a reusable Segment class.
     
     Can be used with or without arguments:
-    @segment 
-    def func(x): ...
     
-    @segment(param1=value1, param2=value2)
-    def func(x): ...
+        # Without arguments - processes all items in one pass
+        @segment
+        def uppercase(items):
+            for item in items:
+                yield item.upper()
+        
+        # With arguments - function receives items and additional parameters
+        @segment()
+        def filterByValue(items, field: str, target: str):
+            for item in items:
+                if item.get(field) == target:
+                    yield item
+    
+    The decorated function receives an iterable of input items and should yield
+    output items. This enables lazy evaluation - items flow through the pipeline
+    on-demand rather than being fully buffered.
     
     Returns:
-        Callable: A decorator that creates an Operation subclass
+        A Segment class that can be instantiated and chained into pipelines.
+        The class preserves the original function's docstring for documentation.
+    
+    Examples:
+        # Create and use segments
+        upper = uppercase()
+        filtered = filterByValue(field="status", target="active")
+        
+        # Chain segments together
+        pipeline = source | uppercase() | filterByValue(field="type", target="user")
     """
     # Determine if used with or without arguments
     if len(decorator_args) == 1 and callable(decorator_args[0]):
@@ -390,12 +457,46 @@ def segment(*decorator_args: Annotated[Any, "Positional arguments for the operat
     return decorator
 
 def field_segment(*decorator_args, **decorator_kwargs):
-    """
-    Decorator that creates a segment which processes a single field and optionally appends results.
+    """Decorator that creates a segment for processing a single field per item.
     
-    Args can include:
-        field: The field to extract from each item
-        set_as: The field name to append the result as
+    Field segments are specialized segments designed to extract a field from items,
+    process it, and optionally set the result back on the item. This is a common
+    pattern for transforming item properties in pipelines.
+    
+    When field_segment processes an item:
+    1. Extracts the specified field from the item (or uses the entire item if no field)
+    2. Passes the extracted value to the decorated function
+    3. Either yields the result directly or sets it on the item and yields the item
+    
+    Keyword arguments can include:
+        field: The name of the field to extract from each item
+        set_as: The name of the field to set with the result on the item
+        multi_emit: Whether the function returns multiple results per input (advanced)
+    
+    When used without parameters:
+        @field_segment
+        def extractDomain(email: str):
+            return email.split('@')[1]
+    
+    When used with parameters:
+        @field_segment()
+        def extractDomain(email: str):
+            return email.split('@')[1]
+    
+    Returns:
+        A FieldSegment class that can be instantiated and chained into pipelines.
+        The class preserves the original function's docstring.
+    
+    Examples:
+        # Extract and return just the value
+        pipeline = data_source | extractDomain(field="email") | output
+        # Items: [{'email': 'user@example.com'}]
+        # Output: ['example.com']
+        
+        # Extract, process, and set back on item
+        pipeline = data_source | extractDomain(field="email", set_as="domain") | output
+        # Items: [{'email': 'user@example.com'}]
+        # Output: [{'email': 'user@example.com', 'domain': 'example.com'}]
     """
     def decorator(func):
         class FieldSegment(AbstractFieldSegment):
@@ -425,13 +526,33 @@ def field_segment(*decorator_args, **decorator_kwargs):
 class AbstractFieldSegment(AbstractSegment[T, U]):
     """Abstract base class for segments that process a single field and optionally set results.
     
-    This class handles the 'field' and 'set_as' parameters that are commonly used
-    in field-processing segments, making it easy for descendant classes to have
-    their own constructors while still supporting field extraction and result setting.
+    This class handles the common pattern of extracting a field from items, processing
+    the field value, and optionally setting the result back on the item. This makes it
+    easy for descendant classes to focus on the processing logic while field extraction
+    and result assignment are handled automatically.
     
-    Args:
-        field: The field to extract from each item (optional)
-        set_as: The field name to set/append the result as (optional)
+    The class can work in two modes:
+    1. Extract and return: Process a field value and yield just the result
+    2. Extract, process, and set: Process a field value and set it as a field on the item
+    
+    Attributes:
+        field: The field name to extract (if None, uses entire item)
+        set_as: The field name to set with the result (if None, yields result directly)
+        multi_emit: Whether process_value returns multiple results (advanced usage)
+    
+    Example:
+        class ExtractDomain(AbstractFieldSegment):
+            def process_value(self, email_value: str) -> str:
+                return email_value.split('@')[1]
+        
+        # Usage: Extract just the domain
+        extractor = ExtractDomain(field="email")
+        domains = extractor({'email': 'user@example.com'})
+        
+        # Usage: Extract and set as new field
+        extractor = ExtractDomain(field="email", set_as="domain")
+        result = extractor({'email': 'user@example.com'})
+        # Yields: {'email': 'user@example.com', 'domain': 'example.com'}
     """
 
     def __init__(self, 
@@ -449,24 +570,46 @@ class AbstractFieldSegment(AbstractSegment[T, U]):
         """Process the extracted field value or the entire item.
         
         This method must be implemented by subclasses to define how to process
-        the extracted field value (or entire item if no field is specified).
+        the extracted field value. Subclasses should return either a single value
+        or (for advanced usage with multi_emit=True) an iterable of values.
         
         Args:
             value: The field value extracted from the item, or the entire item
                   if no field was specified
         
         Returns:
-            Any: The processed result
+            The processed result. For standard usage, return a single value.
+            For advanced usage with multi_emit=True, return an iterable.
+        
+        Examples:
+            # Standard: return single value
+            def process_value(self, email: str):
+                return email.split('@')[1]
+            
+            # Advanced: return multiple values
+            def process_value(self, text: str):
+                return text.split()  # Returns list of words
         """
         pass
     
     def transform(self, input_iter: Iterable[T]) -> Iterator[U]:
         """Transform input items by processing field values.
         
-        For each item:
-        1. Extract the specified field value (or use entire item if no field)
-        2. Process the value using process_value()
-        3. Either yield the result directly or set it on the item and yield the item
+        For each input item:
+        1. Extracts the specified field value (or uses entire item if field is None)
+        2. Passes the extracted value to process_value()
+        3. Handles results based on multi_emit setting:
+           - If multi_emit=False: wraps single result in list
+           - If multi_emit=True: assumes result is already iterable
+        4. For each result:
+           - If set_as is specified: sets result on item and yields modified item
+           - If set_as is None: yields result directly
+        
+        Args:
+            input_iter: An iterable of input items to process
+        
+        Yields:
+            Processed items or values based on the multi_emit and set_as settings
         """
         for item in input_iter:
             value = data_manipulation.extract_property(item, self.field) if self.field else item
@@ -482,8 +625,29 @@ class AbstractFieldSegment(AbstractSegment[T, U]):
                     yield result
 
 class Pipeline(AbstractSegment):
-    """A pipeline is a sequence of operations.  Each operation draws from the output of the previous operation
-    and yields items to the next operation.  The pipeline can be executed by calling it with an input iterator.    
+    """A pipeline is a sequence of operations chained together for data processing.
+    
+    Each operation in the pipeline draws from the output of the previous operation.
+    Pipelines support both sources (entry points) and segments (transformation operations).
+    
+    Key characteristics:
+    - Operations execute in sequence: source → segment1 → segment2 → ... → segmentN
+    - Data flows lazily through the pipeline on-demand
+    - Sources generate initial data; segments transform it
+    - Can be created using the | (pipe) operator or the Pipeline constructor
+    
+    Attributes:
+        operations: List of AbstractSource and AbstractSegment objects in execution order
+    
+    Examples:
+        # Using the pipe operator (preferred)
+        pipeline = source | segment1 | segment2 | segment3
+        
+        # Using the constructor
+        pipeline = Pipeline(source, segment1, segment2)
+        
+        # Execute the pipeline
+        results = list(pipeline())  # Note: pass None or no arguments
     """
     
     def __init__(self, *operations: Union[AbstractSource, AbstractSegment]):
@@ -491,9 +655,16 @@ class Pipeline(AbstractSegment):
         self.operations = list(operations)
         
     def transform(self, input_iter: Iterable[Any] = None) -> Iterator[Any]:
-        """
-        Execute pipeline for iterable processing.
-        Works with both AbstractInput and AbstractTransform.
+        """Execute pipeline for iterable processing.
+        
+        Works with both sources (which generate initial data) and segments
+        (which transform data from upstream operations).
+        
+        Args:
+            input_iter: Not used for pipelines containing sources. Can be ignored.
+        
+        Yields:
+            Final output items from the last operation in the pipeline
         """
         current_iter = input_iter
         for op in self.operations:
@@ -504,14 +675,40 @@ class Pipeline(AbstractSegment):
         yield from current_iter
     
     def __or__(self, other: Union[AbstractSource, AbstractSegment]) -> 'Pipeline':
+        """Chain another operation onto this pipeline using the | operator.
+        
+        Args:
+            other: Another AbstractSource or AbstractSegment to append
+        
+        Returns:
+            A new Pipeline with the additional operation appended
+        """
         return Pipeline(*self.operations, other)
     
 
 class Script(AbstractSegment):
-    """A list of one or more segments to execute in order.
+    """A script is a sequence of segments that execute fully before the next segment begins.
     
-    The difference between a Script and a Pipeline is that a Script
-    fully resolves each segment before moving to the next one.
+    The difference between a Script and a Pipeline is timing:
+    - Pipeline: Lazy evaluation - items flow through operations on-demand
+    - Script: Each segment fully completes before the next one starts
+    
+    This is useful when operations have side effects or when you need to ensure
+    one stage is completely finished before moving to the next. Scripts are
+    particularly common in ChatterLang scripts.
+    
+    Attributes:
+        segments: List of AbstractSegment and AbstractSource objects to execute in order
+    
+    Examples:
+        # Create and execute a script
+        script = Script([
+            source,
+            segment1,
+            segment2,
+            segment3
+        ])
+        results = list(script())
     """
 
     def __init__(self, segments: List[AbstractSegment]):
@@ -519,10 +716,19 @@ class Script(AbstractSegment):
         self.segments = segments
 
     def transform(self, initial_input: Annotated[Iterable[Any], "The initial input data"] = None) -> Iterator[Any]:
-        """Run the script
+        """Run the script with each segment fully executing before the next.
         
-        If the first item in a segment is an AbstractSource, it will be called
-        to generate the initial input. Otherwise, the initial input will be passed.
+        If the first segment is an AbstractSource, it will be called to generate
+        the initial input. Otherwise, the initial_input will be used. All
+        intermediate segments are fully consumed (buffered) to ensure they
+        complete before the next segment begins.
+        
+        Args:
+            initial_input: Initial data to pass to the first segment (ignored if
+                          first segment is a Source)
+        
+        Yields:
+            Final output items from the last segment
         """
         current_iter = initial_input
         for i, seg in enumerate(self.segments):
@@ -537,9 +743,25 @@ class Script(AbstractSegment):
 
 
 class Loop(AbstractSegment):
-    """
-    A class that allows looping over an iterable multiple times.  Mostly useful
-    in chatterlang.  In python, just using your own loop is probably easier.
+    """A loop segment that executes a script multiple times over input data.
+    
+    This segment is useful for iterative processing where the same series of
+    operations needs to be applied multiple times. It's particularly useful
+    in ChatterLang for implementing algorithmic loops. In Python, typically
+    writing a loop directly is preferred, but this class provides pipeline-based
+    loop semantics.
+    
+    The Loop passes the output of one iteration as the input to the next iteration,
+    allowing data to accumulate or be refined across iterations.
+    
+    Attributes:
+        times: Number of iterations to execute
+        script: The Script to execute repeatedly
+    
+    Examples:
+        # Apply the same transformations 3 times
+        loop = Loop(times=3, script=Script([segment1, segment2]))
+        result = list(loop(initial_data))
     """
     
     def __init__(self, times: int, script: Script):
@@ -548,6 +770,14 @@ class Loop(AbstractSegment):
         self.script = script
 
     def transform(self, initial_input: Iterable[Any] = None) -> Iterator[Any]:
+        """Execute the script multiple times, passing output to the next iteration.
+        
+        Args:
+            initial_input: Initial data for the first iteration
+        
+        Yields:
+            Final output items from the last iteration
+        """
         current_iter = initial_input
         for i in range(self.times):
             current_iter = self.script.transform(current_iter)

@@ -194,8 +194,16 @@ def readJsonl(item: Annotated[str, "The path to the jsonl file"]):
 @register_segment("loadsJsonl")
 @segment()
 def loadsJsonl(data: Iterable[str]):
-    """Reads each item from the input stream, interpreting it as a jsonl string. 
+    """Deserialize JSONL (JSON Lines) strings from the input stream.
     
+    JSON Lines is a format where each line is a valid JSON object. This segment
+    interprets each input string as a single JSON line and parses it into a Python object.
+    Useful for processing line-delimited JSON data from files or network streams.
+    
+    Each line is expected to be valid JSON; invalid lines will raise an exception.
+    
+    Yields:
+        Parsed JSON objects from each input line.
     """
     for line in data:
         yield json.loads(line)
@@ -203,7 +211,18 @@ def loadsJsonl(data: Iterable[str]):
 @register_segment('dumpsJsonl')
 @segment()
 def dumpsJsonl(data: Iterable):
-    """Drains the input stream and dumps each item as a jsonl string.
+    """Serialize items from the input stream as JSON Lines strings.
+    
+    JSON Lines is a format where each line is a valid JSON object. This segment
+    converts each input item (typically a dict or list) into a JSON string and yields
+    one JSON object per line. Useful for writing line-delimited JSON data to files or
+    for streaming JSON data across network connections.
+    
+    Non-JSON-serializable objects will raise a TypeError; use a preprocessing
+    segment if needed to convert objects to JSON-compatible types.
+    
+    Yields:
+        JSON-serialized strings (one per input item, no trailing newline).
     """
     for item in data:
         yield json.dumps(item) 
@@ -214,8 +233,17 @@ def writePickle(data,
                 fname: Annotated[str, "The name of the file to write"], 
                 field: Annotated[Optional[str], "Field to extract from each item before writing"] = None, 
                 first_only: Annotated[bool, "If True, only the first item in the input stream is written"] = False):
-    """Writes each item into a pickle file. If first_only is True, only the first item is written.
-    In any event, all items are yielded.
+    """Write items to a pickle file while passing them through the pipeline.
+    
+    This segment is a passthrough - it writes to disk as a side effect but yields
+    all input items unchanged, allowing further processing downstream.
+    
+    Pickle format is Python-specific and best used for caching within Python
+    applications. For interoperability with other tools, consider JSON or CSV.
+    
+    All input items are yielded, regardless of first_only setting. When first_only
+    is True, only the first item is written to the file, but all items are still
+    yielded for downstream processing.
     """
     first = True
     with open(os.path.expanduser(fname), 'wb') as f:
@@ -234,9 +262,17 @@ def writeString(data,
                 field: Annotated[Optional[str], "Field to extract from each item before writing"] = None, 
                 new_line: Annotated[bool, "If True, a new line will be written after each item"] = True, 
                 first_only: Annotated[bool, "If True, the segment will write only the first item in the input stream"] = False):
-    """Writes each item into a file after casting it to a string.
+    """Write string representations of items to a text file while passing them through.
     
-    In any event, all items will be yielded.
+    This segment is a passthrough - it writes to disk as a side effect but yields
+    all input items unchanged, allowing further processing downstream.
+    
+    Each item is converted to a string using str() before writing. Optionally appends
+    a newline after each item for line-delimited output.
+    
+    All input items are yielded, regardless of first_only setting. When first_only
+    is True, only the first item is written to the file, but all items are still
+    yielded for downstream processing.
     """
     first = True
     with open(os.path.expanduser(fname), 'w') as f:

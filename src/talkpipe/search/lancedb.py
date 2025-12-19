@@ -65,13 +65,27 @@ def search_lancedb(items: Annotated[object, "Items with the query vectors"],
                    vector_dim: Annotated[Optional[int], "Expected dimension of vectors"]=None,
                    read_consistency_interval: Annotated[int, "Read consistency interval in seconds"]=10
                 ):
-    """Search for similar vectors in LanceDB and return SearchResult objects.
-
-    The path parameter supports multiple URI schemes:
-    - File path: "./my_db" or "/path/to/db" - Persistent storage
-    - Memory: "memory://" - Ephemeral in-memory database (faster, no disk I/O)
-    - Temp: "tmp://name" - Process-scoped temporary database (shared by name, auto-cleanup on exit)
-
+    """Search for similar vectors in a LanceDB vector database.
+    
+    Searches a vector database created with addToLanceDB using vector similarity search.
+    For each input item, extracts a query vector and finds the most similar vectors in
+    the database, returning the associated documents.
+    
+    LanceDB is optimized for vector similarity search and supports approximate nearest
+    neighbor (ANN) search for efficient similarity matching. Results are scored by
+    similarity distance.
+    
+    Path supports multiple storage options:
+    - "memory://": Fast in-memory database (ephemeral, lost on exit)
+    - "/path/to/db": Persistent file-based database
+    - "tmp://name": Process-scoped temporary database (shared by name, auto-cleanup on exit)
+    
+    Useful for:
+    - Building semantic search systems
+    - Finding similar items using embeddings
+    - Recommendation systems based on vector similarity
+    - Image or text similarity matching
+    
     Yields:
         SearchResult objects or lists of SearchResult objects.
     """
@@ -116,17 +130,30 @@ def add_to_lancedb(items: Annotated[object, "Items with the vectors and document
                    batch_size: Annotated[int, "Batch size for adding vectors"]=1,
                    optimize_on_batch: Annotated[bool, "If true, optimize the table after each batch.  Otherwise optimize after last batch."]=False,
                    ):
-    """Add vectors and documents to LanceDB using LanceDBDocumentStore.
-
-    The path parameter supports multiple URI schemes:
-    - File path: "./my_db" or "/path/to/db" - Persistent storage
-    - Memory: "memory://" - Ephemeral in-memory database (faster, no disk I/O)
-    - Temp: "tmp://name" - Process-scoped temporary database (shared by name, auto-cleanup on exit)
-
-    By default, this segment uses upsert behavior: if a document with the same ID already exists,
-    it will be updated with the new vector and metadata. Set upsert=False to raise an error on
-    duplicate IDs instead.
-
+    """Add vectors and documents to a LanceDB vector database.
+    
+    Builds a searchable vector index from items containing embeddings (vectors).
+    Each item should have a vector field (typically embeddings from a model) and
+    associated metadata or documents to return in search results.
+    
+    LanceDB stores both the vectors for similarity search and the associated documents
+    for retrieval. Vectors are indexed for efficient approximate nearest neighbor search.
+    
+    Path supports multiple storage options:
+    - "memory://": Fast in-memory database (ephemeral, lost on exit)
+    - "/path/to/db": Persistent file-based database
+    - "tmp://name": Process-scoped temporary database (shared by name, auto-cleanup on exit)
+    
+    By default uses upsert behavior: if a document with the same ID already exists,
+    it will be updated with the new vector and metadata. Set upsert=False to raise
+    an error on duplicate IDs instead.
+    
+    Useful for:
+    - Creating semantic search indexes from embeddings
+    - Building recommendation systems
+    - Storing document embeddings for similarity matching
+    - Building multi-modal search systems
+    
     Returns:
         The original items with the document IDs added.
     """

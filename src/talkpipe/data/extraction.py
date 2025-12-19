@@ -246,14 +246,32 @@ def readdocx(file_path: Annotated[str, "Path to the .docx file to read"]):
 @register_segment("listFiles")
 @segment()
 def listFiles(patterns: Annotated[Iterable[str], "Iterable of file patterns or paths (supports wildcards like *, ?, [])"], full_path: Annotated[bool, "Whether to yield full absolute paths or just filenames"] = True, files_only: Annotated[bool, "Whether to include only files (excluding directories)"] = False):
-    """
-    Lists files matching given patterns (potentially with wildcards) and yields their paths.
-
+    """List files matching given glob patterns and yield their paths.
+    
+    Takes file patterns (supporting standard glob wildcards) and yields matching file
+    paths. Glob patterns support:
+    - * : matches any number of characters in a filename
+    - ? : matches exactly one character
+    - [abc] : matches any character in the brackets
+    - ** : matches across directories (recursive)
+    
+    Patterns are expanded to include home directory (~) and environment variables.
+    If a pattern contains no wildcards and is a directory, all files in that directory
+    are implicitly searched.
+    
+    Useful for:
+    - Discovering files by pattern (e.g., all CSV files)
+    - Finding files by name (e.g., log files)
+    - Batch processing multiple files matching a pattern
+    - Building file lists for pipelines
+    
     Yields:
-        str: File paths (absolute if full_path=True, filenames if full_path=False).
-
-    Raises:
-        None: This function does not raise exceptions for non-matching patterns.
+        Absolute paths if full_path=True, just filenames if full_path=False.
+    
+    Examples:
+        listFiles(["*.txt"]) - all text files in current directory
+        listFiles(["/data/**/*.csv"]) - all CSV files under /data recursively
+        listFiles(["~/Documents"]) - all files in ~/Documents
     """
     for pattern in patterns:
         expanded_pattern = os.path.expanduser(pattern)

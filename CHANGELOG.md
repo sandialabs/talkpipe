@@ -25,6 +25,7 @@
 - Allow for silently failing (with a log message) when an embedding fails. Fixed a bug where
   `embedder.execute()` was called twice, once inside a try-except block and once outside,
   causing errors to be raised even when `fail_on_error=False`.  
+- Improved documentation and added github copilot instructions
 
 ## 0.10.2
 

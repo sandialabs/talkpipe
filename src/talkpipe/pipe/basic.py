@@ -301,8 +301,17 @@ def extractProperty(item,
 def assign(items: Annotated[Iterator[Any], "The input item to modify"],
            value: Annotated[Any, "The value to assign"],
            set_as: Annotated[str, "The field to assign the value to"]):
-    """Assigns the specified value to the specified field.
-
+    """Set a field to a constant value on each item in the pipeline.
+    
+    This segment modifies each input item by setting a specified field to the same
+    value for every item. The modified items are then passed through for downstream
+    processing.
+    
+    Useful for adding metadata, enriching items with constants, or setting default values.
+    Works with dictionaries, objects, and Pydantic models.
+    
+    Yields:
+        Modified items with the specified field set to the given value.
     """
     for item in items:
         assign_property(item, set_as, value)
@@ -368,11 +377,18 @@ def concat(items,
            fields: Annotated[str, "Comma-separated list of fields to concatenate."],
            delimiter: Annotated[str, "String to insert between concatenated fields."] = "\n\n", 
            set_as: Annotated[str, "If specified, adds concatenated result as new field with this name."] = None):
-    """Concatenates specified fields from each item with a delimiter.
-
+    """Concatenate specified fields from each item into a single string.
+    
+    This segment extracts multiple fields from each item, converts them to strings,
+    and joins them with the specified delimiter. Can either replace the item with
+    the concatenated string or add the result as a new field on the original item.
+    
+    Useful for combining text from multiple fields, creating composite keys, or
+    generating summaries from item components.
+    
     Yields:
-        If set_as is specified, yields the original item with concatenated result added as new field.
-        Otherwise, yields just the concatenated string.
+        If set_as is specified: Original item with concatenated result added as new field.
+        Otherwise: Just the concatenated string.
     """
     props = parse_key_value_str(fields)
     for item in items:
@@ -428,13 +444,19 @@ def slice(item, range: Annotated[str, "String in format 'start:end' where both s
 def longestStr(items, 
                field_list: Annotated[str, "Comma-separated list of fields to check for longest string."],
                set_as: Annotated[str, "If specified, adds longest string as new field with this name."] = None):
-    """Finds the longest string among specified fields in the input item.  If 
-    a field is not present or is not a string, it is ignored.  If two or more
-    fields have the same length, the first one encountered is returned.  If
-    none of the specified fields are present, and empty string is yielded.
-
+    """Find the longest string value among specified fields in each item.
+    
+    Compares the string representations of multiple fields and returns the one
+    with the greatest length. Non-string fields are converted to strings before
+    comparison. Missing fields are ignored. If multiple fields have equal length,
+    the first one is returned.
+    
+    Useful for selecting the most detailed description from multiple fields,
+    or finding the fullest version of redundant data.
+    
     Yields:
-        The longest string found in the specified fields of the input items.
+        The longest string found. If set_as is specified: original item with
+        the longest string added as a new field. Otherwise: just the string.
     """
     fields = parse_key_value_str(field_list)
     for item in items:
@@ -458,10 +480,20 @@ def isIn(items,
          value: Annotated[Any, "Value to check for in the field"],
          as_filter: Annotated[bool, "Whether to use this function as a filter. If false, only return True or False. If true, yield the item if the condition is true."] = True,
          set_as: Annotated[str, "If specified, the result will be added to this field in the item."] = None):
-    """Filters items based on whether a field contains a specified value.
-
+    """Check if a field contains a value, optionally filtering items.
+    
+    Tests whether a specified value is contained in a field using Python's 'in' operator.
+    Can operate in two modes:
+    - Filter mode (as_filter=True): yields items where the condition is true
+    - Boolean mode (as_filter=False): yields boolean results for all items
+    
+    Useful for searching strings for substrings, checking list membership, or
+    checking dictionary key existence.
+    
     Yields:
-        Items where the specified field contains the specified value.
+        In filter mode: items where value is in the field.
+        In boolean mode: True/False for each item.
+        If set_as is specified: item with boolean result added as new field.
     """
     for item in items:
         data = extract_property(item, field)
@@ -483,10 +515,20 @@ def isNotIn(items,
             value: Annotated[Any, "Value to check for in the field"],
             as_filter: Annotated[bool, "Whether to use this function as a filter. If false, only return True or False. If true, yield the item if the condition is true."] = True,
             set_as: Annotated[str, "If specified, the result will be added to this field in the item."] = None):
-    """Filters items based on whether a field does not contain a specified value.
-
+    """Check if a field does not contain a value, optionally filtering items.
+    
+    Tests whether a specified value is NOT contained in a field using Python's 'not in' operator.
+    Can operate in two modes:
+    - Filter mode (as_filter=True): yields items where the condition is true
+    - Boolean mode (as_filter=False): yields boolean results for all items
+    
+    Useful for excluding items with specific patterns, filtering out unwanted strings,
+    or checking that values are absent.
+    
     Yields:
-        Items where the specified field does not contain the specified value.
+        In filter mode: items where value is NOT in the field.
+        In boolean mode: True/False for each item.
+        If set_as is specified: item with boolean result added as new field.
     """
     for item in items:
         data = extract_property(item, field)
@@ -507,10 +549,20 @@ def isTrue(items,
            as_filter: Annotated[bool, "Whether to use this function as a filter. If false, only return True or False. If true, yield the item if the condition is true."] = True,
            field: Annotated[str, "The field to check for truthiness. Defaults to '_', which means the entire item."] = "_",
            set_as: Annotated[str, "If specified, the result will be added to this field in the item."] = None):
-    """
-    Checks if the specified field is true.  A field is considered false if it is
-    None, False, an integer 0, or an empty string.  It is True otherwise.
-
+    """Check if a field is truthy, optionally filtering items.
+    
+    Tests whether the specified field is considered true. A value is considered false
+    if it is None, False, an integer 0, or an empty string. All other values are true.
+    Can operate in two modes:
+    - Filter mode (as_filter=True): yields items where the field is truthy
+    - Boolean mode (as_filter=False): yields boolean results for all items
+    
+    Useful for filtering items by presence of content, non-empty fields, or truthy values.
+    
+    Yields:
+        In filter mode: items where the field is truthy.
+        In boolean mode: True/False for each item.
+        If set_as is specified: item with boolean result added as new field.
     """
     for item in items:
         to_eval = extract_property(item, field)
@@ -532,10 +584,20 @@ def isFalse(items,
              as_filter: Annotated[bool, "Whether to use this function as a filter. If false, only return True or False. If true, yield the item if the condition is true."] = True,
              field: Annotated[str, "The field to check for falsiness. Defaults to '_', which means the entire item."] = "_",
              set_as: Annotated[str, "If specified, the result will be added to this field in the item."] = None):
-    """
-    Checks if the specified field is false.  A field is considered false if it is
-    None, False, an integer 0, or an empty string.  It is True otherwise.
-
+    """Check if a field is falsy, optionally filtering items.
+    
+    Tests whether the specified field is considered false. A value is considered false
+    if it is None, False, an integer 0, or an empty string. All other values are true.
+    Can operate in two modes:
+    - Filter mode (as_filter=True): yields items where the field is falsy
+    - Boolean mode (as_filter=False): yields boolean results for all items
+    
+    Useful for filtering items with missing data, empty fields, or falsy values.
+    
+    Yields:
+        In filter mode: items where the field is falsy.
+        In boolean mode: True/False for each item.
+        If set_as is specified: item with boolean result added as new field.
     """
     for item in items:
         to_eval = extract_property(item, field)
@@ -554,8 +616,15 @@ def isFalse(items,
 @registry.register_segment("everyN")
 @segment()
 def everyN(items, n: Annotated[int, "Number of items to skip between each yield"]):
-    """Yields every nth item from the input stream.
-
+    """Yield every nth item from the input stream, creating a sampling effect.
+    
+    This segment yields only items at positions that are multiples of n, effectively
+    sampling every nth item from the stream. Useful for reducing data volume, creating
+    summaries, or testing with subset of large datasets.
+    
+    For example, with n=5: yields items 5, 10, 15, 20, etc. (items at positions 5, 10, 15...).
+    With n=1: yields all items. With n=2: yields every other item.
+    
     Yields:
         Every nth item from the input stream.
     """
@@ -566,10 +635,19 @@ def everyN(items, n: Annotated[int, "Number of items to skip between each yield"
 @registry.register_segment("flatten")
 @field_segment(multi_emit=True)
 def flatten(item):
-    """Flattens a nested list of items.
-
+    """Flatten a nested collection by emitting its individual elements.
+    
+    For dictionaries: yields key-value tuples (like .items())
+    For iterables: yields each element in the collection
+    For non-iterables: yields the item unchanged
+    
+    Useful for expanding nested lists, unpacking collections, or flattening
+    hierarchical data structures into individual items.
+    
+    Multi-emit segment: each input item can produce multiple output items.
+    
     Yields:
-        Flattened list of items
+        Individual elements from dictionaries, iterables, or the item itself.
     """
     if isinstance(item, dict):
         yield from item.items()
@@ -821,13 +899,23 @@ class FilterExpression(AbstractSegment):
 @registry.register_segment("copy")
 @segment
 def copy_segment(items):
-    """A segment that creates a shallow copy of each item in the input iterable.
+    """Create shallow copies of each item in the pipeline.
     
-    This can be used to create a defensive copy of items in the pipline, ensuring that modifications
-    to the items do not affect the original items in the input stream.  
-
-    Args:
-        items (Iterable): An iterable of items to copy.
+    This segment creates a shallow copy of each item, suitable when you need to
+    prevent downstream modifications from affecting the original items. Shallow
+    copies share references to nested objects (lists, dicts within dicts), so
+    modifications to nested structures will still affect originals.
+    
+    Use deepCopy instead if you need complete independence from the originals,
+    though deepCopy is slower and more memory-intensive.
+    
+    Useful for:
+    - Preventing accidental mutations in complex pipelines
+    - Creating independent item instances before modification
+    - Preserving original data while processing
+    
+    Yields:
+        Shallow copies of each input item.
     """
     for item in items:
         yield copy.copy(item)
@@ -835,12 +923,23 @@ def copy_segment(items):
 @registry.register_segment("deepCopy")
 @segment
 def deep_copy_segment(items):
-    """A segment that creates a deep copy of each item in the input iterable.
+    """Create complete independent deep copies of each item in the pipeline.
     
-    This can be used to create a defensive copy of items in the pipeline, ensuring that modifications
-    to the items do not affect the original items in the input stream.
-    Args:
-        items (Iterable): An iterable of items to copy.
+    This segment creates a deep copy of each item, recursively copying all nested
+    structures (lists, dicts, and objects within them). This ensures complete
+    independence from the originals - modifications to any nested structure won't
+    affect the original items.
+    
+    Deep copy is slower and more memory-intensive than shallow copy. Use copy
+    instead if nested structures don't need to be independent.
+    
+    Useful for:
+    - Complex nested data that will be heavily modified
+    - When you need complete independence from original data
+    - Pipelines where multiple branches process the same item
+    
+    Yields:
+        Deep copies of each input item.
     """
     for item in items:
         yield copy.deepcopy(item)
