@@ -182,6 +182,23 @@ def extract_component_info(chatterlang_name: str, cls: type, component_type: str
                 docstring = cls.__doc__
             elif "Abstract base class" in docstring:
                 docstring = f"Field segment '{chatterlang_name}' - processes individual fields from input items.\n\nNote: Original function documentation is not available."
+
+            # Ensure synthetic parameters 'field' and 'set_as' are documented
+            existing_param_names = {p.name for p in parameters}
+            if 'field' not in existing_param_names:
+                parameters.insert(0, ParamSpec(
+                    name='field',
+                    annotation='str',
+                    default='',
+                    description='The field to extract. If none, use full item.'
+                ))
+            if 'set_as' not in existing_param_names:
+                parameters.append(ParamSpec(
+                    name='set_as',
+                    annotation='str',
+                    default='',
+                    description='The field to set/append the result as.'
+                ))
         
         return ComponentInfo(
             name=name,
@@ -305,6 +322,20 @@ def extract_parameters_dict(cls: type) -> Dict[str, str]:
                     if param_name == 'self':
                         continue
                     parameters[param_name] = _process_parameter(param_name, param)
+
+        # If this appears to be a FieldSegment, add synthetic 'field' and 'set_as' parameters
+        try:
+            from talkpipe.pipe.core import AbstractFieldSegment
+            is_field_seg = issubclass(cls, AbstractFieldSegment)
+        except Exception:
+            # Fallback detection by class name
+            is_field_seg = 'FieldSegment' in getattr(cls, '__name__', '')
+
+        if is_field_seg:
+            if 'field' not in parameters:
+                parameters['field'] = "field: <class 'str'>  # The field to extract. If none, use full item."
+            if 'set_as' not in parameters:
+                parameters['set_as'] = "set_as: <class 'str'>  # The field to set/append the result as."
     except Exception as e:
         logger.warning(f"Failed to extract parameters for class {cls.__name__}: {e}")
         pass  # If parameter extraction fails, just return empty dict

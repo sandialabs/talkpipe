@@ -125,8 +125,9 @@ class TestExtractComponentInfo:
         assert result.chatterlang_name == "testField"
         assert result.component_type == "Field Segment"
         assert result.docstring == "Original function docstring."
-        assert len(result.parameters) == 1
-        assert result.parameters[0].name == "file_path"
+        # Field segments should include synthetic 'field' and 'set_as' parameters
+        assert len(result.parameters) == 3
+        assert [p.name for p in result.parameters] == ["field", "file_path", "set_as"]
 
 
 class TestExtractParametersDict:

@@ -97,27 +97,50 @@ class TalkPipeBrowser:
             max_name_width = 0
             max_type_width = 0
             max_default_width = 0
+
+            def _one_line(text) -> str:
+                """Convert any text to a single-line string for aligned display.
+                Collapses all whitespace (including newlines) to single spaces."""
+                if text is None:
+                    return ""
+                s = str(text)
+                # Collapse all whitespace (spaces, tabs, newlines) into single spaces
+                return " ".join(s.split())
             
             for param in component_info.parameters:
                 max_name_width = max(max_name_width, len(param.name))
                 if param.annotation:
-                    max_type_width = max(max_type_width, len(str(param.annotation)))
+                    max_type_width = max(max_type_width, len(_one_line(param.annotation)))
                 if param.default:
-                    max_default_width = max(max_default_width, len(str(param.default)))
+                    max_default_width = max(max_default_width, len(_one_line(param.default)))
             
+            # Cap default padding so excessively long defaults don't push comments far right
+            DEFAULT_PAD_CAP = 10
+            default_pad_width = min(max_default_width, DEFAULT_PAD_CAP)
+
             # Second pass: format with proper alignment
             for param in component_info.parameters:
                 param_str = param.name.ljust(max_name_width)
                 
                 if param.annotation:
-                    param_str += f": {str(param.annotation).ljust(max_type_width)}"
+                    ann = _one_line(param.annotation)
+                    param_str += f": {ann.ljust(max_type_width)}"
                 elif max_type_width > 0:  # Add spacing even if no type for this param
                     param_str += f"  {' ' * max_type_width}"
                 
-                if param.default:
-                    param_str += f" = {str(param.default).ljust(max_default_width)}"
-                elif max_default_width > 0:  # Add spacing even if no default for this param
-                    param_str += f"   {' ' * max_default_width}"
+                # Align comments: pad defaults up to a capped width; if no default, pad spaces
+                if default_pad_width > 0:
+                    if param.default:
+                        default_str = _one_line(param.default)
+                        if len(default_str) <= default_pad_width:
+                            # Pad default to capped width
+                            param_str += f" = {default_str.ljust(default_pad_width)}"
+                        else:
+                            # Too long; print without padding so comment follows immediately
+                            param_str += f" = {default_str}"
+                    else:
+                        # No default; pad the space where ' = <default>' would be
+                        param_str += " " * (3 + default_pad_width)
                 
                 if param.description:
                     param_str += f"  // {param.description}"

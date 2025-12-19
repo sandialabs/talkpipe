@@ -703,7 +703,35 @@ def fillTemplate(item,
                  template: Annotated[str, "The template string with placeholders for values"], 
                  fail_on_missing: Annotated[bool, "Whether to fail on missing fields"] = True, 
                  default: Annotated[Optional[Any], "Default value to use for missing fields"] = ""):
-    """Fill a template string with values from the input item.
+    """Fill a template string with values from the input `item`.
+
+        Template writing guide:
+        - Placeholders: Use `{path}` where `path` is a dot-notation path
+            resolved on `item` via `extract_property`. Examples: `{user.name}`,
+            `{address.city}`, `{tags.0}` (numeric index for lists/tuples).
+        - Whole item: `{_}` inserts the entire `item`. `_.field` acts as a
+            passthrough, so `{_.name}` is equivalent to `{name}`.
+        - Literal braces: Use `{{` and `}}` to render literal `{` and `}`
+            characters in output.
+        - Missing values: Controlled by `fail_on_missing` and `default`.
+            If `fail_on_missing` is True, missing fields raise an error; otherwise,
+            missing fields are replaced with `default` (empty string by default).
+
+        Examples:
+        - Dict item:
+            item = {"user": {"name": "Alice"}, "day": "Monday"}
+            template = "Hello {user.name}, today is {day}."
+            -> "Hello Alice, today is Monday."
+
+        - Lists and indices:
+            item = {"tags": ["news", "tech"]}
+            template = "First tag: {tags.0}"
+            -> "First tag: news"
+
+        - Literal braces:
+            item = {"user": {"name": "Alice"}}
+            template = "{{Escaped}} {_.user.name}"
+            -> "{Escaped} Alice"
 
     Returns:
         str: The filled template string
