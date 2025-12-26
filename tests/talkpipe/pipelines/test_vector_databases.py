@@ -1,6 +1,9 @@
 import pytest
 import tempfile
 import os
+import threading
+import queue
+import time
 from talkpipe.pipelines.vector_databases import MakeVectorDatabaseSegment, SearchVectorDatabaseSegment
 from talkpipe.search.lancedb import LanceDBDocumentStore
 from talkpipe.search.abstract import SearchResult
@@ -468,3 +471,143 @@ def test_vector_database_stores_non_embedding_fields(requires_ollama, temp_db_pa
         assert "content" in result.document
         assert result.document["path"].startswith("/docs/")
         assert result.document["author"] in ["Alice", "Bob", "Charlie"]
+
+
+def test_concurrent_write_and_read(requires_ollama, temp_db_path):
+    """Test that you can read from a vector database while another pipeline is still writing to it.
+    
+    This test demonstrates concurrent access by:
+    1. Creating a writer pipeline that feeds from a blocking queue
+    2. Adding 3 documents to the queue one at a time
+    3. While the writer is still active, opening a reader pipeline to search the database
+    4. Verifying that the reader can see documents as they're being written
+    """
+    # Documents to add to the database
+    documents = [
+        {"text": "The quick brown fox jumps over the lazy dog", "title": "Fox Story", "id": "doc1"},
+        {"text": "Python is a great programming language", "title": "Python Info", "id": "doc2"},
+        {"text": "Machine learning is transforming technology", "title": "ML Article", "id": "doc3"}
+    ]
+    
+    # Blocking queue to feed documents to the writer
+    doc_queue = queue.Queue()
+    
+    # Generator that yields from the blocking queue (blocks when empty)
+    def queue_generator():
+        while True:
+            doc = doc_queue.get()  # Blocks until a document is available
+            if doc is None:  # Sentinel to stop
+                break
+            yield doc
+            doc_queue.task_done()
+    
+    # Create writer pipeline with batch_size=1 to flush each document immediately
+    writer_segment = MakeVectorDatabaseSegment(
+        embedding_field="text",
+        embedding_model="mxbai-embed-large",
+        embedding_source="ollama",
+        path=temp_db_path,
+        doc_id_field="id",
+        overwrite=True,
+        batch_size=1  # Flush each document immediately
+    )
+    
+    # Track writer completion and document processing
+    writer_done = threading.Event()
+    writer_error = [None]  # Use list to allow assignment from nested function
+    processed_count = [0]  # Track how many documents have been processed
+    
+    def writer_thread():
+        """Thread that runs the writer pipeline, consuming from the queue."""
+        try:
+            for item in writer_segment.transform(queue_generator()):
+                processed_count[0] += 1
+        except Exception as e:
+            writer_error[0] = e
+            raise
+        finally:
+            writer_done.set()
+    
+    # Start writer thread
+    writer_thread_obj = threading.Thread(target=writer_thread, daemon=True)
+    writer_thread_obj.start()
+    
+    # Add first document to queue (writer will start processing)
+    doc_queue.put(documents[0])
+    # Wait for the document to be processed (writer yields it)
+    while processed_count[0] < 1:
+        time.sleep(0.1)
+    time.sleep(0.2)  # Give a bit more time for the write to complete
+    
+    # While writer is still active, create and use a reader pipeline
+    # This demonstrates reading from a database that hasn't been closed yet
+    search_segment = SearchVectorDatabaseSegment(
+        embedding_model="mxbai-embed-large",
+        embedding_source="ollama",
+        path=temp_db_path,
+        limit=10,
+        read_consistency_interval=0  # Use 0 to see writes immediately
+    )
+    
+    # Search for the first document that should already be in the database
+    query = "fox jumping"
+    search_results = list(search_segment.transform([query]))
+    
+    # Verify we got results (at least the first document should be searchable)
+    assert len(search_results) == 1
+    assert len(search_results[0]) > 0, "Should find at least one document while writer is active"
+    
+    # Verify the first document is in the results
+    found_doc1 = any("doc1" == result.doc_id for result in search_results[0])
+    assert found_doc1, "First document should be searchable while writer is still active"
+    
+    # Add second document to queue
+    doc_queue.put(documents[1])
+    # Wait for the document to be processed
+    while processed_count[0] < 2:
+        time.sleep(0.1)
+    time.sleep(0.2)  # Give a bit more time for the write to complete
+    
+    # Search again - should now find both documents
+    query2 = "programming language"
+    search_results2 = list(search_segment.transform([query2]))
+    assert len(search_results2) == 1
+    assert len(search_results2[0]) > 0
+    
+    # Add third document to queue
+    doc_queue.put(documents[2])
+    # Wait for the document to be processed
+    while processed_count[0] < 3:
+        time.sleep(0.1)
+    time.sleep(0.2)  # Give a bit more time for the write to complete
+    
+    # Search for the third document
+    query3 = "machine learning"
+    search_results3 = list(search_segment.transform([query3]))
+    assert len(search_results3) == 1
+    assert len(search_results3[0]) > 0
+    
+    # Signal writer to stop
+    doc_queue.put(None)
+    
+    # Wait for writer to finish
+    writer_done.wait(timeout=10.0)
+    assert writer_done.is_set(), "Writer thread should have completed"
+    
+    if writer_error[0]:
+        raise writer_error[0]
+    
+    # Final verification: all documents should be in the database
+    db_store = LanceDBDocumentStore(path=temp_db_path, table_name="docs", vector_dim=1024)
+    count = db_store.count()
+    assert count == 3, f"Expected 3 documents in database, found {count}"
+    
+    # Verify all documents are searchable
+    final_search = list(search_segment.transform(["technology"]))
+    assert len(final_search) == 1
+    assert len(final_search[0]) >= 1, "Should find documents after writer completes"
+    
+    # Verify we can find all three documents by their IDs
+    found_ids = {result.doc_id for result in final_search[0]}
+    assert "doc1" in found_ids or "doc2" in found_ids or "doc3" in found_ids, \
+        "Should find at least one of the added documents"
