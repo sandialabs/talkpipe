@@ -10,13 +10,100 @@ from typing import (
     Any, TypeVar, Generic, Iterable, List, 
     Iterator, Union, Callable, Type, Concatenate, ParamSpec, Annotated
 )
+from pydantic import BaseModel, ConfigDict
 from talkpipe.util import data_manipulation
+from talkpipe.util.iterators import bypass
 
 logger = logging.getLogger(__name__)
 
 T = TypeVar('T')
 U = TypeVar('U')
 P = ParamSpec('P')
+
+
+class Metadata(BaseModel):
+    """Metadata objects flowing through pipelines.
+    
+    Metadata objects are used to send control signals or metadata through
+    pipelines alongside regular data items. By default, metadata is passed
+    through segments without processing, but segments can opt-in to process
+    metadata by setting `process_metadata=True`.
+    
+    This is useful for implementing features like flushing buffers, sending
+    end-of-stream signals, or passing configuration updates through pipelines.
+    
+    Metadata inherits from Pydantic BaseModel, allowing arbitrary fields to be
+    added dynamically. This makes it easy to create metadata with specific
+    attributes while maintaining type safety and validation.
+    
+    Examples:
+        # Create metadata with specific fields
+        flush_signal = Metadata(action="flush", buffer_id="main")
+        
+        # Create from dictionary (allows arbitrary fields)
+        flush_signal = Metadata(**{"action": "flush", "timestamp": "2025-01-15"})
+        
+        # Check if an item is metadata
+        if is_metadata(item):
+            if item.action == "flush":
+                # Handle flush
+                pass
+        
+        # Segments can easily differentiate metadata from regular items
+        @segment()
+        def my_transform(items):
+            for item in items:
+                if is_metadata(item):
+                    yield item  # Pass through or handle
+                else:
+                    yield process(item)
+    """
+    
+    model_config = ConfigDict(extra="allow")  # Allow arbitrary fields
+
+
+def is_metadata(obj: Any) -> bool:
+    """Check if an object is a Metadata instance.
+    
+    Args:
+        obj: Object to check
+        
+    Returns:
+        True if obj is a Metadata instance, False otherwise
+        
+    Examples:
+        if is_metadata(item):
+            # Handle metadata - access fields directly
+            if item.action == "flush":
+                # Handle flush
+                pass
+    """
+    return isinstance(obj, Metadata)
+
+
+def create_metadata(**kwargs) -> Metadata:
+    """Create a Metadata object with the provided fields.
+    
+    This is a convenience function for creating metadata objects.
+    You can also use Metadata(**kwargs) directly.
+    
+    Args:
+        **kwargs: Fields to set on the metadata object
+        
+    Returns:
+        A Metadata instance with the provided fields
+        
+    Examples:
+        # In a source or segment
+        yield create_metadata(action="flush", buffer_id="main")
+        # Equivalent to:
+        yield Metadata(action="flush", buffer_id="main")
+        
+        # From dictionary
+        data = {"action": "flush", "timestamp": "2025-01-15"}
+        yield create_metadata(**data)
+    """
+    return Metadata(**kwargs)
 
 class RuntimeComponent:
     """A class to store runtime variables and constants.  This is available to all
@@ -70,6 +157,9 @@ class HasRuntimeComponent:
         self._runtime = value
 
 
+def filter_out_metadata(input_iter: Iterable[Any]) -> Iterable[Any]:
+    yield from (item for item in input_iter if not is_metadata(item))
+
 class AbstractSegment(ABC, HasRuntimeComponent, Generic[T, U]):
     """Abstract base class for all segments in the TalkPipe framework.
     
@@ -82,6 +172,7 @@ class AbstractSegment(ABC, HasRuntimeComponent, Generic[T, U]):
     - Number of input items may differ from output items
     - Can be chained together using the | operator
     - Supports lazy evaluation through iterators
+    - By default, metadata objects are passed through without processing
     
     Segments can be chained together to create pipelines:
         pipeline = segment1 | segment2 | segment3
@@ -89,11 +180,16 @@ class AbstractSegment(ABC, HasRuntimeComponent, Generic[T, U]):
     Attributes:
         upstream (List[AbstractSegment]): List of upstream segments
         downstream (List[AbstractSegment]): List of downstream segments
+        process_metadata (bool): If True, metadata objects are passed to transform().
+                                 If False (default), metadata is filtered out to preserve
+                                 streaming without buffering. Segments that need metadata
+                                 (e.g., for flush signals) must set process_metadata=True.
     """
 
-    def __init__(self):
+    def __init__(self, process_metadata: Annotated[bool, "If True, metadata objects will be passed to transform(). If False, metadata is automatically passed through."] = False):
         self.upstream = []
         self.downstream = []
+        self.process_metadata = process_metadata
     
     @abstractmethod
     def transform(self, input_iter: Annotated[Iterable[T], "An iterable of input items to process"]) -> Iterator[U]:
@@ -160,9 +256,25 @@ class AbstractSegment(ABC, HasRuntimeComponent, Generic[T, U]):
 
     def __call__(self, input_iter: Iterable[T] = None) -> Iterator[U]:
         logger.debug(f"Running segment {self.__class__.__name__}")
-        ans = self.transform(input_iter)
+        
+        if input_iter is None:
+            input_iter = iter([])
+        
+        # Handle metadata when process_metadata=False
+        if not self.process_metadata:
+            if len(self.downstream) > 0:
+                ans = bypass(input_iter, lambda x: is_metadata(x), self.transform)
+            else:
+                ans = self.transform(filter_out_metadata(input_iter))
+            return ans
+        else:
+            # process_metadata=True: pass everything to transform including metadata
+            # Segments can handle metadata positioning themselves if needed
+            ans = self.transform(input_iter)
+            logger.debug(f"Finished segment {self.__class__.__name__}")
+            return ans
+        
         logger.debug(f"Finished segment {self.__class__.__name__}")
-        return ans
 
     def as_function(self, 
                     single_in: Annotated[bool, "If True, the function will expect a single input argument."] = False, 
@@ -195,6 +307,7 @@ class AbstractSource(ABC, HasRuntimeComponent, Generic[U]):
     - Can be chained with segments using the | operator
     - Must implement the generate() method
     - Supports lazy evaluation through iterators
+    - Can emit metadata objects alongside regular data items
     
     Examples of sources:
     - File readers (CSV, JSON, text files)
@@ -206,11 +319,14 @@ class AbstractSource(ABC, HasRuntimeComponent, Generic[U]):
     Attributes:
         upstream (List): Always empty (sources have no upstream)
         downstream (List[AbstractSegment]): List of downstream segments
+        process_metadata (bool): Not used for sources (they generate, not transform),
+                                 but included for API consistency
     """
     
-    def __init__(self):
+    def __init__(self, process_metadata: Annotated[bool, "Not used for sources, but included for API consistency"] = False):
         self.upstream = []
         self.downstream = []
+        self.process_metadata = process_metadata
     
     @abstractmethod
     def generate(self) -> Iterator[U]:
@@ -319,8 +435,8 @@ def source(*decorator_args: Annotated[Any, "Positional arguments for the input g
         
         class FunctionSource(AbstractSource[U]):
 
-            def __init__(self):
-                super().__init__()
+            def __init__(self, process_metadata: bool = False):
+                super().__init__(process_metadata=process_metadata)
                 # Store reference to original function for documentation access
                 self._original_func = func
 
@@ -345,8 +461,10 @@ def source(*decorator_args: Annotated[Any, "Positional arguments for the input g
                 """
                 # Merge decorator and constructor arguments
                 # Constructor arguments take precedence
-                super().__init__()
-                merged_kwargs = {**decorator_kwargs, **init_kwargs}
+                process_metadata = init_kwargs.pop('process_metadata', decorator_kwargs.get('process_metadata', False))
+                super().__init__(process_metadata=process_metadata)
+                # Create merged kwargs without process_metadata (it's already handled above)
+                merged_kwargs = {k: v for k, v in {**decorator_kwargs, **init_kwargs}.items() if k != 'process_metadata'}
                 
                 # Bind arguments to the function
                 self._func = lambda: func(*init_args, **merged_kwargs)
@@ -411,8 +529,8 @@ def segment(*decorator_args: Annotated[Any, "Positional arguments for the operat
         
         class FunctionSegment(AbstractSegment[T, U]):
 
-            def __init__(self):
-                super().__init__()
+            def __init__(self, process_metadata: bool = False):
+                super().__init__(process_metadata=process_metadata)
                 # Store reference to original function for documentation access
                 self._original_func = func
             
@@ -436,8 +554,10 @@ def segment(*decorator_args: Annotated[Any, "Positional arguments for the operat
                 """
                 # Merge decorator and constructor arguments
                 # Constructor arguments take precedence
-                super().__init__()
-                merged_kwargs = {**decorator_kwargs, **init_kwargs}
+                process_metadata = init_kwargs.pop('process_metadata', decorator_kwargs.get('process_metadata', False))
+                super().__init__(process_metadata=process_metadata)
+                # Create merged kwargs without process_metadata (it's already handled above)
+                merged_kwargs = {k: v for k, v in {**decorator_kwargs, **init_kwargs}.items() if k != 'process_metadata'}
                 
                 # Bind arguments to the function
                 self._func = lambda x: func(x, *init_args, **merged_kwargs)
@@ -505,7 +625,8 @@ def field_segment(*decorator_args, **decorator_kwargs):
                 field = merged_kwargs.pop('field', None)
                 set_as = merged_kwargs.pop('set_as', None)
                 multi_emit = merged_kwargs.pop('multi_emit', False)
-                super().__init__(field=field, set_as=set_as, multi_emit=multi_emit)
+                process_metadata = merged_kwargs.pop('process_metadata', False)
+                super().__init__(field=field, set_as=set_as, multi_emit=multi_emit, process_metadata=process_metadata)
                 self._func = lambda x: func(x, *init_args, **merged_kwargs)
                 # Store reference to original function for documentation access
                 self._original_func = func
@@ -559,8 +680,9 @@ class AbstractFieldSegment(AbstractSegment[T, U]):
                  field: Annotated[str, "The field to extract.  If none, use full item."] = None, 
                  set_as: Annotated[str, "The field to set/append the result as."] = None, 
                  multi_emit: Annotated[bool, "Whether this class potentially emits multiple results per item."
-                                       "Should be set by the subclass constructor call or the field_segment decorator, not by the user."] = False):
-        super().__init__()
+                                       "Should be set by the subclass constructor call or the field_segment decorator, not by the user."] = False,
+                 process_metadata: Annotated[bool, "If True, metadata objects will be passed to transform(). If False, metadata is automatically passed through."] = False):
+        super().__init__(process_metadata=process_metadata)
         self.field = field
         self.set_as = set_as
         self.multi_emit = multi_emit
@@ -596,12 +718,13 @@ class AbstractFieldSegment(AbstractSegment[T, U]):
         """Transform input items by processing field values.
         
         For each input item:
-        1. Extracts the specified field value (or uses entire item if field is None)
-        2. Passes the extracted value to process_value()
-        3. Handles results based on multi_emit setting:
+        1. If the item is metadata and process_metadata=False, passes it through
+        2. Extracts the specified field value (or uses entire item if field is None)
+        3. Passes the extracted value to process_value()
+        4. Handles results based on multi_emit setting:
            - If multi_emit=False: wraps single result in list
            - If multi_emit=True: assumes result is already iterable
-        4. For each result:
+        5. For each result:
            - If set_as is specified: sets result on item and yields modified item
            - If set_as is None: yields result directly
         
@@ -610,8 +733,21 @@ class AbstractFieldSegment(AbstractSegment[T, U]):
         
         Yields:
             Processed items or values based on the multi_emit and set_as settings
+            Metadata objects are passed through if process_metadata=False
         """
         for item in input_iter:
+            # Handle metadata: if process_metadata=False, it was already handled by __call__
+            # but if process_metadata=True, we need to handle it here
+            if is_metadata(item):
+                if self.process_metadata:
+                    # Let the segment handle metadata explicitly
+                    # Default behavior: pass through
+                    yield item
+                else:
+                    # This shouldn't happen since __call__ handles it, but be safe
+                    yield item
+                continue
+            
             value = data_manipulation.extract_property(item, self.field) if self.field else item
             processed = self.process_value(value)
             if not self.multi_emit: # If not multi-emitting, wrap the result in a list
@@ -635,6 +771,7 @@ class Pipeline(AbstractSegment):
     - Data flows lazily through the pipeline on-demand
     - Sources generate initial data; segments transform it
     - Can be created using the | (pipe) operator or the Pipeline constructor
+    - Metadata flows through operations, with each operation handling it according to its process_metadata flag
     
     Attributes:
         operations: List of AbstractSource and AbstractSegment objects in execution order
@@ -650,8 +787,10 @@ class Pipeline(AbstractSegment):
         results = list(pipeline())  # Note: pass None or no arguments
     """
     
-    def __init__(self, *operations: Union[AbstractSource, AbstractSegment]):
-        super().__init__()
+    def __init__(self, *operations: Union[AbstractSource, AbstractSegment], process_metadata: bool = True):
+        # Pipeline defaults to process_metadata=True so metadata flows through to operations
+        # Each operation will handle metadata according to its own process_metadata flag
+        super().__init__(process_metadata=process_metadata)
         self.operations = list(operations)
         
     def transform(self, input_iter: Iterable[Any] = None) -> Iterator[Any]:

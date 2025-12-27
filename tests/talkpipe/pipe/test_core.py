@@ -2,6 +2,7 @@ from typing import Iterable
 from numpy import random
 
 import talkpipe.pipe.core as core
+from talkpipe.pipe.io import Print
 
 @core.segment()
 def add_one(items: Iterable[int]) -> Iterable[int]:
@@ -146,3 +147,35 @@ def test_function_segment():
 
     pipe = add_n(n=3, field="x", set_as="z")
     assert list(pipe([{"x": 1, 'y': 2}, {"x": 2}, {"x": 3}])) == [{"x": 1, 'y': 2, 'z': 4}, {"x": 2, 'z': 5}, {"x": 3, 'z': 6}]
+
+def test_metadata_bypass():
+
+    @core.segment(process_metadata=True)
+    def CountEvenMetadata(items: Iterable[int]) -> Iterable[int]:
+        yield len([item for item in items])
+
+    @core.segment(process_metadata=False)
+    def CountNonMetadata(items: Iterable[int]) -> Iterable[int]:
+        yield len([item for item in items])
+
+    class MyFakeMetadata(core.Metadata):
+        pass
+
+    data = [1, 2, "three", MyFakeMetadata(), "4", 5]
+    pipe = CountEvenMetadata().as_function(single_in=False, single_out=True)
+    ans = pipe(data) 
+    assert ans == 6
+
+    pipe = CountNonMetadata().as_function(single_in=False, single_out=False)
+    ans = list(pipe(data)) 
+    assert len(ans) == 1
+    assert ans[0] == 5
+
+    pipe = (CountEvenMetadata() | Print()).as_function(single_in=False, single_out=True)
+    ans = pipe(data) 
+    assert ans == 6
+
+    pipe = (CountNonMetadata() | Print()).as_function(single_in=False, single_out=False)
+    ans = list(pipe(data)) 
+    assert len(ans) == 1
+    assert ans[0] == 5

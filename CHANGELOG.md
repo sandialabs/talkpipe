@@ -1,5 +1,12 @@
 # Changelog
 
+## In Development
+- Added a backward compatible metadata capability.  By default metadata information
+  passes through the stream without being passed to segments.  But if a segment wants
+  to process metadata, it can so declare when being defined and metadata will be passed
+  to it during processing.  This capability will support things like issuing period flush
+  commands during processing.
+
 ## 0.11.0
 
 ### New Features
