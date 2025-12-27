@@ -41,6 +41,7 @@ dependencies = [
     'lancedb',
     'deprecated',
     'pyyaml',
+    'greenlet',
 
     # Security override: starlette is a transitive dependency, pinned here
     # to fix CVE-2025-62727 (DoS vulnerability). Remove once parent 
