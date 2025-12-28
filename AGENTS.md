@@ -23,29 +23,26 @@ TalkPipe is a Python toolkit that makes it easy to create, test, and deploy work
 - talkpipe/util - contains utility functions such as configuration and operations system related operations
 
 ## Development Guidelines 
-Do not automatically agree.  Question assumptions and point out weaknesses in logic or inconsistences with the
-  rest of the codebase.
-pytest unit tests are under tests/
-the code for the library is under src/
-The core pipe API classes and code is under talkpipe/pipe
-ChatterLang is an external DSL and is defined under talkpipe/chatterlang
-Other packages in the project other than util include implementations of pipe sources and segments
-Util contains various generally usable utility functions, expecially for basic data manipulation and configuration.
-talkpipe/README.md contains a longer overview
-After implementing a new feature, update CHANGELOG.md. Check if an existing entry should be udpated rather than creating a new entry. 
-After making a minor change to an existing feature,  check if the unreleased section of the changelog already 
-    mentions the feature. If so, update that changelog entry.  If not, write a new entry in the changelog.
-When making a change, write a unit test that fails without the change or update an existing test, verify that the unit test fails, 
-    make the change and then verity that the unit test now passes.  Notify the user if it is not reasonable 
-    to write the unit test. 
-When writing unit tests, update and augment existing unit tests is possible and appropriate rather than writing
-    new unit tests.
-Unit tests should be as short as possible while still testing the functionality as completely as possible.
-User interfaces should be visually appealing and maintain consistency with each other.
-When writing or updating pipeline examples in documentation, write examples with stand-alone code and 
+- Do not automatically agree.  Question assumptions and point out weaknesses in logic or inconsistences with the rest of the codebase.
+- pytest unit tests are under tests/
+- the code for the library is under src/
+- The core pipe API classes and code is under talkpipe/pipe
+- ChatterLang is an external DSL and is defined under talkpipe/chatterlang
+- Other packages in the project other than util include implementations of pipe sources and segments
+- Util contains various generally usable utility functions, expecially for basic data manipulation and configuration.
+- talkpipe/README.md contains a longer overview
+- After implementing a new feature, update CHANGELOG.md. Check if an existing entry should be udpated rather than creating a new entry. 
+- After making a minor change to an existing feature,  check if the unreleased section of the changelog already mentions the feature. If so, update that changelog entry.  If not, write a new entry in the changelog.
+- When making a change, write a unit test that fails without the change or update an existing test, verify that the unit test fails, make the change and then verity that the unit test now passes.  Notify the user if it is not reasonable to write the unit test. 
+- When writing unit tests, update and augment existing unit tests is possible and appropriate rather than writing new unit tests.
+- Unit tests should be as short as possible while still testing the functionality as completely as possible.
+- User interfaces should be visually appealing and maintain consistency with each other.
+- When writing or updating pipeline examples in documentation, write examples with stand-alone code and 
     test the examples by running them.
-When creating a new source or segment, update pyproject.toml to include it in the endpoints.
+- When creating a new source or segment, update pyproject.toml to include it in the endpoints.
 docs/architecture/protocol.md names protocol conventions to use when writing new sources and segments.
+- When writing documentation for segments or sources, do not document the parameters.
+- When writing new sources or segments, use Annotated in the parameter lists to explain the type and purpose of each parameter.
 
 
 ## Important Commands

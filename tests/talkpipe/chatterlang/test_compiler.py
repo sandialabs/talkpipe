@@ -7,6 +7,7 @@ from talkpipe.chatterlang import registry
 from talkpipe.pipe import io
 from talkpipe.pipe import basic
 from talkpipe.pipe import core
+from talkpipe.pipe import metadata  # Import to register flushN and collectMetadata
 from talkpipe.util.config import reset_config
 
 def test_pipeline_compiler():
@@ -126,6 +127,56 @@ def test_fork_parallel():
     ans = list(script())
     assert ans == ["a", "b", "c", "d", "e", 0, 1, 2, 3, 4]
 
+def test_fork_arrow_syntax_multiple_inputs():
+
+    script = """
+             INPUT FROM range[lower=0, upper=5] | sleep[seconds=1] -> afork;
+             INPUT FROM range[lower=10, upper=15] | sleep[seconds=1] -> afork;
+             afork -> toList
+             """
+    f = compiler.compile(script).as_function(single_in=True,single_out=True)
+    ans = f()
+    assert sorted(ans) == [0, 1, 2, 3, 4, 10, 11, 12, 13, 14]
+
+def test_fork_arrow_syntax_multiple_outputs():
+    script = """
+             INPUT FROM range[lower=0, upper=5] -> afork;
+             afork -> lambda[expression="item * 2"] -> bfork;
+             afork -> lambda[expression="item * 3"] -> bfork;
+             bfork -> toList
+             """
+    f = compiler.compile(script).as_function(single_in=True,single_out=True)
+    ans = f()
+    assert sorted(ans) == sorted([0, 2, 4, 6, 8, 0, 3, 6, 9, 12])
+
+def test_fork_arrow_syntax_multiple_forks():
+    """Test that multiple independent forks can be used in a single script."""
+    script = """
+             INPUT FROM range[lower=0, upper=3] -> fork1;
+             INPUT FROM range[lower=10, upper=13] -> fork2;
+             fork1 -> lambda[expression="item * 2"] -> fork3;
+             fork2 -> lambda[expression="item + 100"] -> fork3;
+             fork3 -> toList
+             """
+    f = compiler.compile(script).as_function(single_in=True,single_out=True)
+    ans = f()
+    assert sorted(ans) == sorted([0, 2, 4, 110, 111, 112])
+
+def test_fork_arrow_syntax_metadata():
+
+    script = """INPUT FROM range[lower=0, upper=3] | flushN[n=1] | collectMetadata | toList"""
+    f = compiler.compile(script).as_function(single_in=True,single_out=True)
+    ans = f()
+    assert len(ans) == 3
+    assert all(isinstance(item, str) for item in ans)
+
+    script = """
+             INPUT FROM range[lower=0, upper=3] | flushN[n=1] -> fork1;
+             fork1 -> collectMetadata -> toList
+             """
+    f = compiler.compile(script).as_function(single_in=True,single_out=True)
+    ans2 = f()
+    assert ans == ans2
 
 def test_variables_as_parameters():
     v_score = core.RuntimeComponent()

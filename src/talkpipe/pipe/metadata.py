@@ -1,4 +1,5 @@
-from .core import Metadata, segment, source
+from typing import Annotated
+from .core import Metadata, segment, source, is_metadata
 from talkpipe.chatterlang import register_segment, register_source
 import time
 
@@ -8,7 +9,7 @@ class Flush(Metadata):
 
 @register_segment("flushN")
 @segment()
-def flushN(items, n: int):
+def flushN(items, n: Annotated[int, "Number of items between flush operations."]):
     """Issues a flush operation every n items.
     
     Args:
@@ -26,7 +27,7 @@ def flushN(items, n: int):
 
 @register_segment("flushT")
 @segment()
-def flushT(items, t: float):
+def flushT(items, t: Annotated[float, "Time interval in seconds between flush operations."]):
     """Issues a flush operation every t seconds while processing items.
     
     The flush operation checks time after each item is processed and yields
@@ -45,3 +46,29 @@ def flushT(items, t: float):
         if now - last_flush_time >= t:
             last_flush_time = now
             yield Flush()
+
+@register_source("flushT")
+@source()
+def FlushTSource(t: Annotated[float, "Time interval in seconds between flush operations."]):
+    """Issues a flush operation every t seconds.
+        
+    """
+    while True:
+        yield Flush()
+        time.sleep(t)
+
+@register_segment("collectMetadata")
+@segment(process_metadata=True)
+def CollectMetadata(items):
+    """Collects metadata objects from the input stream.
+    
+    Args:
+        items: The input stream.
+    
+    Example:
+        collectMetadata(items)  # Collect metadata objects from the input stream
+    """
+    for item in items:
+        if is_metadata(item):
+            ans = str(type(item))
+            yield ans
