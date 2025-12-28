@@ -6,6 +6,95 @@ from collections import UserDict
 
 logger = logging.getLogger(__name__)
 
+class AdaptiveBuffer:
+    """Buffer that adapts its flush size based on item arrival rate."""
+
+    def __init__(
+        self,
+        max_size=1000,
+        min_size=1,
+        fast_interval=0.05,
+        slow_interval=1.0,
+        smoothing=0.2,
+        time_func=time.time,
+    ):
+        if min_size < 1:
+            raise ValueError("min_size must be >= 1")
+        if max_size < min_size:
+            raise ValueError("max_size must be >= min_size")
+        if fast_interval <= 0:
+            raise ValueError("fast_interval must be > 0")
+        if slow_interval <= fast_interval:
+            raise ValueError("slow_interval must be > fast_interval")
+        if not 0 < smoothing <= 1:
+            raise ValueError("smoothing must be in (0, 1]")
+
+        self.max_size = max_size
+        self.min_size = min_size
+        self.fast_interval = fast_interval
+        self.slow_interval = slow_interval
+        self.smoothing = smoothing
+        self.time_func = time_func
+
+        self._buffer = []
+        self._last_append_time = None
+        self._ema_interval = None
+        self._target_size = min_size
+
+    def append(self, item):
+        now = self.time_func()
+        if self._last_append_time is not None:
+            interval = max(0.0, now - self._last_append_time)
+            self._update_interval(interval)
+            self._target_size = self._compute_target_size()
+        self._last_append_time = now
+
+        self._buffer.append(item)
+        if len(self._buffer) >= self._target_size:
+            return self.flush()
+        return None
+
+    def extend(self, items):
+        flushed = []
+        for item in items:
+            batch = self.append(item)
+            if batch is not None:
+                flushed.append(batch)
+        return flushed
+
+    def flush(self):
+        if not self._buffer:
+            return None
+        items = self._buffer
+        self._buffer = []
+        return items
+
+    def __len__(self):
+        return len(self._buffer)
+
+    def _update_interval(self, interval):
+        if self._ema_interval is None:
+            self._ema_interval = interval
+        else:
+            alpha = self.smoothing
+            self._ema_interval = (alpha * interval) + ((1 - alpha) * self._ema_interval)
+
+    def _compute_target_size(self):
+        if self._ema_interval is None:
+            return self.min_size
+        if self._ema_interval <= self.fast_interval:
+            return self.max_size
+        if self._ema_interval >= self.slow_interval:
+            return self.min_size
+
+        ratio = (self.slow_interval - self._ema_interval) / (
+            self.slow_interval - self.fast_interval
+        )
+        target = self.min_size + int(round(ratio * (self.max_size - self.min_size)))
+        print(target)
+        return max(self.min_size, min(self.max_size, target))
+
+
 class ExpiringDict(UserDict):
     def __init__(self, filename=None, default_ttl=None):
         super().__init__()
@@ -140,4 +229,3 @@ class ExpiringDict(UserDict):
             logger.warning(f"Failed to load cached data from {self.filename}: {e}. Starting with empty cache.")
             self.data = {}
             self.expiry = {}
-

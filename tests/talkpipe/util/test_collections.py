@@ -3,7 +3,7 @@ import time
 import os
 import tempfile
 from unittest.mock import patch
-from talkpipe.util.collections import ExpiringDict
+from talkpipe.util.collections import AdaptiveBuffer, ExpiringDict
 
 
 def test_init(tmp_path):
@@ -298,3 +298,59 @@ def test_iteration_methods_with_expired_keys():
     assert 'expires_soon' not in items
     assert 'expires_later' in items
     assert 'no_expiry' in items
+
+
+class FakeClock:
+    def __init__(self, start=0.0):
+        self._now = start
+
+    def time(self):
+        return self._now
+
+    def advance(self, seconds):
+        self._now += seconds
+
+
+def test_adaptive_buffer_fast_path_batches_items():
+    clock = FakeClock()
+
+    buffer = AdaptiveBuffer(
+        max_size=5,
+        fast_interval=0.01,
+        slow_interval=1.0,
+        smoothing=1.0,
+        time_func=clock.time,
+    )
+
+    flushed = []
+    batch = buffer.append("item0")
+    if batch is not None:
+        flushed.append(batch)
+    for index in range(1, 6):
+        clock.advance(0.001)
+        batch = buffer.append(f"item{index}")
+        if batch is not None:
+            flushed.append(batch)
+
+    assert flushed == [["item0"], ["item1", "item2", "item3", "item4", "item5"]]
+
+
+def test_adaptive_buffer_slow_path_flushes_each_item():
+    clock = FakeClock()
+
+    buffer = AdaptiveBuffer(
+        max_size=5,
+        fast_interval=0.01,
+        slow_interval=1.0,
+        smoothing=1.0,
+        time_func=clock.time,
+    )
+
+    flushed = []
+    for index in range(3):
+        clock.advance(2.0)
+        batch = buffer.append(f"item{index}")
+        if batch is not None:
+            flushed.append(batch)
+
+    assert flushed == [["item0"], ["item1"], ["item2"]]

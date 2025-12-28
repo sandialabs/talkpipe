@@ -6,6 +6,9 @@
   to process metadata, it can so declare when being defined and metadata will be passed
   to it during processing.  This capability will support things like issuing period flush
   commands during processing.
+- Added `AdaptiveBuffer` in `talkpipe.util.collections` for rate-aware buffering that
+  returns buffered batches when it decides to flush, adjusting between single-item and
+  batch handling.
 
 ## 0.11.0
 
