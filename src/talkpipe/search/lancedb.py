@@ -6,6 +6,7 @@ import numpy as np
 from datetime import timedelta
 from talkpipe.chatterlang import register_segment
 from talkpipe import segment
+from talkpipe.util.collections import AdaptiveBuffer
 from talkpipe.util.data_manipulation import extract_property, VectorLike, Document, DocID, toDict, assign_property
 from talkpipe.util.os import get_process_temp_dir
 from .abstract import DocumentStore, VectorAddable, VectorSearchable, SearchResult
@@ -127,7 +128,7 @@ def add_to_lancedb(items: Annotated[object, "Items with the vectors and document
                    metadata_field_list: Annotated[Optional[str], "Optional metadata field list"] = None,
                    overwrite: Annotated[bool, "If true, overwrite existing table"]=False,
                    vector_dim: Annotated[Optional[int], "Expected dimension of vectors"]=None,
-                   batch_size: Annotated[int, "Batch size for adding vectors"]=1,
+                   batch_size: Annotated[int, "Maximum batch size for adding vectors"]=1,
                    optimize_on_batch: Annotated[bool, "If true, optimize the table after each batch.  Otherwise optimize after last batch."]=False,
                    ):
     """Add vectors and documents to a LanceDB vector database.
@@ -178,7 +179,8 @@ def add_to_lancedb(items: Annotated[object, "Items with the vectors and document
             # If there's any issue with dropping, continue
             logger.warning(f"Could not drop table '{table_name}' for overwrite. Continuing without dropping.")
 
-    cached_docs = []
+    max_batch_size = max(1, batch_size)
+    buffer = AdaptiveBuffer(max_size=max_batch_size)
     for item in items:
         # Extract vector
         vector = extract_property(item, vector_field, fail_on_missing=True)
@@ -204,18 +206,17 @@ def add_to_lancedb(items: Annotated[object, "Items with the vectors and document
         # Convert metadata to Document format (string keys and values)
         document = {str(k): str(v) for k, v in metadata.items()}
 
-        cached_docs.append((vector, document, doc_id))
-        if len(cached_docs) >= batch_size:
-            doc_store.add_vectors(cached_docs)
-            cached_docs = []
+        batch = buffer.append((vector, document, doc_id))
+        if batch is not None:
+            doc_store.add_vectors(batch)
             if optimize_on_batch:
                 doc_store._get_table()[0].optimize()
 
         yield item
         
-    if len(cached_docs) > 0:
-        doc_store.add_vectors(cached_docs)
-        cached_docs = []
+    final_batch = buffer.flush()
+    if final_batch is not None:
+        doc_store.add_vectors(final_batch)
         doc_store._get_table()[0].optimize() 
 
 
@@ -437,4 +438,3 @@ class LanceDBDocumentStore(DocumentStore, VectorAddable, VectorSearchable):
             return [result["id"] for result in results]
         except Exception:
             return []
-

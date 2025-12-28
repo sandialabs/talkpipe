@@ -170,6 +170,7 @@ class TestAddToLanceDB:
     @mock.patch('talkpipe.search.lancedb.extract_property')
     def test_add_to_lancedb_with_vector_field(self, mock_extract_property, mock_doc_store_class, sample_items, temp_db_path):
         mock_doc_store = mock.Mock()
+        mock_doc_store._get_table.return_value = [mock.Mock()]
         mock_doc_store_class.return_value = mock_doc_store
         mock_extract_property.return_value = [1.0, 2.0, 3.0]
 
@@ -188,6 +189,7 @@ class TestAddToLanceDB:
     @mock.patch('talkpipe.search.lancedb.extract_property')
     def test_add_to_lancedb_with_overwrite(self, mock_extract_property, mock_doc_store_class, sample_items, temp_db_path):
         mock_doc_store = mock.Mock()
+        mock_doc_store._get_table.return_value = [mock.Mock()]
         mock_doc_store_class.return_value = mock_doc_store
         mock_doc_store.add_vector.return_value = "added_doc_id"
         mock_extract_property.return_value = [1.0, 2.0, 3.0]
@@ -208,6 +210,7 @@ class TestAddToLanceDB:
     @mock.patch('talkpipe.search.lancedb.extract_property')
     def test_add_to_lancedb_yields_original_items(self, mock_extract_property, mock_doc_store_class, sample_items, temp_db_path):
         mock_doc_store = mock.Mock()
+        mock_doc_store._get_table.return_value = [mock.Mock()]
         mock_doc_store_class.return_value = mock_doc_store
         mock_extract_property.side_effect = [[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]]
 
@@ -219,6 +222,50 @@ class TestAddToLanceDB:
         assert len(results) == 2
         assert results[0]["_doc_id"] is not None
         assert results[1]["_doc_id"] is not None
+
+    @mock.patch('talkpipe.search.lancedb.AdaptiveBuffer')
+    @mock.patch('talkpipe.search.lancedb.LanceDBDocumentStore')
+    @mock.patch('talkpipe.search.lancedb.extract_property')
+    def test_add_to_lancedb_uses_adaptive_buffer(
+        self,
+        mock_extract_property,
+        mock_doc_store_class,
+        mock_adaptive_buffer,
+        sample_items,
+        temp_db_path,
+    ):
+        mock_doc_store = mock.Mock()
+        mock_doc_store._get_table.return_value = [mock.Mock()]
+        mock_doc_store_class.return_value = mock_doc_store
+        mock_extract_property.return_value = [1.0, 2.0, 3.0]
+
+        class FakeBuffer:
+            def __init__(self):
+                self.items = []
+
+            def append(self, item):
+                self.items.append(item)
+                return None
+
+            def flush(self):
+                if not self.items:
+                    return None
+                items = self.items
+                self.items = []
+                return items
+
+        buffer_instance = FakeBuffer()
+        mock_adaptive_buffer.return_value = buffer_instance
+
+        items_to_add = [sample_items[0]]
+        seg = add_to_lancedb(path=temp_db_path, table_name="test_table",
+                             vector_field="vector", batch_size=5)
+        list(seg(items_to_add))
+
+        mock_adaptive_buffer.assert_called_once_with(max_size=5)
+        mock_doc_store.add_vectors.assert_called_once()
+        added_batch = mock_doc_store.add_vectors.call_args[0][0]
+        assert len(added_batch) == 1
 
 
 def test_add_and_search_integration(temp_db_path, sample_items_direction_relevant):

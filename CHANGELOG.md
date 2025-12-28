@@ -9,6 +9,9 @@
 - Added `AdaptiveBuffer` in `talkpipe.util.collections` for rate-aware buffering that
   returns buffered batches when it decides to flush, adjusting between single-item and
   batch handling.
+- Updated `addToLanceDB` to use `AdaptiveBuffer` for adaptive batching instead of a
+  fixed-size cache.  If documents are coming slowly, they will get added one by one,
+  scaling up to batch_size as the rate increases.
 
 ## 0.11.0
 
