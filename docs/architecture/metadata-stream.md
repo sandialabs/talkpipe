@@ -58,7 +58,7 @@ if is_metadata(item):
 A common use case is flushing buffers at the end of a stream:
 
 ```python
-from talkpipe.pipe.core import AbstractSegment, Metadata, is_metadata, unwrap_metadata
+from talkpipe.pipe.core import AbstractSegment, Metadata, is_metadata
 
 class BufferedSegment(AbstractSegment):
     """Segment that buffers items and flushes on metadata signal."""
@@ -166,7 +166,7 @@ When `process_metadata=False`:
 When `process_metadata=True`:
 1. All items (including metadata) are passed to `transform()`
 2. The segment's `transform()` method receives metadata objects
-3. The segment must explicitly handle metadata (check with `is_metadata()`, unwrap with `unwrap_metadata()`)
+3. The segment must explicitly handle metadata (check with `is_metadata()`)
 4. Metadata is not automatically yielded - the segment controls whether to propagate it
 
 ### Pipeline Behavior
@@ -178,7 +178,7 @@ Pipelines default to `process_metadata=True` so metadata flows through to their 
 ### Example 1: Batched Processing with Flush
 
 ```python
-from talkpipe.pipe.core import AbstractSegment, Metadata, is_metadata, unwrap_metadata, source, segment
+from talkpipe.pipe.core import AbstractSegment, Metadata, is_metadata, source, segment
 
 class BatchProcessor(AbstractSegment):
     def __init__(self, batch_size=5):

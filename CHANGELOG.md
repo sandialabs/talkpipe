@@ -12,10 +12,15 @@
 - Updated `addToLanceDB` to use `AdaptiveBuffer` for adaptive batching instead of a
   fixed-size cache.  If documents are coming slowly, they will get added one by one,
   scaling up to batch_size as the rate increases.
-- Refactored fork graph building code in `compiler.py` to use `networkx` for cleaner
-  and more maintainable graph structure management. The refactoring simplifies the code
-  by using `DiGraph` to represent producer-consumer relationships instead of manually
-  tracking adjacency lists.
+- Added new arrow-based forking syntax in ChatterLang for connecting pipelines to forks.
+  Pipelines can now use `-> fork_name` to feed into a fork and `fork_name ->` to read from
+  a fork, providing a more intuitive way to express producer-consumer relationships in
+  complex workflows. The implementation uses `networkx` for graph structure management,
+  replacing manual adjacency list tracking with a cleaner `DiGraph` representation.
+- Improved documentation consistency and accuracy:
+  - Added metadata stream documentation to architecture index for better discoverability
+  - Removed references to non-existent `unwrap_metadata()` function from metadata-stream.md
+  - Enhanced RuntimeComponent documentation to include `add_constants()` method
 
 ## 0.11.0
 

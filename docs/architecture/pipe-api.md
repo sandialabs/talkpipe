@@ -203,6 +203,10 @@ class RuntimeComponent:
     def __init__(self):
         self._variable_store = {}  # Mutable runtime variables
         self._const_store = {}     # Immutable constants
+    
+    def add_constants(self, constants: dict, override: bool = True):
+        """Add constants to the const_store."""
+        # Implementation details...
 ```
 
 ### HasRuntimeComponent Mixin

@@ -32,6 +32,13 @@ How TalkPipe processes data efficiently using Python generators.
 - Backpressure handling
 - Error propagation
 
+### [Metadata Stream](metadata-stream.md)
+How TalkPipe handles control signals and metadata alongside regular data items.
+- Metadata objects for control signals
+- Opt-in metadata processing
+- Flush signals and end-of-stream markers
+- Backward compatibility
+
 ## Extension Points
 
 ### [Extending TalkPipe](extending-talkpipe.md)
