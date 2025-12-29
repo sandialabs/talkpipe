@@ -10,6 +10,8 @@ from whoosh.qparser import MultifieldParser, QueryParserError
 from whoosh.writing import LockError
 from talkpipe.pipe import segment, field_segment
 from talkpipe.chatterlang import register_segment
+from talkpipe.pipe.core import is_metadata
+from talkpipe.pipe.metadata import Flush
 from talkpipe.util.data_manipulation import DocID, Document, toDict, extract_property, assign_property
 from talkpipe.util.config import parse_key_value_str
 import time
@@ -186,10 +188,7 @@ def WhooshWriter(index_path: str, fields: list[str] = None, overwrite: bool = Fa
         def add_document(self, doc, doc_id=None):
             # Check if we need to commit
             if self.commit_seconds >= 0 and (time.time() - self.last_commit) > self.commit_seconds:
-                self.writer.commit()
-                self.writer = self.idx.ix.writer()
-                self.last_commit = time.time()
-                logger.debug("Periodic commit performed")
+                self.commit()
             
             # Add document using the writer directly
             if doc_id is None:
@@ -197,6 +196,13 @@ def WhooshWriter(index_path: str, fields: list[str] = None, overwrite: bool = Fa
             doc_fields = {field: str(doc.get(field, "")) for field in self.idx.fields if field in doc}
             self.writer.update_document(doc_id=doc_id, **doc_fields)
             return doc_id
+        
+        def commit(self):
+            """Commit the current writer and create a new one."""
+            self.writer.commit()
+            self.writer = self.idx.ix.writer()
+            self.last_commit = time.time()
+            logger.debug("Index commit performed")
         
         def __getattr__(self, name):
             # Delegate other attributes to the index
@@ -229,11 +235,16 @@ def WhooshSearcher(index_path: str, reload_seconds: int = -1):
         def text_search(self, query, limit=10):
             # Check if we need to reload
             if self.reload_seconds >= 0 and (time.time() - self.last_reload) > self.reload_seconds:
-                self.idx.close()
-                self.idx = WhooshFullTextIndex(self.index_path)
-                self.last_reload = time.time()
+                self.reload()
             
             return self.idx.text_search(query, limit=limit)
+        
+        def reload(self):
+            """Reload the index to pick up any changes."""
+            self.idx.close()
+            self.idx = WhooshFullTextIndex(self.index_path)
+            self.last_reload = time.time()
+            logger.debug("Index reloaded")
         
         def __getattr__(self, name):
             # Delegate other attributes to the index
@@ -251,7 +262,7 @@ def WhooshSearcher(index_path: str, reload_seconds: int = -1):
 
 
 @register_segment("indexWhoosh")
-@segment()
+@segment(process_metadata=True)
 def indexWhoosh(items: Annotated[object, "Iterator of items to index"], index_path: Annotated[str, "Path to the Whoosh index directory"], field_list: Annotated[list[str], "List of fields to index"] = ["_:content"], 
                 yield_doc: Annotated[bool, "If True, yield each indexed document. Otherwise yield the original item"] = False, continue_on_error: Annotated[bool, "If True, continue processing other documents when one fails"] = True, overwrite: Annotated[bool, "If True, clear existing index before indexing"] = False,
                 commit_seconds: Annotated[int, "If > 0, commit changes if it has been this many seconds since the last commit"] = -1):
@@ -278,6 +289,13 @@ def indexWhoosh(items: Annotated[object, "Iterator of items to index"], index_pa
     
     with WhooshWriter(index_path, list(field_list_dict.values()), overwrite=overwrite, commit_seconds=commit_seconds) as idx:
         for item in items:
+            # Check if this is a Flush event
+            if is_metadata(item) and isinstance(item, Flush):
+                # Commit the index to ensure all buffered changes are persisted
+                idx.commit()
+                # Don't yield Flush events - consume them
+                continue
+            
             try:
                 d = toDict(item, field_list, fail_on_missing=False)
                 doc_id = str(d.get('doc_id', uuid.uuid4()))
@@ -299,7 +317,7 @@ def indexWhoosh(items: Annotated[object, "Iterator of items to index"], index_pa
 
 
 @register_segment("searchWhoosh")
-@segment()
+@segment(process_metadata=True)
 def searchWhoosh(queries: Annotated[object, "Iterator of query strings"], index_path: Annotated[str, "Path to the Whoosh index directory"], limit: Annotated[int, "Maximum number of results to return for each query"] = 100, 
                  all_results_at_once: Annotated[bool, "If True, yield all results at once. Otherwise, yield one result at a time"] = False, continue_on_error: Annotated[bool, "If True, continue with next query when one fails"] = True,
                  reload_seconds: Annotated[int, "If > 0, reload the index if the last search was at least this many seconds ago"] = 60, field: Annotated[str, "Field to extract query from"] = "_", set_as: Annotated[Optional[str], "Field name to set results on input items"] = None):
@@ -332,6 +350,13 @@ def searchWhoosh(queries: Annotated[object, "Iterator of query strings"], index_
     """
     with WhooshSearcher(index_path, reload_seconds=reload_seconds) as idx:
         for item in queries:
+            # Check if this is a Flush event
+            if is_metadata(item) and isinstance(item, Flush):
+                # Reload the index to pick up any changes
+                idx.reload()
+                # Don't yield Flush events - consume them
+                continue
+            
             query = extract_property(item, field, fail_on_missing=True)
             try:
                 results = idx.text_search(query, limit=limit)

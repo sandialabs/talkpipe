@@ -12,6 +12,7 @@
 - Updated `addToLanceDB` to use `AdaptiveBuffer` for adaptive batching instead of a
   fixed-size cache.  If documents are coming slowly, they will get added one by one,
   scaling up to batch_size as the rate increases.
+- Updated lance and whoose segments to be responsive to Flush metadata.
 - Added new arrow-based forking syntax in ChatterLang for connecting pipelines to forks.
   Pipelines can now use `-> fork_name` to feed into a fork and `fork_name ->` to read from
   a fork, providing a more intuitive way to express producer-consumer relationships in

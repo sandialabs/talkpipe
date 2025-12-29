@@ -3,11 +3,13 @@ import shutil
 import tempfile
 import uuid
 import pytest
+from unittest import mock
 from talkpipe.util.data_manipulation import toDict
-from talkpipe.search.whoosh import WhooshFullTextIndex, indexWhoosh
+from talkpipe.search.whoosh import WhooshFullTextIndex, indexWhoosh, searchWhoosh
 from talkpipe.search.abstract import SearchResult
 from talkpipe.chatterlang import compile
 from talkpipe.search.whoosh import WhooshWriter, WhooshSearcher, WhooshIndexError
+from talkpipe.pipe.metadata import Flush
 
 
 @pytest.fixture
@@ -576,3 +578,200 @@ def test_searchWhoosh_all_results_at_once_without_set_as(temp_index_dir):
     assert len(results) == 1
     assert isinstance(results[0], list)
     assert all(isinstance(r, SearchResult) for r in results[0])
+
+
+def test_indexWhoosh_handles_flush_events(temp_index_dir):
+    """Test that indexWhoosh commits the index on Flush events."""
+    data = [
+        {"title": "Doc 1", "content": "Content 1"},
+        Flush(),  # Flush event should trigger commit
+        {"title": "Doc 2", "content": "Content 2"},
+    ]
+    
+    f = indexWhoosh(index_path=temp_index_dir, field_list="title,content")
+    results = list(f(data))
+    
+    # Should yield only the original items (Flush is consumed)
+    assert len(results) == 2
+    assert results[0]["title"] == "Doc 1"
+    assert results[1]["title"] == "Doc 2"
+    
+    # Verify both documents were indexed (commit happened on Flush)
+    idx = WhooshFullTextIndex(temp_index_dir, ["title", "content"])
+    search_results = idx.text_search("Content")
+    assert len(search_results) == 2
+
+
+def test_indexWhoosh_flush_triggers_commit(temp_index_dir):
+    """Test that Flush events trigger commit in indexWhoosh."""
+    # Use mock to verify commit is called
+    with mock.patch('talkpipe.search.whoosh.WhooshWriter') as mock_writer_class:
+        mock_writer = mock.Mock()
+        mock_writer_class.return_value.__enter__.return_value = mock_writer
+        mock_writer.add_document.return_value = "doc_id"
+        
+        data = [{"title": "Test", "content": "Content"}, Flush()]
+        f = indexWhoosh(index_path=temp_index_dir, field_list="title,content")
+        list(f(data))
+        
+        # Verify commit was called on Flush
+        assert mock_writer.commit.called
+
+
+def test_searchWhoosh_handles_flush_events(temp_index_dir):
+    """Test that searchWhoosh reloads the index on Flush events."""
+    # Index some documents first
+    data = [
+        {"title": "Initial Doc", "content": "Initial content"},
+    ]
+    f = indexWhoosh(index_path=temp_index_dir, field_list="title,content")
+    list(f(data))
+    
+    # Search with a Flush event
+    queries = ["Initial", Flush(), "Initial"]
+    f = searchWhoosh(index_path=temp_index_dir)
+    results = list(f(queries))
+    
+    # Should yield only search results (Flush is consumed)
+    assert len(results) == 2  # Two searches, both should return results
+    assert all(isinstance(r, SearchResult) for r in results)
+
+
+def test_searchWhoosh_flush_triggers_reload(temp_index_dir):
+    """Test that Flush events trigger reload in searchWhoosh."""
+    # Index a document
+    data = [{"title": "Test", "content": "Content"}]
+    f = indexWhoosh(index_path=temp_index_dir, field_list="title,content")
+    list(f(data))
+    
+    # Use mock to verify reload is called
+    with mock.patch('talkpipe.search.whoosh.WhooshSearcher') as mock_searcher_class:
+        mock_searcher = mock.Mock()
+        mock_searcher.text_search.return_value = [SearchResult(doc_id="1", score=1.0, document={"title": "Test"})]
+        mock_searcher_class.return_value.__enter__.return_value = mock_searcher
+        
+        queries = ["Test", Flush()]
+        f = searchWhoosh(index_path=temp_index_dir)
+        list(f(queries))
+        
+        # Verify reload was called on Flush
+        assert mock_searcher.reload.called
+
+
+def test_indexWhoosh_flush_integration_with_search(temp_index_dir):
+    """Test that indexWhoosh Flush events make documents searchable immediately."""
+    # Index documents with Flush in the middle
+    data = [
+        {"title": "Before Flush", "content": "First document"},
+        Flush(),  # This should commit, making the document searchable
+        {"title": "After Flush", "content": "Second document"},
+    ]
+    
+    f = indexWhoosh(index_path=temp_index_dir, field_list="title,content")
+    list(f(data))
+    
+    # Search - both documents should be found (Flush committed the first one)
+    idx = WhooshFullTextIndex(temp_index_dir, ["title", "content"])
+    results1 = idx.text_search("Before Flush")
+    results2 = idx.text_search("After Flush")
+    
+    assert len(results1) == 1
+    assert len(results2) == 1
+
+
+def test_indexWhoosh_flush_makes_documents_searchable_immediately(temp_index_dir):
+    """Test that without Flush, documents aren't searchable until context manager exits."""
+    # Create a generator that we can control
+    def document_generator():
+        yield {"title": "FlushCommitted", "content": "UniqueContentXYZ123"}
+        yield Flush()  # Commit here
+        yield {"title": "NotYetCommitted", "content": "UniqueContentABC456"}
+        # Don't yield anything else - we'll check before context manager exits
+    
+    f = indexWhoosh(index_path=temp_index_dir, field_list="title,content")
+    
+    # Process items one at a time to control when we check
+    gen = f(document_generator())
+    
+    # Get the first item (FlushCommitted)
+    first_result = next(gen)
+    assert first_result["title"] == "FlushCommitted"
+    
+    # Get the Flush (consumed, not yielded)
+    result2 = next(gen)
+    assert result2["title"] == "NotYetCommitted"
+    
+    # At this point, "FlushCommitted" should be searchable (Flush committed it)
+    # but "NotYetCommitted" should NOT be searchable yet (it's in the writer buffer)
+    idx1 = WhooshFullTextIndex(temp_index_dir, ["title", "content"])
+    committed_results = idx1.text_search("UniqueContentXYZ123")
+    uncommitted_results = idx1.text_search("UniqueContentABC456")
+    
+    # The committed doc should be searchable after Flush
+    assert len(committed_results) == 1, "Document should be searchable immediately after Flush commit"
+    assert committed_results[0].document["title"] == "FlushCommitted"
+    
+    # The uncommitted doc should NOT be searchable yet (it's still in the writer buffer)
+    assert len(uncommitted_results) == 0, "Document should NOT be searchable before context manager exits (no Flush)"
+    
+    # Finish the generator to commit everything
+    try:
+        list(gen)  # Exhaust the generator, which will commit on context exit
+    except:
+        pass
+    
+    # Now both should be searchable after context manager exits
+    idx2 = WhooshFullTextIndex(temp_index_dir, ["title", "content"])
+    final_committed = idx2.text_search("UniqueContentXYZ123")
+    final_uncommitted = idx2.text_search("UniqueContentABC456")
+    
+    assert len(final_committed) == 1
+    assert len(final_uncommitted) == 1
+
+
+def test_indexWhoosh_flush_commit_visibility(temp_index_dir):
+    """Test that Flush events make documents visible to separate searcher instances."""
+    # Test mid-stream commit with Flush
+    def controlled_indexing():
+        yield {"title": "BeforeFlush", "content": "UniqueSearchTermDEF789"}
+        yield Flush()  # This commits
+        yield {"title": "AfterFlush", "content": "UniqueSearchTermGHI012"}
+    
+    f = indexWhoosh(index_path=temp_index_dir, field_list="title,content")
+    gen = f(controlled_indexing())
+    
+    # Process first document
+    result1 = next(gen)
+    assert result1["title"] == "BeforeFlush"
+    
+    # Process Flush (consumed)
+    result2 = next(gen)
+    assert result2["title"] == "AfterFlush"
+    
+    # Now check with a separate searcher instance
+    # "BeforeFlush" should be searchable (committed by Flush)
+    # "AfterFlush" should NOT be searchable yet (in writer buffer, not committed)
+    searcher = WhooshFullTextIndex(temp_index_dir, ["title", "content"])
+    before_results = searcher.text_search("UniqueSearchTermDEF789")
+    after_results = searcher.text_search("UniqueSearchTermGHI012")
+    
+    # The document committed by Flush should be searchable
+    assert len(before_results) == 1, "Document should be searchable after Flush commit"
+    assert before_results[0].document["title"] == "BeforeFlush"
+    
+    # The document after Flush should NOT be searchable yet (not committed)
+    assert len(after_results) == 0, "Document should NOT be searchable before context manager exits (no Flush)"
+    
+    # Finish the generator to commit everything
+    try:
+        list(gen)
+    except:
+        pass
+    
+    # Now both should be searchable
+    final_searcher = WhooshFullTextIndex(temp_index_dir, ["title", "content"])
+    final_before = final_searcher.text_search("UniqueSearchTermDEF789")
+    final_after = final_searcher.text_search("UniqueSearchTermGHI012")
+    
+    assert len(final_before) == 1
+    assert len(final_after) == 1
