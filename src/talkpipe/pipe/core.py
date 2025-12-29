@@ -111,12 +111,10 @@ class RuntimeComponent:
     """
     _variable_store: dict
     _const_store: dict
-    _fork_store: dict
 
     def __init__(self):
         self._variable_store = {}
         self._const_store = {}
-        self._fork_store = {}
 
     @property
     def variable_store(self):
@@ -144,14 +142,6 @@ class RuntimeComponent:
             for key, value in constants.items():
                 if key not in self._const_store:
                     self._const_store[key] = value
-    
-    @property
-    def fork_store(self):
-        return self._fork_store
-    
-    @fork_store.setter
-    def fork_store(self, value: dict):
-        self._fork_store = value
     
 
 class HasRuntimeComponent:
@@ -273,28 +263,16 @@ class AbstractSegment(ABC, HasRuntimeComponent, Generic[T, U]):
         # Handle metadata when process_metadata=False
         if not self.process_metadata:
             if len(self.downstream) > 0:
-                # not processing metadata, but have downstream segments
-                # so we need to bypass metadata through
                 ans = bypass(input_iter, lambda x: is_metadata(x), self.transform)
             else:
-                # not processing metadata, and no downstream segments
-                # so we can just filter out metadata before transforming
                 ans = self.transform(filter_out_metadata(input_iter))
             return ans
         else:
-            if len(self.downstream) > 0:
-                # processing metadata, and have downstream segments
-                # so just pass input directly to transform.  The 
-                # segment is responsible for handling metadata appropriately
-                # and for yielding it as needed
-                ans = self.transform(input_iter)
-            else:
-                # processing metadata, but no downstream segments
-                # so we can filter out metadata after transforming
-                ans = filter_out_metadata(self.transform(input_iter))
+            # process_metadata=True: pass everything to transform including metadata
+            # Segments can handle metadata positioning themselves if needed
+            ans = self.transform(input_iter)
+            logger.debug(f"Finished segment {self.__class__.__name__}")
             return ans
-        
-        return ans
         
         logger.debug(f"Finished segment {self.__class__.__name__}")
 

@@ -5,12 +5,12 @@ For an end user, the most important method is the compile method that takes a st
 other methods are used internally to compile the parsed scripts.
 """
 
-from typing import Callable, Union, Iterator
+from typing import Callable, Union, Iterator, Any, Dict, List, Optional
 import logging
 from functools import singledispatch
-from talkpipe.chatterlang.parsers import script_parser, ParsedScript, ParsedLoop, ParsedPipeline, VariableName, SegmentNode, Identifier, ForkNode, ForkReference
+from talkpipe.chatterlang.parsers import script_parser, ParsedScript, ParsedLoop, ParsedPipeline, VariableName, SegmentNode, Identifier, ForkNode
 from talkpipe.chatterlang import registry 
-from talkpipe.pipe.core import Loop, Pipeline, Script, RuntimeComponent, AbstractSource
+from talkpipe.pipe.core import Loop, Pipeline, Script, RuntimeComponent, AbstractSource, AbstractSegment
 from talkpipe.pipe.fork import ForkSegment
 from talkpipe.pipe import io
 from talkpipe.operations.thread_ops import ThreadedQueue
@@ -20,109 +20,6 @@ logger = logging.getLogger(__name__)
 class CompileError(Exception):
     """ Exception raised when a compilation error occurs in chatterlang """
     pass
-
-class ForkAwareScript(Script):
-    """A Script that handles fork startup and shutdown.
-    
-    This script ensures that all fork producers and consumers are registered
-    before starting the forks. It does a two-phase execution:
-    1. Registration phase: register all consumers and create producer generators
-    2. Start forks and execute
-    """
-    
-    def __init__(self, segments, runtime):
-        super().__init__(segments)
-        self.runtime = runtime
-    
-    def _reset_fork_segment_state(self, segment):
-        """Recursively reset registration state for fork-related segments."""
-        if isinstance(segment, ForkPullSource):
-            segment._consumer_registered = False
-            segment.consumer = None
-        elif isinstance(segment, ForkPushSegment):
-            segment._producer_id = None
-            # Also reset state in the wrapped pipeline
-            if hasattr(segment, 'wrapped_pipeline'):
-                self._reset_fork_segment_state(segment.wrapped_pipeline)
-        elif isinstance(segment, Pipeline):
-            # Pipeline has operations - check recursively
-            for op in segment.operations:
-                self._reset_fork_segment_state(op)
-    
-    def _register_fork_consumers(self, segment):
-        """Recursively find and register ForkPullSource instances."""
-        if isinstance(segment, ForkPullSource):
-            # Get or create the fork's ThreadedQueue
-            if segment.fork_name not in self.runtime.fork_store:
-                self.runtime.fork_store[segment.fork_name] = ThreadedQueue()
-            fork_queue = self.runtime.fork_store[segment.fork_name]
-            # Register consumer (must be before fork starts)
-            if not segment._consumer_registered:
-                segment.consumer = fork_queue.register_consumer()
-                segment._consumer_registered = True
-        elif isinstance(segment, ForkPushSegment):
-            # ForkPushSegment wraps a pipeline that might contain ForkPullSource
-            # (e.g., "afork -> lambda -> bfork" creates ForkPushSegment wrapping Pipeline with ForkPullSource)
-            if hasattr(segment, 'wrapped_pipeline'):
-                self._register_fork_consumers(segment.wrapped_pipeline)
-        elif isinstance(segment, Pipeline):
-            # Pipeline has operations - check ALL operations recursively
-            # (not just the first one, in case ForkPullSource appears later)
-            for op in segment.operations:
-                self._register_fork_consumers(op)
-    
-    def transform(self, initial_input=None):
-        # Clear fork_store to ensure fresh state for each transform() call
-        # This prevents state pollution when the same script is executed multiple times
-        # or when tests run in sequence
-        for fork_name, fork_queue in list(self.runtime.fork_store.items()):
-            if fork_queue._started:
-                fork_queue.shutdown()
-        self.runtime.fork_store.clear()
-        
-        # Reset registration state for all fork-related segments to handle multiple executions
-        # This ensures each transform() call starts fresh, which is important for tests
-        for seg in self.segments:
-            self._reset_fork_segment_state(seg)
-        
-        # Phase 1: Register all consumers (they don't need input)
-        # ForkPullSource might be inside Pipelines, so we need to check recursively
-        for seg in self.segments:
-            self._register_fork_consumers(seg)
-        
-        # Phase 2: Register all producers by executing segments
-        # We need to create generators and register them before starting forks
-        current_iter = initial_input
-        
-        for i, seg in enumerate(self.segments):
-            if isinstance(seg, AbstractSource):
-                if not isinstance(seg, ForkPullSource):
-                    # Regular sources - get their generator for producer registration
-                    current_iter = seg()
-            else:
-                if isinstance(seg, ForkPushSegment):
-                    # Register producer for this fork
-                    seg._register_producer(self.runtime, current_iter)
-                    # Set current_iter to empty iterator for next segment
-                    current_iter = iter([])
-                else:
-                    # Regular segments - execute to get output for next segment
-                    current_iter = seg(current_iter)
-        
-        # Phase 3: Start all forks (all registrations should be done)
-        for fork_name, fork_queue in self.runtime.fork_store.items():
-            if not fork_queue._started:
-                fork_queue.start()
-                logger.debug(f"Started fork {fork_name}")
-        
-        # Phase 4: Execute script normally - consumers will feed into subsequent segments
-        try:
-            yield from super().transform(initial_input)
-        finally:
-            # Shutdown all forks after execution
-            for fork_name, fork_queue in self.runtime.fork_store.items():
-                fork_queue.shutdown()
-                logger.debug(f"Shutdown fork {fork_name}")
 
 @singledispatch
 def compile(script: ParsedScript, runtime: RuntimeComponent = None) -> Callable:
@@ -138,12 +35,156 @@ def compile(script: ParsedScript, runtime: RuntimeComponent = None) -> Callable:
     runtime.add_constants(script.constants, override=False)
     logger.debug(f"Initialized runtime with {len(runtime.const_store)} constants")
     
-    compiled_pipelines = [compile(item, runtime) for item in script.pipelines]
+    # Build fork graph from arrow syntax
+    fork_segments: Dict[str, ArrowForkSegment] = {}
+    producer_pipelines: Dict[str, List[ParsedPipeline]] = {}  # fork_name -> list of pipelines
+    consumer_pipelines: Dict[str, List[ParsedPipeline]] = {}  # fork_name -> list of pipelines
+    
+    # First pass: identify fork connections
+    for pipeline in script.pipelines:
+        if isinstance(pipeline, ParsedPipeline):
+            if pipeline.fork_target:
+                # This pipeline feeds into a fork
+                if pipeline.fork_target not in producer_pipelines:
+                    producer_pipelines[pipeline.fork_target] = []
+                producer_pipelines[pipeline.fork_target].append(pipeline)
+            if pipeline.fork_source:
+                # This pipeline reads from a fork
+                if pipeline.fork_source not in consumer_pipelines:
+                    consumer_pipelines[pipeline.fork_source] = []
+                consumer_pipelines[pipeline.fork_source].append(pipeline)
+    
+    # Create ArrowForkSegment instances for all forks
+    all_fork_names = set(producer_pipelines.keys()) | set(consumer_pipelines.keys())
+    for fork_name in all_fork_names:
+        fork_segments[fork_name] = ArrowForkSegment(fork_name)
+    
+    # Second pass: compile all pipelines (without fork connections)
+    # Use list indices as keys since ParsedPipeline is not hashable
+    compiled_pipelines_list: List[Any] = []
+    pipeline_index_map: Dict[int, int] = {}  # Maps original index to compiled index
+    for idx, pipeline in enumerate(script.pipelines):
+        if isinstance(pipeline, ParsedPipeline):
+            # Create a copy of the pipeline without fork_source/fork_target for compilation
+            # We'll handle fork connections separately
+            pipeline_copy = ParsedPipeline(
+                pipeline.input_node,
+                pipeline.transforms,
+                fork_target=None,
+                fork_source=None
+            )
+            compiled = compile(pipeline_copy, runtime)
+            compiled_pipelines_list.append(compiled)
+            pipeline_index_map[idx] = len(compiled_pipelines_list) - 1
+        else:
+            # Loops are compiled normally
+            compiled = compile(pipeline, runtime)
+            compiled_pipelines_list.append(compiled)
+            pipeline_index_map[idx] = len(compiled_pipelines_list) - 1
+    
+    # Third pass: connect pipelines to forks
+    # Register producers
+    for fork_name, pipelines in producer_pipelines.items():
+        fork_segment = fork_segments[fork_name]
+        for pipeline in pipelines:
+            # Find the compiled pipeline by index
+            pipeline_idx = script.pipelines.index(pipeline)
+            compiled_idx = pipeline_index_map[pipeline_idx]
+            compiled_pipeline = compiled_pipelines_list[compiled_idx]
+            fork_segment.register_producer(compiled_pipeline)
+    
+    # Create consumer wrapper segments for pipelines that read from forks
+    consumer_wrappers: Dict[int, Any] = {}  # Maps pipeline index to wrapper
+    for fork_name, pipelines in consumer_pipelines.items():
+        fork_segment = fork_segments[fork_name]
+        for pipeline in pipelines:
+            # Find the compiled pipeline by index
+            pipeline_idx = script.pipelines.index(pipeline)
+            compiled_idx = pipeline_index_map[pipeline_idx]
+            compiled_pipeline = compiled_pipelines_list[compiled_idx]
+            consumer = fork_segment.register_consumer(compiled_pipeline)
+            
+            # Create a wrapper segment that reads from the consumer and feeds into the pipeline
+            class ForkConsumerWrapper(AbstractSegment):
+                def __init__(self, consumer_iter, downstream_pipeline):
+                    super().__init__()
+                    self.consumer_iter = consumer_iter
+                    self.downstream_pipeline = downstream_pipeline
+                
+                def transform(self, input_iter: Iterator[Any]) -> Iterator[Any]:
+                    # Execute downstream pipeline with items from consumer
+                    # Ignore input_iter and use consumer_iter instead
+                    # Use __call__() to ensure metadata handling
+                    yield from self.downstream_pipeline(self.consumer_iter)
+            
+            wrapper = ForkConsumerWrapper(consumer, compiled_pipeline)
+            consumer_wrappers[pipeline_idx] = wrapper
+            
+            # If this pipeline also feeds into another fork, we need to handle it specially
+            # We can't register the wrapper as a producer in start() because it depends on
+            # the source fork. Instead, we'll create a producer that captures the wrapper's
+            # output when it executes in Script.
+            if pipeline.fork_target:
+                target_fork = fork_segments[pipeline.fork_target]
+                # Store the target fork so we can register the wrapper's output later
+                # We'll handle this after Script execution starts
+                pass  # Will be handled differently - see below
+    
+    # For wrappers that are both consumers and producers, register them as producers
+    # to the target fork. They will execute in background threads via ThreadedQueue.
+    for idx, pipeline in enumerate(script.pipelines):
+        if isinstance(pipeline, ParsedPipeline) and pipeline.fork_source and pipeline.fork_target:
+            if idx in consumer_wrappers:
+                wrapper = consumer_wrappers[idx]
+                target_fork = fork_segments[pipeline.fork_target]
+                # Register a producer that executes the wrapper
+                # This will run in a background thread, so it can block waiting for source fork
+                # We create a generator function that will be called in start()
+                def make_producer(w):
+                    def producer():
+                        # Execute wrapper - it will consume from source fork and produce items
+                        yield from w()
+                    return producer
+                # Store the producer function, not call it yet
+                target_fork.register_producer(make_producer(wrapper))
+    
+    # Start all forks (this registers producers and starts the queue system)
+    # ThreadedQueue will start producers in background threads, so they can block
+    # waiting for items from source forks without deadlocking
+    for fork_segment in fork_segments.values():
+        fork_segment.start()
+    
+    # Build final pipeline list
+    # Include:
+    # 1. Consumer-only pipelines (read from fork but don't feed to another fork) - use wrappers
+    # 2. Standalone pipelines (no fork connections)
+    # Producer-only pipelines are handled by forks and don't need to be in final_pipelines
+    # Pipelines that are both consumers and producers are handled by forks (as producers in background threads)
+    final_pipelines = []
+    for idx, pipeline in enumerate(script.pipelines):
+        if isinstance(pipeline, ParsedPipeline):
+            if pipeline.fork_source and not pipeline.fork_target:
+                # This pipeline reads from a fork but doesn't feed to another fork
+                # Use the wrapper - it will execute and produce final output
+                if idx in consumer_wrappers:
+                    final_pipelines.append(consumer_wrappers[idx])
+                else:
+                    # Should not happen, but handle gracefully
+                    compiled_idx = pipeline_index_map[idx]
+                    final_pipelines.append(compiled_pipelines_list[compiled_idx])
+            elif not pipeline.fork_target and not pipeline.fork_source:
+                # Normal pipeline (no fork connections)
+                compiled_idx = pipeline_index_map[idx]
+                final_pipelines.append(compiled_pipelines_list[compiled_idx])
+            # Pipelines that feed into forks (fork_target) are handled by fork's start()
+            # Pipelines that are both consumers and producers are also handled by fork's start()
+        else:
+            # Loops
+            compiled_idx = pipeline_index_map[idx]
+            final_pipelines.append(compiled_pipelines_list[compiled_idx])
+    
     logger.debug("Successfully compiled all pipelines")
-    fork_aware_script = ForkAwareScript(compiled_pipelines, runtime)
-    # Store reference to script in runtime for fork startup coordination
-    runtime._script = fork_aware_script
-    return fork_aware_script
+    return Script(final_pipelines)
 
 def _resolve_value(value, runtime):
     """Resolve a single parameter value, handling constants and arrays recursively."""
@@ -168,13 +209,7 @@ def _(pipeline: ParsedPipeline, runtime: RuntimeComponent) -> Pipeline:
     """
     logger.debug("Starting pipeline compilation")
     ans = None
-    
-    # Handle fork_pull: use ForkPullSource as input
-    if pipeline.fork_pull is not None:
-        ans = ForkPullSource(pipeline.fork_pull.name)
-        ans.runtime = runtime
-        logger.debug(f"Created fork pull source for {pipeline.fork_pull.name}")
-    elif pipeline.input_node is not None:
+    if pipeline.input_node is not None:
         logger.debug(f"Processing input node of type {type(pipeline.input_node.source)}")
         if isinstance(pipeline.input_node.source, str):
             ans =  io.echo(pipeline.input_node.source, delimiter=None)
@@ -212,15 +247,7 @@ def _(pipeline: ParsedPipeline, runtime: RuntimeComponent) -> Pipeline:
             ans = next_transform
         else:
             ans |= next_transform
-    
-    # Handle fork_push: wrap the entire pipeline in ForkPushSegment
-    if pipeline.fork_push is not None:
-        ans = ForkPushSegment(pipeline.fork_push.name, ans)
-        ans.runtime = runtime
-        logger.debug(f"Wrapped pipeline in fork push segment for {pipeline.fork_push.name}")
-    
-    if ans is not None:
-        ans.runtime = runtime
+    ans.runtime = runtime
     logger.debug("Completed pipeline compilation")
     return ans
 
@@ -292,6 +319,63 @@ def _(script: str, runtime: RuntimeComponent = None) -> Callable:
     preprocessed_script = remove_comments(script)
     return compile(script_parser.parse(preprocessed_script), runtime)
 
+class ArrowForkSegment:
+    """A coordinator for named forks using ThreadedQueue.
+    
+    This class manages the ThreadedQueue for a named fork, ensuring
+    metadata items are properly passed through by using the proper
+    execution mechanism (__call__) for pipelines.
+    
+    ThreadedQueue naturally provides broadcast-style distribution:
+    - All items from all producers are broadcast to all consumers
+    - Each consumer sees every item from every producer
+    """
+    
+    def __init__(self, fork_name: str):
+        self.fork_name = fork_name
+        self.queue_system = ThreadedQueue()  # Broadcasts by default
+        self.producer_pipelines: List[Any] = []
+        self.consumer_pipelines: List[Any] = []
+        self._started = False
+    
+    def register_producer(self, pipeline):
+        """Register a pipeline as a producer to this fork.
+        
+        The pipeline will be executed using __call__() to ensure
+        metadata is handled correctly. All items will be broadcast
+        to all registered consumers.
+        """
+        if self._started:
+            raise RuntimeError(f"Cannot register producers after fork {self.fork_name} has started")
+        self.producer_pipelines.append(pipeline)
+    
+    def register_consumer(self, pipeline):
+        """Register a pipeline as a consumer from this fork.
+        
+        Returns a consumer iterator that yields items from the queue.
+        The consumer will receive all items from all producers
+        (broadcast-style distribution).
+        """
+        if self._started:
+            raise RuntimeError(f"Cannot register consumers after fork {self.fork_name} has started")
+        self.consumer_pipelines.append(pipeline)
+        return self.queue_system.register_consumer()
+    
+    def start(self):
+        """Start the fork by registering all producers and starting the queue system."""
+        if self._started:
+            return
+        
+        # Register all producers - execute them using __call__() for metadata handling
+        for pipeline in self.producer_pipelines:
+            # Execute pipeline using __call__() to ensure metadata flows correctly
+            producer_iter = pipeline()
+            self.queue_system.register_producer(producer_iter)
+        
+        # Start the queue system
+        self.queue_system.start()
+        self._started = True
+
 class VariableSource(AbstractSource):
     """A source that gets a variable from the variable store and returns its
     contents item by item. 
@@ -322,105 +406,6 @@ class VariableSetSegment(io.AbstractSegment):
         list_of_items = list(items)
         self.runtime.variable_store[self.variable_name] = list_of_items
         yield from list_of_items
-
-class ForkPushSegment(io.AbstractSegment):
-    """A segment that pushes items to a fork's ThreadedQueue.
-    
-    This segment wraps a pipeline and registers it as a producer
-    for the specified fork. The items are consumed by the fork
-    but not yielded downstream (the fork handles distribution).
-    """
-    
-    def __init__(self, fork_name: str, wrapped_pipeline):
-        super().__init__(process_metadata=True)  # Preserve metadata through forks
-        self.fork_name = fork_name
-        self.wrapped_pipeline = wrapped_pipeline
-        self._producer_id = None
-
-    def _set_runtime_recursive(self, component, runtime):
-        """Recursively set runtime on component and its operations."""
-        if hasattr(component, 'runtime') and component.runtime is None:
-            component.runtime = runtime
-        if isinstance(component, Pipeline):
-            for op in component.operations:
-                self._set_runtime_recursive(op, runtime)
-
-    def _register_producer(self, runtime, input_iter):
-        """Register this segment as a producer for its fork."""
-        # Ensure wrapped pipeline and all its segments have runtime set
-        self._set_runtime_recursive(self.wrapped_pipeline, runtime)
-        
-        # Get or create the fork's ThreadedQueue
-        if self.fork_name not in runtime.fork_store:
-            runtime.fork_store[self.fork_name] = ThreadedQueue()
-        fork_queue = runtime.fork_store[self.fork_name]
-        
-        # Determine if pipeline starts with a source
-        is_source = isinstance(self.wrapped_pipeline, AbstractSource)
-        is_pipeline_with_source = (isinstance(self.wrapped_pipeline, Pipeline) and 
-                                   len(self.wrapped_pipeline.operations) > 0 and
-                                   isinstance(self.wrapped_pipeline.operations[0], AbstractSource))
-        
-        # Create producer generator
-        if is_source:
-            producer_gen = self.wrapped_pipeline()
-        elif is_pipeline_with_source:
-            producer_gen = self.wrapped_pipeline.transform(None)
-        else:
-            producer_gen = self.wrapped_pipeline.transform(input_iter)
-        
-        # Register producer (only once per instance)
-        if self._producer_id is None:
-            self._producer_id = fork_queue.register_producer(producer_gen)
-            logger.debug(f"Registered producer {self._producer_id} for fork {self.fork_name}")
-
-    def transform(self, items):
-        # Producer was already registered in Phase 2, but if called directly,
-        # ensure it's registered (e.g., for testing or direct usage)
-        if self._producer_id is None and self.runtime:
-            self._register_producer(self.runtime, items)
-        
-        # Don't yield anything - the fork consumers will get the items
-        return iter([])
-
-class ForkPullSource(AbstractSource):
-    """A source that pulls items from a fork's ThreadedQueue.
-    
-    This source creates a consumer from the fork's ThreadedQueue
-    and yields items from it.
-    """
-    
-    def __init__(self, fork_name: str):
-        super().__init__()
-        self.fork_name = fork_name
-        self.consumer = None
-        self._consumer_registered = False
-
-    def generate(self):
-        # Get or create the fork's ThreadedQueue
-        if self.fork_name not in self.runtime.fork_store:
-            self.runtime.fork_store[self.fork_name] = ThreadedQueue()
-        
-        fork_queue = self.runtime.fork_store[self.fork_name]
-        
-        # Register this as a consumer (only once, and only before fork starts)
-        # If already registered (e.g., in Phase 1), use the existing consumer
-        if not self._consumer_registered:
-            if fork_queue._started:
-                # Fork already started - this shouldn't happen if registration worked correctly
-                # But if it does, we can't register now, so raise an error
-                raise RuntimeError(f"Cannot register consumer for fork {self.fork_name} after fork has started. "
-                                 f"This usually means the consumer wasn't registered in Phase 1.")
-            self.consumer = fork_queue.register_consumer()
-            self._consumer_registered = True
-        elif self.consumer is None:
-            # Consumer should have been registered in Phase 1
-            raise RuntimeError(f"Consumer for fork {self.fork_name} was not properly registered")
-        
-        # Yield items from the consumer - metadata should be preserved since it's in the queue
-        # We explicitly yield all items including metadata to ensure they flow through
-        for item in self.consumer:
-            yield item
 
 @registry.register_segment(name="accum")
 class Accum(io.AbstractSegment):

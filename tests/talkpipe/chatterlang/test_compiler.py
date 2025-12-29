@@ -127,6 +127,21 @@ def test_fork_parallel():
     ans = list(script())
     assert ans == ["a", "b", "c", "d", "e", 0, 1, 2, 3, 4]
 
+def test_fork_preserves_metadata():
+    script = compiler.compile("""INPUT FROM range[lower=0, upper=3] | flushN[n=1] | collectMetadata | toList""")
+    ans = list(script())
+    assert len(ans) == 1
+    assert len(ans[0]) == 3
+    assert all(isinstance(item, str) for item in ans[0])
+
+    script = compiler.compile("""
+            INPUT FROM range[lower=0, upper=3] | flushN[n=1] | 
+            fork(collectMetadata | toList)""")
+    ans = list(script())
+    assert len(ans) == 1
+    assert len(ans[0]) == 3
+    assert all(isinstance(item, str) for item in ans[0])
+
 def test_fork_arrow_syntax_multiple_inputs():
 
     script = """
@@ -174,8 +189,8 @@ def test_fork_arrow_syntax_metadata():
              INPUT FROM range[lower=0, upper=3] | flushN[n=1] -> fork1;
              fork1 -> collectMetadata -> toList
              """
-    f = compiler.compile(script).as_function(single_in=True,single_out=True)
-    ans2 = f()
+    f = compiler.compile(script)#.as_function(single_in=True,single_out=True)
+    ans2 = list(f())
     assert ans == ans2
 
 def test_variables_as_parameters():

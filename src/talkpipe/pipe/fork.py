@@ -3,7 +3,7 @@ import logging
 from queue import Queue
 from concurrent.futures import ThreadPoolExecutor
 from enum import Enum
-from .core import AbstractSegment
+from .core import AbstractSegment, is_metadata
 
 logger = logging.getLogger(__name__)
 
@@ -33,7 +33,8 @@ class ForkSegment(AbstractSegment):
                  max_queue_size: int = 100, 
                  num_threads: int = None):
         """Initialize the fork segment."""
-        super().__init__()
+        # Set process_metadata=True so metadata flows into branches
+        super().__init__(process_metadata=True)
         self.branches = branches
         self.mode = mode
         self.max_queue_size = max_queue_size

@@ -82,12 +82,6 @@ class ForkNode:
     params: Dict[Identifier, Any] = field(default_factory=dict)
     """Additional parameters for the fork."""
 
-@dataclass(frozen=True)
-class ForkReference:
-    """A reference to a fork by name."""
-    name: str
-    """The name of the fork."""
-
 
 @dataclass
 class ParsedPipeline:
@@ -96,10 +90,10 @@ class ParsedPipeline:
     """The input node for the pipeline."""
     transforms: List[Union[SegmentNode, VariableName, ForkNode]]
     """The transforms to perform on the data, now including possible forks."""
-    fork_push: Optional[ForkReference] = None
-    """If set, indicates this pipeline should push its results to the named fork."""
-    fork_pull: Optional[ForkReference] = None
-    """If set, indicates this pipeline should pull its input from the named fork."""
+    fork_target: Optional[str] = None
+    """Optional fork name that this pipeline feeds into (for -> fork_name syntax)."""
+    fork_source: Optional[str] = None
+    """Optional fork name that this pipeline reads from (for fork_name -> syntax)."""
 
 @dataclass
 class ParsedScript:
@@ -304,27 +298,29 @@ transforms_section = (
 )
 """A parser for the transforms section.  Transforms are separated by the '|' character."""
 
+# Parser for arrow fork target: -> identifier
+arrow_fork_target = (lexeme('->') >> identifier).map(lambda x: x.name)
+"""A parser for arrow fork target syntax: -> fork_name"""
+
+# Parser for arrow fork source: identifier ->
+arrow_fork_source = (identifier << lexeme('->')).map(lambda x: x.name)
+"""A parser for arrow fork source syntax: fork_name ->"""
+
 @generate
 def pipeline():
     yield whitespace.many()
     
-    # Check for fork pull syntax: identifier ->
-    fork_pull = yield (identifier << lexeme('->')).optional()
-    fork_pull_ref = None
-    if fork_pull is not None:
-        fork_pull_ref = ForkReference(name=fork_pull.name)
+    # Check for fork source at the start: fork_name ->
+    fork_source = yield arrow_fork_source.optional()
     
     input_node = yield source.optional()
     transforms = yield transforms_section
     
-    # Check for fork push syntax: -> identifier
-    fork_push = yield (lexeme('->') >> identifier).optional()
-    fork_push_ref = None
-    if fork_push is not None:
-        fork_push_ref = ForkReference(name=fork_push.name)
+    # Check for fork target at the end: -> fork_name
+    fork_target = yield arrow_fork_target.optional()
     
     yield whitespace.many()
-    return ParsedPipeline(input_node or None, transforms, fork_push=fork_push_ref, fork_pull=fork_pull_ref)
+    return ParsedPipeline(input_node or None, transforms, fork_target=fork_target, fork_source=fork_source)
 """A parser for a pipeline in the pipeline language.  Pipelines consist of an input section and a series of transforms."""
 
 @generate
