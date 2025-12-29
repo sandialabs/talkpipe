@@ -169,13 +169,13 @@ def test_fork_arrow_syntax_multiple_forks():
     script = """
              INPUT FROM range[lower=0, upper=3] -> fork1;
              INPUT FROM range[lower=10, upper=13] -> fork2;
-             fork1 -> lambda[expression="item * 2"] -> fork3;
+             fork1 -> lambda[expression="item * 2"] | lambda[expression="item + 1"] -> fork3;
              fork2 -> lambda[expression="item + 100"] -> fork3;
              fork3 -> toList
              """
     f = compiler.compile(script).as_function(single_in=True,single_out=True)
     ans = f()
-    assert sorted(ans) == sorted([0, 2, 4, 110, 111, 112])
+    assert sorted(ans) == sorted([1, 3, 5, 110, 111, 112])
 
 def test_fork_arrow_syntax_metadata():
 
@@ -187,10 +187,10 @@ def test_fork_arrow_syntax_metadata():
 
     script = """
              INPUT FROM range[lower=0, upper=3] | flushN[n=1] -> fork1;
-             fork1 -> collectMetadata -> toList
+             fork1 -> collectMetadata | toList
              """
-    f = compiler.compile(script)#.as_function(single_in=True,single_out=True)
-    ans2 = list(f())
+    f = compiler.compile(script).as_function(single_in=True,single_out=True)
+    ans2 = f()
     assert ans == ans2
 
 def test_variables_as_parameters():

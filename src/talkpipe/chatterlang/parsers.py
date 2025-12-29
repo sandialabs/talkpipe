@@ -290,13 +290,21 @@ def fork_section():
     yield lexeme(')')
     return ForkNode(branches=branches, params=bracket_content)
 
-transforms_section = (
-    # First transform can be without a leading pipe
-    (fork_section | segment | variable).map(lambda x: [x]) |
-    # Subsequent transforms require a leading pipe
-    (lexeme('|') >> (fork_section | segment | variable)).many()
-)
-"""A parser for the transforms section.  Transforms are separated by the '|' character."""
+@generate
+def transforms_section():
+    """A parser for the transforms section.  Transforms are separated by the '|' character."""
+    # First transform may or may not have a leading pipe (optional to allow empty transforms)
+    first_transform = yield (lexeme('|').optional() >> (fork_section | segment | variable)).optional()
+    if first_transform is None:
+        return []
+    
+    transforms = [first_transform]
+    
+    # Parse remaining segments (with leading pipes)
+    remaining = yield (lexeme('|') >> (fork_section | segment | variable)).many()
+    transforms.extend(remaining)
+    
+    return transforms
 
 # Parser for arrow fork target: -> identifier
 arrow_fork_target = (lexeme('->') >> identifier).map(lambda x: x.name)
