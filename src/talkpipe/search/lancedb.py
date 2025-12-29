@@ -6,6 +6,8 @@ import numpy as np
 from datetime import timedelta
 from talkpipe.chatterlang import register_segment
 from talkpipe import segment
+from talkpipe.pipe.core import is_metadata
+from talkpipe.pipe.metadata import Flush
 from talkpipe.util.collections import AdaptiveBuffer
 from talkpipe.util.data_manipulation import extract_property, VectorLike, Document, DocID, toDict, assign_property
 from talkpipe.util.os import get_process_temp_dir
@@ -119,7 +121,7 @@ def search_lancedb(items: Annotated[object, "Items with the query vectors"],
                 yield result
 
 @register_segment("addToLanceDB", "addToLancDB")
-@segment()
+@segment(process_metadata=True)
 def add_to_lancedb(items: Annotated[object, "Items with the vectors and documents"],
                    path: Annotated[str, "Path to the LanceDB database. Supports file paths or 'tmp://name' for process-scoped temp (auto-cleanup)"],
                    table_name: Annotated[str, "Table name in the LanceDB database"],
@@ -181,7 +183,22 @@ def add_to_lancedb(items: Annotated[object, "Items with the vectors and document
 
     max_batch_size = max(1, batch_size)
     buffer = AdaptiveBuffer(max_size=max_batch_size)
+    optimized_since_last_add = False  # Track if optimization has occurred since last add
+    
     for item in items:
+        # Check if this is a Flush event
+        if is_metadata(item) and isinstance(item, Flush):
+            # Flush the buffer and add any partial items
+            flush_batch = buffer.flush()
+            if flush_batch is not None:
+                doc_store.add_vectors(flush_batch)
+                # Optimize if it hasn't been optimized since the last add
+                if not optimized_since_last_add:
+                    doc_store._get_table()[0].optimize()
+                    optimized_since_last_add = True
+            # Don't yield Flush events - consume them
+            continue
+        
         # Extract vector
         vector = extract_property(item, vector_field, fail_on_missing=True)
         if not isinstance(vector, (list, tuple, np.ndarray)):
@@ -209,15 +226,20 @@ def add_to_lancedb(items: Annotated[object, "Items with the vectors and document
         batch = buffer.append((vector, document, doc_id))
         if batch is not None:
             doc_store.add_vectors(batch)
+            optimized_since_last_add = False  # Mark that optimization hasn't occurred since last add
             if optimize_on_batch:
                 doc_store._get_table()[0].optimize()
+                optimized_since_last_add = True
 
         yield item
         
     final_batch = buffer.flush()
     if final_batch is not None:
         doc_store.add_vectors(final_batch)
-        doc_store._get_table()[0].optimize() 
+        # Optimize at the end: if optimize_on_batch is False, only optimize if we haven't optimized since last add
+        # If optimize_on_batch is True, optimize at the end (existing behavior)
+        if optimize_on_batch or not optimized_since_last_add:
+            doc_store._get_table()[0].optimize() 
 
 
 class LanceDBDocumentStore(DocumentStore, VectorAddable, VectorSearchable):

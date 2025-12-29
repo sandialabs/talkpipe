@@ -4,6 +4,7 @@ import tempfile
 import os
 import time
 from talkpipe.search.lancedb import search_lancedb, add_to_lancedb, LanceDBDocumentStore
+from talkpipe.pipe.metadata import Flush
 
 
 @pytest.fixture
@@ -266,6 +267,112 @@ class TestAddToLanceDB:
         mock_doc_store.add_vectors.assert_called_once()
         added_batch = mock_doc_store.add_vectors.call_args[0][0]
         assert len(added_batch) == 1
+
+    @mock.patch('talkpipe.search.lancedb.LanceDBDocumentStore')
+    @mock.patch('talkpipe.search.lancedb.extract_property')
+    @mock.patch('talkpipe.search.lancedb.AdaptiveBuffer')
+    def test_add_to_lancedb_handles_flush_events(
+        self,
+        mock_adaptive_buffer,
+        mock_extract_property,
+        mock_doc_store_class,
+        sample_items,
+        temp_db_path,
+    ):
+        """Test that add_to_lancedb flushes buffer and optimizes on Flush events."""
+        mock_doc_store = mock.Mock()
+        mock_table = mock.Mock()
+        mock_doc_store._get_table.return_value = [mock_table]
+        mock_doc_store_class.return_value = mock_doc_store
+        mock_extract_property.return_value = [1.0, 2.0, 3.0]
+
+        # Create a fake buffer that tracks flush calls
+        class FakeBuffer:
+            def __init__(self):
+                self.items = []
+
+            def append(self, item):
+                self.items.append(item)
+                return None  # Never auto-flush, only manual flush
+
+            def flush(self):
+                if not self.items:
+                    return None
+                items = self.items
+                self.items = []
+                return items
+
+        buffer_instance = FakeBuffer()
+        mock_adaptive_buffer.return_value = buffer_instance
+
+        # Add items with a Flush event in the middle
+        items_with_flush = [sample_items[0], Flush(), sample_items[1]]
+        seg = add_to_lancedb(path=temp_db_path, table_name="test_table",
+                             vector_field="vector", batch_size=5, optimize_on_batch=False)
+        results = list(seg(items_with_flush))
+
+        # Should yield only the original items (Flush is consumed)
+        assert len(results) == 2
+        assert results[0]["_doc_id"] is not None
+        assert results[1]["_doc_id"] is not None
+
+        # Should have called add_vectors twice: once for first item, once for flush, once for second item
+        # Actually, let me reconsider: the first item goes into buffer, flush causes buffer.flush() which adds it,
+        # then second item goes into buffer, and at the end buffer.flush() is called again
+        assert mock_doc_store.add_vectors.call_count >= 2
+
+        # Should have optimized once (on flush, since optimize_on_batch=False)
+        assert mock_table.optimize.call_count >= 1
+
+    @mock.patch('talkpipe.search.lancedb.LanceDBDocumentStore')
+    @mock.patch('talkpipe.search.lancedb.extract_property')
+    @mock.patch('talkpipe.search.lancedb.AdaptiveBuffer')
+    def test_add_to_lancedb_flush_with_optimize_on_batch(
+        self,
+        mock_adaptive_buffer,
+        mock_extract_property,
+        mock_doc_store_class,
+        sample_items,
+        temp_db_path,
+    ):
+        """Test that add_to_lancedb optimizes on flush even when optimize_on_batch is True."""
+        mock_doc_store = mock.Mock()
+        mock_table = mock.Mock()
+        mock_doc_store._get_table.return_value = [mock_table]
+        mock_doc_store_class.return_value = mock_doc_store
+        mock_extract_property.return_value = [1.0, 2.0, 3.0]
+
+        class FakeBuffer:
+            def __init__(self):
+                self.items = []
+
+            def append(self, item):
+                self.items.append(item)
+                return None
+
+            def flush(self):
+                if not self.items:
+                    return None
+                items = self.items
+                self.items = []
+                return items
+
+        buffer_instance = FakeBuffer()
+        mock_adaptive_buffer.return_value = buffer_instance
+
+        items_with_flush = [sample_items[0], Flush()]
+        seg = add_to_lancedb(path=temp_db_path, table_name="test_table",
+                             vector_field="vector", batch_size=5, optimize_on_batch=True)
+        results = list(seg(items_with_flush))
+
+        # Should yield only the original item (Flush is consumed)
+        assert len(results) == 1
+
+        # Should have called add_vectors once (for the item that was flushed)
+        assert mock_doc_store.add_vectors.call_count == 1
+
+        # Should have optimized once (on flush, since vectors were added)
+        assert mock_table.optimize.call_count == 1
 
 
 def test_add_and_search_integration(temp_db_path, sample_items_direction_relevant):
