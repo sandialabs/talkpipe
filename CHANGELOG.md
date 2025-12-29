@@ -12,6 +12,10 @@
 - Updated `addToLanceDB` to use `AdaptiveBuffer` for adaptive batching instead of a
   fixed-size cache.  If documents are coming slowly, they will get added one by one,
   scaling up to batch_size as the rate increases.
+- Refactored fork graph building code in `compiler.py` to use `networkx` for cleaner
+  and more maintainable graph structure management. The refactoring simplifies the code
+  by using `DiGraph` to represent producer-consumer relationships instead of manually
+  tracking adjacency lists.
 
 ## 0.11.0
 

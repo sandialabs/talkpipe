@@ -8,6 +8,7 @@ other methods are used internally to compile the parsed scripts.
 from typing import Callable, Union, Iterator, Any, Dict, List, Optional
 import logging
 from functools import singledispatch
+import networkx as nx
 from talkpipe.chatterlang.parsers import script_parser, ParsedScript, ParsedLoop, ParsedPipeline, VariableName, SegmentNode, Identifier, ForkNode
 from talkpipe.chatterlang import registry 
 from talkpipe.pipe.core import Loop, Pipeline, Script, RuntimeComponent, AbstractSource, AbstractSegment
@@ -35,28 +36,28 @@ def compile(script: ParsedScript, runtime: RuntimeComponent = None) -> Callable:
     runtime.add_constants(script.constants, override=False)
     logger.debug(f"Initialized runtime with {len(runtime.const_store)} constants")
     
-    # Build fork graph from arrow syntax
+    # Build fork graph from arrow syntax using networkx
+    # Use a directed graph where:
+    # - Pipeline nodes are represented by their index (e.g., "pipeline_0")
+    # - Fork nodes are represented by their name (e.g., "fork_name")
+    # - Edges represent producer->fork and fork->consumer relationships
+    graph = nx.DiGraph()
     fork_segments: Dict[str, ArrowForkSegment] = {}
-    producer_pipelines: Dict[str, List[ParsedPipeline]] = {}  # fork_name -> list of pipelines
-    consumer_pipelines: Dict[str, List[ParsedPipeline]] = {}  # fork_name -> list of pipelines
     
-    # First pass: identify fork connections
-    for pipeline in script.pipelines:
+    # First pass: build graph structure
+    for idx, pipeline in enumerate(script.pipelines):
         if isinstance(pipeline, ParsedPipeline):
+            pipeline_node = f"pipeline_{idx}"
             if pipeline.fork_target:
                 # This pipeline feeds into a fork
-                if pipeline.fork_target not in producer_pipelines:
-                    producer_pipelines[pipeline.fork_target] = []
-                producer_pipelines[pipeline.fork_target].append(pipeline)
+                graph.add_edge(pipeline_node, pipeline.fork_target)
             if pipeline.fork_source:
                 # This pipeline reads from a fork
-                if pipeline.fork_source not in consumer_pipelines:
-                    consumer_pipelines[pipeline.fork_source] = []
-                consumer_pipelines[pipeline.fork_source].append(pipeline)
+                graph.add_edge(pipeline.fork_source, pipeline_node)
     
-    # Create ArrowForkSegment instances for all forks
-    all_fork_names = set(producer_pipelines.keys()) | set(consumer_pipelines.keys())
-    for fork_name in all_fork_names:
+    # Create ArrowForkSegment instances for all forks in the graph
+    fork_nodes = {node for node in graph.nodes() if not node.startswith("pipeline_")}
+    for fork_name in fork_nodes:
         fork_segments[fork_name] = ArrowForkSegment(fork_name)
     
     # Second pass: compile all pipelines (without fork connections)
@@ -82,71 +83,82 @@ def compile(script: ParsedScript, runtime: RuntimeComponent = None) -> Callable:
             compiled_pipelines_list.append(compiled)
             pipeline_index_map[idx] = len(compiled_pipelines_list) - 1
     
-    # Third pass: connect pipelines to forks
-    # Register producers
-    for fork_name, pipelines in producer_pipelines.items():
-        fork_segment = fork_segments[fork_name]
-        for pipeline in pipelines:
-            # Find the compiled pipeline by index
-            pipeline_idx = script.pipelines.index(pipeline)
-            compiled_idx = pipeline_index_map[pipeline_idx]
-            compiled_pipeline = compiled_pipelines_list[compiled_idx]
-            fork_segment.register_producer(compiled_pipeline)
+    # Third pass: connect pipelines to forks using graph structure
+    # Register producers (pipelines that feed into forks)
+    # Use graph successors to find forks that pipelines feed into
+    for pipeline_node in graph.nodes():
+        if pipeline_node.startswith("pipeline_"):
+            pipeline_idx = int(pipeline_node.split("_")[1])
+            pipeline = script.pipelines[pipeline_idx]
+            if isinstance(pipeline, ParsedPipeline):
+                # Check if this pipeline feeds into any fork (has outgoing edges to forks)
+                for fork_name in graph.successors(pipeline_node):
+                    if not fork_name.startswith("pipeline_"):  # It's a fork node
+                        fork_segment = fork_segments[fork_name]
+                        compiled_idx = pipeline_index_map[pipeline_idx]
+                        compiled_pipeline = compiled_pipelines_list[compiled_idx]
+                        fork_segment.register_producer(compiled_pipeline)
     
     # Create consumer wrapper segments for pipelines that read from forks
     consumer_wrappers: Dict[int, Any] = {}  # Maps pipeline index to wrapper
-    for fork_name, pipelines in consumer_pipelines.items():
-        fork_segment = fork_segments[fork_name]
-        for pipeline in pipelines:
-            # Find the compiled pipeline by index
-            pipeline_idx = script.pipelines.index(pipeline)
-            compiled_idx = pipeline_index_map[pipeline_idx]
-            compiled_pipeline = compiled_pipelines_list[compiled_idx]
-            consumer = fork_segment.register_consumer(compiled_pipeline)
-            
-            # Create a wrapper segment that reads from the consumer and feeds into the pipeline
-            class ForkConsumerWrapper(AbstractSegment):
-                def __init__(self, consumer_iter, downstream_pipeline):
-                    super().__init__()
-                    self.consumer_iter = consumer_iter
-                    self.downstream_pipeline = downstream_pipeline
-                
-                def transform(self, input_iter: Iterator[Any]) -> Iterator[Any]:
-                    # Execute downstream pipeline with items from consumer
-                    # Ignore input_iter and use consumer_iter instead
-                    # Use __call__() to ensure metadata handling
-                    yield from self.downstream_pipeline(self.consumer_iter)
-            
-            wrapper = ForkConsumerWrapper(consumer, compiled_pipeline)
-            consumer_wrappers[pipeline_idx] = wrapper
-            
-            # If this pipeline also feeds into another fork, we need to handle it specially
-            # We can't register the wrapper as a producer in start() because it depends on
-            # the source fork. Instead, we'll create a producer that captures the wrapper's
-            # output when it executes in Script.
-            if pipeline.fork_target:
-                target_fork = fork_segments[pipeline.fork_target]
-                # Store the target fork so we can register the wrapper's output later
-                # We'll handle this after Script execution starts
-                pass  # Will be handled differently - see below
+    # Use graph predecessors to find forks that pipelines read from
+    for pipeline_node in graph.nodes():
+        if pipeline_node.startswith("pipeline_"):
+            pipeline_idx = int(pipeline_node.split("_")[1])
+            pipeline = script.pipelines[pipeline_idx]
+            if isinstance(pipeline, ParsedPipeline):
+                # Check if this pipeline reads from any fork (has incoming edges from forks)
+                for fork_name in graph.predecessors(pipeline_node):
+                    if not fork_name.startswith("pipeline_"):  # It's a fork node
+                        fork_segment = fork_segments[fork_name]
+                        compiled_idx = pipeline_index_map[pipeline_idx]
+                        compiled_pipeline = compiled_pipelines_list[compiled_idx]
+                        consumer = fork_segment.register_consumer(compiled_pipeline)
+                        
+                        # Create a wrapper segment that reads from the consumer and feeds into the pipeline
+                        class ForkConsumerWrapper(AbstractSegment):
+                            def __init__(self, consumer_iter, downstream_pipeline):
+                                super().__init__()
+                                self.consumer_iter = consumer_iter
+                                self.downstream_pipeline = downstream_pipeline
+                            
+                            def transform(self, input_iter: Iterator[Any]) -> Iterator[Any]:
+                                # Execute downstream pipeline with items from consumer
+                                # Ignore input_iter and use consumer_iter instead
+                                # Use __call__() to ensure metadata handling
+                                yield from self.downstream_pipeline(self.consumer_iter)
+                        
+                        wrapper = ForkConsumerWrapper(consumer, compiled_pipeline)
+                        consumer_wrappers[pipeline_idx] = wrapper
     
     # For wrappers that are both consumers and producers, register them as producers
     # to the target fork. They will execute in background threads via ThreadedQueue.
-    for idx, pipeline in enumerate(script.pipelines):
-        if isinstance(pipeline, ParsedPipeline) and pipeline.fork_source and pipeline.fork_target:
-            if idx in consumer_wrappers:
-                wrapper = consumer_wrappers[idx]
-                target_fork = fork_segments[pipeline.fork_target]
-                # Register a producer that executes the wrapper
-                # This will run in a background thread, so it can block waiting for source fork
-                # We create a generator function that will be called in start()
-                def make_producer(w):
-                    def producer():
-                        # Execute wrapper - it will consume from source fork and produce items
-                        yield from w()
-                    return producer
-                # Store the producer function, not call it yet
-                target_fork.register_producer(make_producer(wrapper))
+    # Use graph to find pipelines that are both consumers and producers
+    for pipeline_node in graph.nodes():
+        if pipeline_node.startswith("pipeline_"):
+            pipeline_idx = int(pipeline_node.split("_")[1])
+            pipeline = script.pipelines[pipeline_idx]
+            if isinstance(pipeline, ParsedPipeline):
+                # Check if pipeline is both a consumer (has incoming edges from forks) 
+                # and a producer (has outgoing edges to forks)
+                has_incoming_fork = any(not pred.startswith("pipeline_") for pred in graph.predecessors(pipeline_node))
+                has_outgoing_fork = any(not succ.startswith("pipeline_") for succ in graph.successors(pipeline_node))
+                if has_incoming_fork and has_outgoing_fork and pipeline_idx in consumer_wrappers:
+                    wrapper = consumer_wrappers[pipeline_idx]
+                    # Find the target fork (outgoing edge to a fork)
+                    for fork_name in graph.successors(pipeline_node):
+                        if not fork_name.startswith("pipeline_"):  # It's a fork node
+                            target_fork = fork_segments[fork_name]
+                            # Register a producer that executes the wrapper
+                            # This will run in a background thread, so it can block waiting for source fork
+                            # We create a generator function that will be called in start()
+                            def make_producer(w):
+                                def producer():
+                                    # Execute wrapper - it will consume from source fork and produce items
+                                    yield from w()
+                                return producer
+                            # Store the producer function, not call it yet
+                            target_fork.register_producer(make_producer(wrapper))
     
     # Start all forks (this registers producers and starts the queue system)
     # ThreadedQueue will start producers in background threads, so they can block
