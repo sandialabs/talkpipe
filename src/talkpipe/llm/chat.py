@@ -42,7 +42,7 @@ class LLMPrompt(AbstractSegment):
             self,
             model: Annotated[Optional[str], "The name of the model to chat with"] = None,
             source: Annotated[Optional[str], "The source of the model (openai or ollama)"] = None,
-            system_prompt: Annotated[str, "The system prompt for the model"] = "You are a helpful assistant.",
+            system_prompt: Annotated[Optional[str], "The system prompt for the model"] = "You are a helpful assistant.",
             multi_turn: Annotated[bool, "Whether the chat is multi-turn"] = True,
             pass_prompts: Annotated[bool, "Whether to pass the prompts through to the output"] = False,
             field: Annotated[Optional[str], "The field in the input item containing the prompt"] = None,
@@ -66,6 +66,7 @@ class LLMPrompt(AbstractSegment):
             raise ValueError(f"Unknown source: {source}")
 
         logging.debug(f"Creating chat model with name: {model}")
+        # Always pass system_prompt, even if None, so the adapter can handle it correctly
         self.chat = getPromptAdapter(source)(model=model, system_prompt=system_prompt, multi_turn=multi_turn, temperature=temperature, output_format=output_format, role_map=role_map)
 
         self.pass_prompts = pass_prompts

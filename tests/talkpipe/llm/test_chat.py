@@ -57,6 +57,24 @@ def test_role_map_in_llmprompt_segment():
     assert chat.chat._system_message == {"role": "system", "content": "Custom system"}
     assert len(chat.chat._prefix_messages) == 3
 
+def test_system_prompt_none():
+    """Test that when system_prompt is None, it is not passed to the adapter and no system message is created."""
+    # Test with explicit None
+    chat = LLMPrompt(model="llama3.2", source="ollama", system_prompt=None)
+    assert chat.chat._system_message is None
+    assert len(chat.chat._prefix_messages) == 0
+    
+    # Test that adapter works without system prompt
+    adapter = OllamaPromptAdapter("llama3.2", system_prompt=None)
+    assert adapter._system_message is None
+    assert len(adapter._prefix_messages) == 0
+    
+    # Test that adapter works with explicit None and role_map (but no system role)
+    adapter = OllamaPromptAdapter("llama3.2", system_prompt=None, role_map="user:Hello")
+    assert adapter._system_message is None
+    assert len(adapter._prefix_messages) == 1
+    assert adapter._prefix_messages[0] == {"role": "user", "content": "Hello"}
+
 def test_is_available(requires_ollama):
     chat = OllamaPromptAdapter("llama3.2", temperature=0.0)
     assert chat.is_available() is True

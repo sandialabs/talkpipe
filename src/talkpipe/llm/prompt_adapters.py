@@ -1,4 +1,4 @@
-from typing import Annotated
+from typing import Annotated, Optional
 from abc import ABC, abstractmethod
 import logging
 import json
@@ -17,14 +17,14 @@ class AbstractLLMPromptAdapter(ABC):
     """
     _model_name: str
     _source: str
-    _system_message: str
+    _system_message: Optional[dict]
     _messages: list
     _multi_turn: bool
 
     def __init__(self, 
                  model: Annotated[str, "The name of the model"],
                  source: Annotated[str, "The source of the model"],
-                 system_prompt: Annotated[str, "The system prompt for the model"] = "You are a helpful assistant.",
+                 system_prompt: Annotated[Optional[str], "The system prompt for the model"] = "You are a helpful assistant.",
                  multi_turn: Annotated[bool, "Whether the model supports multi-turn conversations"] = True,
                  temperature: Annotated[float, "The temperature for the model"] = None,
                  output_format: Annotated[BaseModel, "The output format for the model"] = None,
@@ -40,22 +40,24 @@ class AbstractLLMPromptAdapter(ABC):
         self._messages = []
 
         # Initialize system message and prefix messages
-        self._system_message = {"role": "system", "content": system_prompt}
-        self._prefix_messages = [self._system_message]
+        # Only create system message if system_prompt is not None
+        self._system_message = None
+        self._prefix_messages = []
 
         if role_map:
             role_messages = parse_key_value_str(role_map)
-            self._prefix_messages = []
             found_system = False
             for role, message in role_messages.items():
                 self._prefix_messages.append({"role": role, "content": message})
                 if role.lower() == "system":
                     found_system = True
                     self._system_message = {"role": "system", "content": message}
-            if found_system:
-                logger.debug("System role found in role_map, overriding system_prompt")
-            else:
+            if not found_system and system_prompt is not None:
+                self._system_message = {"role": "system", "content": system_prompt}
                 self._prefix_messages.insert(0, self._system_message)
+        elif system_prompt is not None:
+            self._system_message = {"role": "system", "content": system_prompt}
+            self._prefix_messages = [self._system_message]
 
     @property
     def model_name(self) -> str:
@@ -105,7 +107,7 @@ class OllamaPromptAdapter(AbstractLLMPromptAdapter):
 
     def __init__(self,
                  model: str,
-                 system_prompt: str = "You are a helpful assistant.",
+                 system_prompt: Optional[str] = "You are a helpful assistant.",
                  multi_turn: bool = True,
                  temperature: float = None,
                  output_format: BaseModel = None,
@@ -172,7 +174,8 @@ class OllamaPromptAdapter(AbstractLLMPromptAdapter):
 
         try:
             # Check if the model is available
-            response = ollama.chat(self._model_name, messages=[self._system_message], options={"temperature": self._temperature})
+            test_messages = [self._system_message] if self._system_message else [{"role": "user", "content": "test"}]
+            response = ollama.chat(self._model_name, messages=test_messages, options={"temperature": self._temperature})
             return True
         except Exception as e:
             logger.error(f"Model {self._model_name} is not available: {e}")
@@ -184,7 +187,7 @@ class AnthropicPromptAdapter(AbstractLLMPromptAdapter):
 
     """
 
-    def __init__(self, model: str, system_prompt: str = "You are a helpful assistant.", multi_turn: bool = True, temperature: float = None, output_format: BaseModel = None, role_map: str = None):
+    def __init__(self, model: str, system_prompt: Optional[str] = "You are a helpful assistant.", multi_turn: bool = True, temperature: float = None, output_format: BaseModel = None, role_map: str = None):
         try:
             import anthropic
         except ImportError:
@@ -192,9 +195,9 @@ class AnthropicPromptAdapter(AbstractLLMPromptAdapter):
                 "Anthropic is not installed. Please install it with: pip install talkpipe[anthropic]"
             )
 
-        if output_format:
+        if output_format and system_prompt:
             self.pydantic_json_schema = json.dumps(output_format.model_json_schema())
-            system_prompt += f"\nThe output should be in the following JSON format:\n{self.pydantic_json_schema}"
+            system_prompt = system_prompt + f"\nThe output should be in the following JSON format:\n{self.pydantic_json_schema}"
         else:
             self.pydantic_json_schema = None
 
@@ -225,9 +228,12 @@ class AnthropicPromptAdapter(AbstractLLMPromptAdapter):
         request_params = {
             "model": self._model_name,
             "messages": non_system_prefix + self._messages,
-            "system": self._system_message["content"],
             "max_tokens": self._max_tokens
         }
+
+        # Only include system parameter if system_message exists
+        if self._system_message:
+            request_params["system"] = self._system_message["content"]
 
         if self._temperature_explicit:
             request_params["temperature"] = self._temperature
@@ -276,9 +282,12 @@ class AnthropicPromptAdapter(AbstractLLMPromptAdapter):
             request_params = {
                 "model": self._model_name,
                 "messages": [{"role": "user", "content": "test"}],
-                "system": self._system_message["content"],
                 "max_tokens": 1
             }
+
+            # Only include system parameter if system_message exists
+            if self._system_message:
+                request_params["system"] = self._system_message["content"]
 
             if self._temperature_explicit:
                 request_params["temperature"] = self._temperature
@@ -295,7 +304,7 @@ class OpenAIPromptAdapter(AbstractLLMPromptAdapter):
 
     """
 
-    def __init__(self, model: str, system_prompt: str = "You are a helpful assistant.", multi_turn: bool = True, temperature: float = None, output_format: BaseModel = None, role_map: str = None):
+    def __init__(self, model: str, system_prompt: Optional[str] = "You are a helpful assistant.", multi_turn: bool = True, temperature: float = None, output_format: BaseModel = None, role_map: str = None):
         try:
             import openai
         except ImportError:
@@ -356,9 +365,10 @@ class OpenAIPromptAdapter(AbstractLLMPromptAdapter):
         """
         try:
             # Check if the model is available
+            test_messages = [self._system_message] if self._system_message else [{"role": "user", "content": "test"}]
             request_params = {
                 "model": self._model_name,
-                "messages": [self._system_message]
+                "messages": test_messages
             }
             
             if self._temperature_explicit:
