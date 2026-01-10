@@ -2,6 +2,8 @@
 
 from typing import Union, Iterable, Annotated, Callable, Optional, Iterator
 import logging
+import csv
+import json
 from pydantic import BaseModel, ConfigDict
 import glob
 import os
@@ -184,6 +186,159 @@ def extract_docx(file_path: Union[str, Path]) -> Iterator[ExtractionResult]:
     )
 
 
+def extract_csv(file_path: Union[str, Path]) -> Iterator[ExtractionResult]:
+    """
+    Extract rows from a CSV file, yielding each row as an ExtractionResult.
+
+    For each row, if a CSV column name matches an ExtractionResult field
+    (content, source, id, title), that value is used. Otherwise:
+    - content: string representation of all fields
+    - source: the file path
+    - id: file path plus row number
+    - title: filename plus row number
+
+    Any additional CSV columns are passed through as extra fields.
+
+    Args:
+        file_path: Path to the CSV file.
+
+    Yields:
+        ExtractionResult for each row in the CSV.
+
+    Raises:
+        FileNotFoundError: If the file does not exist.
+    """
+    p = Path(file_path)
+    if not p.exists():
+        logger.error(f"Path does not exist: {file_path}")
+        raise FileNotFoundError(f"Path does not exist: {file_path}")
+    if not p.is_file():
+        logger.error(f"Unsupported path type: {file_path}")
+        raise FileNotFoundError(f"Unsupported path type: {file_path}")
+
+    logger.debug(f"Reading CSV file: {p}")
+    source_str = str(p.resolve())
+    extraction_fields = {'content', 'source', 'id', 'title'}
+
+    with p.open("r", newline='', encoding='utf-8') as file:
+        reader = csv.DictReader(file)
+        for row_num, row in enumerate(reader, start=1):
+            # Build ExtractionResult fields, using CSV values if present
+            result_fields = {}
+
+            if 'content' in row:
+                result_fields['content'] = row['content']
+            else:
+                result_fields['content'] = ', '.join(f"{k}: {v}" for k, v in row.items())
+
+            if 'source' in row:
+                result_fields['source'] = row['source']
+            else:
+                result_fields['source'] = source_str
+
+            if 'id' in row:
+                result_fields['id'] = row['id']
+            else:
+                result_fields['id'] = f"{source_str}:{row_num}"
+
+            if 'title' in row:
+                result_fields['title'] = row['title']
+            else:
+                result_fields['title'] = f"{p.name}:{row_num}"
+
+            # Add all CSV fields as extra fields (excluding ones already in result_fields)
+            extra_fields = {k: v for k, v in row.items() if k not in extraction_fields}
+            yield ExtractionResult(**result_fields, **extra_fields)
+
+
+def extract_jsonl(file_path: Union[str, Path]) -> Iterator[ExtractionResult]:
+    """
+    Extract lines from a JSONL file, yielding each line as an ExtractionResult.
+
+    For each line, if the JSON value is a dictionary and has keys matching
+    ExtractionResult fields (content, source, id, title), those values are used.
+    Otherwise:
+    - content: string value (if string) or JSON representation of the value
+    - source: the file path
+    - id: file path plus line number
+    - title: filename plus line number
+
+    For dictionaries, all keys are passed through as extra fields.
+    For non-dict values, the original value is stored in a 'value' extra field.
+
+    Args:
+        file_path: Path to the JSONL file.
+
+    Yields:
+        ExtractionResult for each non-empty line in the JSONL file.
+
+    Raises:
+        FileNotFoundError: If the file does not exist.
+    """
+    p = Path(file_path)
+    if not p.exists():
+        logger.error(f"Path does not exist: {file_path}")
+        raise FileNotFoundError(f"Path does not exist: {file_path}")
+    if not p.is_file():
+        logger.error(f"Unsupported path type: {file_path}")
+        raise FileNotFoundError(f"Unsupported path type: {file_path}")
+
+    logger.debug(f"Reading JSONL file: {p}")
+    source_str = str(p.resolve())
+    extraction_fields = {'content', 'source', 'id', 'title'}
+
+    with p.open("r", encoding='utf-8') as file:
+        for line_num, line in enumerate(file, start=1):
+            line = line.strip()
+            if not line:
+                continue  # Skip empty lines
+
+            data = json.loads(line)
+
+            result_fields = {}
+            extra_fields = {}
+
+            if isinstance(data, dict):
+                # Dictionary: check for matching ExtractionResult fields
+                if 'content' in data:
+                    result_fields['content'] = str(data['content'])
+                else:
+                    result_fields['content'] = ', '.join(f"{k}: {v}" for k, v in data.items())
+
+                if 'source' in data:
+                    result_fields['source'] = str(data['source'])
+                else:
+                    result_fields['source'] = source_str
+
+                if 'id' in data:
+                    result_fields['id'] = str(data['id'])
+                else:
+                    result_fields['id'] = f"{source_str}:{line_num}"
+
+                if 'title' in data:
+                    result_fields['title'] = str(data['title'])
+                else:
+                    result_fields['title'] = f"{p.name}:{line_num}"
+
+                # Add all dict fields as extra fields (excluding standard fields)
+                extra_fields = {k: v for k, v in data.items() if k not in extraction_fields}
+            else:
+                # Non-dict: use value directly for content if string, else JSON representation
+                if isinstance(data, str):
+                    result_fields['content'] = data
+                else:
+                    result_fields['content'] = json.dumps(data)
+
+                result_fields['source'] = source_str
+                result_fields['id'] = f"{source_str}:{line_num}"
+                result_fields['title'] = f"{p.name}:{line_num}"
+
+                # Store original value as extra field
+                extra_fields['value'] = data
+
+            yield ExtractionResult(**result_fields, **extra_fields)
+
+
 def skip_file(file_path: Union[str, Path]) -> Iterator[ExtractionResult]:
     """Default extractor that skips files by yielding nothing."""
     logger.debug(f"Skipping unsupported file: {file_path}")
@@ -196,13 +351,15 @@ def get_default_registry() -> ExtractorRegistry:
     Get a new ExtractorRegistry pre-populated with default extractors.
 
     Returns:
-        ExtractorRegistry with txt, md, and docx extractors registered,
+        ExtractorRegistry with txt, md, docx, and csv extractors registered,
         and a default skip handler.
     """
     registry = ExtractorRegistry()
     registry.register("txt", extract_text)
     registry.register("md", extract_text)
     registry.register("docx", extract_docx)
+    registry.register("csv", extract_csv)
+    registry.register("jsonl", extract_jsonl)
     registry.register_default(skip_file)
     return registry
 
@@ -242,6 +399,56 @@ def readdocx(file_path: Annotated[str, "Path to the .docx file to read"]):
 
     """
     yield from extract_docx(file_path)
+
+
+@register_segment("readcsv")
+@field_segment(multi_emit=True)
+def readcsv(file_path: Annotated[str, "Path to the CSV file to read"]):
+    """Read and extract rows from a CSV file.
+
+    Each row is emitted as an ExtractionResult. If a CSV column name matches
+    an ExtractionResult field (content, source, id, title), that value is used.
+    Otherwise, content is a string of all fields, source is the file path,
+    id is path plus row number, and title is filename plus row number.
+    Additional CSV columns are passed through as extra fields.
+
+    Yields:
+        ExtractionResult: Result for each row containing content, source, id, title,
+                         and any additional CSV columns as extra fields.
+
+    Raises:
+        FileNotFoundError: If a path does not exist.
+        IOError: If there is an error reading the file.
+
+    """
+    yield from extract_csv(file_path)
+
+
+@register_segment("readjsonl")
+@field_segment(multi_emit=True)
+def readjsonl(file_path: Annotated[str, "Path to the JSONL file to read"]):
+    """Read and extract lines from a JSONL file.
+
+    Each non-empty line is emitted as an ExtractionResult. If the JSON value is
+    a dictionary with keys matching ExtractionResult fields (content, source, id,
+    title), those values are used. Otherwise, content is the string value (for
+    strings) or JSON representation (for other types), source is the file path,
+    id is path plus line number, and title is filename plus line number.
+
+    For dictionaries, all keys are passed through as extra fields.
+    For non-dict values, the original value is stored in a 'value' extra field.
+
+    Yields:
+        ExtractionResult: Result for each line containing content, source, id, title,
+                         and any additional fields from the JSON data.
+
+    Raises:
+        FileNotFoundError: If a path does not exist.
+        IOError: If there is an error reading the file.
+
+    """
+    yield from extract_jsonl(file_path)
+
 
 @register_segment("listFiles")
 @segment()
@@ -297,26 +504,21 @@ def listFiles(patterns: Annotated[Iterable[str], "Iterable of file patterns or p
 @register_segment("readFile")
 class ReadFile(AbstractFieldSegment):
     """
-    A class for extracting text content from different file types.
+    A segment for extracting text content from different file types.
 
     This class implements the AbstractSegment interface and provides functionality to extract
     text content from various file formats using an ExtractorRegistry. It supports multiple
     file formats and can be extended with additional extractors.
 
     This is a multi-emit segment, meaning extractors can yield multiple items per file
-    (e.g., CSV rows, JSONL lines) or a single item.
+    or a single item.
 
     By default, uses the global_extractor_registry which has txt, md, and docx extractors
-    registered, and skips unsupported files. To raise an error on unsupported files instead
-    of skipping, pass skip_unsupported=False.
-
-    Attributes:
-        _registry (ExtractorRegistry): Registry mapping file extensions to extractor functions.
-        _skip_unsupported (bool): Whether to skip unsupported files (True) or raise an error (False).
-
-    Methods:
-        register_extractor(file_extension: str, extractor): Register a new file extractor for a specific extension.
-        process_value(file_path: Union[str, PosixPath]): Extract content from a single file.
+    registered by defualt, and skips unsupported files. Plugins or applications can register 
+    additional extractors.
+    
+    To raise an error on unsupported 
+    files instead of skipping, pass skip_unsupported=False.
 
     """
     _registry: ExtractorRegistry

@@ -193,6 +193,31 @@ def test_fork_arrow_syntax_metadata():
     ans2 = f()
     assert ans == ans2
 
+def test_fork_arrow_syntax_with_mixed_segments():
+    script = compiler.compile("""INPUT FROM range[lower=0, upper=10] | toList""")
+    ans = list(script())
+    assert len(ans) == 1
+    assert ans[0] == [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
+
+    script_a = compiler.compile("""INPUT FROM range[lower=0, upper=10] -> fork1; fork1 -> lambda[expression="item"] | toList""")
+    ans_a = list(script_a())
+    assert len(ans_a) == 1
+    assert ans_a[0] == [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
+
+    script_b = compiler.compile("""INPUT FROM range[lower=0, upper=10] -> fork1; fork1 -> lambda[expression="item"]""")
+    script_c = compiler.compile("toList")
+    script_d = script_b | script_c
+    ans_b = list(script_d())
+    assert len(ans_b) == 1
+    assert ans_b[0] == [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
+
+    script_b = compiler.compile("""INPUT FROM range[lower=0, upper=10] -> fork1; fork1 -> lambda[expression="item"]""")
+    script_c = compiler.compile("toList")
+    script_d = script_b | script_c
+    ans_b = list(script_d())
+    assert len(ans_b) == 1
+    assert ans_b[0] == [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
+
 def test_variables_as_parameters():
     v_score = core.RuntimeComponent()
     script = compiler.compile('CONST var1 = "Hello"; INPUT FROM echo[data=var1] | print', v_score).as_function(single_out=True)    

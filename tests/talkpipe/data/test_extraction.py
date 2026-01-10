@@ -1,7 +1,7 @@
 import pytest
 from talkpipe.data.extraction import (
-    ReadFile, readtxt, readdocx, listFiles,
-    ExtractorRegistry, extract_text, extract_docx, skip_file, get_default_registry,
+    ReadFile, readtxt, readdocx, readcsv, readjsonl, listFiles,
+    ExtractorRegistry, extract_text, extract_docx, extract_csv, extract_jsonl, skip_file, get_default_registry,
     global_extractor_registry, ExtractionResult
 )
 
@@ -328,3 +328,287 @@ def test_multi_emit_extractor(tmp_path):
     assert "line1" in results[0].title
     assert "line2" in results[1].title
     assert "line3" in results[2].title
+
+
+def test_extract_csv(tmp_path):
+    """Test extract_csv function."""
+    # Test basic CSV without ExtractionResult field names
+    csv_content = "name,email,age\nAlice,alice@example.com,30\nBob,bob@example.com,25\n"
+    csv_path = tmp_path / "test.csv"
+    csv_path.write_text(csv_content)
+
+    results = list(extract_csv(csv_path))
+    assert len(results) == 2
+
+    # Check first row
+    assert isinstance(results[0], ExtractionResult)
+    assert "name: Alice" in results[0].content
+    assert "email: alice@example.com" in results[0].content
+    assert "age: 30" in results[0].content
+    assert str(csv_path.resolve()) in results[0].source
+    assert results[0].id == f"{csv_path.resolve()}:1"
+    assert results[0].title == "test.csv:1"
+    # All CSV fields should be present as extra fields
+    assert results[0].name == "Alice"
+    assert results[0].email == "alice@example.com"
+    assert results[0].age == "30"
+
+    # Check second row
+    assert results[1].id == f"{csv_path.resolve()}:2"
+    assert results[1].title == "test.csv:2"
+    assert results[1].name == "Bob"
+
+
+def test_extract_csv_with_matching_fields(tmp_path):
+    """Test extract_csv when CSV has columns matching ExtractionResult fields."""
+    csv_content = "content,title,extra_field\nMy content,My title,extra_value\n"
+    csv_path = tmp_path / "matching.csv"
+    csv_path.write_text(csv_content)
+
+    results = list(extract_csv(csv_path))
+    assert len(results) == 1
+
+    result = results[0]
+    # Matching fields should be used
+    assert result.content == "My content"
+    assert result.title == "My title"
+    # Non-matching fields should use defaults
+    assert str(csv_path.resolve()) in result.source
+    assert result.id == f"{csv_path.resolve()}:1"
+    # All CSV fields should still be present as extra fields
+    assert result.extra_field == "extra_value"
+
+
+def test_extract_csv_all_matching_fields(tmp_path):
+    """Test extract_csv when CSV has all ExtractionResult field names."""
+    csv_content = "content,source,id,title,custom\nCustom content,custom_source,custom_id,custom_title,custom_val\n"
+    csv_path = tmp_path / "all_matching.csv"
+    csv_path.write_text(csv_content)
+
+    results = list(extract_csv(csv_path))
+    assert len(results) == 1
+
+    result = results[0]
+    # All fields should use CSV values
+    assert result.content == "Custom content"
+    assert result.source == "custom_source"
+    assert result.id == "custom_id"
+    assert result.title == "custom_title"
+    assert result.custom == "custom_val"
+
+
+def test_extract_csv_error_cases(tmp_path):
+    """Test extract_csv error handling."""
+    # Non-existent file
+    with pytest.raises(FileNotFoundError, match="Path does not exist"):
+        list(extract_csv(tmp_path / "nonexistent.csv"))
+
+    # Directory instead of file
+    (tmp_path / "subdir").mkdir()
+    with pytest.raises(FileNotFoundError, match="Unsupported path type"):
+        list(extract_csv(tmp_path / "subdir"))
+
+
+def test_readcsv(tmp_path):
+    """Test readcsv segment."""
+    csv_content = "product,price,quantity\nApple,1.50,10\nBanana,0.75,20\n"
+    csv_path = tmp_path / "products.csv"
+    csv_path.write_text(csv_content)
+
+    results = list(readcsv()([str(csv_path)]))
+    assert len(results) == 2
+
+    # Check first row
+    assert isinstance(results[0], ExtractionResult)
+    assert results[0].product == "Apple"
+    assert results[0].price == "1.50"
+    assert results[0].quantity == "10"
+    assert "products.csv:1" in results[0].title
+
+    # Check second row
+    assert results[1].product == "Banana"
+    assert "products.csv:2" in results[1].title
+
+
+def test_csv_in_default_registry(tmp_path):
+    """Test that CSV extractor is registered in default registry."""
+    registry = get_default_registry()
+    assert "csv" in registry.registered_extensions
+
+    csv_content = "col1,col2\nval1,val2\n"
+    csv_path = tmp_path / "registry_test.csv"
+    csv_path.write_text(csv_content)
+
+    results = list(registry.extract(csv_path))
+    assert len(results) == 1
+    assert results[0].col1 == "val1"
+    assert results[0].col2 == "val2"
+
+
+def test_extract_jsonl_with_dicts(tmp_path):
+    """Test extract_jsonl with dictionary objects."""
+    jsonl_content = '{"name": "Alice", "age": 30}\n{"name": "Bob", "age": 25}\n'
+    jsonl_path = tmp_path / "test.jsonl"
+    jsonl_path.write_text(jsonl_content)
+
+    results = list(extract_jsonl(jsonl_path))
+    assert len(results) == 2
+
+    # Check first line
+    assert isinstance(results[0], ExtractionResult)
+    assert "name: Alice" in results[0].content
+    assert "age: 30" in results[0].content
+    assert str(jsonl_path.resolve()) in results[0].source
+    assert results[0].id == f"{jsonl_path.resolve()}:1"
+    assert results[0].title == "test.jsonl:1"
+    # Dict fields should be passed through
+    assert results[0].name == "Alice"
+    assert results[0].age == 30
+
+    # Check second line
+    assert results[1].id == f"{jsonl_path.resolve()}:2"
+    assert results[1].name == "Bob"
+
+
+def test_extract_jsonl_with_matching_fields(tmp_path):
+    """Test extract_jsonl when JSON has keys matching ExtractionResult fields."""
+    jsonl_content = '{"content": "My content", "title": "My title", "extra": "value"}\n'
+    jsonl_path = tmp_path / "matching.jsonl"
+    jsonl_path.write_text(jsonl_content)
+
+    results = list(extract_jsonl(jsonl_path))
+    assert len(results) == 1
+
+    result = results[0]
+    assert result.content == "My content"
+    assert result.title == "My title"
+    assert str(jsonl_path.resolve()) in result.source
+    assert result.id == f"{jsonl_path.resolve()}:1"
+    assert result.extra == "value"
+
+
+def test_extract_jsonl_non_dict_string(tmp_path):
+    """Test extract_jsonl with string values."""
+    jsonl_content = '"hello world"\n"another string"\n'
+    jsonl_path = tmp_path / "strings.jsonl"
+    jsonl_path.write_text(jsonl_content)
+
+    results = list(extract_jsonl(jsonl_path))
+    assert len(results) == 2
+
+    # String value should be used directly as content
+    assert results[0].content == "hello world"
+    assert results[0].value == "hello world"
+    assert results[0].id == f"{jsonl_path.resolve()}:1"
+
+    assert results[1].content == "another string"
+    assert results[1].value == "another string"
+
+
+def test_extract_jsonl_non_dict_numbers(tmp_path):
+    """Test extract_jsonl with number values."""
+    jsonl_content = '42\n3.14\n'
+    jsonl_path = tmp_path / "numbers.jsonl"
+    jsonl_path.write_text(jsonl_content)
+
+    results = list(extract_jsonl(jsonl_path))
+    assert len(results) == 2
+
+    # Number should be JSON stringified for content, original value in 'value'
+    assert results[0].content == "42"
+    assert results[0].value == 42
+
+    assert results[1].content == "3.14"
+    assert results[1].value == 3.14
+
+
+def test_extract_jsonl_non_dict_array(tmp_path):
+    """Test extract_jsonl with array values."""
+    jsonl_content = '[1, 2, 3]\n["a", "b"]\n'
+    jsonl_path = tmp_path / "arrays.jsonl"
+    jsonl_path.write_text(jsonl_content)
+
+    results = list(extract_jsonl(jsonl_path))
+    assert len(results) == 2
+
+    assert results[0].content == "[1, 2, 3]"
+    assert results[0].value == [1, 2, 3]
+
+    assert results[1].content == '["a", "b"]'
+    assert results[1].value == ["a", "b"]
+
+
+def test_extract_jsonl_non_dict_boolean_null(tmp_path):
+    """Test extract_jsonl with boolean and null values."""
+    jsonl_content = 'true\nfalse\nnull\n'
+    jsonl_path = tmp_path / "misc.jsonl"
+    jsonl_path.write_text(jsonl_content)
+
+    results = list(extract_jsonl(jsonl_path))
+    assert len(results) == 3
+
+    assert results[0].content == "true"
+    assert results[0].value is True
+
+    assert results[1].content == "false"
+    assert results[1].value is False
+
+    assert results[2].content == "null"
+    assert results[2].value is None
+
+
+def test_extract_jsonl_skips_empty_lines(tmp_path):
+    """Test that extract_jsonl skips empty lines."""
+    jsonl_content = '{"a": 1}\n\n{"b": 2}\n   \n{"c": 3}\n'
+    jsonl_path = tmp_path / "empty_lines.jsonl"
+    jsonl_path.write_text(jsonl_content)
+
+    results = list(extract_jsonl(jsonl_path))
+    assert len(results) == 3
+    assert results[0].a == 1
+    assert results[1].b == 2
+    assert results[2].c == 3
+
+
+def test_extract_jsonl_error_cases(tmp_path):
+    """Test extract_jsonl error handling."""
+    # Non-existent file
+    with pytest.raises(FileNotFoundError, match="Path does not exist"):
+        list(extract_jsonl(tmp_path / "nonexistent.jsonl"))
+
+    # Directory instead of file
+    (tmp_path / "subdir").mkdir()
+    with pytest.raises(FileNotFoundError, match="Unsupported path type"):
+        list(extract_jsonl(tmp_path / "subdir"))
+
+
+def test_readjsonl(tmp_path):
+    """Test readjsonl segment."""
+    jsonl_content = '{"product": "Apple", "price": 1.50}\n{"product": "Banana", "price": 0.75}\n'
+    jsonl_path = tmp_path / "products.jsonl"
+    jsonl_path.write_text(jsonl_content)
+
+    results = list(readjsonl()([str(jsonl_path)]))
+    assert len(results) == 2
+
+    assert isinstance(results[0], ExtractionResult)
+    assert results[0].product == "Apple"
+    assert results[0].price == 1.50
+    assert "products.jsonl:1" in results[0].title
+
+    assert results[1].product == "Banana"
+    assert "products.jsonl:2" in results[1].title
+
+
+def test_jsonl_in_default_registry(tmp_path):
+    """Test that JSONL extractor is registered in default registry."""
+    registry = get_default_registry()
+    assert "jsonl" in registry.registered_extensions
+
+    jsonl_content = '{"key": "value"}\n'
+    jsonl_path = tmp_path / "registry_test.jsonl"
+    jsonl_path.write_text(jsonl_content)
+
+    results = list(registry.extract(jsonl_path))
+    assert len(results) == 1
+    assert results[0].key == "value"
