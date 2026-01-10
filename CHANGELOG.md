@@ -1,6 +1,9 @@
 # Changelog
 
-## In Development
+## 0.11.1
+- Updated system_prompt behavior in the llmPrompt segment and associated classes so that
+  if it is None, that message is simply not sent to the underlying LLM at all.
+- Added default support for csv and jsonl files in readFile.
 - Added a backward compatible metadata capability.  By default metadata information
   passes through the stream without being passed to segments.  But if a segment wants
   to process metadata, it can so declare when being defined and metadata will be passed
