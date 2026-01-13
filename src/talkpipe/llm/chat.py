@@ -4,7 +4,7 @@ Contains an abstract class for a chat model, as well as two
 concrete classes for chatting with models from Ollama.
 """
 
-from typing import Optional, Iterable, Iterator, Annotated
+from typing import Optional, Iterable, Iterator, Annotated, Any
 from abc import ABC, abstractmethod
 import logging
 from pydantic import BaseModel
@@ -49,7 +49,8 @@ class LLMPrompt(AbstractSegment):
             set_as: Annotated[Optional[str], "The field to append the response to"] = None,
             temperature: Annotated[Optional[float], "The temperature to use for the model"] = None,
             output_format: Annotated[Optional[BaseModel], "A class used for guided generation"] = None,
-            role_map: Annotated[Optional[str], "Initial conversation context as 'role:message,role:message'"] = None):
+            role_map: Annotated[Optional[str], "Initial conversation context as 'role:message,role:message'"] = None,
+            tools: Annotated[Optional[Any], "FastMCP instance or list of callable tool functions"] = None):
         super().__init__()
         logging.debug(f"Initializing LLMPrompt with name={model}, source={source}")
         cfg = get_config()
@@ -67,7 +68,7 @@ class LLMPrompt(AbstractSegment):
 
         logging.debug(f"Creating chat model with name: {model}")
         # Always pass system_prompt, even if None, so the adapter can handle it correctly
-        self.chat = getPromptAdapter(source)(model=model, system_prompt=system_prompt, multi_turn=multi_turn, temperature=temperature, output_format=output_format, role_map=role_map)
+        self.chat = getPromptAdapter(source)(model=model, system_prompt=system_prompt, multi_turn=multi_turn, temperature=temperature, output_format=output_format, role_map=role_map, tools=tools)
 
         self.pass_prompts = pass_prompts
         self.field = field

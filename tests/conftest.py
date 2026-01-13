@@ -60,18 +60,19 @@ def pytest_configure(config):
         logger.warning(f"OpenAI check failed: {e}. Skipping tests that require it.")
 
     # Check if Anthropic is available (if needed in future)
-    try:
-        from talkpipe.llm.prompt_adapters import AnthropicPromptAdapter
-        anthropic_adapter = AnthropicPromptAdapter("claude-3-5-haiku-latest", temperature=0.0)
-        if anthropic_adapter.is_available():
-            config.is_anthropic_available = True
-            logger.warning("Anthropic is available.")
-        else:
-            config.is_anthropic_available = False
-            logger.warning("Anthropic is not available. Skipping tests that require it.")
-    except Exception as e:
-        config.is_anthropic_available = False
-        logger.warning(f"Anthropic check failed: {e}. Skipping tests that require it.")
+    config.is_anthropic_available = False
+    #try:
+    #    from talkpipe.llm.prompt_adapters import AnthropicPromptAdapter
+    #    anthropic_adapter = AnthropicPromptAdapter("claude-3-5-haiku-latest", temperature=0.0)
+    #    if anthropic_adapter.is_available():
+    #        config.is_anthropic_available = True
+    #        logger.warning("Anthropic is available.")
+    #    else:
+    #        config.is_anthropic_available = False
+    #        logger.warning("Anthropic is not available. Skipping tests that require it.")
+    #except Exception as e:
+    #    config.is_anthropic_available = False
+    #    logger.warning(f"Anthropic check failed: {e}. Skipping tests that require it.")
 
     # Check if the package is installed (has entry points registered)
     try:

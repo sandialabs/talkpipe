@@ -1,13 +1,226 @@
-from typing import Annotated, Optional
+from typing import Annotated, Optional, Union, Callable, List, Dict, Any, get_origin, get_args
 from abc import ABC, abstractmethod
 import logging
 import json
+import inspect
 from pydantic import BaseModel
 from talkpipe.util.data_manipulation import parse_key_value_str
 from talkpipe.util.config import get_config
 from talkpipe.util.constants import OLLAMA_SERVER_URL
 
 logger = logging.getLogger(__name__)
+
+
+def _extract_tools_from_fastmcp(mcp: Any) -> Union[List[Callable], Dict[str, Callable]]:
+    """Extract registered tools from a FastMCP instance.
+    
+    Args:
+        mcp: FastMCP instance
+        
+    Returns:
+        Dictionary mapping tool names to callable functions, or list if names unavailable
+    """
+    # FastMCP stores tools internally in _tool_manager._tools
+    # Access it directly to avoid calling async get_tools() method
+    if hasattr(mcp, '_tool_manager') and hasattr(mcp._tool_manager, '_tools'):
+        tools_dict = mcp._tool_manager._tools
+    elif hasattr(mcp, '_tools'):
+        tools_dict = mcp._tools
+    elif hasattr(mcp, 'tools'):
+        tools_dict = mcp.tools
+    elif hasattr(mcp, '_tool_registry'):
+        tools_dict = mcp._tool_registry
+    else:
+        logger.warning("Could not extract tools from FastMCP instance")
+        return {}
+    
+    # Extract callable functions from the tools dictionary
+    # FastMCP stores Tool objects, not raw functions, so we need to extract the function
+    if isinstance(tools_dict, dict):
+        # Return as dict to preserve names
+        result = {}
+        for name, tool_obj in tools_dict.items():
+            # Tool objects may have a function attribute or be callable themselves
+            if hasattr(tool_obj, 'fn') and callable(tool_obj.fn):
+                result[name] = tool_obj.fn
+            elif hasattr(tool_obj, 'function') and callable(tool_obj.function):
+                result[name] = tool_obj.function
+            elif callable(tool_obj):
+                result[name] = tool_obj
+        return result
+    elif isinstance(tools_dict, list):
+        # For lists, we can't preserve names, so return as list
+        result = []
+        for tool_obj in tools_dict:
+            if hasattr(tool_obj, 'fn') and callable(tool_obj.fn):
+                result.append(tool_obj.fn)
+            elif hasattr(tool_obj, 'function') and callable(tool_obj.function):
+                result.append(tool_obj.function)
+            elif callable(tool_obj):
+                result.append(tool_obj)
+        return result
+    
+    return {}
+
+
+def _python_type_to_json_schema_type(python_type: type) -> str:
+    """Convert Python type to JSON schema type string.
+    
+    Args:
+        python_type: Python type
+        
+    Returns:
+        JSON schema type string
+    """
+    type_mapping = {
+        int: "integer",
+        float: "number",
+        str: "string",
+        bool: "boolean",
+        list: "array",
+        dict: "object",
+    }
+    
+    # Handle generic types
+    if get_origin(python_type) is not None:
+        origin = get_origin(python_type)
+        if origin is list:
+            return "array"
+        elif origin is dict:
+            return "object"
+        elif origin is Union:
+            # For Union types, try to find a common type or use first
+            args = get_args(python_type)
+            if args:
+                return _python_type_to_json_schema_type(args[0])
+    
+    # Check direct mapping
+    if python_type in type_mapping:
+        return type_mapping[python_type]
+    
+    # Default to string for unknown types
+    return "string"
+
+
+def _convert_function_to_ollama_tool(func: Callable) -> Dict[str, Any]:
+    """Convert a Python function to Ollama tool format.
+    
+    Args:
+        func: Callable function
+        
+    Returns:
+        Dictionary in Ollama tool format
+    """
+    sig = inspect.signature(func)
+    func_name = func.__name__
+    func_doc = inspect.getdoc(func) or ""
+    
+    # Extract parameters
+    properties = {}
+    required = []
+    
+    for param_name, param in sig.parameters.items():
+        if param_name == 'self':
+            continue
+        
+        param_type = "string"  # default
+        param_desc = ""
+        
+        # Extract type from annotation
+        if param.annotation != inspect.Parameter.empty:
+            # Handle Annotated types
+            if get_origin(param.annotation) is not None:
+                origin = get_origin(param.annotation)
+                args = get_args(param.annotation)
+                
+                # Check if it's Annotated[Type, ...]
+                try:
+                    from typing import Annotated
+                    if origin is Annotated and args:
+                        param_type = _python_type_to_json_schema_type(args[0])
+                        # Look for description in metadata
+                        for metadata in args[1:]:
+                            if isinstance(metadata, str):
+                                param_desc = metadata
+                                break
+                except ImportError:
+                    pass
+                
+                # Handle other generic types
+                if param_type == "string":
+                    param_type = _python_type_to_json_schema_type(origin)
+            else:
+                param_type = _python_type_to_json_schema_type(param.annotation)
+        
+        properties[param_name] = {
+            "type": param_type,
+            "description": param_desc
+        }
+        
+        # Add to required if no default
+        if param.default == inspect.Parameter.empty:
+            required.append(param_name)
+    
+    return {
+        "type": "function",
+        "function": {
+            "name": func_name,
+            "description": func_doc,
+            "parameters": {
+                "type": "object",
+                "properties": properties,
+                "required": required
+            }
+        }
+    }
+
+
+def _convert_tools_to_ollama_format(tools: Union[Any, List[Callable], Dict[str, Callable]]) -> tuple[List[Dict[str, Any]], Dict[str, Callable]]:
+    """Convert tools (FastMCP instance, list, or dict of callables) to Ollama format.
+    
+    Args:
+        tools: FastMCP instance, list of callable functions, or dict mapping names to functions
+        
+    Returns:
+        Tuple of (ollama_tools_list, tool_functions_dict)
+    """
+    tool_functions = {}
+    ollama_tools = []
+    
+    # Extract tools from FastMCP or use provided list/dict
+    if tools is None:
+        return [], {}
+    
+    if not isinstance(tools, (list, dict)):
+        # Assume it's a FastMCP instance
+        extracted = _extract_tools_from_fastmcp(tools)
+        if isinstance(extracted, dict):
+            # Use the dict directly
+            tool_dict = extracted
+        else:
+            # Convert list to dict using function names
+            tool_dict = {func.__name__: func for func in extracted}
+    elif isinstance(tools, dict):
+        # Already a dict
+        tool_dict = tools
+    else:
+        # List - convert to dict using function names
+        tool_dict = {func.__name__: func for func in tools}
+    
+    # Convert each tool
+    for tool_name, tool_func in tool_dict.items():
+        if not callable(tool_func):
+            logger.warning(f"Skipping non-callable tool: {tool_func}")
+            continue
+        
+        ollama_tool = _convert_function_to_ollama_tool(tool_func)
+        # Override name in ollama_tool to use the dict key (important for lambdas)
+        ollama_tool["function"]["name"] = tool_name
+        ollama_tools.append(ollama_tool)
+        tool_functions[tool_name] = tool_func
+    
+    return ollama_tools, tool_functions
+
 
 class AbstractLLMPromptAdapter(ABC):
     """Abstract class for prompting an LLM.
@@ -28,7 +241,8 @@ class AbstractLLMPromptAdapter(ABC):
                  multi_turn: Annotated[bool, "Whether the model supports multi-turn conversations"] = True,
                  temperature: Annotated[float, "The temperature for the model"] = None,
                  output_format: Annotated[BaseModel, "The output format for the model"] = None,
-                 role_map: Annotated[str, "The role map for the model in the form 'role:message,role:message'. If the system role is included here, it overrides the system_prompt message"] = None):
+                 role_map: Annotated[str, "The role map for the model in the form 'role:message,role:message'. If the system role is included here, it overrides the system_prompt message"] = None,
+                 tools: Annotated[Optional[Union[Any, List[Callable]]], "FastMCP instance or list of callable tool functions"] = None):
 
         """Initialize the chat model"""
         self._model_name = model
@@ -38,6 +252,8 @@ class AbstractLLMPromptAdapter(ABC):
         self._temperature_explicit = temperature is not None
         self._output_format = output_format
         self._messages = []
+        self._tools = tools
+        self._tool_functions = {}  # Map tool names to callable functions
 
         # Initialize system message and prefix messages
         # Only create system message if system_prompt is not None
@@ -112,17 +328,25 @@ class OllamaPromptAdapter(AbstractLLMPromptAdapter):
                  temperature: float = None,
                  output_format: BaseModel = None,
                  server_url: str = None,
-                 role_map: str = None):
-        super().__init__(model, "ollama", system_prompt, multi_turn, temperature, output_format, role_map)
+                 role_map: str = None,
+                 tools: Optional[Union[Any, List[Callable]]] = None):
+        super().__init__(model, "ollama", system_prompt, multi_turn, temperature, output_format, role_map, tools)
         # Ollama uses 0.5 as default when temperature is not specified
         if self._temperature is None:
             self._temperature = 0.5
         self._server_url = server_url
+        
+        # Convert tools to Ollama format and store tool functions
+        if self._tools is not None:
+            self._ollama_tools, self._tool_functions = _convert_tools_to_ollama_format(self._tools)
+        else:
+            self._ollama_tools = []
+            self._tool_functions = {}
 
     def execute(self, prompt: str) -> str:
         """Execute the chat model.
 
-        Handles its own multi-turn conversation state.
+        Handles its own multi-turn conversation state and tool calling.
         """
         try:
             import ollama
@@ -134,28 +358,150 @@ class OllamaPromptAdapter(AbstractLLMPromptAdapter):
         logger.debug(f"Adding user message to chat history: {prompt}")
         self._messages.append({"role": "user", "content": prompt})
 
-        logger.debug(f"Sending chat request to Ollama model {self._model_name}")
         server_url = self._server_url
         if not server_url:
             server_url = get_config().get(OLLAMA_SERVER_URL, None)
         client = ollama.Client(server_url) if server_url else ollama
-        response = client.chat(
-            self._model_name,
-            messages=self._prefix_messages + self._messages,
-            format=self._output_format.model_json_schema() if self._output_format else None,
-            options={"temperature": self._temperature}
-            )
-
-        if self._multi_turn:
-            logger.debug("Multi-turn enabled, appending assistant response to chat history")
-            self._messages.append({"role": "assistant", "content": str(response.message.content)})
-        else:
-            logger.debug("Single-turn mode, clearing message history")
-            self._messages = []
-
-        result = self._output_format.model_validate_json(response.message.content) if self._output_format else response.message.content
-        logger.debug(f"Returning response: {result}")
-        return result
+        
+        # Loop until we get a final text response (handle tool calls)
+        max_iterations = 10  # Prevent infinite loops
+        iteration = 0
+        
+        while iteration < max_iterations:
+            iteration += 1
+            logger.debug(f"Sending chat request to Ollama model {self._model_name} (iteration {iteration})")
+            
+            # Build request parameters
+            request_params = {
+                "model": self._model_name,
+                "messages": self._prefix_messages + self._messages,
+                "options": {"temperature": self._temperature}
+            }
+            
+            # Add tools if available
+            if self._ollama_tools:
+                request_params["tools"] = self._ollama_tools
+            
+            # Add format if output_format is specified
+            if self._output_format:
+                request_params["format"] = self._output_format.model_json_schema()
+            
+            response = client.chat(**request_params)
+            
+            # Check for tool calls
+            tool_calls = getattr(response.message, 'tool_calls', None) or []
+            if not tool_calls and hasattr(response, 'tool_calls'):
+                tool_calls = response.tool_calls
+            
+            if tool_calls:
+                logger.debug(f"Model requested {len(tool_calls)} tool call(s)")
+                
+                # Add assistant message with tool calls to history
+                assistant_message = {
+                    "role": "assistant",
+                    "content": getattr(response.message, 'content', None) or "",
+                    "tool_calls": []
+                }
+                
+                # Execute each tool call
+                tool_results = []
+                for tool_call in tool_calls:
+                    tool_call_id = getattr(tool_call, 'id', None) or f"call_{iteration}_{len(tool_results)}"
+                    
+                    # Extract tool name and arguments
+                    # Ollama returns tool_call.function as an object with .name and .arguments (dict)
+                    if hasattr(tool_call, 'function'):
+                        if hasattr(tool_call.function, 'name'):
+                            tool_name = tool_call.function.name
+                        else:
+                            tool_name = getattr(tool_call.function, 'name', '')
+                        
+                        if hasattr(tool_call.function, 'arguments'):
+                            tool_args = tool_call.function.arguments
+                            # Arguments might be a dict (Ollama) or a string (some APIs)
+                            if isinstance(tool_args, str):
+                                try:
+                                    tool_args = json.loads(tool_args)
+                                except json.JSONDecodeError:
+                                    logger.warning(f"Failed to parse tool arguments: {tool_args}")
+                                    tool_args = {}
+                        else:
+                            tool_args = {}
+                    else:
+                        # Fallback for other formats
+                        tool_name = getattr(tool_call, 'function', {}).get('name', '') if isinstance(getattr(tool_call, 'function', None), dict) else ''
+                        tool_args = getattr(tool_call, 'function', {}).get('arguments', {}) if isinstance(getattr(tool_call, 'function', None), dict) else {}
+                        if isinstance(tool_args, str):
+                            try:
+                                tool_args = json.loads(tool_args)
+                            except json.JSONDecodeError:
+                                tool_args = {}
+                    
+                    logger.debug(f"Executing tool: {tool_name} with args: {tool_args}")
+                    
+                    # Execute tool
+                    if tool_name in self._tool_functions:
+                        try:
+                            tool_func = self._tool_functions[tool_name]
+                            tool_result = tool_func(**tool_args)
+                            # Convert result to string if needed
+                            if not isinstance(tool_result, str):
+                                tool_result = json.dumps(tool_result) if isinstance(tool_result, (dict, list)) else str(tool_result)
+                        except Exception as e:
+                            logger.error(f"Error executing tool {tool_name}: {e}")
+                            tool_result = f"Error: {str(e)}"
+                    else:
+                        logger.warning(f"Tool {tool_name} not found in registered tools")
+                        tool_result = f"Error: Tool {tool_name} not found"
+                    
+                    # Add to assistant message
+                    # Ollama expects arguments as a dict in the message history
+                    assistant_message["tool_calls"].append({
+                        "id": tool_call_id,
+                        "type": "function",
+                        "function": {
+                            "name": tool_name,
+                            "arguments": tool_args  # Keep as dict for Ollama
+                        }
+                    })
+                    
+                    # Add tool result message
+                    tool_results.append({
+                        "role": "tool",
+                        "content": tool_result,
+                        "name": tool_name
+                    })
+                
+                # Add assistant message and tool results to history
+                self._messages.append(assistant_message)
+                self._messages.extend(tool_results)
+                
+                # Continue loop to get model's response to tool results
+                continue
+            
+            # No tool calls - this is the final response
+            final_content = str(response.message.content)
+            
+            if self._multi_turn:
+                logger.debug("Multi-turn enabled, appending assistant response to chat history")
+                self._messages.append({"role": "assistant", "content": final_content})
+            else:
+                logger.debug("Single-turn mode, clearing message history")
+                self._messages = []
+            
+            # Handle output format
+            if self._output_format:
+                result = self._output_format.model_validate_json(final_content)
+            else:
+                result = final_content
+            
+            logger.debug(f"Returning response: {result}")
+            return result
+        
+        # If we've exceeded max iterations, return the last response
+        logger.warning(f"Exceeded maximum tool call iterations ({max_iterations})")
+        final_content = str(response.message.content) if hasattr(response, 'message') else ""
+        return self._output_format.model_validate_json(final_content) if self._output_format else final_content
     
     def is_available(self) -> bool:
         """Check if the chat model is available.
@@ -187,7 +533,7 @@ class AnthropicPromptAdapter(AbstractLLMPromptAdapter):
 
     """
 
-    def __init__(self, model: str, system_prompt: Optional[str] = "You are a helpful assistant.", multi_turn: bool = True, temperature: float = None, output_format: BaseModel = None, role_map: str = None):
+    def __init__(self, model: str, system_prompt: Optional[str] = "You are a helpful assistant.", multi_turn: bool = True, temperature: float = None, output_format: BaseModel = None, role_map: str = None, tools: Optional[Union[Any, List[Callable]]] = None):
         try:
             import anthropic
         except ImportError:
@@ -201,7 +547,7 @@ class AnthropicPromptAdapter(AbstractLLMPromptAdapter):
         else:
             self.pydantic_json_schema = None
 
-        super().__init__(model, "anthropic", system_prompt, multi_turn, temperature, output_format, role_map)
+        super().__init__(model, "anthropic", system_prompt, multi_turn, temperature, output_format, role_map, tools)
         self.client = anthropic.Anthropic()
         self._max_tokens = 4096  # Default max tokens for response
 
@@ -304,7 +650,7 @@ class OpenAIPromptAdapter(AbstractLLMPromptAdapter):
 
     """
 
-    def __init__(self, model: str, system_prompt: Optional[str] = "You are a helpful assistant.", multi_turn: bool = True, temperature: float = None, output_format: BaseModel = None, role_map: str = None):
+    def __init__(self, model: str, system_prompt: Optional[str] = "You are a helpful assistant.", multi_turn: bool = True, temperature: float = None, output_format: BaseModel = None, role_map: str = None, tools: Optional[Union[Any, List[Callable]]] = None):
         try:
             import openai
         except ImportError:
@@ -312,7 +658,7 @@ class OpenAIPromptAdapter(AbstractLLMPromptAdapter):
                 "OpenAI is not installed. Please install it with: pip install talkpipe[openai]"
             )
 
-        super().__init__(model, "openai", system_prompt, multi_turn, temperature, output_format, role_map)
+        super().__init__(model, "openai", system_prompt, multi_turn, temperature, output_format, role_map, tools)
         self.client = openai.OpenAI()
 
     def execute(self, prompt: str) -> str:

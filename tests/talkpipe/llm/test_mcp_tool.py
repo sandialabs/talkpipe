@@ -1,18 +1,80 @@
 """Tests for the MCP tool registration function."""
 
 import pytest
+from unittest.mock import patch, MagicMock
 from talkpipe import compile, register_talkpipe_tool
 from talkpipe.pipe.core import Pipeline, AbstractSource, AbstractSegment
+
+
+class MockTool:
+    """Mock Tool object for testing."""
+    def __init__(self, fn, name=None, description=None):
+        self.fn = fn
+        self.name = name or fn.__name__
+        self.description = description or fn.__doc__
 
 
 class MockFastMCP:
     """Mock FastMCP instance for testing."""
     def __init__(self):
         self.tools = {}
+        self._tool_manager = MockToolManager(self)
     
-    def add_tool(self, func):
-        """Register a tool function."""
-        self.tools[func.__name__] = func
+    def add_tool(self, tool):
+        """Register a Tool object."""
+        if hasattr(tool, 'fn'):
+            # Tool object
+            self.tools[tool.name] = tool.fn
+        else:
+            # Plain function (fallback)
+            self.tools[tool.__name__] = tool
+    
+    def tool(self, name=None, description=None):
+        """Mock tool decorator."""
+        def decorator(func):
+            self.tools[name or func.__name__] = func
+            return func
+        return decorator
+
+
+class MockToolManager:
+    """Mock ToolManager for testing."""
+    def __init__(self, mcp):
+        self.mcp = mcp
+    
+    def add_tool_from_fn(self, fn, name=None, description=None):
+        """Register a tool function (deprecated method)."""
+        self.mcp.tools[name or fn.__name__] = fn
+
+
+# Create a mock Tool class with from_function
+def mock_tool_from_function(fn, name=None, description=None):
+    """Mock Tool.from_function."""
+    return MockTool(fn, name, description)
+
+MockToolClass = type('MockToolClass', (), {
+    'from_function': staticmethod(mock_tool_from_function)
+})
+
+
+@pytest.fixture(autouse=True)
+def mock_tool(monkeypatch):
+    """Auto-use fixture to mock Tool.from_function for all tests."""
+    # Patch fastmcp.tools.Tool when it's imported inside the function
+    import sys
+    # Create mock modules if they don't exist
+    if 'fastmcp' not in sys.modules:
+        from types import ModuleType
+        fastmcp_module = ModuleType('fastmcp')
+        sys.modules['fastmcp'] = fastmcp_module
+    
+    if 'fastmcp.tools' not in sys.modules:
+        from types import ModuleType
+        tools_module = ModuleType('fastmcp.tools')
+        sys.modules['fastmcp.tools'] = tools_module
+    
+    # Set Tool on the tools module
+    sys.modules['fastmcp.tools'].Tool = MockToolClass
 
 
 def test_register_talkpipe_tool_with_script_string():

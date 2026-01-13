@@ -1,25 +1,14 @@
 # Changelog
 
+## In Development
+- Added tool calling support to `LLMPrompt` for Ollama models. The `tools` parameter accepts
+  either a FastMCP instance or a list of callable functions. When the model requests tool calls,
+  they are automatically executed and the results are sent back to the model, enabling multi-turn
+  conversations with tool usage. Tool calling automatically handles function signature extraction, 
+  JSON schema generation, tool execution, and multi-round conversations until the model returns 
+  a final response.
+
 ## 0.11.1
-- **BREAKING CHANGE**: Replaced `talkpipe_tool` decorator with `register_talkpipe_tool` function
-  in `talkpipe.llm.mcp_tool` for registering TalkPipe pipelines as MCP (Model Context Protocol)
-  tools with FastMCP servers. The new function-based API is simpler and more direct:
-  ```python
-  from fastmcp import FastMCP
-  from talkpipe import register_talkpipe_tool
-  
-  mcp = FastMCP("Demo")
-  register_talkpipe_tool(
-      mcp,
-      "| lambda[expression='item*2']",
-      input_param=("item", int, "Number to double"),
-      name="double_number",
-      description="Doubles a number"
-  )
-  ```
-  The function automatically handles type annotations, parameter binding, and pipeline execution,
-  and directly registers the tool with the FastMCP instance. This replaces the previous decorator
-  approach which required function definitions even when only metadata was needed.
 - Updated system_prompt behavior in the llmPrompt segment and associated classes so that
   if it is None, that message is simply not sent to the underlying LLM at all.
 - Added default support for csv and jsonl files in readFile.

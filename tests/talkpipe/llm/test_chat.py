@@ -1,5 +1,6 @@
 from pydantic import BaseModel
 import pytest
+from unittest.mock import Mock, MagicMock, patch
 from talkpipe.llm.prompt_adapters import OllamaPromptAdapter, OpenAIPromptAdapter, AnthropicPromptAdapter
 from testutils import monkeypatched_env, patch_get_config
 from talkpipe.util import config
@@ -307,3 +308,63 @@ def test_llmbinaryanswer(requires_ollama):
     assert isinstance(response, dict)
     assert response["sentiment"].answer is True
     assert response["sentiment"].explanation is not None
+
+
+def test_tool_calling_with_simple_function(requires_ollama):
+    """Test tool calling with a simple function."""
+    def double_number(item: int) -> int:
+        """Doubles a number."""
+        return item * 2
+    
+    adapter = OllamaPromptAdapter("llama3.1", tools=[double_number], temperature=0.0)
+    
+    # Verify tools were converted
+    assert len(adapter._ollama_tools) == 1
+    assert "double_number" in adapter._tool_functions
+    assert adapter._ollama_tools[0]["function"]["name"] == "double_number"
+    
+    # Test that tool function works
+    result = adapter._tool_functions["double_number"](5)
+    assert result == 10
+
+
+def test_tool_calling_with_fastmcp(requires_ollama):
+    """Test tool calling with FastMCP instance."""
+    # Create a mock FastMCP instance with _tool_manager._tools structure
+    mock_mcp = Mock()
+    mock_tool_manager = Mock()
+    # FastMCP stores Tool objects with .fn attribute containing the function
+    mock_tool1 = Mock()
+    mock_tool1.fn = lambda item: item * 2
+    mock_tool2 = Mock()
+    mock_tool2.fn = lambda a, b: a + b
+    mock_tool_manager._tools = {
+        "double_number": mock_tool1,
+        "add_numbers": mock_tool2
+    }
+    mock_mcp._tool_manager = mock_tool_manager
+    
+    adapter = OllamaPromptAdapter("llama3.1", tools=mock_mcp, temperature=0.0)
+    
+    # Verify tools were extracted
+    assert len(adapter._ollama_tools) == 2
+    assert "double_number" in adapter._tool_functions
+    assert "add_numbers" in adapter._tool_functions
+
+
+def test_tool_calling_no_tools(requires_ollama):
+    """Test that adapter works without tools."""
+    adapter = OllamaPromptAdapter("llama3.1", temperature=0.0)
+    assert adapter._ollama_tools == []
+    assert adapter._tool_functions == {}
+
+
+def test_llmprompt_with_tools(requires_ollama):
+    """Test LLMPrompt segment with tools."""
+    def double_number(item: int) -> int:
+        """Doubles a number."""
+        return item * 2
+    
+    prompt = LLMPrompt(model="llama3.1", source="ollama", tools=[double_number], temperature=0.0)
+    assert prompt.chat._ollama_tools is not None
+    assert len(prompt.chat._ollama_tools) == 1

@@ -144,4 +144,32 @@ def register_talkpipe_tool(
         wrapper.__signature__ = new_sig
     
     # Register with FastMCP
-    mcp.add_tool(wrapper)
+    # FastMCP's add_tool() expects a Tool object, not a plain function
+    # Use the recommended approach: Tool.from_function() then add_tool()
+    try:
+        # Try the recommended approach first (newer FastMCP versions)
+        from fastmcp.tools import Tool
+        tool = Tool.from_function(
+            fn=wrapper,
+            name=wrapper.__name__,
+            description=wrapper.__doc__ or "Tool created from TalkPipe pipeline."
+        )
+        mcp.add_tool(tool)
+    except (ImportError, AttributeError):
+        # Fallback to deprecated add_tool_from_fn (older FastMCP versions)
+        if hasattr(mcp, '_tool_manager') and hasattr(mcp._tool_manager, 'add_tool_from_fn'):
+            mcp._tool_manager.add_tool_from_fn(
+                fn=wrapper,
+                name=wrapper.__name__,
+                description=wrapper.__doc__ or "Tool created from TalkPipe pipeline."
+            )
+        elif hasattr(mcp, 'tool'):
+            # Fallback: use the @mcp.tool decorator pattern by calling it as a function
+            # This mimics: @mcp.tool(name=..., description=...)
+            mcp.tool(name=wrapper.__name__, description=wrapper.__doc__ or "Tool created from TalkPipe pipeline.")(wrapper)
+        else:
+            raise ValueError(
+                "FastMCP instance does not support tool registration. "
+                "Ensure you're using a compatible version of FastMCP. "
+                "Expected either Tool.from_function() or _tool_manager.add_tool_from_fn() support."
+            )
