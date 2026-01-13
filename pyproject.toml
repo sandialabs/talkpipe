@@ -67,8 +67,11 @@ openai = [
 anthropic = [
     'anthropic'
 ]
+mcp = [
+    'fastmcp'
+]
 all = [
-    'talkpipe[openai,ollama,anthropic]'
+    'talkpipe[openai,ollama,anthropic,mcp]'
 ]
 
 [project.scripts]

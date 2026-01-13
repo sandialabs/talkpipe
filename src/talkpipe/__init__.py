@@ -7,6 +7,7 @@ from talkpipe.util.plugin_loader import load_plugins
 from talkpipe.chatterlang import compile
 from talkpipe.pipe.core import segment, field_segment, AbstractFieldSegment, AbstractSegment, source, AbstractSource
 from talkpipe.chatterlang.registry import register_segment, register_source
+from talkpipe.llm.mcp_tool import register_talkpipe_tool
 
 import logging
 

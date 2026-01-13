@@ -1,1 +1,2 @@
 from .prompt_adapters import AbstractLLMPromptAdapter
+from .mcp_tool import register_talkpipe_tool

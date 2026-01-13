@@ -1,6 +1,25 @@
 # Changelog
 
 ## 0.11.1
+- **BREAKING CHANGE**: Replaced `talkpipe_tool` decorator with `register_talkpipe_tool` function
+  in `talkpipe.llm.mcp_tool` for registering TalkPipe pipelines as MCP (Model Context Protocol)
+  tools with FastMCP servers. The new function-based API is simpler and more direct:
+  ```python
+  from fastmcp import FastMCP
+  from talkpipe import register_talkpipe_tool
+  
+  mcp = FastMCP("Demo")
+  register_talkpipe_tool(
+      mcp,
+      "| lambda[expression='item*2']",
+      input_param=("item", int, "Number to double"),
+      name="double_number",
+      description="Doubles a number"
+  )
+  ```
+  The function automatically handles type annotations, parameter binding, and pipeline execution,
+  and directly registers the tool with the FastMCP instance. This replaces the previous decorator
+  approach which required function definitions even when only metadata was needed.
 - Updated system_prompt behavior in the llmPrompt segment and associated classes so that
   if it is None, that message is simply not sent to the underlying LLM at all.
 - Added default support for csv and jsonl files in readFile.
