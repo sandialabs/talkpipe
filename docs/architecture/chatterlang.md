@@ -46,9 +46,10 @@ The parser converts ChatterLang text into an Abstract Syntax Tree (AST) using th
 ```python
 @dataclass
 class ParsedScript:
-    """A parsed script containing pipelines and constants."""
+    """A parsed script containing pipelines, constants, and tools."""
     pipelines: List[Union[ParsedPipeline, ParsedLoop]]
     constants: Dict[str, Any] = field(default_factory=dict)
+    tools: Dict[str, Dict[str, Any]] = field(default_factory=dict)
 
 @dataclass  
 class ParsedPipeline:
@@ -97,6 +98,11 @@ CONST multiplier = 5
 SET api_key = "sk-123456"
 ```
 
+**Tools**: Register TalkPipe pipelines as tools for LLM use (see [Tool Integration](tool.md) for details)
+```chatterlang
+TOOL double = "| lambda[expression='item*2']" [input_param="item:int:Number to double", mcp_server="math_tools"];
+```
+
 **Loops**: Repeat operations multiple times
 ```chatterlang
 LOOP 3 TIMES {
@@ -122,9 +128,10 @@ The compiler transforms the AST into executable Python objects using the Pipe AP
 
 1. **Parse Script**: Convert text to AST using `script_parser`
 2. **Resolve Constants**: Substitute constant values 
-3. **Create Runtime**: Initialize shared state component
-4. **Compile Components**: Transform AST nodes to Pipe API objects
-5. **Build Pipeline**: Connect components using `|` operator
+3. **Register Tools**: Process `TOOL` definitions and register them with MCP servers (see [Tool Integration](tool.md))
+4. **Create Runtime**: Initialize shared state component
+5. **Compile Components**: Transform AST nodes to Pipe API objects
+6. **Build Pipeline**: Connect components using `|` operator
 
 #### Single Dispatch Pattern
 

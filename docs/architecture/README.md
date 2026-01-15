@@ -25,6 +25,13 @@ TalkPipe's external domain-specific language for defining workflows.
 - Variable and constant handling
 - Control flow constructs
 
+### [Tool Integration](tool.md)
+How TalkPipe integrates with MCP (Model Context Protocol) to enable LLM tool calling.
+- TOOL syntax for defining tools
+- Multiple MCP server support
+- Integration with LLMPrompt
+- Tool execution and registration
+
 ### [Streaming Architecture](streaming.md)
 How TalkPipe processes data efficiently using Python generators.
 - Memory-efficient data processing
