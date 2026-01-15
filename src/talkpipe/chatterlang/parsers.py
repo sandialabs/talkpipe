@@ -104,6 +104,7 @@ class ParsedScript:
     """
     pipelines: List[Union[ParsedPipeline, ParsedLoop]]
     constants: Dict[str, Any] = field(default_factory=dict)
+    tools: Dict[str, Dict[str, Any]] = field(default_factory=dict)
 
     def __iter__(self):
         return iter(self.pipelines)
@@ -192,6 +193,31 @@ def constant_definition():
     const_value = yield parameter
     return (const_name.name, const_value)
 """A parser for defining constants with 'SET' keyword."""
+
+# Parser for tool definitions
+@generate
+def tool_definition():
+    """Parser for TOOL definitions: TOOL name = "pipeline_string" [params]
+    
+    Example:
+        TOOL double = "| lambda[expression='item*2']" [input_param="item:int:Number to double", description="Doubles a number", mcp_server="math_tools"]
+    """
+    yield lexeme('TOOL')
+    tool_name = yield identifier
+    yield lexeme('=')
+    pipeline_str = yield quoted_string  # Pipeline must be a quoted string
+    params = yield bracket_parser  # Optional parameters in brackets
+    return (tool_name.name, {
+        'pipeline': pipeline_str,
+        'name': params.get('name', tool_name.name),  # Default to tool_name if not specified
+        'description': params.get('description', None),
+        'input_param': params.get('input_param', None),
+        'param_name': params.get('param_name', None),
+        'param_type': params.get('param_type', None),
+        'param_desc': params.get('param_desc', None),
+        'mcp_server': params.get('mcp_server', 'mcp'),  # Default to 'mcp' if not specified
+    })
+"""A parser for defining tools with 'TOOL' keyword."""
 
 source = (
     (lexeme('INPUT') >> lexeme('FROM') | lexeme('NEW') >> lexeme('FROM') | lexeme('NEW')) >>
@@ -345,18 +371,31 @@ def loop():
 pipeline_separator = lexeme(';')
 """A parser for the separator between pipelines in a script."""
 
+# Combined parser for constants and tools (both use semicolon separators)
+definition = constant_definition.map(lambda x: ('const', x)) | tool_definition.map(lambda x: ('tool', x))
+
 @generate
 def script_parser():
-    # First parse constants
-    constants = yield constant_definition.sep_by(pipeline_separator)
-    constants = {k: v for k, v in constants}
+    # Parse constants and tools - they can be interleaved, separated by semicolons
+    definitions = yield definition.sep_by(pipeline_separator, min=0)
+    
+    # Separate constants and tools
+    constants = {}
+    tools = {}
+    for def_type, def_value in definitions:
+        if def_type == 'const':
+            k, v = def_value
+            constants[k] = v
+        else:  # tool
+            k, v = def_value
+            tools[k] = v
 
     # Parse pipelines and loops
     pipelines = yield (loop | pipeline).sep_by(pipeline_separator)
 
     pipelines = [p for p in pipelines if not isinstance(p, ParsedPipeline) or (p.input_node or len(p.transforms)>0)]
     
-    # Create and return a ParsedScript with constants
-    return ParsedScript(pipelines, constants)
+    # Create and return a ParsedScript with constants and tools
+    return ParsedScript(pipelines, constants, tools)
 """A parser for a script in the pipeline language.  Scripts contain a series of pipelines and loops."""
 

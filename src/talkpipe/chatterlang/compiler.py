@@ -18,6 +18,93 @@ from talkpipe.operations.thread_ops import ThreadedQueue
 
 logger = logging.getLogger(__name__)
 
+
+def _register_tools(tools: Dict[str, Dict[str, Any]], runtime: RuntimeComponent) -> None:
+    """Register tools defined in the script with FastMCP.
+    
+    Args:
+        tools: Dictionary mapping tool names to tool definitions
+        runtime: RuntimeComponent containing the FastMCP instances
+    """
+    try:
+        from fastmcp import FastMCP
+    except ImportError:
+        logger.warning("FastMCP is not installed. Tools will not be registered. Install with: pip install fastmcp")
+        return
+    
+    # Group tools by MCP server name
+    tools_by_server: Dict[str, List[tuple]] = {}
+    for tool_name, tool_def in tools.items():
+        server_name = tool_def.get('mcp_server', 'mcp')
+        if server_name not in tools_by_server:
+            tools_by_server[server_name] = []
+        tools_by_server[server_name].append((tool_name, tool_def))
+    
+    # Import register_talkpipe_tool
+    try:
+        from talkpipe.llm.mcp_tool import register_talkpipe_tool
+    except ImportError:
+        logger.warning("Could not import register_talkpipe_tool. Tools will not be registered.")
+        return
+    
+    # Create or get MCP instances for each server and register tools
+    for server_name, tool_list in tools_by_server.items():
+        # Get or create FastMCP instance for this server
+        mcp = runtime.const_store.get(server_name)
+        if mcp is None:
+            # Use server_name as the FastMCP instance name
+            mcp = FastMCP(server_name)
+            runtime.const_store[server_name] = mcp
+            logger.debug(f"Created new FastMCP instance '{server_name}' for tool registration")
+        
+        # Register each tool for this server
+        for tool_name, tool_def in tool_list:
+            pipeline_str = tool_def['pipeline']
+            name = tool_def['name']
+            description = tool_def.get('description')
+            
+            # Parse input_param if provided
+            input_param = None
+            if tool_def.get('input_param'):
+                # input_param format: "name:type:description"
+                parts = tool_def['input_param'].split(":", 2)
+                if len(parts) >= 2:
+                    param_name = parts[0]
+                    type_str = parts[1]
+                    param_desc = parts[2] if len(parts) > 2 else ""
+                    
+                    type_mapping = {
+                        "int": int, "str": str, "float": float, "bool": bool,
+                        "list": list, "dict": dict,
+                    }
+                    param_type = type_mapping.get(type_str.lower(), str)
+                    input_param = (param_name, param_type, param_desc)
+            elif tool_def.get('param_name'):
+                # Individual parameters
+                param_name = tool_def['param_name']
+                type_str = tool_def.get('param_type', 'str')
+                param_desc = tool_def.get('param_desc', '')
+                
+                type_mapping = {
+                    "int": int, "str": str, "float": float, "bool": bool,
+                    "list": list, "dict": dict,
+                }
+                param_type = type_mapping.get(type_str.lower(), str)
+                input_param = (param_name, param_type, param_desc)
+            
+            # Register the tool
+            try:
+                register_talkpipe_tool(
+                    mcp,
+                    pipeline_str,
+                    input_param=input_param,
+                    name=name,
+                    description=description
+                )
+                logger.debug(f"Registered tool '{name}' from TOOL definition '{tool_name}' to MCP server '{server_name}'")
+            except Exception as e:
+                logger.error(f"Failed to register tool '{name}' to MCP server '{server_name}': {e}")
+
 class CompileError(Exception):
     """ Exception raised when a compilation error occurs in chatterlang """
     pass
@@ -35,6 +122,11 @@ def compile(script: ParsedScript, runtime: RuntimeComponent = None) -> Callable:
     # Add script constants without overriding existing runtime constants
     runtime.add_constants(script.constants, override=False)
     logger.debug(f"Initialized runtime with {len(runtime.const_store)} constants")
+    
+    # Process tool definitions and register them
+    if script.tools:
+        _register_tools(script.tools, runtime)
+        logger.debug(f"Registered {len(script.tools)} tools")
     
     # Build fork graph from arrow syntax using networkx
     # Use a directed graph where:

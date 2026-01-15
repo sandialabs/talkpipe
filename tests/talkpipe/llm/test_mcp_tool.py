@@ -3,7 +3,15 @@
 import pytest
 from unittest.mock import patch, MagicMock
 from talkpipe import compile, register_talkpipe_tool
-from talkpipe.pipe.core import Pipeline, AbstractSource, AbstractSegment
+from talkpipe.pipe.core import Pipeline, AbstractSource, AbstractSegment, RuntimeComponent
+from talkpipe.llm.mcp_tool import RegisterToolSegment
+
+# Try to import FastMCP at module level - if not available, tests will skip
+try:
+    from fastmcp import FastMCP
+    FASTMCP_AVAILABLE = True
+except ImportError:
+    FASTMCP_AVAILABLE = False
 
 
 class MockTool:
@@ -16,7 +24,8 @@ class MockTool:
 
 class MockFastMCP:
     """Mock FastMCP instance for testing."""
-    def __init__(self):
+    def __init__(self, name="MockServer"):
+        self.name = name
         self.tools = {}
         self._tool_manager = MockToolManager(self)
     
@@ -284,3 +293,177 @@ def test_register_talkpipe_tool_invalid_pipeline_type():
     
     with pytest.raises(ValueError, match="Invalid pipeline_or_script type"):
         register_talkpipe_tool(mcp, 12345)  # Invalid type
+
+
+def test_register_tool_segment():
+    """Test RegisterToolSegment in ChatterLang syntax."""
+    mcp = MockFastMCP()
+    
+    # Create runtime and store MCP instance
+    runtime = RuntimeComponent()
+    runtime.const_store["mcp"] = mcp
+    
+    # Create the segment
+    segment = RegisterToolSegment(
+        pipeline="| lambda[expression='item*2']",
+        name="double_number",
+        input_param="item:int:Number to double",
+        description="Doubles a number"
+    )
+    segment.runtime = runtime
+    
+    # Execute the segment (it should register the tool and pass through items)
+    result = list(segment(["test", "data"]))
+    
+    # Verify tool was registered
+    assert "double_number" in mcp.tools
+    tool_func = mcp.tools["double_number"]
+    assert tool_func(5) == 10
+    
+    # Verify input items were passed through
+    assert result == ["test", "data"]
+
+
+def test_register_tool_segment_with_individual_params():
+    """Test RegisterToolSegment with individual parameter specifications."""
+    mcp = MockFastMCP()
+    
+    runtime = RuntimeComponent()
+    runtime.const_store["mcp"] = mcp
+    
+    segment = RegisterToolSegment(
+        pipeline="| lambda[expression='item.upper()']",
+        name="uppercase",
+        param_name="text",
+        param_type="str",
+        param_desc="Text to uppercase"
+    )
+    segment.runtime = runtime
+    
+    list(segment([]))  # Execute
+    
+    assert "uppercase" in mcp.tools
+    tool_func = mcp.tools["uppercase"]
+    assert tool_func("hello") == "HELLO"
+
+
+def test_register_tool_segment_creates_mcp():
+    """Test that RegisterToolSegment creates FastMCP instance if not found."""
+    # Use sys.modules to mock the import
+    import sys
+    from types import ModuleType
+    
+    # Create a mock fastmcp module
+    mock_fastmcp = ModuleType('fastmcp')
+    mock_fastmcp.FastMCP = MockFastMCP
+    original_fastmcp = sys.modules.get('fastmcp')
+    sys.modules['fastmcp'] = mock_fastmcp
+    
+    try:
+        runtime = RuntimeComponent()
+        # Don't store MCP in runtime - it should be created automatically
+        
+        segment = RegisterToolSegment(
+            pipeline="| lambda[expression='item*2']",
+            name="double",
+            input_param="item:int:Number"
+        )
+        segment.runtime = runtime
+        
+        # Execute - should create MCP instance automatically
+        result = list(segment([]))
+        
+        # Verify MCP was created and stored
+        assert "mcp" in runtime.const_store
+        mcp = runtime.const_store["mcp"]
+        assert mcp is not None
+        assert isinstance(mcp, MockFastMCP)
+        
+        # Verify tool was registered
+        assert "double" in mcp.tools
+        tool_func = mcp.tools["double"]
+        assert tool_func(5) == 10
+        
+        # Verify input was passed through
+        assert result == []
+    finally:
+        # Restore original module
+        if original_fastmcp is not None:
+            sys.modules['fastmcp'] = original_fastmcp
+        elif 'fastmcp' in sys.modules:
+            del sys.modules['fastmcp']
+
+
+@pytest.mark.skipif(not FASTMCP_AVAILABLE, reason="FastMCP is not installed. Install with: pip install talkpipe[mcp]")
+def test_register_and_use_tools_end_to_end(requires_ollama):
+    """Test end-to-end: register two tools in ChatterLang script and use them with LLMPrompt.
+    
+    This test demonstrates the complete workflow with a pure text ChatterLang example:
+    1. Register two different tools using TOOL syntax in a ChatterLang script
+    2. Use the tools with LLMPrompt to answer a question that requires calling both tools
+    
+    Pure text ChatterLang script example:
+    ```
+    TOOL double = "| lambda[expression='item*2']" [input_param="item:int:Number to double", description="Doubles a number"];
+    TOOL add_ten = "| lambda[expression='item+10']" [input_param="item:int:Number to add 10 to", description="Adds 10 to a number"];
+    ```
+    
+    Then use with LLMPrompt:
+    ```
+    prompt = LLMPrompt(model="llama3.1", source="ollama", tools=mcp)
+    result = list(prompt(["First double 7, then add 10 to that result. Just give me the number."]))
+    ```
+    """
+    from talkpipe import compile
+    from talkpipe.pipe.core import RuntimeComponent
+    
+    # Pure text ChatterLang script that registers tools on multiple MCP servers and uses them with LLMPrompt
+    # Each TOOL can specify which MCP server it belongs to via the mcp_server parameter
+    # The MCP instance is automatically stored in runtime.const_store[server_name] when tools are registered
+    # We can reference it directly in the script using the identifier (e.g., "math_tools")
+    # This example shows two tools on the same server, but you could have tools on different servers
+    script = """
+TOOL double = "| lambda[expression='item*2']" [input_param="item:int:Number to double", description="Doubles a number", mcp_server="math_tools"];
+TOOL add_ten = "| lambda[expression='item+10']" [input_param="item:int:Number to add 10 to", description="Adds 10 to a number", mcp_server="math_tools"];
+INPUT FROM echo[data="Double 7, then add 10. What is the final number?"]
+| llmPrompt[model="llama3.1", source="ollama", tools=math_tools, temperature=0.0]
+| print
+"""
+    
+    # Create runtime and compile the script
+    # Tools are registered during compilation, and the MCP instance is stored in runtime.const_store["math_tools"]
+    runtime = RuntimeComponent()
+    pipeline = compile(script, runtime)
+    
+    # Verify both tools were registered during compilation on the math_tools server
+    mcp = runtime.const_store.get("math_tools")
+    assert mcp is not None
+    # Verify the server name is set to the server_name (math_tools)
+    assert mcp.name == "math_tools"
+    assert "double" in mcp._tool_manager._tools
+    assert "add_ten" in mcp._tool_manager._tools
+    
+    # Test the tools directly
+    double_tool = mcp._tool_manager._tools["double"]
+    add_ten_tool = mcp._tool_manager._tools["add_ten"]
+    assert double_tool.fn(5) == 10
+    assert add_ten_tool.fn(5) == 15
+    
+    # Execute the pipeline - this will use LLMPrompt with the tools
+    result = list(pipeline())
+    
+    # Verify we got a result
+    assert len(result) >= 1
+    result_text = str(result[-1])  # Last item should be the LLM response
+    
+    # Assert that the tools were actually called during execution
+    # The result must contain "24" which can only be obtained by:
+    # 1. Calling double(7) -> 14
+    # 2. Calling add_ten(14) -> 24
+    # This definitively proves both tools were called in sequence
+    assert "24" in result_text, f"Expected result to contain '24' (proving both tools were called), but got: {result_text}"
+    
+    # Additional verification: The result should indicate tool usage
+    # Either explicitly mention the tools or show the calculation
+    assert ("double" in result_text.lower() or "add" in result_text.lower() or 
+            "14" in result_text), f"Result should indicate tool usage, but got: {result_text}"

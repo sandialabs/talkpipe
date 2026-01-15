@@ -1,15 +1,16 @@
 """MCP (Model Context Protocol) tool integration for TalkPipe pipelines.
 
 This module provides a function to register TalkPipe pipelines as MCP tools
-with FastMCP servers.
+with FastMCP servers, and a ChatterLang segment for registering tools within scripts.
 """
 
-from typing import Any, Optional, Union
+from typing import Any, Optional, Union, Iterable, Iterator, Annotated
 from inspect import Signature, Parameter
 import logging
 
 from talkpipe.chatterlang.compiler import compile as compile_pipeline
 from talkpipe.pipe.core import Pipeline, Script, AbstractSource, AbstractSegment
+from talkpipe.chatterlang.registry import register_segment
 
 logger = logging.getLogger(__name__)
 
@@ -173,3 +174,132 @@ def register_talkpipe_tool(
                 "Ensure you're using a compatible version of FastMCP. "
                 "Expected either Tool.from_function() or _tool_manager.add_tool_from_fn() support."
             )
+
+
+# Note: registerTool segment is deprecated. Use TOOL syntax in ChatterLang scripts instead.
+# This class is kept for backward compatibility but is no longer registered as a segment.
+class RegisterToolSegment(AbstractSegment):
+    """Register a TalkPipe pipeline as an MCP tool within a ChatterLang script.
+    
+    This segment registers a tool with a FastMCP instance. If a FastMCP instance
+    is already stored in runtime.const_store under the key "mcp" or "_mcp", it will
+    be used. Otherwise, a new FastMCP instance will be created and stored for
+    future use.
+    
+    After registration, this segment passes through all input items unchanged,
+    making it safe to use in the middle of a pipeline.
+    
+    Args:
+        pipeline: ChatterLang pipeline string to register as a tool
+        name: Name of the tool
+        description: Optional description of the tool
+        param_name: Parameter name for segment pipelines (required if pipeline needs input)
+        param_type: Parameter type for segment pipelines (e.g., "int", "str", "list")
+        param_desc: Parameter description for segment pipelines
+        input_param: Alternative way to specify input parameter as "name:type:description"
+        mcp_key: Key in runtime.const_store where the FastMCP instance is stored/created (default: "mcp")
+    
+    Examples:
+        ```chatterlang
+        // Register a tool that doubles a number
+        // FastMCP instance will be created automatically if not present
+        | registerTool[
+            pipeline="| lambda[expression='item*2']",
+            name="double_number",
+            param_name="item",
+            param_type="int",
+            param_desc="Number to double"
+        ]
+        
+        // Or using input_param shorthand
+        | registerTool[
+            pipeline="| lambda[expression='item*2']",
+            name="double_number",
+            input_param="item:int:Number to double"
+        ]
+        ```
+    """
+    
+    def __init__(
+        self,
+        pipeline: Annotated[str, "ChatterLang pipeline string to register as a tool"],
+        name: Annotated[str, "Name of the tool"],
+        description: Annotated[Optional[str], "Description of the tool"] = None,
+        param_name: Annotated[Optional[str], "Parameter name for segment pipelines"] = None,
+        param_type: Annotated[Optional[str], "Parameter type (e.g., 'int', 'str', 'list')"] = None,
+        param_desc: Annotated[Optional[str], "Parameter description"] = None,
+        input_param: Annotated[Optional[str], "Input parameter as 'name:type:description'"] = None,
+        mcp_key: Annotated[str, "Key in runtime.const_store for FastMCP instance"] = "mcp"
+    ):
+        super().__init__()
+        self.pipeline_str = pipeline
+        self.name = name
+        self.description = description
+        self.mcp_key = mcp_key
+        
+        # Parse input_param if provided, otherwise use individual params
+        if input_param:
+            parts = input_param.split(":", 2)
+            if len(parts) >= 2:
+                self.param_name = parts[0]
+                type_str = parts[1]
+                self.param_desc = parts[2] if len(parts) > 2 else ""
+            else:
+                raise ValueError(f"input_param must be in format 'name:type:description', got: {input_param}")
+        else:
+            self.param_name = param_name
+            self.param_desc = param_desc or ""
+            type_str = param_type or "str"
+        
+        # Convert type string to Python type
+        type_mapping = {
+            "int": int,
+            "str": str,
+            "float": float,
+            "bool": bool,
+            "list": list,
+            "dict": dict,
+        }
+        self.param_type = type_mapping.get(type_str.lower(), str)
+        
+        # Determine if input_param is needed
+        self.input_param = None
+        if self.param_name:
+            self.input_param = (self.param_name, self.param_type, self.param_desc)
+    
+    def transform(self, input_iter: Iterable[Any]) -> Iterator[Any]:
+        """Register the tool and pass through input items."""
+        # Get MCP instance from runtime, or create a new one if not found
+        if self.runtime is None:
+            raise ValueError(
+                "Runtime component not available. registerTool segment requires "
+                "a runtime component."
+            )
+        
+        mcp = self.runtime.const_store.get(self.mcp_key) or self.runtime.const_store.get("_mcp")
+        if mcp is None:
+            # Create a new FastMCP instance if one doesn't exist
+            try:
+                from fastmcp import FastMCP
+                mcp = FastMCP("TalkPipe Tools")
+                # Store it in const_store for future use
+                self.runtime.const_store[self.mcp_key] = mcp
+                logger.debug(f"Created new FastMCP instance and stored in runtime.const_store['{self.mcp_key}']")
+            except ImportError:
+                raise ImportError(
+                    "FastMCP is not installed. Please install it with: pip install fastmcp"
+                )
+        
+        # Register the tool
+        register_talkpipe_tool(
+            mcp,
+            self.pipeline_str,
+            input_param=self.input_param,
+            name=self.name,
+            description=self.description
+        )
+        
+        logger.debug(f"Registered tool '{self.name}' with FastMCP instance")
+        
+        # Pass through all input items unchanged
+        yield from input_iter

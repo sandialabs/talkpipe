@@ -368,3 +368,62 @@ def test_llmprompt_with_tools(requires_ollama):
     prompt = LLMPrompt(model="llama3.1", source="ollama", tools=[double_number], temperature=0.0)
     assert prompt.chat._ollama_tools is not None
     assert len(prompt.chat._ollama_tools) == 1
+
+
+def test_tool_calling_end_to_end_with_fastmcp(requires_ollama):
+    """Test full end-to-end tool calling with FastMCP and LLMPrompt.
+    
+    This test verifies the complete flow:
+    1. Creating a FastMCP instance
+    2. Registering a TalkPipe pipeline as a tool
+    3. Using the tool in LLMPrompt
+    4. Executing a prompt that triggers tool calling
+    5. Verifying the tool was called and the correct result is returned
+    """
+    from fastmcp import FastMCP
+    from talkpipe import register_talkpipe_tool
+    
+    # Create FastMCP instance and register a tool
+    mcp = FastMCP("TestServer")
+    register_talkpipe_tool(
+        mcp,
+        "| lambda[expression='item*10']",
+        input_param=("item", int, "Number to multiply by 10"),
+        name="multiply_by_10",
+        description="Multiplies a number by 10"
+    )
+    
+    # Create LLMPrompt with the FastMCP tools
+    prompt = LLMPrompt(
+        model="llama3.1",
+        source="ollama",
+        tools=mcp,
+        temperature=0.0
+    )
+    
+    # Verify tools were registered correctly
+    assert len(prompt.chat._ollama_tools) == 1
+    assert "multiply_by_10" in prompt.chat._tool_functions
+    assert prompt.chat._ollama_tools[0]["function"]["name"] == "multiply_by_10"
+    
+    # Test the tool function directly to ensure it works
+    tool_func = prompt.chat._tool_functions["multiply_by_10"]
+    assert tool_func(5) == 50
+    assert tool_func(7) == 70
+    
+    # Execute a prompt that should trigger tool calling
+    # Using a clear instruction that should result in a tool call
+    result = list(prompt(["Multiply 7 by 10. Give me just the number as your answer."]))
+    
+    # Verify we got a result
+    assert len(result) == 1
+    result_text = str(result[0])
+    
+    # The result should contain "70" (the answer from the tool)
+    # This verifies that the tool was actually called and executed
+    assert "70" in result_text
+    
+    # Test with a different number to ensure tool calling works consistently
+    result2 = list(prompt(["Use the multiply_by_10 tool to multiply 3 by 10. Return only the number."]))
+    assert len(result2) == 1
+    assert "30" in str(result2[0])
