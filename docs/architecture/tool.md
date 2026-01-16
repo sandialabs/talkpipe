@@ -4,9 +4,15 @@
 
 TalkPipe integrates with the Model Context Protocol (MCP) to enable LLMs to call custom tools during conversations. Tools are defined using the `TOOL` syntax in ChatterLang scripts, which compiles TalkPipe pipelines into callable functions that LLMs can invoke.
 
+## Unified Server Model
+
+Both `TOOL` and `MCP_SERVER` use the same server name concept. The `mcp_server` parameter in `TOOL` references a server that can be either:
+- **Local server**: Automatically created when first `TOOL` uses it
+- **External server**: Explicitly defined via `MCP_SERVER`
+
 ## TOOL Syntax
 
-The `TOOL` keyword in ChatterLang allows you to register TalkPipe pipelines as tools that can be used by LLMs. Tools are registered during script compilation and stored in FastMCP server instances.
+The `TOOL` keyword registers TalkPipe pipelines as tools that can be used by LLMs.
 
 ### Basic Syntax
 
@@ -21,25 +27,99 @@ TOOL tool_name = "pipeline_string" [parameters];
 - **`description`** (optional): A description of what the tool does, shown to the LLM
 - **`input_param`** (optional): Input parameter specification in format `"name:type:description"` (e.g., `"item:int:Number to double"`)
 - **`param_name`**, **`param_type`**, **`param_desc`** (optional): Individual parameter specifications as an alternative to `input_param`
-- **`mcp_server`** (optional): The name of the MCP server to register the tool with. Defaults to `"mcp"` if not specified
+- **`mcp_server`** (optional): The name of the MCP server to register the tool with. References a server name (local or external). Defaults to `"mcp"` if not specified
 
-### Example
+## MCP_SERVER Syntax
+
+The `MCP_SERVER` keyword connects to external MCP servers. Once connected, tools from that server are available for use with `llmPrompt`.
+
+### Basic Syntax
 
 ```chatterlang
-TOOL double = "| lambda[expression='item*2']" [input_param="item:int:Number to double", description="Doubles a number", mcp_server="math_tools"];
-TOOL add_ten = "| lambda[expression='item+10']" [input_param="item:int:Number to add 10 to", description="Adds 10 to a number", mcp_server="math_tools"];
+MCP_SERVER server_name = "url_or_config" [parameters];
 ```
 
-## Multiple MCP Servers
+### Parameters
 
-You can define multiple MCP servers in a single script by specifying different `mcp_server` values. Each server maintains its own set of tools.
+- **`url`** (required): The URL or connection string for the external MCP server
+- **`transport`** (optional): Transport type - `"http"`, `"sse"`, or `"stdio"`. Defaults to `"http"`
+- **`auth`** (optional): Authentication type - `"bearer"` or `"oauth"`
+- **`token`** (optional): Bearer token for authentication
+- **`headers`** (optional): Custom HTTP headers as a dictionary
+- **`command`** (optional): For stdio transport - command to execute
+- **`args`** (optional): For stdio transport - command arguments
+- **`cwd`** (optional): For stdio transport - working directory
+- **`env`** (optional): For stdio transport - environment variables
+
+The server is stored in `runtime.const_store[server_name]` and can be referenced in `llmPrompt` using `tools=server_name`.
+
+## MCP Server Management
+
+Both local and external MCP servers use the same server name system. The `mcp_server` parameter in `TOOL` references the server name defined by `MCP_SERVER` or created automatically.
+
+### Local Servers (Created Automatically)
+
+When you define a `TOOL` with a `mcp_server` parameter, a local FastMCP server is automatically created if it doesn't exist:
 
 ```chatterlang
 TOOL double = "| lambda[expression='item*2']" [input_param="item:int:Number to double", mcp_server="math_tools"];
-TOOL uppercase = "| lambda[expression='item.upper()']" [input_param="item:str:Text to uppercase", mcp_server="text_tools"];
+TOOL add_ten = "| lambda[expression='item+10']" [input_param="item:int:Number to add 10 to", mcp_server="math_tools"];
 ```
 
-Each MCP server instance is stored in `runtime.const_store[server_name]` and can be referenced directly in the script.
+The server `math_tools` is created automatically when the first tool is registered.
+
+### External Servers (MCP_SERVER Syntax)
+
+To connect to an external MCP server, use the `MCP_SERVER` keyword:
+
+```chatterlang
+# Connect to an external MCP server over HTTP
+MCP_SERVER external_tools = "https://api.example.com/mcp" [transport="http", auth="bearer", token="your-token"];
+
+# Tools from the external server are automatically available
+INPUT FROM echo[data="Use the external tools"]
+| llmPrompt[model="llama3.1", source="ollama", tools=external_tools]
+| print
+```
+
+### MCP_SERVER Parameters
+
+- **`url`** (required): The URL or connection string for the external server
+- **`transport`** (optional): Transport type - `"http"`, `"sse"`, or `"stdio"`. Defaults to `"http"`
+- **`auth`** (optional): Authentication type - `"bearer"` or `"oauth"`
+- **`token`** (optional): Bearer token for authentication
+- **`headers`** (optional): Custom HTTP headers as a dictionary
+- **`command`** (optional): For stdio transport - command to execute
+- **`args`** (optional): For stdio transport - command arguments
+- **`cwd`** (optional): For stdio transport - working directory
+- **`env`** (optional): For stdio transport - environment variables
+
+### Mixed Usage
+
+You can combine local tools and external servers in the same script:
+
+```chatterlang
+# Connect to external server
+MCP_SERVER external_api = "https://api.example.com/mcp" [transport="http", auth="bearer", token="token"];
+
+# Define local tools on a local server
+TOOL double = "| lambda[expression='item*2']" [input_param="item:int:Number to double", mcp_server="math_tools"];
+
+# Use either server with llmPrompt
+INPUT FROM echo[data="Use math tools"]
+| llmPrompt[model="llama3.1", source="ollama", tools=math_tools]
+| print
+
+INPUT FROM echo[data="Use external API"]
+| llmPrompt[model="llama3.1", source="ollama", tools=external_api]
+| print
+```
+
+**Note**: You cannot register local `TOOL` definitions on an external `MCP_SERVER`. External servers provide their own tools that are already available. If you try to register a `TOOL` with `mcp_server` pointing to an external server, a warning will be logged and the tool registration will be skipped.
+
+### Server Storage
+
+All MCP servers (both local and external) are stored in `runtime.const_store[server_name]` and can be referenced directly in the script using the server name identifier.
 
 ## Using Tools with LLMPrompt
 
@@ -60,11 +140,12 @@ The `tools` parameter accepts the MCP server identifier, which is automatically 
 
 ### Compilation Process
 
-1. **Parsing**: The `TOOL` definitions are parsed during script compilation, similar to `CONST` definitions
-2. **Grouping**: Tools are grouped by their `mcp_server` parameter
-3. **Server Creation**: FastMCP instances are created for each unique server name
-4. **Tool Registration**: Each tool is registered with its corresponding MCP server using `register_talkpipe_tool()`
-5. **Storage**: MCP server instances are stored in `runtime.const_store[server_name]` for later reference
+1. **Parsing**: The `MCP_SERVER` and `TOOL` definitions are parsed during script compilation, similar to `CONST` definitions
+2. **External Server Connection**: `MCP_SERVER` definitions create FastMCP Client connections to external servers
+3. **Grouping**: Tools are grouped by their `mcp_server` parameter
+4. **Local Server Creation**: For tools referencing servers that don't exist, local FastMCP server instances are created
+5. **Tool Registration**: Each tool is registered with its corresponding MCP server using `register_talkpipe_tool()` (only for local servers)
+6. **Storage**: All MCP server instances (local and external) are stored in `runtime.const_store[server_name]` for later reference
 
 ### Tool Execution
 

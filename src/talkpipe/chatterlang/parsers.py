@@ -105,6 +105,7 @@ class ParsedScript:
     pipelines: List[Union[ParsedPipeline, ParsedLoop]]
     constants: Dict[str, Any] = field(default_factory=dict)
     tools: Dict[str, Dict[str, Any]] = field(default_factory=dict)
+    mcp_servers: Dict[str, Dict[str, Any]] = field(default_factory=dict)
 
     def __iter__(self):
         return iter(self.pipelines)
@@ -193,6 +194,32 @@ def constant_definition():
     const_value = yield parameter
     return (const_name.name, const_value)
 """A parser for defining constants with 'SET' keyword."""
+
+# Parser for MCP server definitions (external servers)
+@generate
+def mcp_server_definition():
+    """Parser for MCP_SERVER definitions: MCP_SERVER name = "url_or_config" [params]
+    
+    Example:
+        MCP_SERVER external_tools = "https://api.example.com/mcp" [transport="http", auth="bearer", token="token"];
+    """
+    yield lexeme('MCP_SERVER')
+    server_name = yield identifier
+    yield lexeme('=')
+    url_or_config = yield quoted_string  # URL or config string
+    params = yield bracket_parser  # Optional parameters in brackets
+    return (server_name.name, {
+        'url': url_or_config,
+        'transport': params.get('transport', 'http'),  # Default to http
+        'auth': params.get('auth', None),
+        'token': params.get('token', None),
+        'headers': params.get('headers', None),
+        'command': params.get('command', None),  # For stdio transport
+        'args': params.get('args', None),  # For stdio transport
+        'cwd': params.get('cwd', None),  # For stdio transport
+        'env': params.get('env', None),  # For stdio transport
+    })
+"""A parser for defining external MCP server connections with 'MCP_SERVER' keyword."""
 
 # Parser for tool definitions
 @generate
@@ -371,21 +398,29 @@ def loop():
 pipeline_separator = lexeme(';')
 """A parser for the separator between pipelines in a script."""
 
-# Combined parser for constants and tools (both use semicolon separators)
-definition = constant_definition.map(lambda x: ('const', x)) | tool_definition.map(lambda x: ('tool', x))
+# Combined parser for constants, MCP servers, and tools (all use semicolon separators)
+definition = (
+    constant_definition.map(lambda x: ('const', x)) |
+    mcp_server_definition.map(lambda x: ('mcp_server', x)) |
+    tool_definition.map(lambda x: ('tool', x))
+)
 
 @generate
 def script_parser():
-    # Parse constants and tools - they can be interleaved, separated by semicolons
+    # Parse constants, MCP servers, and tools - they can be interleaved, separated by semicolons
     definitions = yield definition.sep_by(pipeline_separator, min=0)
     
-    # Separate constants and tools
+    # Separate constants, MCP servers, and tools
     constants = {}
+    mcp_servers = {}
     tools = {}
     for def_type, def_value in definitions:
         if def_type == 'const':
             k, v = def_value
             constants[k] = v
+        elif def_type == 'mcp_server':
+            k, v = def_value
+            mcp_servers[k] = v
         else:  # tool
             k, v = def_value
             tools[k] = v
@@ -395,7 +430,7 @@ def script_parser():
 
     pipelines = [p for p in pipelines if not isinstance(p, ParsedPipeline) or (p.input_node or len(p.transforms)>0)]
     
-    # Create and return a ParsedScript with constants and tools
-    return ParsedScript(pipelines, constants, tools)
+    # Create and return a ParsedScript with constants, MCP servers, and tools
+    return ParsedScript(pipelines, constants, tools, mcp_servers)
 """A parser for a script in the pipeline language.  Scripts contain a series of pipelines and loops."""
 

@@ -19,6 +19,88 @@ from talkpipe.operations.thread_ops import ThreadedQueue
 logger = logging.getLogger(__name__)
 
 
+def _register_mcp_servers(mcp_servers: Dict[str, Dict[str, Any]], runtime: RuntimeComponent) -> None:
+    """Register external MCP server connections defined in the script.
+    
+    Args:
+        mcp_servers: Dictionary mapping server names to server definitions
+        runtime: RuntimeComponent containing the MCP server instances
+    """
+    try:
+        from fastmcp import Client
+    except ImportError:
+        logger.warning("FastMCP is not installed. MCP servers will not be registered. Install with: pip install fastmcp")
+        return
+    
+    for server_name, server_def in mcp_servers.items():
+        url = server_def.get('url')
+        transport = server_def.get('transport', 'http')
+        
+        try:
+            if transport == 'http' or transport == 'sse':
+                # HTTP/SSE transport - Client can be initialized with URL directly
+                # For auth, we may need to use a config dict or set headers
+                if server_def.get('auth') == 'bearer' and server_def.get('token'):
+                    # Use config dict for authenticated connections
+                    config = {
+                        "mcpServers": {
+                            server_name: {
+                                "transport": transport,
+                                "url": url,
+                                "auth": "bearer",
+                                "token": server_def.get('token')
+                            }
+                        }
+                    }
+                    client = Client(config)
+                elif server_def.get('headers'):
+                    # Custom headers - would need to be passed via config
+                    config = {
+                        "mcpServers": {
+                            server_name: {
+                                "transport": transport,
+                                "url": url,
+                                "headers": server_def.get('headers')
+                            }
+                        }
+                    }
+                    client = Client(config)
+                else:
+                    # Simple URL connection
+                    client = Client(url)
+            elif transport == 'stdio':
+                # Stdio transport - requires command
+                command = server_def.get('command')
+                if not command:
+                    logger.error(f"MCP_SERVER '{server_name}': 'command' is required for stdio transport")
+                    continue
+                
+                config = {
+                    "mcpServers": {
+                        server_name: {
+                            "transport": "stdio",
+                            "command": command,
+                        }
+                    }
+                }
+                if server_def.get('args'):
+                    config["mcpServers"][server_name]["args"] = server_def.get('args')
+                if server_def.get('cwd'):
+                    config["mcpServers"][server_name]["cwd"] = server_def.get('cwd')
+                if server_def.get('env'):
+                    config["mcpServers"][server_name]["env"] = server_def.get('env')
+                
+                client = Client(config)
+            else:
+                logger.error(f"MCP_SERVER '{server_name}': Unknown transport '{transport}'")
+                continue
+            
+            runtime.const_store[server_name] = client
+            logger.debug(f"Created FastMCP Client for external server '{server_name}' (transport: {transport})")
+        except Exception as e:
+            logger.error(f"Failed to create MCP_SERVER '{server_name}': {e}")
+
+
 def _register_tools(tools: Dict[str, Dict[str, Any]], runtime: RuntimeComponent) -> None:
     """Register tools defined in the script with FastMCP.
     
@@ -49,13 +131,21 @@ def _register_tools(tools: Dict[str, Dict[str, Any]], runtime: RuntimeComponent)
     
     # Create or get MCP instances for each server and register tools
     for server_name, tool_list in tools_by_server.items():
-        # Get or create FastMCP instance for this server
+        # Get existing MCP instance (could be FastMCP server or Client)
         mcp = runtime.const_store.get(server_name)
         if mcp is None:
-            # Use server_name as the FastMCP instance name
+            # No existing server found - create a new local FastMCP server instance
             mcp = FastMCP(server_name)
             runtime.const_store[server_name] = mcp
-            logger.debug(f"Created new FastMCP instance '{server_name}' for tool registration")
+            logger.debug(f"Created new local FastMCP server instance '{server_name}' for tool registration")
+        else:
+            # Server already exists (could be from MCP_SERVER definition or previous TOOL)
+            # Check if it's a Client (external) or FastMCP (local)
+            if hasattr(mcp, 'call_tool'):
+                # It's a FastMCP Client (external server) - cannot register local tools on it
+                logger.warning(f"Cannot register local tools on external MCP server '{server_name}'. Tools from external servers are already available.")
+                continue
+            # Otherwise it's a FastMCP server instance - we can register tools on it
         
         # Register each tool for this server
         for tool_name, tool_def in tool_list:
@@ -122,6 +212,11 @@ def compile(script: ParsedScript, runtime: RuntimeComponent = None) -> Callable:
     # Add script constants without overriding existing runtime constants
     runtime.add_constants(script.constants, override=False)
     logger.debug(f"Initialized runtime with {len(runtime.const_store)} constants")
+    
+    # Process MCP server definitions first (external servers)
+    if script.mcp_servers:
+        _register_mcp_servers(script.mcp_servers, runtime)
+        logger.debug(f"Registered {len(script.mcp_servers)} MCP server connections")
     
     # Process tool definitions and register them
     if script.tools:

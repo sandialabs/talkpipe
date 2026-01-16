@@ -12,15 +12,30 @@ logger = logging.getLogger(__name__)
 
 
 def _extract_tools_from_fastmcp(mcp: Any) -> Union[List[Callable], Dict[str, Callable]]:
-    """Extract registered tools from a FastMCP instance.
+    """Extract tools from a FastMCP instance (server or client).
+    
+    Supports both:
+    - FastMCP server instances (local, with _tool_manager)
+    - FastMCP Client instances (external, with async call_tool method)
     
     Args:
-        mcp: FastMCP instance
+        mcp: FastMCP server instance or Client instance
         
     Returns:
         Dictionary mapping tool names to callable functions, or list if names unavailable
     """
-    # FastMCP stores tools internally in _tool_manager._tools
+    # Check if it's a FastMCP Client (external server)
+    # Clients have call_tool method but NOT _tool_manager (which is for servers)
+    # We need to check the type or check that it has call_tool but NOT _tool_manager
+    if hasattr(mcp, 'call_tool') and hasattr(mcp, 'list_tools') and not hasattr(mcp, '_tool_manager'):
+        # This is a FastMCP Client - tools are accessed via async methods
+        # For now, we'll need to create async wrappers
+        # Return the client itself so it can be handled specially
+        logger.debug("Detected FastMCP Client instance - tools accessed via async methods")
+        # Note: This requires special handling in the adapter
+        return mcp
+    
+    # FastMCP server stores tools internally in _tool_manager._tools
     # Access it directly to avoid calling async get_tools() method
     if hasattr(mcp, '_tool_manager') and hasattr(mcp._tool_manager, '_tools'):
         tools_dict = mcp._tool_manager._tools
@@ -192,14 +207,26 @@ def _convert_tools_to_ollama_format(tools: Union[Any, List[Callable], Dict[str, 
         return [], {}
     
     if not isinstance(tools, (list, dict)):
-        # Assume it's a FastMCP instance
+        # Assume it's a FastMCP instance (server or client)
         extracted = _extract_tools_from_fastmcp(tools)
+        
+        # Check if it's a FastMCP Client (returned as-is)
+        if hasattr(extracted, 'call_tool'):
+            # This is a FastMCP Client - we need to handle it differently
+            # For now, log a warning that async clients need special handling
+            logger.warning("FastMCP Client instances require async handling - not yet fully supported")
+            # Return empty for now - this would need async wrapper implementation
+            return [], {}
+        
         if isinstance(extracted, dict):
             # Use the dict directly
             tool_dict = extracted
-        else:
+        elif isinstance(extracted, list):
             # Convert list to dict using function names
             tool_dict = {func.__name__: func for func in extracted}
+        else:
+            logger.warning(f"Unexpected tool extraction result: {type(extracted)}")
+            tool_dict = {}
     elif isinstance(tools, dict):
         # Already a dict
         tool_dict = tools
