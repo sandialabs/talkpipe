@@ -1,5 +1,9 @@
 # Changelog
 
+## In Development
+
+- Fix for prompt segment error that would display an error message if history_file is none.
+
 ## 0.11.1
 - Updated system_prompt behavior in the llmPrompt segment and associated classes so that
   if it is None, that message is simply not sent to the underlying LLM at all.
