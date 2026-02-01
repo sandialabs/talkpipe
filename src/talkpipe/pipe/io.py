@@ -134,7 +134,8 @@ class Prompt(AbstractSource):
                  history_file: Annotated[Optional[str], "File to store prompt history"] = None):
         super().__init__()
         self.history_file = os.path.expanduser(history_file) if history_file else None
-        self.session = PromptSession(history=FileHistory(self.history_file))
+        history = FileHistory(self.history_file) if self.history_file else None
+        self.session = PromptSession(history=history)
         self.error_resilient = error_resilient
 
     def generate(self) -> Iterable[str]:
