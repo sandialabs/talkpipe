@@ -1,7 +1,6 @@
 # Changelog
 
-## In Development
-
+## 0.11.2
 - Fix for prompt segment error that would display an error message if history_file is none.
 
 ## 0.11.1
