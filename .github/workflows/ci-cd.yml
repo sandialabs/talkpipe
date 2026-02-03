@@ -2,9 +2,9 @@ name: CI/CD Pipeline
 
 on:
   push:
-    branches: [ main, develop ]
+    branches: [ main, develop, 'bugfix/**' ]
   pull_request:
-    branches: [ main, develop ]
+    branches: [ main, develop, 'bugfix/**' ]
   release:
     types: [ published ]
 
@@ -59,6 +59,8 @@ jobs:
     
     steps:
     - uses: actions/checkout@v6
+      with:
+        fetch-depth: 0
     
     - name: Set up Python
       uses: actions/setup-python@v6
@@ -78,7 +80,7 @@ jobs:
     
     - name: Run Safety dependency scan
       run: |
-        safety check --json --output safety-report.json || true
+        safety check --json > safety-report.json || true
         safety check 
     
     - name: Upload security scan results
