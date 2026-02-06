@@ -182,14 +182,15 @@ def _register_tools(tools: Dict[str, Dict[str, Any]], runtime: RuntimeComponent)
                 param_type = type_mapping.get(type_str.lower(), str)
                 input_param = (param_name, param_type, param_desc)
             
-            # Register the tool
+            # Register the tool (pass runtime so CONST/identifiers like SOURCE, MODEL are resolved)
             try:
                 register_talkpipe_tool(
                     mcp,
                     pipeline_str,
                     input_param=input_param,
                     name=name,
-                    description=description
+                    description=description,
+                    runtime=runtime,
                 )
                 logger.debug(f"Registered tool '{name}' from TOOL definition '{tool_name}' to MCP server '{server_name}'")
             except Exception as e:
@@ -396,7 +397,16 @@ def _resolve_value(value, runtime):
 
 def _resolve_params(params, runtime):
     """ Resolve the parameters for a segment """
-    return {k: _resolve_value(params[k], runtime) for k in params}
+    resolved = {}
+    for k in params:
+        v = params[k]
+        # tools="server_name" is parsed as a string; resolve from const_store so
+        # llmPrompt receives the MCP server instance, not the string
+        if k == "tools" and isinstance(v, str) and v in runtime.const_store:
+            resolved[k] = runtime.const_store[v]
+        else:
+            resolved[k] = _resolve_value(v, runtime)
+    return resolved
 
 @compile.register(ParsedPipeline)
 def _(pipeline: ParsedPipeline, runtime: RuntimeComponent) -> Pipeline:
@@ -418,9 +428,14 @@ def _(pipeline: ParsedPipeline, runtime: RuntimeComponent) -> Pipeline:
             logger.debug(f"Created variable source with name {pipeline.input_node.source.name}")
         else:
             try:
-                ans = registry.input_registry.get(pipeline.input_node.source.name)(**_resolve_params(pipeline.input_node.params, runtime=runtime))
+                source_cls = registry.input_registry.get(pipeline.input_node.source.name)
             except KeyError:
                 raise CompileError(f"Source '{pipeline.input_node.source.name}' not found")
+            try:
+                resolved = _resolve_params(pipeline.input_node.params, runtime=runtime)
+            except KeyError as e:
+                raise CompileError(f"Constant or variable '{e.args[0]}' not found for source '{pipeline.input_node.source.name}'")
+            ans = source_cls(**resolved)
             logger.debug(f"Created registered input {pipeline.input_node.source.name}")
         ans.runtime = runtime
 
@@ -431,9 +446,14 @@ def _(pipeline: ParsedPipeline, runtime: RuntimeComponent) -> Pipeline:
             logger.debug(f"Created variable set segment for {transform.name}")
         elif isinstance(transform, SegmentNode):
             try:
-                next_transform = registry.segment_registry.get(transform.operation.name)(**_resolve_params(transform.params, runtime=runtime))
+                segment_cls = registry.segment_registry.get(transform.operation.name)
             except KeyError:
                 raise CompileError(f"Segment '{transform.operation.name}' not found")
+            try:
+                resolved = _resolve_params(transform.params, runtime=runtime)
+            except KeyError as e:
+                raise CompileError(f"Constant or variable '{e.args[0]}' not found for segment '{transform.operation.name}'")
+            next_transform = segment_cls(**resolved)
             logger.debug(f"Created segment {transform.operation.name}")
         elif isinstance(transform, ForkNode):
             next_transform = compile(transform, runtime)

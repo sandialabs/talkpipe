@@ -1,12 +1,21 @@
 # Changelog
 
 ## In Development
+- Fixed misleading "Segment 'X' not found" when the real error was a missing constant or variable
+  in segment/source parameters. The compiler now reports "Constant or variable 'X' not found"
+  in that case. This commonly affected TOOL pipelines using `llmPrompt[source=SOURCE, model=MODEL]`
+  when SOURCE/MODEL were not defined.
+- TOOL pipelines are now compiled with the script's runtime, so `CONST SOURCE`, `CONST MODEL`,
+  and other constants are available when resolving parameters in the tool pipeline string.
 - Added tool calling support to `LLMPrompt` for Ollama models. The `tools` parameter accepts
   either a FastMCP instance or a list of callable functions. When the model requests tool calls,
   they are automatically executed and the results are sent back to the model, enabling multi-turn
   conversations with tool usage. Tool calling automatically handles function signature extraction, 
   JSON schema generation, tool execution, and multi-round conversations until the model returns 
   a final response.
+- Fixed `llmPrompt[..., tools="article_tools"]` when the server name is given as a quoted string:
+  the compiler now resolves such a string from `const_store` so the adapter receives the MCP
+  server instance instead of the string, eliminating "Could not extract tools from FastMCP instance".
 
 ## 0.11.2
 - Fix for prompt segment error that would display an error message if history_file is none.

@@ -402,6 +402,46 @@ def test_compile_error_in_source():
         assert False, "Expected CompileError was not raised"
 
 
+def test_compile_error_missing_constant():
+    """Missing constant in segment params raises clear error, not 'Segment not found'."""
+    try:
+        compiler.compile("| llmPrompt[source=SOURCE, model=MODEL]")
+    except compiler.CompileError as e:
+        assert "SOURCE" in str(e) and "not found" in str(e)
+        assert "Segment" not in str(e) or "Constant" in str(e)
+    else:
+        assert False, "Expected CompileError was not raised"
+
+
+def test_tool_pipeline_uses_script_constants():
+    """TOOL pipeline is compiled with script runtime so CONST SOURCE/MODEL resolve."""
+    script = """
+CONST SOURCE = "ollama";
+CONST MODEL = "llama3.2";
+CONST key_points_prompt = "Extract five key technical points.";
+TOOL key_points = "| llmPrompt[source=SOURCE, model=MODEL, system_prompt=key_points_prompt, multi_turn=False]"
+    [input_param="item:str:Article Text", mcp_server="article_tools"];
+"""
+    compiled = compiler.compile(script)
+    assert compiled is not None
+
+
+def test_tools_param_string_resolved_from_const_store(caplog):
+    """tools=\"server_name\" (quoted string) is resolved from const_store so llmPrompt gets MCP instance."""
+    import logging
+    caplog.set_level(logging.WARNING, logger="talkpipe.llm.prompt_adapters")
+    script = """
+CONST SOURCE = "ollama";
+CONST MODEL = "deepseek-v3.1:671b-cloud";
+TOOL key_points = "| lambda[expression='str(len(item))']"
+    [input_param="item:str:Article Text", mcp_server="article_tools"];
+INPUT FROM echo[data="test"]
+| llmPrompt[source=SOURCE, model=MODEL, system_prompt="Review.", multi_turn=False, tools="article_tools"]
+"""
+    compiler.compile(script)
+    assert "Could not extract tools from FastMCP instance" not in caplog.text
+
+
 def test_array_parameter_with_constants():
     """Test that constants inside arrays are properly resolved"""
     runtime = core.RuntimeComponent()

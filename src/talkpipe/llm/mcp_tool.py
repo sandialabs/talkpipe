@@ -21,7 +21,8 @@ def register_talkpipe_tool(
     *,
     input_param: Optional[tuple[str, type, str]] = None,
     name: Optional[str] = None,
-    description: Optional[str] = None
+    description: Optional[str] = None,
+    runtime: Optional[Any] = None,
 ) -> None:
     """Register a TalkPipe pipeline as an MCP tool with FastMCP.
     
@@ -67,7 +68,7 @@ def register_talkpipe_tool(
     """
     # Compile pipeline if string is provided
     if isinstance(pipeline_or_script, str):
-        pipeline = compile_pipeline(pipeline_or_script)
+        pipeline = compile_pipeline(pipeline_or_script, runtime)
     elif isinstance(pipeline_or_script, (Pipeline, AbstractSegment)):
         pipeline = pipeline_or_script
     else:
