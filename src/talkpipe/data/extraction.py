@@ -339,6 +339,54 @@ def extract_jsonl(file_path: Union[str, Path]) -> Iterator[ExtractionResult]:
             yield ExtractionResult(**result_fields, **extra_fields)
 
 
+def extract_pdf(file_path: Union[str, Path]) -> Iterator[ExtractionResult]:
+    """
+    Extract text from a PDF file.
+
+    Requires the pypdf package. Install with: pip install talkpipe[pypdf]
+
+    Args:
+        file_path: Path to the PDF file.
+
+    Yields:
+        ExtractionResult with the text content of the document.
+
+    Raises:
+        FileNotFoundError: If the file does not exist.
+        ImportError: If pypdf is not installed.
+    """
+    try:
+        from pypdf import PdfReader
+    except ImportError:
+        raise ImportError(
+            "PDF extraction requires pypdf. Install it with: pip install talkpipe[pypdf]"
+        ) from None
+
+    p = Path(file_path)
+    if not p.exists():
+        logger.error(f"Path does not exist: {file_path}")
+        raise FileNotFoundError(f"Path does not exist: {file_path}")
+    if not p.is_file():
+        logger.error(f"Unsupported path type: {file_path}")
+        raise FileNotFoundError(f"Unsupported path type: {file_path}")
+
+    logger.info(f"Reading PDF file: {p}")
+    source_str = str(p.resolve())
+    reader = PdfReader(p)
+    text_parts = []
+    for page in reader.pages:
+        page_text = page.extract_text()
+        if page_text:
+            text_parts.append(page_text)
+    content = "\n\n".join(text_parts) if text_parts else ""
+    yield ExtractionResult(
+        content=content,
+        source=source_str,
+        id=source_str,
+        title=p.name
+    )
+
+
 def skip_file(file_path: Union[str, Path]) -> Iterator[ExtractionResult]:
     """Default extractor that skips files by yielding nothing."""
     logger.debug(f"Skipping unsupported file: {file_path}")
@@ -358,6 +406,7 @@ def get_default_registry() -> ExtractorRegistry:
     registry.register("txt", extract_text)
     registry.register("md", extract_text)
     registry.register("docx", extract_docx)
+    registry.register("pdf", extract_pdf)
     registry.register("csv", extract_csv)
     registry.register("jsonl", extract_jsonl)
     registry.register_default(skip_file)
@@ -399,6 +448,23 @@ def readdocx(file_path: Annotated[str, "Path to the .docx file to read"]):
 
     """
     yield from extract_docx(file_path)
+
+
+@register_segment("readpdf")
+@field_segment(multi_emit=True)
+def readpdf(file_path: Annotated[str, "Path to the PDF file to read"]):
+    """Read and extract text from PDF files.
+
+    Requires the pypdf package. Install with: pip install talkpipe[pypdf]
+
+    Yields:
+        ExtractionResult: Result containing content, source path, id, and title.
+
+    Raises:
+        FileNotFoundError: If a path does not exist.
+        ImportError: If pypdf is not installed.
+    """
+    yield from extract_pdf(file_path)
 
 
 @register_segment("readcsv")

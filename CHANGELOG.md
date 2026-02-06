@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+- Added optional PDF extraction via `pypdf`. Install with `pip install talkpipe[pypdf]` or 
+  `talkpipe[all]` to enable reading PDF files with readFile and the new readpdf segment. 
+  Without the optional dependency, if no other pdf hander is registered, PDF extraction 
+  fails with a clear ImportError directing users to install the pypdf extra.
+
 ## 0.11.2
 - Fix for prompt segment error that would display an error message if history_file is none.
 

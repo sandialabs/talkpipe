@@ -67,8 +67,11 @@ openai = [
 anthropic = [
     'anthropic'
 ]
+pypdf = [
+    'pypdf'
+]
 all = [
-    'talkpipe[openai,ollama,anthropic]'
+    'talkpipe[openai,ollama,anthropic,pypdf]'
 ]
 
 [project.scripts]
@@ -169,6 +172,7 @@ readFile = "talkpipe.data.extraction:ReadFile"
 fileToText = "talkpipe.data.extraction:ReadFile"
 readJsonl = "talkpipe.pipe.io:readJsonl"
 readdocx = "talkpipe.data.extraction:readdocx"
+readpdf = "talkpipe.data.extraction:readpdf"
 readcsv = "talkpipe.data.extraction:readcsv"
 readjsonl = "talkpipe.data.extraction:readjsonl"
 readtxt = "talkpipe.data.extraction:readtxt"
