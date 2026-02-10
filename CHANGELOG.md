@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.11.3
 - Added optional PDF extraction via `pypdf`. Install with `pip install talkpipe[pypdf]` or 
   `talkpipe[all]` to enable reading PDF files with readFile and the new readpdf segment. 
   Without the optional dependency, if no other pdf hander is registered, PDF extraction 
