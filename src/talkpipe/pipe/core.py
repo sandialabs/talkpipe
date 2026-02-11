@@ -273,8 +273,6 @@ class AbstractSegment(ABC, HasRuntimeComponent, Generic[T, U]):
             ans = self.transform(input_iter)
             logger.debug(f"Finished segment {self.__class__.__name__}")
             return ans
-        
-        logger.debug(f"Finished segment {self.__class__.__name__}")
 
     def as_function(self, 
                     single_in: Annotated[bool, "If True, the function will expect a single input argument."] = False, 
@@ -284,15 +282,13 @@ class AbstractSegment(ABC, HasRuntimeComponent, Generic[T, U]):
         By default, the function will expect and return an iterable.
         single_in and single_out can be set to True to expect a single input and return a single output.
         """
-        def func(item = None):
+        def func(item=None):
             results = list(self([item] if single_in else item))
             if single_out:
                 if len(results) != 1:
                     raise ValueError(f"Expected 1 result, got {len(results)}")
-                else:
-                    return results[0]
-            else:
-                return results
+                return results[0]
+            return results
         return func
 
 class AbstractSource(ABC, HasRuntimeComponent, Generic[U]):
@@ -739,13 +735,7 @@ class AbstractFieldSegment(AbstractSegment[T, U]):
             # Handle metadata: if process_metadata=False, it was already handled by __call__
             # but if process_metadata=True, we need to handle it here
             if is_metadata(item):
-                if self.process_metadata:
-                    # Let the segment handle metadata explicitly
-                    # Default behavior: pass through
-                    yield item
-                else:
-                    # This shouldn't happen since __call__ handles it, but be safe
-                    yield item
+                yield item
                 continue
             
             value = data_manipulation.extract_property(item, self.field) if self.field else item

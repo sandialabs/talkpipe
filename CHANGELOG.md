@@ -1,5 +1,14 @@
 # Changelog
 
+## In Development
+- Fixed ReadFile segment naming discrepency.
+- Internal simplifications: removed unreachable code, extracted shared hash validation logic,
+  consolidated boolean filter segments (isIn/isNotIn/isTrue/isFalse) with common helper.
+- Additional simplifications: consolidated imports and simplified firstN (itertools.islice),
+  removed verbose per-item debug logging in FilterExpression, factored comparison segments
+  (eq/neq/gt/gte/lt/lte) via factory, fixed hash_data to parse string field_list, removed
+  redundant empty __init__ from DescribeData/ToList/ToDataFrame.
+
 ## 0.11.3
 - Fixed chatterlang_serve stream interface so search results display reliably. The UI now
   shows results from the `/process` response directly instead of relying solely on

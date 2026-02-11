@@ -567,7 +567,7 @@ def listFiles(patterns: Annotated[Iterable[str], "Iterable of file patterns or p
             else:
                 logger.debug(f"Skipping non-file: {match}")
 
-@register_segment("readFile")
+@register_segment("readFile", "fileToText")
 class ReadFile(AbstractFieldSegment):
     """
     A segment for extracting text content from different file types.
