@@ -52,7 +52,7 @@ enable_lazy_imports()
 
 # Your TalkPipe code here
 from talkpipe import compile
-pipeline = compile("range[start=0, stop=100] | print")
+pipeline = compile("INPUT FROM range[lower=0, upper=100] | print")
 
 # Disable lazy loading if needed
 disable_lazy_imports()
@@ -121,8 +121,8 @@ from talkpipe import compile
 
 # With lazy loading enabled, this starts fast
 pipeline = compile("""
-    range[start=0, stop=100]
-    | scale[factor=2]
+    INPUT FROM range[lower=0, upper=100]
+    | scale[multiplier=2]
     | print
 """)
 
@@ -468,7 +468,7 @@ print(f"Registered: {stats['registered']}/{stats['entry_points']} segments")
 print(f"Modules loaded: {stats['loaded_modules']}")
 
 # Run your pipeline
-pipeline = compile("range[start=0, stop=10] | print")
+pipeline = compile("INPUT FROM range[lower=0, upper=10] | print")
 
 # Check what got loaded
 stats_after = segment_registry.stats()

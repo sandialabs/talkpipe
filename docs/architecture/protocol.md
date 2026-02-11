@@ -150,9 +150,10 @@ from talkpipe.util.data_manipulation import extract_property, assign_property
 text = extract_property(item, "text")           # "Hello, world!"
 lang = extract_property(item, "metadata.language")  # "en"
 
-# Assign values to fields
+# Assign values to fields (top-level)
 assign_property(item, "word_count", 2)
-assign_property(item, "metadata.processed", True)
+# For nested fields, assign to the parent object
+item["metadata"]["processed"] = True
 ```
 
 The special value `"_"` refers to the entire item:

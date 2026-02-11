@@ -1,6 +1,9 @@
 # Changelog
 
 ## In Development
+- Fixed documentation examples: corrected lazy-loading.md ChatterLang syntax (range as source
+  needs INPUT FROM, uses lower/upper not start/stop; scale uses multiplier not factor);
+  corrected protocol.md assign_property example (nested paths require direct assignment).
 - Fixed ReadFile segment naming discrepency.
 - Internal simplifications: removed unreachable code, extracted shared hash validation logic,
   consolidated boolean filter segments (isIn/isNotIn/isTrue/isFalse) with common helper.
