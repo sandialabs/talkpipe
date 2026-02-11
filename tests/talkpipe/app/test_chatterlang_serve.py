@@ -403,6 +403,15 @@ class TestChatterlangServerEndpoints:
         html_content = response.text
         assert "ChatterLang Server - Stream" in html_content
         assert "chat-messages" in html_content
+
+    def test_stream_displays_results_from_process_response(self, client):
+        """Stream UI should display results from /process response for reliable display."""
+        response = client.get("/stream")
+        html_content = response.text
+        # Must use response data for display (fixes race where SSE may not deliver all items)
+        assert "result.data.output" in html_content
+        assert "Array.isArray(result.data.output)" in html_content
+        assert "suppressSSEResponseCount" in html_content
     
     def test_favicon_endpoint(self, client):
         """Test favicon endpoint."""

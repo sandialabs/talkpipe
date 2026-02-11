@@ -1,6 +1,10 @@
 # Changelog
 
 ## 0.11.3
+- Fixed chatterlang_serve stream interface so search results display reliably. The UI now
+  shows results from the `/process` response directly instead of relying solely on
+  Server-Sent Events, avoiding a race where SSE sometimes did not deliver all items before
+  the next interaction. Refreshing the page no longer needed to see full results.
 - Added optional PDF extraction via `pypdf`. Install with `pip install talkpipe[pypdf]` or 
   `talkpipe[all]` to enable reading PDF files with readFile and the new readpdf segment. 
   Without the optional dependency, if no other pdf hander is registered, PDF extraction 

@@ -1025,6 +1025,11 @@ class ChatterlangServer:
                             if (data.type === 'user' && data.output === lastUserMessage) {{
                                 return;
                             }}
+                            // Skip response messages we already displayed from /process response (avoids duplicates)
+                            if (data.type === 'response' && suppressSSEResponseCount > 0) {{
+                                suppressSSEResponseCount--;
+                                return;
+                            }}
                             addMessage(data.output, data.type || 'response', data.timestamp);
                         }} catch (e) {{
                             console.error('Error parsing SSE data:', e);
@@ -1140,6 +1145,7 @@ class ChatterlangServer:
                 }}
                 
                 let lastUserMessage = null; // Track last user message to avoid duplicates
+                let suppressSSEResponseCount = 0;  // Suppress duplicate SSE messages when we display from response
                 
                 async function submitForm(event) {{
                     event.preventDefault();
@@ -1188,13 +1194,27 @@ class ChatterlangServer:
                             body: JSON.stringify(data)
                         }});
                         
+                        const result = await response.json();
                         if (!response.ok) {{
-                            throw new Error(`HTTP ${{response.status}}: ${{response.statusText}}`);
+                            const detail = result.detail;
+                            const msg = typeof detail === 'string' ? detail : (detail ? JSON.stringify(detail) : `HTTP ${{response.status}}: ${{response.statusText}}`);
+                            throw new Error(msg);
                         }}
                         
                         status.textContent = 'Message sent successfully!';
                         status.className = 'status success';
                         status.style.display = 'block';
+                        
+                        // Display results from response - more reliable than SSE for batch results
+                        // (avoids race where SSE may not deliver all items before next interaction)
+                        if (result.data && result.data.output && Array.isArray(result.data.output)) {{
+                            suppressSSEResponseCount = result.data.output.length;
+                            const timestamp = result.timestamp || new Date().toISOString();
+                            for (const item of result.data.output) {{
+                                const content = typeof item === 'object' ? JSON.stringify(item, null, 2) : String(item);
+                                addMessage(content, 'response', timestamp);
+                            }}
+                        }}
                         
                         setTimeout(() => {{
                             status.style.display = 'none';
