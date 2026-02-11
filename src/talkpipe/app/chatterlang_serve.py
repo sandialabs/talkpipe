@@ -1025,9 +1025,9 @@ class ChatterlangServer:
                             if (data.type === 'user' && data.output === lastUserMessage) {{
                                 return;
                             }}
-                            // Skip response messages we already displayed from /process response (avoids duplicates)
-                            if (data.type === 'response' && suppressSSEResponseCount > 0) {{
-                                suppressSSEResponseCount--;
+                            // Buffer SSE during /process request - we'll display from response to avoid duplicates
+                            if (pendingRequest && data.type === 'response') {{
+                                sseBuffer.push(data);
                                 return;
                             }}
                             addMessage(data.output, data.type || 'response', data.timestamp);
@@ -1145,7 +1145,8 @@ class ChatterlangServer:
                 }}
                 
                 let lastUserMessage = null; // Track last user message to avoid duplicates
-                let suppressSSEResponseCount = 0;  // Suppress duplicate SSE messages when we display from response
+                let pendingRequest = false;  // True while /process request is in flight
+                let sseBuffer = [];  // Buffer SSE events during request to avoid duplicate display
                 
                 async function submitForm(event) {{
                     event.preventDefault();
@@ -1180,6 +1181,8 @@ class ChatterlangServer:
                     
                     submitBtn.disabled = true;
                     submitBtn.textContent = 'Sending...';
+                    pendingRequest = true;
+                    sseBuffer = [];
                     
                     try {{
                         const headers = {{'Content-Type': 'application/json'}};
@@ -1208,13 +1211,13 @@ class ChatterlangServer:
                         // Display results from response - more reliable than SSE for batch results
                         // (avoids race where SSE may not deliver all items before next interaction)
                         if (result.data && result.data.output && Array.isArray(result.data.output)) {{
-                            suppressSSEResponseCount = result.data.output.length;
                             const timestamp = result.timestamp || new Date().toISOString();
                             for (const item of result.data.output) {{
                                 const content = typeof item === 'object' ? JSON.stringify(item, null, 2) : String(item);
                                 addMessage(content, 'response', timestamp);
                             }}
                         }}
+                        sseBuffer = [];  // Discard buffered SSE - we displayed from response
                         
                         setTimeout(() => {{
                             status.style.display = 'none';
@@ -1228,7 +1231,9 @@ class ChatterlangServer:
                         
                         addMessage(`Error: ${{error.message}}`, 'error', new Date().toISOString());
                         lastUserMessage = null; // Clear on error
+                        sseBuffer = [];
                     }} finally {{
+                        pendingRequest = false;
                         submitBtn.disabled = false;
                         submitBtn.textContent = 'Send Message';
                     }}

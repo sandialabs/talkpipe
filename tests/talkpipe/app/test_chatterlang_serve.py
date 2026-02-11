@@ -411,7 +411,9 @@ class TestChatterlangServerEndpoints:
         # Must use response data for display (fixes race where SSE may not deliver all items)
         assert "result.data.output" in html_content
         assert "Array.isArray(result.data.output)" in html_content
-        assert "suppressSSEResponseCount" in html_content
+        # Buffer SSE during request to avoid duplicate display
+        assert "pendingRequest" in html_content
+        assert "sseBuffer" in html_content
     
     def test_favicon_endpoint(self, client):
         """Test favicon endpoint."""
