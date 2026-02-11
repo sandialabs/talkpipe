@@ -17,6 +17,17 @@
   the compiler now resolves such a string from `const_store` so the adapter receives the MCP
   server instance instead of the string, eliminating "Could not extract tools from FastMCP instance".
 
+## 0.11.3
+- Fixed chatterlang_serve stream interface so search results display reliably. The UI now
+  shows results from the `/process` response directly instead of relying solely on
+  Server-Sent Events, avoiding a race where SSE sometimes did not deliver all items before
+  the next interaction. SSE events received during a request are buffered and discarded
+  when the response arrives, preventing duplicate display of results.
+- Added optional PDF extraction via `pypdf`. Install with `pip install talkpipe[pypdf]` or 
+  `talkpipe[all]` to enable reading PDF files with readFile and the new readpdf segment. 
+  Without the optional dependency, if no other pdf hander is registered, PDF extraction 
+  fails with a clear ImportError directing users to install the pypdf extra.
+
 ## 0.11.2
 - Fix for prompt segment error that would display an error message if history_file is none.
 

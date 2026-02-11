@@ -1,7 +1,9 @@
 import pytest
+from pathlib import Path
+from unittest.mock import patch
 from talkpipe.data.extraction import (
-    ReadFile, readtxt, readdocx, readcsv, readjsonl, listFiles,
-    ExtractorRegistry, extract_text, extract_docx, extract_csv, extract_jsonl, skip_file, get_default_registry,
+    ReadFile, readtxt, readdocx, readpdf, readcsv, readjsonl, listFiles,
+    ExtractorRegistry, extract_text, extract_docx, extract_pdf, extract_csv, extract_jsonl, skip_file, get_default_registry,
     global_extractor_registry, ExtractionResult
 )
 
@@ -598,6 +600,113 @@ def test_readjsonl(tmp_path):
 
     assert results[1].product == "Banana"
     assert "products.jsonl:2" in results[1].title
+
+
+def _create_pdf_with_text(path, text: str = "Hello PDF") -> None:
+    """Create a minimal PDF file with the given text content."""
+    content = f"""BT
+/F1 12 Tf
+100 700 Td
+({text}) Tj
+ET
+""".encode()
+    obj1 = b"1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+    obj2 = b"2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+    obj3 = b"3 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R /Resources 5 0 R >>\nendobj\n"
+    obj4 = (
+        b"4 0 obj\n<< /Length " + str(len(content)).encode("ascii") + b" >>\nstream\n"
+        + content + b"\nendstream\nendobj\n"
+    )
+    obj5 = b"5 0 obj\n<< /Font << /F1 6 0 R >> >>\nendobj\n"
+    obj6 = b"6 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n"
+    body = obj1 + obj2 + obj3 + obj4 + obj5 + obj6
+    startxref = 9 + len(body)
+    offsets = [9]
+    for obj in [obj1, obj2, obj3, obj4, obj5]:
+        offsets.append(offsets[-1] + len(obj))
+    xref = b"xref\n0 7\n0000000000 65535 f \n"
+    for i in range(1, 7):
+        xref += f"{offsets[i - 1]:010d} 00000 n \n".encode()
+    trailer = f"trailer\n<< /Size 7 /Root 1 0 R >>\nstartxref\n{startxref}\n%%EOF\n".encode()
+    Path(path).write_bytes(b"%PDF-1.4\n" + body + xref + trailer)
+
+
+def test_extract_pdf_requires_pypdf(tmp_path):
+    """Test that extract_pdf raises helpful ImportError when pypdf is not installed."""
+    pdf_path = tmp_path / "test.pdf"
+    pdf_path.write_bytes(b"%PDF-1.4 minimal\n")
+
+    import builtins
+    real_import = builtins.__import__
+
+    def mock_import(name, *args, **kwargs):
+        if name == "pypdf":
+            raise ImportError("No module named 'pypdf'")
+        return real_import(name, *args, **kwargs)
+
+    with patch.object(builtins, "__import__", side_effect=mock_import):
+        with pytest.raises(ImportError) as exc_info:
+            list(extract_pdf(pdf_path))
+        assert "pypdf" in str(exc_info.value)
+        assert "pip install talkpipe[pypdf]" in str(exc_info.value)
+
+
+def test_extract_pdf_file_not_found():
+    """Test extract_pdf raises FileNotFoundError for missing file."""
+    pytest.importorskip("pypdf")
+    with pytest.raises(FileNotFoundError, match="Path does not exist"):
+        list(extract_pdf("/nonexistent/path.pdf"))
+
+
+def test_extract_pdf_with_pypdf(tmp_path):
+    """Test PDF extraction when pypdf is installed."""
+    pytest.importorskip("pypdf")
+
+    pdf_path = tmp_path / "test.pdf"
+    _create_pdf_with_text(pdf_path, "Hello PDF")
+
+    results = list(extract_pdf(pdf_path))
+    assert len(results) == 1
+    assert isinstance(results[0], ExtractionResult)
+    assert "test.pdf" in results[0].source
+    assert results[0].id == results[0].source
+    assert results[0].title == "test.pdf"
+    assert "Hello PDF" in results[0].content
+
+
+def test_readpdf_segment(tmp_path):
+    """Test readpdf segment when pypdf is installed."""
+    pytest.importorskip("pypdf")
+
+    pdf_path = tmp_path / "segment_test.pdf"
+    _create_pdf_with_text(pdf_path, "Segment test content")
+
+    results = list(readpdf()([str(pdf_path)]))
+    assert len(results) == 1
+    assert isinstance(results[0], ExtractionResult)
+    assert "segment_test.pdf" in results[0].source
+    assert "Segment test content" in results[0].content
+
+
+def test_pdf_in_default_registry(tmp_path):
+    """Test that PDF extractor is registered in default registry."""
+    registry = get_default_registry()
+    assert "pdf" in registry.registered_extensions
+
+
+def test_ReadFile_with_pdf(tmp_path):
+    """Test ReadFile extracts PDF when pypdf is installed."""
+    pytest.importorskip("pypdf")
+
+    pdf_path = tmp_path / "readfile_test.pdf"
+    _create_pdf_with_text(pdf_path, "ReadFile PDF content")
+
+    fe = ReadFile()
+    results = list(fe([str(pdf_path)]))
+    assert len(results) == 1
+    assert isinstance(results[0], ExtractionResult)
+    assert "readfile_test.pdf" in results[0].source
+    assert "ReadFile PDF content" in results[0].content
 
 
 def test_jsonl_in_default_registry(tmp_path):
