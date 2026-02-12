@@ -1,6 +1,9 @@
 # Changelog
 
 ## In Development
+- Improved Tutorial 1 (Document Indexing), Tutorial 2 (Search by Example and RAG), and Tutorial 3
+  (Report Generation) documentation: clearer structure, prerequisites and quick-start section,
+  value-focused intro, and step-by-step guidance for running the tutorials.
 - Fixed documentation examples: corrected lazy-loading.md ChatterLang syntax (range as source
   needs INPUT FROM, uses lower/upper not start/stop; scale uses multiplier not factor);
   corrected protocol.md assign_property example (nested paths require direct assignment).
