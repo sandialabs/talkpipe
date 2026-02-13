@@ -91,7 +91,6 @@ class AdaptiveBuffer:
             self.slow_interval - self.fast_interval
         )
         target = self.min_size + int(round(ratio * (self.max_size - self.min_size)))
-        print(target)
         return max(self.min_size, min(self.max_size, target))
 
 
