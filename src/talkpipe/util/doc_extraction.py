@@ -1,9 +1,9 @@
-"""
-Shared utilities for extracting documentation from registered TalkPipe components.
+"""Extract documentation from registered TalkPipe sources and segments.
 
-This module provides common functionality for the chatterlang reference generator
-and browser to extract docstrings, parameters, and metadata from registered
-sources and segments.
+Provides utilities for the ChatterLang reference generator and browser to
+inspect registered components: docstrings, parameters (including Annotated
+metadata), and type info. Handles both plain classes and decorated functions
+(e.g. @source, @segment, @field_segment).
 """
 
 import inspect
@@ -15,7 +15,11 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class ParamSpec:
-    """Holds detailed parameter info: name, annotation, default, and description."""
+    """Parameter metadata for a component: name, type, default, and description.
+
+    Description is taken from Annotated[T, "description"] when present.
+    """
+
     name: str
     annotation: str = ""
     default: str = ""
@@ -24,10 +28,11 @@ class ParamSpec:
 
 @dataclass
 class ComponentInfo:
-    """Represents extracted information about a TalkPipe component."""
+    """Extracted documentation and metadata for a registered component."""
+
     name: str
     chatterlang_name: str
-    component_type: str  # "Source", "Segment", "Field Segment"
+    component_type: str  # "Source", "Segment", or "Field Segment"
     module: str
     base_classes: List[str]
     docstring: str
@@ -36,9 +41,11 @@ class ComponentInfo:
 
 
 def extract_function_info(func: callable) -> Dict[str, Any]:
-    """
-    Extract parameter information from a function using inspect.
-    Handles Annotated types to extract descriptions from metadata.
+    """Extract docstring and parameters from a callable via inspect.
+
+    Skips ``self``, ``items``, and ``item``. For Annotated[T, "desc"] types,
+    uses the first metadata string as the parameter description. Returns
+    empty docstring and parameters list on failure.
     """
     try:
         sig = inspect.signature(func)
@@ -101,12 +108,7 @@ def extract_function_info(func: callable) -> Dict[str, Any]:
 
 
 def clean_class_name(class_name: str, component_type: str) -> str:
-    """
-    Clean up internal class names for user-friendly display.
-    
-    Removes implementation suffixes like 'Input', 'Operation', 'FieldSegment'
-    that are added by decorators but shouldn't be shown to users.
-    """
+    """Strip decorator-added suffixes for display (e.g. FooInput → Foo, BarOperation → Bar)."""
     if component_type == "Source" and class_name.endswith('Input'):
         return class_name[:-5]  # Remove 'Input'
     elif component_type in ["Segment", "Field Segment"]:
@@ -118,16 +120,19 @@ def clean_class_name(class_name: str, component_type: str) -> str:
 
 
 def extract_component_info(chatterlang_name: str, cls: type, component_type: str) -> Optional[ComponentInfo]:
-    """
-    Extract comprehensive information about a registered component.
-    
+    """Extract docstring, parameters, and metadata from a registered component.
+
+    For decorated functions (e.g. @source, @segment), uses the original
+    function's signature and docstring. For field segments, injects synthetic
+    ``field`` and ``set_as`` parameters when missing.
+
     Args:
-        chatterlang_name: The name used to register the component in ChatterLang
-        cls: The registered class
-        component_type: "Source", "Segment", or "Field Segment"
-        
+        chatterlang_name: Name used in ChatterLang (e.g. in scripts).
+        cls: The registered class or decorated callable.
+        component_type: One of "Source", "Segment", "Field Segment".
+
     Returns:
-        ComponentInfo object with extracted information, or None if extraction fails
+        ComponentInfo, or None if extraction fails.
     """
     try:
         # Get basic class info
@@ -217,15 +222,10 @@ def extract_component_info(chatterlang_name: str, cls: type, component_type: str
 
 
 def detect_component_type(cls: type, registry_type: str) -> str:
-    """
-    Detect the specific component type based on class characteristics.
-    
-    Args:
-        cls: The registered class
-        registry_type: "Source" or "Segment" from the registry
-        
-    Returns:
-        Specific component type: "Source", "Segment", or "Field Segment"
+    """Refine registry type to "Source", "Segment", or "Field Segment".
+
+    Field segments are detected by class name or module containing
+    ``field_segment``.
     """
     if registry_type == "Source":
         return "Source"
@@ -240,16 +240,16 @@ def detect_component_type(cls: type, registry_type: str) -> str:
 
 
 def extract_parameters_dict(cls: type) -> Dict[str, str]:
-    """
-    Extract parameter information as a dictionary (for browser compatibility).
-    
-    Returns:
-        Dict mapping parameter names to formatted parameter strings
+    """Extract parameters as name → formatted string for display.
+
+    Each value is ``"name: type = default  # description"`` (or subsets).
+    Used by the ChatterLang reference browser. Adds synthetic ``field`` and
+    ``set_as`` for field segments.
     """
     parameters = {}
     
     def _process_parameter(param_name: str, param) -> str:
-        """Helper function to process a single parameter."""
+        """Format a single parameter as 'name: type = default  # description'."""
         param_str = param_name
         annotation_str = ""
         description = ""

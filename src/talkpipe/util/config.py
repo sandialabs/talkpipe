@@ -1,5 +1,11 @@
+"""Configuration, logging, and script loading utilities.
+
+Provides TOML-based config with environment overrides, logger setup,
+custom module loading, CLI argument parsing, and script resolution
+from files, config keys, or inline content.
+"""
 from typing import Optional
-import importlib 
+import importlib
 import logging
 import os
 import sys
@@ -10,18 +16,22 @@ from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
+# Cached config; None forces reload on next get_config()
 _config = None
 
 
 def parse_key_value_str(field_list: str, require_value: bool = False) -> Dict[str, str]:
-    """Parse a property assignment list into a dictionary.
+    """Parse a comma-separated key:value string into a dictionary.
+
+    Pairs may omit the value; if so, the key gets ``"original"`` when the key
+    is ``"_"``, otherwise the last segment after a dot (e.g. ``"a.b.c"`` → ``"c"``).
 
     Args:
-        field_list (str): A comma-separated string of key-value pairs in the format "key:value,key:value".
-        require_value (bool, optional): If True, raises a ValueError when a key is missing a value.
+        field_list: Comma-separated pairs, e.g. ``"key1:val1,key2:val2"``.
+        require_value: If True, raise ValueError when a key has no value.
 
     Returns:
-        Dict[str, str]: A dictionary where keys are property names and values are assigned values.
+        Dict mapping keys to their values (or defaults when value omitted).
 
     Raises:
         ValueError: If require_value is True and a key is missing a value.
@@ -43,31 +53,20 @@ def parse_key_value_str(field_list: str, require_value: bool = False) -> Dict[st
 
 
 def reset_config():
-    """Reset the configuration to None.
-
-    This function resets the global _config variable to None, forcing
-    the next call to get_config() to reload configuration from disk
-    and environment variables.
-    """
+    """Clear the cached config so the next get_config() reloads from disk and env."""
     global _config
     _config = None
 
 
 def add_config_values(values_dict, override=True):
-    """Add additional configuration values to the current configuration.
-    
-    This function merges additional configuration values into the global
-    configuration. Useful for adding command-line arguments to the config
-    so they're accessible via $key syntax in scripts.
-    
+    """Merge additional values into the current configuration.
+
+    Loads config if not yet loaded. Useful for injecting command-line
+    arguments so they are available via ``$key`` syntax in ChatterLang scripts.
+
     Args:
-        values_dict (Dict[str, Any]): Dictionary of key-value pairs to add
-        override (bool): If True, override existing values. If False, only add new keys.
-    
-    Example:
-        >>> add_config_values({'debug': True, 'api_key': 'test-key'})
-        >>> config = get_config()
-        >>> print(config['debug'])  # True
+        values_dict: Key-value pairs to add.
+        override: If True, overwrite existing keys. If False, only add new keys.
     """
     global _config
     
@@ -83,19 +82,25 @@ def add_config_values(values_dict, override=True):
 
 
 def get_config(reload=False, path="~/.talkpipe.toml", ignore_env=False):
-    """Get the configuration from the config file and environment variables.
-    This function reads configuration from a TOML file and environment variables.
-    Environment variables starting with 'TALKPIPE_' override config file values.
+    """Load and return configuration from TOML file and environment variables.
+
+    Reads from a TOML file at the given path. Environment variables prefixed
+    with ``TALKPIPE_`` override config file values (e.g. ``TALKPIPE_DEBUG``
+    sets ``config['DEBUG']``). Configuration is cached after first load.
+
     Args:
-        reload (bool, optional): Force reload config from disk. Defaults to False.
-        path (str, optional): Path to config file. Defaults to "~/talkpipe.toml".
+        reload: Force reload from disk, bypassing cache.
+        path: Path to TOML config file. Defaults to ``~/.talkpipe.toml``.
+        ignore_env: If True, skip loading TALKPIPE_* environment variables.
+
     Returns:
-        dict: Configuration dictionary combining file and environment settings.
+        Configuration dict combining file and environment settings.
+        Empty dict if file does not exist and no env vars are loaded.
+
     Notes:
-        - Config file values are read from the TOML file if it exists
-        - Environment variables prefixed with 'TALKPIPE_' take precedence
-        - If config file doesn't exist, returns environment variables only
-        - Configuration is cached after first load unless reload=True
+        - Config file values are read from the TOML file if it exists.
+        - Environment variables take precedence over file values.
+        - If config file does not exist, starts with empty dict.
     """
     global _config
     if _config is None or reload:
@@ -123,29 +128,24 @@ def get_config(reload=False, path="~/.talkpipe.toml", ignore_env=False):
 
 
 def configure_logger(logger_levels: Optional[str] = None, base_level="WARNING", logger_files: Optional[str] = None, transformers_to_debug=True):
-    """Configure logging levels for specified loggers.
+    """Configure logging levels and optional file handlers for loggers.
 
-    This function sets up logging configuration for multiple loggers, including optional
-    suppression of transformers-related logs. It configures both the log level and
-    output format for each specified logger.
+    Sets levels and handlers for loggers specified in ``logger_levels`` and
+    ``logger_files``. If either is omitted, falls back to config keys
+    ``logger_levels`` and ``logger_files``.
 
     Args:
-        logger_levels (str): A string containing logger name and level pairs in the format
-            "logger1:LEVEL1,logger2:LEVEL2". Use "root" as logger name for root logger.
-            Valid levels are DEBUG, INFO, WARNING, ERROR, CRITICAL.
-        base_level (str, optional): Default logging level. Defaults to "WARNING".
-        logger_files (str, optional): A string mapping loggers to file paths in "logger:path" format.
-        transformers_to_debug (bool, optional): If True, sets all transformers-related
-            loggers to ERROR level. Defaults to True.
-
-    Examples:
-        >>> configure_logger("root:INFO,myapp:DEBUG")
-        >>> configure_logger("root:WARNING", transformers_to_debug=False)
+        logger_levels: Comma-separated ``logger:LEVEL`` pairs, e.g.
+            ``"root:INFO,talkpipe:DEBUG"``. Use ``"root"`` for the root logger.
+        base_level: Default level for the root logger.
+        logger_files: Comma-separated ``logger:path`` pairs for file handlers.
+            Rotates at midnight, keeps 7 backups.
+        transformers_to_debug: If True, set transformers loggers to ERROR.
 
     Note:
-        - Each logger gets a StreamHandler with formatted output
-        - Format: '%(asctime)s - %(levelname)s:%(name)s:%(message)s'
-        - Levels are converted to uppercase automatically
+        Output format: ``%(asctime)s - %(levelname)s:%(name)s:%(message)s``.
+        When using ``logger_files``, also set ``logger_levels`` so handler
+        levels are correct.
     """
 
     if not logger_levels:
@@ -187,20 +187,24 @@ def configure_logger(logger_levels: Optional[str] = None, base_level="WARNING", 
             logger.addHandler(file_handler)
 
 
-def load_module_file(fname: str, fail_on_missing=False) -> Optional[Any]:
-    """
-    Safely load a Python custom module.
-    Supports ~ notation for home directory.
+def load_module_file(fname: str, fail_on_missing: bool = False) -> Optional[Any]:
+    """Load a Python module from a file path.
+
+    Supports ``~`` for home directory. The file's directory is temporarily
+    added to ``sys.path`` so local imports work. Module name is derived
+    from the filename (e.g. ``my_config.py`` → ``config_my_config``).
 
     Args:
-        fname: Path to the module file (absolute, relative, or with ~)
+        fname: Path to the module file (absolute, relative, or ``~``).
+        fail_on_missing: If True, raise FileNotFoundError when file does not exist.
+            If False, return None.
 
     Returns:
-        Module object containing the module, or None if file cannot be loaded
+        Loaded module object, or None if file not found and fail_on_missing is False.
 
     Raises:
-        ImportError: If there are issues importing the module
-        FileNotFoundError: If the module file doesn't exist and fail_on_missing is True
+        ImportError: If the module cannot be loaded.
+        FileNotFoundError: If the file does not exist and fail_on_missing is True.
     """
     try:
         # Expand ~ to home directory if present
@@ -246,23 +250,16 @@ def load_module_file(fname: str, fail_on_missing=False) -> Optional[Any]:
 
 
 def parse_unknown_args(unknown_args):
-    """Parse unknown command line arguments as constants.
+    """Parse ``--key value`` and ``--flag`` style args into a dict.
 
-    Processes arguments in the format --CONST_NAME value, attempting to parse
-    the values as appropriate Python types (bool, int, float, str).
-    Also supports binary flags (--flag without a value) which are set to True.
+    Values are parsed as bool (true/false), int, float, or str. Flags
+    without a value are set to True.
 
     Args:
-        unknown_args (List[str]): List of unknown command line arguments
+        unknown_args: List of leftover CLI args (e.g. from argparse).
 
     Returns:
-        Dict[str, Any]: Dictionary mapping constant names to their parsed values
-
-    Example:
-        >>> parse_unknown_args(['--debug', 'true', '--count', '42', '--name', 'test'])
-        {'debug': True, 'count': 42, 'name': 'test'}
-        >>> parse_unknown_args(['--flag', '--key', 'value'])
-        {'flag': True, 'key': 'value'}
+        Dict mapping names (without ``--``) to parsed values.
     """
     constants = {}
     i = 0
@@ -297,27 +294,23 @@ def parse_unknown_args(unknown_args):
 
 
 def load_script(script_input: str) -> str:
-    """Load a talkpipe script from various sources.
-    
-    This function checks for scripts in the following order:
-    1. Existing file path
-    2. Configuration value (from config file or environment variable)
-    3. Inline script content
-    
+    """Resolve script content from a path, config key, or inline string.
+
+    Resolution order:
+    1. If ``script_input`` is an existing file path, read and return its contents.
+    2. If ``script_input`` is a config key, use its value. If that value is a
+       file path, read it; otherwise return the value as script content.
+    3. Otherwise treat ``script_input`` as inline script content.
+
     Args:
-        script_input (str): The script identifier - can be a file path, configuration key, or inline script
-        
+        script_input: File path, config key, or inline ChatterLang script.
+
     Returns:
-        str: The script content as a string
-        
+        Script content as a string.
+
     Raises:
-        ValueError: If script_input is None or empty
-        IOError: If a file path is provided but cannot be read
-        
-    Examples:
-        >>> load_script("/path/to/script.tp")  # Load from file
-        >>> load_script("my_script_key")       # Load from config
-        >>> load_script("print('hello')")      # Inline script
+        ValueError: If script_input is None or empty.
+        IOError: If a file path is given but cannot be read.
     """
     if script_input is None or script_input.strip() == "":
         raise ValueError("script_input cannot be None or empty")

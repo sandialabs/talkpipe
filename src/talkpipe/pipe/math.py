@@ -1,5 +1,8 @@
-"""Math operations for pipe."""
+"""Math operations for pipe: random numbers, ranges, scaling, and comparison filters.
 
+Provides sources (randomInts, range) and segments (scale, eq, neq, gt, gte, lt, lte)
+for numeric pipelines.
+"""
 from typing import Iterable, Union, Callable, Any, Annotated
 from numpy import random
 from talkpipe.pipe import core
@@ -27,7 +30,7 @@ def scale(
         yield x * multiplier
 
 @registry.register_source(name="range")
-@core.source(lower=0,  upper=10)
+@core.source(lower=0, upper=10)
 def arange(
     lower: Annotated[int, "Lower bound of the range (inclusive)"], 
     upper: Annotated[int, "Upper bound of the range (exclusive)"]
@@ -42,19 +45,21 @@ def arange(
 
 
 class AbstractComparisonFilter(core.AbstractSegment):
-    """Abstract base class for comparison segments."""
+    """Base for comparison segments: filter items where field value op threshold."""
 
-    def __init__(self, 
-                 field: Annotated[str, "Field/property to compare"], 
-                 n: Annotated[Any, "Value to compare against"], 
-                 comparator: Callable[[Any, Any], bool]):
+    def __init__(
+        self,
+        field: Annotated[str, "Field/property to compare"],
+        n: Annotated[Any, "Value to compare against"],
+        comparator: Callable[[Any, Any], bool],
+    ):
         super().__init__()
         self.field = field
         self.n = n
         self.comparator = comparator
 
     def transform(self, items: Iterable) -> Iterable:
-        """Filter items based on the comparison."""
+        """Yield items whose field value satisfies the comparator."""
         for item in items:
             value = extract_property(item, self.field, fail_on_missing=True)
             if self.comparator(value, self.n):
@@ -62,7 +67,7 @@ class AbstractComparisonFilter(core.AbstractSegment):
 
 
 def _make_comparison_segment(name: str, op: Callable[[Any, Any], bool], docstring: str):
-    """Factory for comparison segments (eq, neq, gt, gte, lt, lte)."""
+    """Factory: create a registered comparison segment with given op and docstring."""
     @registry.register_segment(name=name)
     class ComparisonSegment(AbstractComparisonFilter):
         __doc__ = docstring
@@ -75,21 +80,16 @@ def _make_comparison_segment(name: str, op: Callable[[Any, Any], bool], docstrin
     return ComparisonSegment
 
 
-# TODO: rename to EQ in 0.5.0
-eq = _make_comparison_segment("eq", lambda x, y: x == y,
+# Comparison segments: filter by field value vs threshold 
+EQ = _make_comparison_segment("eq", lambda x, y: x == y,
     "Filter items where a specified field's value equals a number.")
-# TODO: rename to NEQ in 0.5.0
-neq = _make_comparison_segment("neq", lambda x, y: x != y,
+NEQ = _make_comparison_segment("neq", lambda x, y: x != y,
     "Filter items where a specified field's value does not equal a number.")
-# TODO: rename to GT in 0.5.0
-gt = _make_comparison_segment("gt", lambda x, y: x > y,
+GT = _make_comparison_segment("gt", lambda x, y: x > y,
     "Filter items where a specified field's value is greater than a number.")
-# TODO: rename to GTE in 0.5.0
-gte = _make_comparison_segment("gte", lambda x, y: x >= y,
+GTE = _make_comparison_segment("gte", lambda x, y: x >= y,
     "Filter items where a specified field's value is greater than or equal to a number.")
-# TODO: rename to LT in 0.5.0
-lt = _make_comparison_segment("lt", lambda x, y: x < y,
+LT = _make_comparison_segment("lt", lambda x, y: x < y,
     "Filters items based on a field value being less than a specified number.")
-# TODO: rename to LTE in 0.5.0
-lte = _make_comparison_segment("lte", lambda x, y: x <= y,
+LTE = _make_comparison_segment("lte", lambda x, y: x <= y,
     "Filter items where a specified field's value is less than or equal to a number.")
