@@ -36,6 +36,7 @@ Found a gap or error? Documentation improvements are welcome! Please:
 1. Check existing issues for the topic
 2. Submit a pull request with your improvements
 3. Follow the existing documentation style and structure
+4. See [Documentation Formatting](architecture/documentation-formatting.md) for code block and example guidelines
 
 ---
 

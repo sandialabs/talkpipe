@@ -14,6 +14,9 @@
   removed verbose per-item debug logging in FilterExpression, factored comparison segments
   (eq/neq/gt/gte/lt/lte) via factory, fixed hash_data to parse string field_list, removed
   redundant empty __init__ from DescribeData/ToList/ToDataFrame.
+- chatterlang_generate_entry_points now discovers factory-created segments (e.g. gt, eq, lt).
+  Fixed pyproject.toml entry points for comparison segments to reference correct object names
+  (GT, EQ, etc.) instead of lowercase.
 
 ## 0.11.3
 - Fixed chatterlang_serve stream interface so search results display reliably. The UI now

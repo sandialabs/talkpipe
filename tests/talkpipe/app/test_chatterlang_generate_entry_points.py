@@ -155,3 +155,30 @@ def func_segment(items):
 
         segment_names = {name for name, _, _ in results['segments']}
         assert segment_names == {'class_segment', 'func_segment'}
+
+
+def test_decorator_finder_finds_factory_created_segments():
+    """Test that FactoryCallFinder finds segments created by factory functions."""
+
+    test_code = '''
+def _make_comparison_segment(name: str, op, docstring: str):
+    @registry.register_segment(name=name)
+    class ComparisonSegment:
+        __doc__ = docstring
+        pass
+    return ComparisonSegment
+
+EQ = _make_comparison_segment("eq", lambda x, y: x == y, "Equals")
+GT = _make_comparison_segment("gt", lambda x, y: x > y, "Greater than")
+'''
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        tmpdir_path = Path(tmpdir)
+        test_file = tmpdir_path / "math_module.py"
+        test_file.write_text(test_code)
+
+        results = scan_file(test_file, tmpdir_path, "testpackage")
+
+        assert len(results['segments']) == 2
+        segment_names = {(name, cls) for name, cls, _ in results['segments']}
+        assert segment_names == {('eq', 'EQ'), ('gt', 'GT')}
