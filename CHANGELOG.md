@@ -1,6 +1,6 @@
 # Changelog
 
-## In Development
+## 0.11.4
 - Documentation example fixes: added missing imports and stubs to extending-talkpipe.md,
   metadata-stream.md, pipe-api.md; introduced `# skip-extract` for blocks that cannot run
   standalone (setup.py, relative imports, illustrative fragments); updated
