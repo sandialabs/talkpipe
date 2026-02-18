@@ -34,15 +34,7 @@ TalkPipe includes integrated full-text search (Whoosh) and vector database capab
 - Departmental tools
 - Prototype systems
 
-When you need enterprise scale, the modular architecture lets you swap components without changing your pipeline logic:
-
-```python
-# Start with built-in search
-| indexWhoosh[index_path="./index", field_list="content,title"]
-
-# Later, swap to enterprise search (implement custom segments as needed)
-| indexElasticsearch[url="http://elastic:9200", index="docs"]
-```
+When you need enterprise scale, the modular architecture lets you swap components without changing your pipeline logic.
 
 ### Focus on Your Innovation
 TalkPipe handles the boilerplate:

@@ -17,11 +17,20 @@ TalkPipe's core architecture uses Python generators throughout the pipeline chai
 - Processes items one at a time rather than collecting all results
 
 ```python
-def transform(self, input_iter: Iterable[T]) -> Iterator[U]:
-    for item in input_iter:
-        # Process item individually
-        processed_item = self.process(item)
-        yield processed_item  # Stream result immediately
+from typing import Iterable, Iterator, TypeVar
+
+T = TypeVar("T")
+U = TypeVar("U")
+
+class ExampleSegment:
+    def process(self, item):
+        return item
+
+    def transform(self, input_iter: Iterable[T]) -> Iterator[U]:
+        for item in input_iter:
+            # Process item individually
+            processed_item = self.process(item)
+            yield processed_item  # Stream result immediately
 ```
 
 This design means that:
@@ -34,11 +43,28 @@ This design means that:
 Data sources (`AbstractSource`) generate items on-demand:
 
 ```python
-def generate(self) -> Iterator[U]:
-    # File-based streaming
-    with open(self.filename) as f:
-        for line in f:
-            yield line.strip()  # One line at a time
+import tempfile
+import os
+from typing import Iterator, TypeVar
+
+U = TypeVar("U")
+
+with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".txt") as f:
+    f.write("line1\nline2\n")
+    f.flush()
+    _path = f.name
+
+class ExampleSource:
+    def __init__(self, filename=_path):
+        self.filename = filename
+
+    def generate(self) -> Iterator[U]:
+        # File-based streaming
+        with open(self.filename) as f:
+            for line in f:
+                yield line.strip()  # One line at a time
+
+os.unlink(_path)
 ```
 
 This allows TalkPipe to:
@@ -58,7 +84,7 @@ TalkPipe employs lazy evaluation where:
 
 ### Pipeline Construction vs Execution
 
-```python
+```
 # Pipeline construction (no data processing yet)
 pipeline = source | transform1 | transform2 | filter_segment
 
@@ -90,10 +116,11 @@ Python's iterator protocol provides built-in backpressure handling:
 Different consumption patterns can be used to provide natural backpressure:
 
 ```python
+# skip-extract  (illustrative fragment)
 # Immediate consumption - no backpressure
 results = list(pipeline())
 
-# Batched consumption - controlled backpressure  
+# Batched consumption - controlled backpressure
 for batch in batched(pipeline(), 100):
     process_batch(batch)
 
@@ -131,15 +158,25 @@ When errors occur:
 ### Error Recovery Patterns
 
 ```python
-# Error filtering segment
-def transform(self, input_iter):
-    for item in input_iter:
-        try:
-            result = risky_operation(item)
-            yield result
-        except SpecificError:
-            logger.warning(f"Skipping item {item}")
-            continue  # Skip failed items
+from logging import getLogger
+
+logger = getLogger(__name__)
+
+class SpecificError(Exception):
+    pass
+
+class ErrorFilterSegment:
+    def risky_operation(self, item):
+        return item
+
+    def transform(self, input_iter):
+        for item in input_iter:
+            try:
+                result = self.risky_operation(item)
+                yield result
+            except SpecificError:
+                logger.warning(f"Skipping item {item}")
+                continue  # Skip failed items
 ```
 
 ## Performance Characteristics

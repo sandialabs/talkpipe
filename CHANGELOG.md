@@ -1,12 +1,18 @@
 # Changelog
 
 ## In Development
+- Documentation example fixes: added missing imports and stubs to extending-talkpipe.md,
+  metadata-stream.md, pipe-api.md; introduced `# skip-extract` for blocks that cannot run
+  standalone (setup.py, relative imports, illustrative fragments); updated
+  documentation-formatting.md with skip-extract guidance.
 - Improved Tutorial 1 (Document Indexing), Tutorial 2 (Search by Example and RAG), and Tutorial 3
   (Report Generation) documentation: clearer structure, prerequisites and quick-start section,
   value-focused intro, and step-by-step guidance for running the tutorials.
 - Fixed documentation examples: corrected lazy-loading.md ChatterLang syntax (range as source
   needs INPUT FROM, uses lower/upper not start/stop; scale uses multiplier not factor);
   corrected protocol.md assign_property example (nested paths require direct assignment).
+  Replaced optional-dependency examples (tensorflow, pandas) in lazy-loading.md with stdlib
+  equivalents (csv, sqlite3) so all snippets run out of the box.
 - Fixed ReadFile segment naming discrepency.
 - Internal simplifications: removed unreachable code, extracted shared hash validation logic,
   consolidated boolean filter segments (isIn/isNotIn/isTrue/isFalse) with common helper.

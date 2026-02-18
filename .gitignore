@@ -176,3 +176,4 @@ cython_debug/
 # Custom 
 *NOCOMMIT* 
 extracted_examples.py
+.extracted_examples_fail_index

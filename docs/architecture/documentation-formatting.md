@@ -11,11 +11,12 @@ Place the opening fence at the start of a line (no leading spaces):
 ````markdown
 ```python
 from talkpipe.pipe import io
-result = io.echo(data="hello").as_function()()
+pipeline = io.echo(data="hello") | io.Print()
+result = pipeline.as_function(single_out=False)()
 ```
 ````
 
-**Why**: Unindented blocks are easier for extractors (e.g. `scripts/extract_and_run_examples.py`) to parse and are rendered consistently across markdown processors. The extractor does support indented fences (e.g. inside numbered lists), but unindented is preferred.
+**Why**: Unindented blocks are easier for extractors (e.g. `scripts/extract_documentation_examples.py`) to parse and are rendered consistently across markdown processors. The extractor does support indented fences (e.g. inside numbered lists), but unindented is preferred.
 
 ### Inside lists
 
@@ -45,6 +46,10 @@ Make it clear whether an example is:
 - **Explanatory fragment**: Partial code illustrating a concept. Add context like "Part of the pipeline above..." or a comment.
 
 See `.claude/commands/review_documentation.md` for more on snippet intent.
+
+## Skip extraction
+
+Add `# skip-extract` as the first line of a block to exclude it from the extracted examples runner (e.g. `setup()` calls that invoke distutils, or fragments that require a package layout).
 
 ## Avoid
 

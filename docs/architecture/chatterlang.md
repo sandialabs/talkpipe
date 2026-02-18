@@ -39,35 +39,7 @@ ChatterLang promotes building complex workflows by composing simple, reusable co
 
 **File**: `src/talkpipe/chatterlang/parsers.py`
 
-The parser converts ChatterLang text into an Abstract Syntax Tree (AST) using the Parsy parsing library.
-
-#### Core Data Structures
-
-```python
-@dataclass
-class ParsedScript:
-    """A parsed script containing pipelines and constants."""
-    pipelines: List[Union[ParsedPipeline, ParsedLoop]]
-    constants: Dict[str, Any] = field(default_factory=dict)
-
-@dataclass  
-class ParsedPipeline:
-    """A pipeline with input source and transform chain."""
-    input_node: Optional[InputNode]
-    transforms: List[Union[SegmentNode, VariableName, ForkNode]]
-
-@dataclass
-class InputNode:
-    """Represents input sources like 'INPUT FROM source'."""
-    source: Union[VariableName, Identifier, str]
-    params: Dict[Identifier, Any]
-
-@dataclass
-class SegmentNode:
-    """Represents transform operations with parameters."""
-    operation: str
-    params: Dict[Identifier, Any]
-```
+The parser converts ChatterLang text into an Abstract Syntax Tree (AST) using the Parsy parsing library. The AST includes nodes for scripts, pipelines, input sources, segments, variables, constants, loops, and forks.
 
 #### Grammar Elements
 
@@ -126,63 +98,25 @@ The compiler transforms the AST into executable Python objects using the Pipe AP
 4. **Compile Components**: Transform AST nodes to Pipe API objects
 5. **Build Pipeline**: Connect components using `|` operator
 
-#### Single Dispatch Pattern
-
-The compiler uses Python's `@singledispatch` decorator to handle different AST node types:
-
-```python
-@singledispatch
-def compile(script: ParsedScript, runtime: RuntimeComponent = None) -> Callable:
-    """Compile a parsed script into executable Pipeline."""
-
-@compile.register(ParsedPipeline)
-def _(pipeline: ParsedPipeline, runtime: RuntimeComponent) -> Pipeline:
-    """Compile a pipeline into Pipeline object."""
-
-@compile.register(ParsedLoop)
-def _(loop: ParsedLoop, runtime: RuntimeComponent) -> Loop:
-    """Compile a loop into Loop object."""
-```
-
-#### Runtime Component Integration
-
-The compiler creates a `RuntimeComponent` that provides shared state across the pipeline:
-
-```python
-class RuntimeComponent:
-    def __init__(self):
-        self._variable_store = {}  # Mutable runtime variables
-        self._const_store = {}     # Immutable constants
-```
+The compiler uses Python's `@singledispatch` to route different AST node types (pipelines, loops, etc.) to specialized compilation functions. A `RuntimeComponent` holds shared state such as variables and constants across the pipeline.
 
 ### 3. Registry System
 
 **File**: `src/talkpipe/chatterlang/registry.py`
 
-The registry maps ChatterLang identifiers to Python implementation classes.
-
-#### Registry Structure
-
-```python
-class Registry(Generic[T]):
-    def __init__(self):
-        self._registry: Dict[str, Type[T]] = {}
-    
-    def register(self, cls: Type[T], name: str) -> None:
-        self._registry[name] = cls
-
-input_registry = Registry()    # Sources
-segment_registry = Registry()  # Segments
-```
+The registry maps ChatterLang identifiers to Python implementation classes. It supports both decorator-based registration and entry point discovery for plugins.
 
 #### Registration Decorators
 
 Components register themselves using decorators.  This makes it trivial to add new sources and segments to TalkPipe, whether in new modules or in a jupyter notebook:
 
 ```python
-@registry.register_source("echo")
+from talkpipe.chatterlang import registry
+from talkpipe.pipe.core import source, AbstractSegment
+
+@registry.register_source("example_echo")
 @source(delimiter=',')
-def echo(data, delimiter):
+def example_echo(data, delimiter):
     """Generate input from a string."""
     if delimiter is None:
         yield data
@@ -190,8 +124,8 @@ def echo(data, delimiter):
         for item in data.split(delimiter):
             yield item
 
-@registry.register_segment("print")
-class Print(AbstractSegment):
+@registry.register_segment("example_print")
+class ExamplePrint(AbstractSegment):
     """Print and pass through each item."""
     def transform(self, input_iter):
         for x in input_iter:
@@ -206,11 +140,14 @@ ChatterLang provides sophisticated variable handling for intermediate data stora
 #### Variable Sources
 
 ```python
+from talkpipe.pipe.core import AbstractSource
+
 class VariableSource(AbstractSource):
     """Sources data from a runtime variable."""
     def __init__(self, variable_name: str):
         self.variable_name = variable_name
-    
+        self.runtime = type("Runtime", (), {"variable_store": {variable_name: []}})()
+
     def generate(self):
         yield from self.runtime.variable_store[self.variable_name]
 ```
@@ -218,8 +155,14 @@ class VariableSource(AbstractSource):
 #### Variable Assignment
 
 ```python
+from talkpipe.pipe.core import AbstractSegment
+
 class VariableSetSegment(AbstractSegment):
     """Stores pipeline data in a runtime variable."""
+    def __init__(self, variable_name: str):
+        self.variable_name = variable_name
+        self.runtime = type("Runtime", (), {"variable_store": {}})()
+
     def transform(self, items):
         list_of_items = list(items)
         self.runtime.variable_store[self.variable_name] = list_of_items
@@ -229,16 +172,25 @@ class VariableSetSegment(AbstractSegment):
 #### Variable Accumulation
 
 ```python
-@registry.register_segment("accum")
-class Accum(AbstractSegment):
+from talkpipe.chatterlang import registry
+from talkpipe.pipe.core import AbstractSegment
+
+@registry.register_segment("example_accum")
+class ExampleAccum(AbstractSegment):
     """Accumulates data across multiple pipeline runs."""
+    def __init__(self, variable_name=None):
+        super().__init__()
+        self.accumulator = []
+        self.variable_name = variable_name
+        self.runtime = type("Runtime", (), {"variable_store": {}})()
+
     def transform(self, items):
         for item in self.accumulator:
             yield item
         for item in items:
             self.accumulator.append(item)
             if self.variable_name:
-                self.runtime.variable_store[self.variable_name].append(item)
+                self.runtime.variable_store.setdefault(self.variable_name, []).append(item)
             yield item
 ```
 
@@ -248,45 +200,11 @@ class Accum(AbstractSegment):
 
 ### 2. Comment Processing
 
-The compiler includes a preprocessing step to remove comments while preserving string literals.  Any text on a line after a hash mark is considered a comment:
-
-```python
-def remove_comments(text: str) -> str:
-    """Remove comments starting with # outside quoted strings."""
-    result = []
-    in_quotes = False
-    i = 0
-    while i < len(text):
-        char = text[i]
-        if char == '"':
-            in_quotes = not in_quotes
-            result.append(char)
-        elif char == '#' and not in_quotes:
-            # Skip to end of line
-            while i < len(text) and text[i] != "\n":
-                i += 1
-            if i < len(text) and text[i] == "\n":
-                result.append("\n")
-        else:
-            result.append(char)
-        i += 1
-    return "".join(result)
-```
+The compiler preprocesses scripts to remove comments (text after `#` on a line) while preserving string literals.
 
 ### 3. Parameter Resolution
 
-The compiler resolves parameters from constants and runtime variables:
-
-```python
-def _resolve_params(params, runtime):
-    """Resolve parameters using constants and variables."""
-    return {
-        k: runtime.const_store[params[k].name] 
-           if isinstance(params[k], Identifier) 
-           else params[k] 
-        for k in params
-    }
-```
+The compiler resolves segment and source parameters from constants and runtime variables before passing them to the underlying Pipe API components.
 
 ## Applications and Tools
 
@@ -322,15 +240,19 @@ Interactive development environment with:
 
 **Example Integration**:
 ```python
-# Compile script
+from talkpipe.chatterlang import compile
+
+script_text = "INPUT FROM echo[data='Hello'] | print"
 compiled_instance = compile(script_text)
 
 # Execute non-interactive scripts
+is_interactive = False
 if not is_interactive:
     output_iterator = compiled_instance([])
     output_text = "\n".join(str(chunk) for chunk in output_iterator)
 
-# Handle interactive scripts  
+# Handle interactive scripts
+user_input = "Hello"
 if is_interactive:
     output_iterator = compiled_instance([user_input])
     # Stream results back to client
@@ -351,6 +273,8 @@ FastAPI server that processes JSON data through ChatterLang scripts:
 
 **Session Integration**:
 ```python
+from talkpipe.chatterlang import compile
+
 class UserSession:
     def compile_script(self, script_content: str):
         """Compile ChatterLang script for this session."""
@@ -362,115 +286,7 @@ class UserSession:
 
 ## Example Scripts
 
-All examples below are self-contained and can be pasted directly into the ChatterLang workbench to run.
-
-### Basic Data Processing
-
-```chatterlang
-# Generate and process sample data
-INPUT FROM echo[data="Alice,25,85|Bob,30,92|Charlie,22,78", delimiter="|"]
-| lambda[expression="item.split(',')"]
-| lambda[expression="{'name':item[0], 'age':item[1], 'score':item[2]}"]
-| toDict[field_list="name:Name,age:Age,score:Score"]
-| formatItem[field_list="Name,Age,Score"]
-| print
-```
-
-### Variable Storage and Reuse
-
-```chatterlang
-# Demonstrate variable storage
-INPUT FROM echo[data="apple,banana,cherry,date", delimiter=","]
-| @fruits
-| print;
-
-INPUT FROM @fruits
-| lambda[expression="len(item)"]
-| formatItem[field_list="_:Length"]
-| print;
-
-INPUT FROM @fruits
-| lambda[expression="item.upper()"]
-| print
-```
-
-### Data Filtering and Analysis
-
-```chatterlang
-# Filter and analyze numerical data
-INPUT FROM range[lower=1, upper=20]
-| lambda[expression="{'number': item, 'is_even': item % 2 == 0, 'square': item ** 2}"]
-| lambdaFilter[expression="item['is_even']"]
-| formatItem[field_list="number:Number,square:Square"]
-| print
-```
-
-### Conditional Processing
-
-```chatterlang
-# Process data with conditions
-INPUT FROM echo[data="5,15,25,35,45", delimiter=","]
-| cast[cast_type="int"]
-| lambda[expression="{'value': item, 'category': 'small' if item < 20 else 'large'}"]
-| formatItem[field_list="value:Value,category:Category"]
-| print
-```
-
-### String Manipulation
-
-```chatterlang
-# Advanced string processing
-INPUT FROM echo[data="The quick brown fox jumps over the lazy dog"]
-| lambda[expression="item.split()"]
-| flatten
-| lambda[expression="{'word': item, 'length': len(item), 'vowels': sum(1 for c in item.lower() if c in 'aeiou')}"]
-| lambdaFilter[expression="item['length'] > 3"]
-| formatItem[field_list="word:Word,length:Length,vowels:Vowels"]
-| firstN[n=5]
-| print
-```
-
-### Data Aggregation
-
-```chatterlang
-# Aggregate and summarize data
-INPUT FROM echo[data="10,20,30,40,50", delimiter=","]
-| cast[cast_type="int"]
-| toList
-| @numbers;
-
-INPUT FROM @numbers
-| lambda[expression="{'count': len(item), 'sum': sum(item), 'avg': sum(item)/len(item), 'max': max(item), 'min': min(item)}"]
-| formatItem[field_list="count:Count,sum:Sum,avg:Average,max:Maximum,min:Minimum"]
-| print
-```
-
-### Loop Processing
-
-```chatterlang
-# Use loops to process data multiple times
-INPUT FROM range[lower=1, upper=5]
-| @numbers;
-
-LOOP 3 TIMES {
-    INPUT FROM @numbers
-    | scale[multiplier=2]
-    | @numbers
-    | formatItem[field_list="_:Iteration Values"]
-    | print
-}
-```
-
-### Hash and Unique Processing
-
-```chatterlang
-# Demonstrate hashing and data transformation
-INPUT FROM echo[data="apple,banana,apple,cherry,banana,date", delimiter=","]
-| toDict[field_list="_:item"]
-| hash[field_list="item", algorithm="SHA256", set_as="hash_value"]
-| formatItem[field_list="_:Fruit,hash_value:Hash"]
-| print
-```
+To try ChatterLang scripts and explore examples interactively, use the **ChatterLang Workbench** (`chatterlang_workbench`). It provides a script editor with syntax highlighting, real-time execution, and an example script library. See [ChatterLang Workbench](../api-reference/chatterlang-workbench.md) for details.
 
 ## Key Benefits
 
@@ -501,6 +317,9 @@ The compilation process provides clear error messages and the workbench offers i
 Components self-register using decorators:
 
 ```python
+from talkpipe.chatterlang import registry
+from talkpipe.pipe.core import AbstractSegment
+
 @registry.register_segment("myTransform")
 class MyTransform(AbstractSegment):
     def __init__(self, param1=None):
@@ -517,6 +336,13 @@ class MyTransform(AbstractSegment):
 Compilation and runtime errors are properly handled and reported:
 
 ```python
+import logging
+from talkpipe.chatterlang import compile
+from fastapi import HTTPException
+
+logger = logging.getLogger(__name__)
+script_text = "INPUT FROM echo[data='Hello'] | print"
+
 try:
     compiled = compile(script_text)
     results = list(compiled([]))

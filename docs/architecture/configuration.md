@@ -252,6 +252,8 @@ TalkPipe applications perform validation on configuration values:
 Configuration is cached after first load to improve performance:
 
 ```python
+from talkpipe.util.config import get_config
+
 # Configuration is cached globally
 config = get_config()  # Loads from file/env first time
 config = get_config()  # Returns cached version

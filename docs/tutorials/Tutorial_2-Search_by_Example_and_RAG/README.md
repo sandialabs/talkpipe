@@ -164,6 +164,10 @@ chatterlang_serve --form-config story_by_example_ui.yml --load-module step_3_ext
 `step_3_extras.py` defines `ragPrompt`, which formats the user's example and retrieved documents into a prompt:
 
 ```python
+from talkpipe.util.data_manipulation import extract_property
+from talkpipe.chatterlang import register_segment
+from talkpipe.pipe import field_segment
+
 @register_segment("ragPrompt")
 @field_segment()
 def rag_prompt_segment(item):

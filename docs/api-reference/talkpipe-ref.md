@@ -337,9 +337,8 @@ chatterlang_reference_browser
 #### Documentation Validation
 
 **Check component registration**:
-```python
+```
 # After adding new components, verify they appear
-chatterlang_reference_generator
 chatterlang_reference_browser
 # > list your.package.name
 # > show yourNewComponent
@@ -392,6 +391,9 @@ Error running talkpipe_ref command: [Errno 2] No such file or directory
 
 **Documentation Standards**:
 ```python
+from talkpipe.chatterlang import registry
+from talkpipe.pipe import core
+
 @registry.register_segment("mySegment")
 @core.field_segment()
 def my_segment(item: str, multiplier: int = 1, 

@@ -26,8 +26,18 @@ Sources generate data for pipeline consumption. They implement the `AbstractSour
 #### Class-Based Sources
 
 ```python
+from contextlib import contextmanager
 from talkpipe.pipe.core import AbstractSource
+from talkpipe.pipe import io
 from typing import Iterator
+
+@contextmanager
+def get_connection(connection_string: str):
+    """Connect to database (stub: override with real implementation)."""
+    class Conn:
+        def execute(self, query):
+            return []  # Stub: return empty result
+    yield Conn()
 
 class DatabaseSource(AbstractSource[dict]):
     """Custom source that reads from a database."""
@@ -39,14 +49,14 @@ class DatabaseSource(AbstractSource[dict]):
     
     def generate(self) -> Iterator[dict]:
         """Generate records from database query."""
-        # Connect to database
         with get_connection(self.connection_string) as conn:
             for row in conn.execute(self.query):
                 yield dict(row)  # Convert to dictionary
 
 # Usage
 db_source = DatabaseSource("sqlite:///data.db", "SELECT * FROM users")
-pipeline = db_source | some_processor | output_segment
+pipeline = db_source | io.Print()
+list(pipeline())  # Run pipeline
 ```
 
 #### Function-Based Sources with Decorators
@@ -111,8 +121,12 @@ class JsonParseSegment(AbstractSegment[str, dict]):
                     continue
 
 # Usage
+from talkpipe.pipe import io
+
 json_parser = JsonParseSegment(fail_on_invalid=False)
-pipeline = json_source | json_parser | data_processor
+json_source = io.echo(data='{"a":1}|{"b":2}', delimiter="|")
+pipeline = json_source | json_parser | io.Print()
+list(pipeline())  # Run pipeline
 ```
 
 #### Function-Based Segments with Decorators
@@ -154,6 +168,11 @@ get_domain = extract_domain(field="email", set_as="domain")
 **Error Handling Segments:**
 
 ```python
+from logging import getLogger
+from talkpipe.pipe.core import segment
+
+logger = getLogger(__name__)
+
 @segment()
 def safe_process(items, processor_func, default_value=None):
     """Apply processor with error handling."""
@@ -171,6 +190,9 @@ def safe_process(items, processor_func, default_value=None):
 **Stateful Segments:**
 
 ```python
+from talkpipe.pipe.core import AbstractSegment
+from typing import Iterable, Iterator
+
 class WindowSegment(AbstractSegment):
     """Collect items into sliding windows."""
     
@@ -209,6 +231,7 @@ TalkPipe uses a registry system to manage and discover components:
 
 ```python
 import talkpipe.chatterlang.registry as registry
+from talkpipe.pipe.core import AbstractSegment, AbstractSource
 
 # Register segments for ChatterLang DSL
 @registry.register_segment("customParser")
@@ -288,7 +311,7 @@ class FilterKeysSegment(AbstractSegment):
 
 ```python
 # my_plugin/plugin.py
-from . import components  # Import triggers registration
+# In a real plugin package: from . import components  # Import triggers registration
 
 class NetworkPlugin:
     """Main plugin class referenced by entry point."""
@@ -309,6 +332,10 @@ network_plugin = "my_plugin.plugin:NetworkPlugin"
 
 **setup.py:**
 ```python
+# skip-extract  (setup() invokes distutils; not runnable in isolation)
+from setuptools import setup
+
+# Run with: pip install .
 setup(
     name="my-talkpipe-plugin",
     entry_points={
@@ -327,6 +354,7 @@ pip install my-talkpipe-plugin
 ```
 
 ```python
+# skip-extract  (requires plugin with httpGet, filterKeys to be installed)
 # Use in Python - plugins loaded automatically
 import talkpipe
 
@@ -354,6 +382,7 @@ talkpipe_plugins --reload network_plugin
 For simpler use cases, you can manually register components:
 
 ```python
+# skip-extract  (relative imports require package layout)
 # my_plugin/registry.py
 import talkpipe.chatterlang.registry as registry
 from .sources import MyCustomSource
@@ -394,6 +423,9 @@ from talkpipe.data.rss import *
 Components register themselves when their modules are imported:
 
 ```python
+import talkpipe.chatterlang.registry as registry
+from talkpipe.pipe.core import AbstractSegment
+
 # In any module
 @registry.register_segment("myComponent")
 class MyComponent(AbstractSegment):
@@ -408,6 +440,15 @@ For fine-grained control, components can be registered manually:
 
 ```python
 from talkpipe.chatterlang import registry
+from talkpipe.pipe.core import AbstractSegment, AbstractSource
+
+class MySegment(AbstractSegment):
+    def transform(self, input_iter):
+        yield from input_iter
+
+class MySource(AbstractSource):
+    def generate(self):
+        yield "example"
 
 # Manual registration
 registry.segment_registry.register(MySegment, name="mySegment")
@@ -427,6 +468,11 @@ all_sources = registry.input_registry.all
 Custom sources must implement:
 
 ```python
+from talkpipe.pipe.core import AbstractSource
+from typing import Iterator, TypeVar
+
+OutputType = TypeVar("OutputType")
+
 class CustomSource(AbstractSource[OutputType]):
     def generate(self) -> Iterator[OutputType]:
         """REQUIRED: Generate data items."""
@@ -440,6 +486,12 @@ class CustomSource(AbstractSource[OutputType]):
 Custom segments must implement:
 
 ```python
+from talkpipe.pipe.core import AbstractSegment
+from typing import Iterable, Iterator, TypeVar
+
+InputType = TypeVar("InputType")
+OutputType = TypeVar("OutputType")
+
 class CustomSegment(AbstractSegment[InputType, OutputType]):
     def transform(self, input_iter: Iterable[InputType]) -> Iterator[OutputType]:
         """REQUIRED: Transform input stream to output stream."""
@@ -478,6 +530,11 @@ def transform(self, input_iter):
 - Support optional graceful degradation
 
 ```python
+from logging import getLogger
+logger = getLogger(__name__)
+class SpecificError(Exception): pass
+class ProcessingError(Exception): pass
+
 def transform(self, input_iter):
     for item in input_iter:
         try:
@@ -497,6 +554,7 @@ def transform(self, input_iter):
 - Leverage generic type parameters for type safety
 
 ```python
+from talkpipe.pipe.core import AbstractSegment
 from typing import TypeVar, Generic, Iterator, Iterable
 
 T = TypeVar('T')
@@ -517,6 +575,7 @@ class TypedSegment(AbstractSegment[T, U], Generic[T, U]):
 
 ```python
 import warnings
+from talkpipe.pipe.core import AbstractSegment
 
 class LegacySegment(AbstractSegment):
     def __init__(self, old_param=None, new_param=None):
@@ -537,7 +596,16 @@ class LegacySegment(AbstractSegment):
 
 ```python
 import unittest
-from your_extension import CustomSegment
+from talkpipe.pipe.core import AbstractSegment
+
+class CustomSegment(AbstractSegment):
+    def __init__(self, fail_on_error=False):
+        self.fail_on_error = fail_on_error
+    def transform(self, input_iter):
+        for item in input_iter:
+            if self.fail_on_error and item == "invalid_input":
+                raise ValueError("invalid")
+            yield item * 2
 
 class TestCustomSegment(unittest.TestCase):
     def test_basic_functionality(self):
@@ -560,6 +628,7 @@ class TestCustomSegment(unittest.TestCase):
 **Integration Testing:**
 
 ```python
+# skip-extract  (fragment: source, output_segment from pipeline context)
 def test_pipeline_integration(self):
     """Test segment works in pipeline context."""
     pipeline = source() | CustomSegment() | output_segment()

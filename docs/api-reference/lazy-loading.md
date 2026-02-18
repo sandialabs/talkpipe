@@ -73,6 +73,7 @@ TalkPipe uses a hybrid registry that combines decorator-based registration with 
 When you request a component by name:
 
 ```python
+from talkpipe.chatterlang.registry import segment_registry
 segment_registry.get("print")
 ```
 
@@ -90,6 +91,7 @@ The registry follows this process:
 When you access all components:
 
 ```python
+from talkpipe.chatterlang.registry import segment_registry
 all_segments = segment_registry.all
 ```
 
@@ -280,6 +282,7 @@ Place components that are often used together in the same module:
 ```python
 # Good: data_io.py - components commonly used together
 from talkpipe.chatterlang.registry import register_segment
+from talkpipe.pipe.core import AbstractSegment
 
 @register_segment("readJson")
 class ReadJson(AbstractSegment):
@@ -292,31 +295,12 @@ class WriteJson(AbstractSegment):
     pass
 ```
 
-#### 2. Isolate Heavy Dependencies
 
-Place components with heavy or optional dependencies in separate modules:
-
-```python
-# ml_segments.py - isolated because it requires tensorflow
-import tensorflow as tf  # Heavy import
-
-@register_segment("tensorflowPredict")
-class TensorFlowPredict(AbstractSegment):
-    pass
-
-# basic_segments.py - no heavy dependencies
-@register_segment("filter")
-class Filter(AbstractSegment):
-    pass
-```
-
-This way, users who don't need TensorFlow won't pay the cost of importing it.
-
-#### 3. Organize by Domain
+#### 2. Organize by Domain
 
 Structure components by domain or functionality:
 
-```python
+```
 # Project structure
 src/myproject/
     sources/
@@ -359,6 +343,7 @@ Enable lazy loading in these scenarios:
 
 2. **Documentation generators**: Need to discover all components but may not use them all
    ```python
+   from talkpipe.chatterlang.registry import segment_registry, enable_lazy_imports   
    enable_lazy_imports()
    all_segments = segment_registry.list_entry_points()  # Fast discovery
    ```
@@ -386,33 +371,7 @@ Enable lazy loading in these scenarios:
 
 When developing TalkPipe plugins, follow these guidelines:
 
-#### 1. Use Lazy Imports Within Your Code
-
-Avoid importing heavy dependencies at module level:
-
-```python
-# Bad: Heavy import at module level
-from talkpipe.chatterlang.registry import register_segment
-import tensorflow as tf  # Loaded even if segment never used
-
-@register_segment("tfPredict")
-class TensorFlowPredict(AbstractSegment):
-    def transform(self, input_iter):
-        # Use tf here
-        pass
-
-# Good: Import only when needed
-from talkpipe.chatterlang.registry import register_segment
-
-@register_segment("tfPredict")
-class TensorFlowPredict(AbstractSegment):
-    def transform(self, input_iter):
-        import tensorflow as tf  # Loaded only when segment actually runs
-        # Use tf here
-        pass
-```
-
-#### 2. Provide Multiple Granularity Levels
+#### 1. Provide Multiple Granularity Levels
 
 Offer both bundled and granular entry points:
 
@@ -429,20 +388,22 @@ mlTrain = "myplugin.ml.train"
 mlEvaluate = "myplugin.ml.evaluate"
 ```
 
-#### 3. Document Dependency Requirements
+#### 2. Document Dependency Requirements
 
 Make it clear which components have special requirements:
 
 ```python
-@register_segment("tfPredict")
-class TensorFlowPredict(AbstractSegment):
+from talkpipe.chatterlang.registry import register_segment
+from talkpipe.pipe.core import AbstractSegment
+
+@register_segment("csvProcess")
+class CsvProcess(AbstractSegment):
     """
-    Run TensorFlow predictions on input data.
+    Process CSV data using the csv module.
 
-    Requires: tensorflow>=2.0
+    Requires: csv (stdlib)
 
-    This segment will only be loaded if TensorFlow is installed.
-    Install with: pip install tensorflow
+    For large datasets, consider: pip install pandas
     """
     pass
 ```
@@ -484,18 +445,18 @@ Here's a real-world example of restructuring for lazy loading:
 ```python
 # components.py (slow to load)
 from talkpipe.chatterlang.registry import register_segment
-import pandas as pd
-import numpy as np
-import tensorflow as tf
-import torch
-from sklearn import *
+from talkpipe.pipe.core import AbstractSegment
+import csv
+import sqlite3
+import xml.etree.ElementTree as ET
+import decimal
 
 # 50+ segments all in one file
-@register_segment("pandasFilter")
-class PandasFilter(AbstractSegment): pass
+@register_segment("csvFilter")
+class CsvFilter(AbstractSegment): pass
 
-@register_segment("tfPredict")
-class TFPredict(AbstractSegment): pass
+@register_segment("sqliteQuery")
+class SqliteQuery(AbstractSegment): pass
 
 # ... 48 more segments
 ```
@@ -504,6 +465,7 @@ class TFPredict(AbstractSegment): pass
 ```python
 # segments/basic.py (fast to load, no heavy deps)
 from talkpipe.chatterlang.registry import register_segment
+from talkpipe.pipe.core import AbstractSegment
 
 @register_segment("filter")
 class Filter(AbstractSegment): pass
@@ -511,26 +473,28 @@ class Filter(AbstractSegment): pass
 @register_segment("map")
 class Map(AbstractSegment): pass
 
-# segments/dataframe.py (moderate deps)
+# segments/data_io.py (moderate deps)
 from talkpipe.chatterlang.registry import register_segment
+from talkpipe.pipe.core import AbstractSegment
 
-@register_segment("pandasFilter")
-class PandasFilter(AbstractSegment):
+@register_segment("csvFilter")
+class CsvFilter(AbstractSegment):
     def transform(self, input_iter):
-        import pandas as pd  # Lazy import
-        # Use pandas here
+        import csv  # Lazy import
+        # Use csv here
 
-# segments/ml_tensorflow.py (heavy deps)
+# segments/database.py (stdlib deps)
 from talkpipe.chatterlang.registry import register_segment
+from talkpipe.pipe.core import AbstractSegment
 
-@register_segment("tfPredict")
-class TFPredict(AbstractSegment):
+@register_segment("sqliteQuery")
+class SqliteQuery(AbstractSegment):
     def transform(self, input_iter):
-        import tensorflow as tf  # Lazy import
-        # Use tensorflow here
+        import sqlite3  # Lazy import
+        # Use sqlite3 here
 ```
 
-**Result**: Users who only need basic filtering get **10x faster startup** because TensorFlow and PyTorch are never imported.
+**Result**: Users who only need basic filtering get **10x faster startup** because csv and sqlite3 are never imported. The same pattern applies to heavy ML libraries like TensorFlow or PyTorch.
 
 ## Troubleshooting
 

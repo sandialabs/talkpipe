@@ -14,6 +14,15 @@ At its foundation, TalkPipe operates on **generators** and **streams of independ
 - Processing is **lazy** - items flow through the pipeline on-demand, not all at once
 
 ```python
+from typing import Iterator, Iterable, TypeVar
+
+T = TypeVar("T")
+U = TypeVar("U")
+item1, item2 = "a", "b"
+
+def process(x):
+    return x
+
 # Source: generates items
 def generate(self) -> Iterator[U]:
     yield item1
@@ -34,6 +43,12 @@ The core pipe API places **no restrictions** on the types of objects that flow t
 - A segment may change the type of objects it emits compared to what it receives
 
 ```python
+import json
+from logging import getLogger
+from talkpipe.pipe.core import segment
+
+logger = getLogger(__name__)
+
 # Valid: strings in, dictionaries out
 @segment()
 def parse_json(items):
@@ -60,6 +75,8 @@ Segments can change the number of items in the stream:
 | **1:0/1** | Filter - some inputs produce no output | `filter()`, `skip_file()` |
 
 ```python
+from talkpipe.pipe.core import field_segment, segment
+
 # 1:N (multi-emit): One file yields multiple lines
 @field_segment(multi_emit=True)
 def read_lines(file_path):
@@ -146,6 +163,12 @@ TalkPipe provides utilities for working with dictionary items:
 ```python
 from talkpipe.util.data_manipulation import extract_property, assign_property
 
+item = {
+    "text": "Hello, world!",
+    "source": "user_input",
+    "metadata": {"language": "en", "processed": False}
+}
+
 # Extract nested fields using dot notation
 text = extract_property(item, "text")           # "Hello, world!"
 lang = extract_property(item, "metadata.language")  # "en"
@@ -158,6 +181,9 @@ item["metadata"]["processed"] = True
 
 The special value `"_"` refers to the entire item:
 ```python
+from talkpipe.util.data_manipulation import extract_property
+
+item = {"text": "Hello", "id": 1}
 whole_item = extract_property(item, "_")  # Returns the entire item
 ```
 
@@ -166,6 +192,8 @@ whole_item = extract_property(item, "_")  # Returns the entire item
 The `AbstractFieldSegment` base class implements the dictionary convention:
 
 ```python
+from talkpipe.pipe.core import AbstractFieldSegment
+
 class MyProcessor(AbstractFieldSegment):
     def __init__(self, field="text", set_as="processed"):
         super().__init__(field=field, set_as=set_as)
@@ -188,6 +216,8 @@ Key parameters:
 For function-based segments following the dictionary convention:
 
 ```python
+from talkpipe.pipe.core import field_segment
+
 @field_segment(field="text", set_as="word_count")
 def count_words(text):
     return len(text.split())
@@ -199,6 +229,8 @@ def count_words(text):
 Multi-emit field segments:
 
 ```python
+from talkpipe.pipe.core import field_segment
+
 @field_segment(multi_emit=True)
 def split_sentences(text):
     for sentence in text.split(". "):
@@ -228,6 +260,8 @@ TalkPipe's protocol operates at multiple layers:
 - Location: `talkpipe/pipe/basic.py`, `talkpipe/operations/`, etc.
 
 ```python
+from talkpipe.pipe.core import field_segment, segment
+
 # Convention-aware segment: expects dict with 'text' field
 @field_segment(field="text", set_as="length")
 def text_length(text):
@@ -275,6 +309,8 @@ While field names are flexible, these conventions are used in built-in segments:
 ### 1. Document Your Protocol
 
 ```python
+from talkpipe.pipe.core import segment
+
 @segment()
 def my_segment(items):
     """Process items in the pipeline.
@@ -291,6 +327,9 @@ def my_segment(items):
 ### 2. Be Defensive with Field Access
 
 ```python
+from talkpipe.util.data_manipulation import extract_property
+
+item = {"metadata": {}}
 # Good: Handle missing fields gracefully
 text = extract_property(item, "text", default="")
 
@@ -302,6 +341,11 @@ if "text" in item:
 ### 3. Preserve Unknown Fields
 
 ```python
+from talkpipe.pipe.core import segment
+
+def compute_enrichment(item):
+    return "enriched"
+
 # Good: Keep original fields, add new ones
 @segment()
 def enrich(items):
@@ -319,6 +363,11 @@ def bad_enrich(items):
 ### 4. Use Underscore Prefix for Internal Fields
 
 ```python
+from talkpipe.util.data_manipulation import assign_property
+
+item = {"metadata": {}}
+temp_value = "temp"
+constructed_prompt = "prompt"
 # Internal/temporary fields that shouldn't be exposed
 assign_property(item, "_intermediate_result", temp_value)
 assign_property(item, "_ragprompt", constructed_prompt)

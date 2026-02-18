@@ -42,6 +42,9 @@ def extract_python_blocks(content: str) -> list[tuple[int, str]]:
         line_num = content[: match.start()].count("\n") + 1
         # Strip common leading indentation from the code block
         code = _normalize_indentation(code)
+        # Skip blocks marked as non-runnable (e.g. setup.py, pyproject fragments)
+        if code.strip().startswith("# skip-extract"):
+            continue
         if code.strip():
             blocks.append((line_num, code))
     return blocks
@@ -115,7 +118,7 @@ def generate_runner_script(examples: list[tuple[Path, int, str]], output_path: P
         "    except ImportError:",
         "        pass",
         "",
-        "    namespace = {}",
+        "    namespace = {\"__name__\": \"__main__\", \"__package__\": None}",
         "    try:",
         "        exec(code, namespace)",
         "        return True",
@@ -134,21 +137,36 @@ def generate_runner_script(examples: list[tuple[Path, int, str]], output_path: P
     for rel_path, line_num, code in examples:
         # Escape for embedding in triple-quoted string: \ and """
         escaped = code.replace("\\", "\\\\").replace('"""', r"\"\"\"")
-        location = str(rel_path).replace("\\", "\\\\")
-        lines.append(f'        ("{location}:{line_num}", """')
+        path_str = str(rel_path).replace("\\", "\\\\")
+        lines.append(f'        ("{path_str}", {line_num}, """')
         lines.append(escaped)
         lines.append('"""),')
 
+    fail_index_path = "Path(__file__).resolve().parent / '.extracted_examples_fail_index'"
     lines.extend(
         [
             "    ]",
             "",
-            "    for i, (location, code) in enumerate(examples):",
-            '        print(f"\\n--- {location} ---")',
-            "        if not run_example(location, code):",
-            '            print(f"\\nExiting: example {i + 1} failed.", file=sys.stderr)',
+            "    from pathlib import Path",
+            "",
+            f"    fail_index_path = {fail_index_path}",
+            "    start_index = 0",
+            "    try:",
+            "        with open(fail_index_path) as f:",
+            "            start_index = int(f.read().strip())",
+            "    except (FileNotFoundError, ValueError):",
+            "        pass",
+            "",
+            "    for i in range(start_index, len(examples)):",
+            "        path, line_num, code = examples[i]",
+            '        print(f"\\n--- {Path(path).name}:{line_num} ---")',
+            '        print(f"  {path}")',
+            "        if not run_example(f\"{path}:{line_num}\", code):",
+            "            fail_index_path.write_text(str(i))",
+            '            print(f"\\nExiting: example {i + 1} failed. Run again to retry from here.", file=sys.stderr)',
             "            sys.exit(1)",
             "",
+            "    fail_index_path.unlink(missing_ok=True)",
             '    print(f"\\n--- All {len(examples)} examples passed ---")',
             "",
             "",
