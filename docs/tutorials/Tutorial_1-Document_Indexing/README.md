@@ -27,7 +27,7 @@ TalkPipe lets you prototype searchable document systems without external databas
 
 ## Prerequisites
 
-- **TalkPipe** installed: `pip install talkpipe[ollama]` (or `talkpipe[all]`)
+- **TalkPipe** installed: See [Getting Started](../../quickstart.md) for installation. For this tutorial: `pip install talkpipe[ollama]` or `talkpipe[all]`
 - **Step 1 only**: Ollama installed locally with the `llama3.2` model (or adjust the script to use another model)
 
 > **Tip:** If you skip Step 1, you can use the included `stories.json` and go straight to Step 2.
@@ -64,16 +64,18 @@ You need documents to search. In real projects you might use papers, wikis, or t
 
 A ChatterLang pipeline in `Step_1_CreateSyntheticData.script` generates 50 short stories using an LLM:
 
-```
+```chatterlang
 INPUT FROM "Generating 50 synthetic stories into stories.json" | print;
 INPUT FROM echo[data="Write a fictitious five sentence story about technology development in an imaginary country.", n=50]
 | llmPrompt[source="ollama", model="llama3.2", multi_turn=False]
 | toDict[field_list="_:content"]
 | llmPrompt[source="ollama", model="llama3.2", system_prompt="Write exactly one title for this story in plain text with no markdown", field="content", set_as="title", multi_turn=False]
 | progressTicks[tick_count=1, eol_count=10, print_count=true]
-| dumpsJsonl
+| dumpsJsonl 
 | writeString[fname="stories.json"];
 ```
+
+**Expected result:** `stories.json` is created with 50 JSONL entries (one story per line). Progress ticks appear in the terminal.
 
 **Run it:**
 
@@ -105,12 +107,14 @@ Raw text files don’t support queries like “find stories about quantum comput
 
 Whoosh creates a full-text index from `stories.json`:
 
-```
+```chatterlang
 INPUT FROM "stories.json"
 | readJsonl
 | progressTicks[tick_count=1, print_count=True]
 | indexWhoosh[index_path="./full_text_index", field_list="content,title", overwrite=True]
 ```
+
+**Expected result:** Directory `full_text_index/` is created. Progress output shows 50 items indexed.
 
 **Run it:**
 
@@ -144,9 +148,9 @@ You need both a UI for humans and an API for other systems. TalkPipe provides bo
 
 ### The Solution
 
-`chatterlang_serve` starts a server with a search form and JSON API. The pipeline in `Step_3_SearchStories.script`:
+`chatterlang_serve` starts a server with a search form and JSON API. Pipeline segment from `Step_3_SearchStories.script` (receives query from form/API):
 
-```
+```chatterlang
 | searchWhoosh[index_path="full_text_index", field="query"]
 | formatItem[field_list="document.title:Title,document.content:Content,score:Score"]
 ```
@@ -178,14 +182,29 @@ curl -X POST http://localhost:2025/process \
 
 `story_search_ui.yml` defines the web form (fields, layout, theme). You can change the UI without touching the search logic.
 
+**Expected result:** Server starts and prints a URL (e.g. `http://localhost:2025`). Open `{url}/stream` for the search form. Searching returns matching stories with title, content, and score.
+
+---
+
+## Troubleshooting
+
+| Issue | Cause | Fix |
+|-------|-------|-----|
+| Connection refused / Ollama error | Ollama not running | Start Ollama: `ollama serve` (or launch the Ollama app) |
+| Model not found | `llama3.2` not installed | Run `ollama pull llama3.2` |
+| File not found / path errors | Wrong working directory | Run all commands from `docs/tutorials/Tutorial_1-Document_Indexing` |
+| Port already in use | Another process on 2025 | Use `--port 2026` (or another port) with `chatterlang_serve` |
+
 ---
 
 ## Next Steps
 
-- **Tutorial 2**: Add semantic search and RAG with vector embeddings.
-- **Tutorial 3**: Build report generation from search results.
+- Add semantic search and RAG: [Tutorial 2: Search by Example and RAG](../Tutorial_2-Search_by_Example_and_RAG/)
+- Build report generation: [Tutorial 3](../Tutorial_3_Report_Writing/)
 - **Customize**: Swap prompts, models, or indexes; the pipeline structure stays the same.
+
+**Next:** [Tutorial 2: Search by Example and RAG](../Tutorial_2-Search_by_Example_and_RAG/)
 
 ---
 
-*Last reviewed: 20260212*
+*Last reviewed: 20260219*

@@ -28,7 +28,7 @@ Keyword search breaks when users ask "find documents similar to this" or "show m
 ## Prerequisites
 
 - **Tutorial 1 completed**: `stories.json` must exist at `../Tutorial_1-Document_Indexing/stories.json`
-- **TalkPipe** installed: `pip install talkpipe[ollama]` (or `talkpipe[all]`)
+- **TalkPipe** installed: See [Getting Started](../../quickstart.md). For this tutorial: `pip install talkpipe[ollama]` or `talkpipe[all]`
 - **Ollama** with these models:
   - `mxbai-embed-large` (embeddings): `ollama pull mxbai-embed-large`
   - `llama3.2` (Step 3 only): `ollama pull llama3.2`
@@ -65,13 +65,15 @@ Traditional search matches words. "car" won't find "automobile"; "running quickl
 
 Embed each story with `llmEmbed` and store vectors in LanceDB:
 
-```
+```chatterlang
 INPUT FROM "../Tutorial_1-Document_Indexing/stories.json"
 | readJsonl
 | progressTicks[tick_count=1, print_count=True]
 | llmEmbed[field="content", source="ollama", model="mxbai-embed-large", set_as="vector"]
 | addToLanceDB[path="./vector_index", table_name="stories", vector_field="vector", metadata_field_list="title,content", overwrite=True]
 ```
+
+**Expected result:** Directory `vector_index/` is created with LanceDB tables. Progress output shows 50 items embedded and stored.
 
 **Run it:**
 
@@ -99,14 +101,16 @@ Users often have an example and want similar content—a support agent pasting a
 
 ### The Solution
 
-Embed the user's example, search the vector index, format results:
+Pipeline segment from `Step_2_SearchByExample.script` (receives `example` from form/API):
 
-```
+```chatterlang
 | copy
 | llmEmbed[field="example", source="ollama", model="mxbai-embed-large", set_as="vector"]
 | searchLanceDB[field="vector", path="./vector_index", table_name="stories", limit=10]
 | formatItem[field_list="document.title:Title, document.content:Content, score:Score"]
 ```
+
+**Expected result:** Server starts. Paste text in the form; similar stories appear with title, content, and similarity score.
 
 **Run it:**
 
@@ -135,15 +139,17 @@ Finding relevant documents is useful, but users often want a synthesized answer�
 
 ### The Solution
 
-Retrieve documents, build a RAG prompt with context, and generate an answer:
+Pipeline segment from `Step_3_SpecializedRag.script` (retrieves docs, builds prompt, generates answer):
 
-```
+```chatterlang
 | copy
 | llmEmbed[field="example", source="ollama", model="mxbai-embed-large", set_as="vector"]
 | searchLanceDB[field="vector", path="./vector_index", table_name="stories", all_results_at_once=True, set_as="results"]
 | ragPrompt
 | llmPrompt[source="ollama", model="llama3.2"]
 ```
+
+**Expected result:** Server starts. Paste a question or example; the LLM returns an answer grounded in the retrieved stories, with sources listed.
 
 **Run it:**
 
@@ -164,6 +170,7 @@ chatterlang_serve --form-config story_by_example_ui.yml --load-module step_3_ext
 `step_3_extras.py` defines `ragPrompt`, which formats the user's example and retrieved documents into a prompt:
 
 ```python
+# skip-extract  (fragment: custom segment for use with --load-module)
 from talkpipe.util.data_manipulation import extract_property
 from talkpipe.chatterlang import register_segment
 from talkpipe.pipe import field_segment
@@ -194,6 +201,17 @@ The `--load-module step_3_extras.py` flag registers this segment so the script c
 
 ---
 
+## Troubleshooting
+
+| Issue | Cause | Fix |
+|-------|-------|-----|
+| Connection refused / Ollama error | Ollama not running | Start Ollama: `ollama serve` |
+| Model not found | Embedding or LLM model not installed | Run `ollama pull mxbai-embed-large` and `ollama pull llama3.2` |
+| stories.json not found | Tutorial 1 not completed or wrong path | Complete Tutorial 1 first; run from `docs/tutorials/Tutorial_2-Search_by_Example_and_RAG` |
+| Port already in use | Another process on default port | Use `--port 2026` with `chatterlang_serve` |
+
+---
+
 ## Key Takeaways
 
 - **Vector search captures meaning**: Same concepts map close together even with different wording
@@ -205,9 +223,11 @@ The `--load-module step_3_extras.py` flag registers this segment so the script c
 
 ## Next Steps
 
-- **Tutorial 3**: Use this vector index for report generation and summaries
+- **Next: [Tutorial 3: Report Generation](../Tutorial_3_Report_Writing/)** — Use this vector index for report generation and summaries
 - **Customize**: Swap embedding models, adjust the RAG prompt, or add filters
+
+**Previous:** [Tutorial 1: Document Indexing](../Tutorial_1-Document_Indexing/) | **Next:** [Tutorial 3: Report Generation](../Tutorial_3_Report_Writing/)
 
 ---
 
-*Last reviewed: 20260212*
+*Last reviewed: 20260219*

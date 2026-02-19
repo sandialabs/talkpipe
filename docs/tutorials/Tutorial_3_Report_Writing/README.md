@@ -28,7 +28,7 @@ Tutorial 2 showed how to answer questions with RAG. This tutorial goes further: 
 ## Prerequisites
 
 - **Tutorials 1 and 2 completed**: Vector index must exist at `../Tutorial_2-Search_by_Example_and_RAG/vector_index`
-- **TalkPipe** installed: `pip install talkpipe[ollama]` (or `talkpipe[all]`)
+- **TalkPipe** installed: See [Getting Started](../../quickstart.md). For this tutorial: `pip install talkpipe[ollama]` or `talkpipe[all]`
 - **Ollama** with these models:
   - `mxbai-embed-large` (embeddings): `ollama pull mxbai-embed-large`
   - `llama3.2` (generation): `ollama pull llama3.2`
@@ -63,15 +63,17 @@ Executives need concise overviews that synthesize multiple documents. Manual sum
 
 ### The Solution
 
-Embed the topic, retrieve relevant documents, and generate a structured executive summary:
+Pipeline segment from `Step_1_ExecutiveSummaryGeneration.script` (receives `topic` from form):
 
-```
+```chatterlang
 | copy
 | llmEmbed[field="topic", source="ollama", model="mxbai-embed-large", set_as="vector"]
 | searchLanceDB[field="vector", path="../Tutorial_2-Search_by_Example_and_RAG/vector_index", table_name="stories", all_results_at_once=True, set_as="results"]
 | executiveSummaryPrompt
 | llmPrompt[source="ollama", model="llama3.2"]
 ```
+
+**Expected result:** Server starts. Enter a topic (e.g. "quantum computing"); receive a 500–750 word executive summary with key findings and strategic implications.
 
 **Run it:**
 
@@ -100,15 +102,17 @@ Executive summaries give overviews; stakeholders often need full reports with mu
 
 ### The Solution
 
-Generate section-specific prompts, then combine them into a cohesive document:
+Pipeline segment from `Step_2_DetailedAnalysisReportGeneration.script`:
 
-```
+```chatterlang
 | copy
 | llmEmbed[field="topic", source="ollama", model="mxbai-embed-large", set_as="vector"]
 | searchLanceDB[field="vector", path="../Tutorial_2-Search_by_Example_and_RAG/vector_index", table_name="stories", limit=10, all_results_at_once=True, set_as="results"]
 | generateReportSectionPrompts
 | generateDetailedReport[source="ollama", model="llama3.2"]
 ```
+
+**Expected result:** Server starts. Enter a topic; receive a multi-section report (intro, analysis, tech deep-dive, future implications, recommendations, sources).
 
 **Run it:**
 
@@ -139,14 +143,16 @@ Different audiences need different presentations—execs want briefs, technical 
 
 ### The Solution
 
-Let the user choose a format; generate content tailored to that format:
+Pipeline segment from `Step_3_MultiFormatReportGeneration.script` (receives `topic` and `format` from form):
 
-```
+```chatterlang
 | copy
 | llmEmbed[field="topic", source="ollama", model="mxbai-embed-large", set_as="vector"]
 | searchLanceDB[field="vector", path="../Tutorial_2-Search_by_Example_and_RAG/vector_index", table_name="stories", limit=10, all_results_at_once=True, set_as="results"]
 | generateMultiFormatReport[source="ollama", model="llama3.2"]
 ```
+
+**Expected result:** Server starts. Enter a topic and choose a format (Executive Brief, Technical Report, etc.); receive a report tailored to that format.
 
 **Run it:**
 
@@ -188,6 +194,17 @@ The `--load-module` flag registers these so the scripts can use them.
 
 ---
 
+## Troubleshooting
+
+| Issue | Cause | Fix |
+|-------|-------|-----|
+| Connection refused / Ollama error | Ollama not running | Start Ollama: `ollama serve` |
+| Model not found | Embedding or LLM model not installed | Run `ollama pull mxbai-embed-large` and `ollama pull llama3.2` |
+| vector_index not found | Tutorial 2 not completed | Complete Tutorial 2 first; run from `docs/tutorials/Tutorial_3_Report_Writing` |
+| Port already in use | Another process on default port | Use `--port 2026` with `chatterlang_serve` |
+
+---
+
 ## Key Takeaways
 
 - **RAG scales to document generation**: Retrieval + generation can produce full reports, not just Q&A
@@ -201,6 +218,8 @@ The `--load-module` flag registers these so the scripts can use them.
 
 See [file_structure.md](file_structure.md) for a complete list of files in this tutorial.
 
+**Previous:** [Tutorial 2: Search by Example and RAG](../Tutorial_2-Search_by_Example_and_RAG/)
+
 ---
 
-*Last reviewed: 20260212*
+*Last reviewed: 20260219*

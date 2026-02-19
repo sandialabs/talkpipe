@@ -1,6 +1,6 @@
 # Getting Started with TalkPipe
 
-Welcome to TalkPipe! This guide will help you get up and running quickly with TalkPipe's dual-language architecture for building AI-powered data processing pipelines.
+This guide gets you up and running with TalkPipe's dual-language architecture for building data processing pipelines. You can start with **no LLM**—examples below work with the base install—then add LLM support when you're ready.
 
 ## Installation
 
@@ -8,147 +8,147 @@ Welcome to TalkPipe! This guide will help you get up and running quickly with Ta
 pip install talkpipe
 ```
 
-For LLM support, install the provider(s) you need:
-```bash
-# Install specific providers
-pip install talkpipe[openai]    # For OpenAI
-pip install talkpipe[ollama]    # For Ollama
-pip install talkpipe[anthropic] # For Anthropic Claude
+The base install includes data processing, file I/O, search (Whoosh, LanceDB), and web serving. For LLM and PDF support, add optional extras:
 
-# Or install all LLM providers
+```bash
+# LLM providers (install one or more)
+pip install talkpipe[ollama]      # Local models via Ollama
+pip install talkpipe[openai]      # OpenAI (GPT-4, etc.)
+pip install talkpipe[anthropic]   # Anthropic Claude
+
+# PDF extraction
+pip install talkpipe[pypdf]
+
+# Combine extras
+pip install talkpipe[ollama,pypdf]
+pip install talkpipe[openai,anthropic]
+
+# Everything: all LLM providers + PDF
 pip install talkpipe[all]
 ```
 
+| Extra | Adds |
+|-------|------|
+| `ollama` | `ollama` package for local models |
+| `openai` | `openai` package for OpenAI API |
+| `anthropic` | `anthropic` package for Claude |
+| `pypdf` | `pypdf` for PDF text extraction |
+| `all` | All of the above |
+
 ## Basic Concepts
 
-TalkPipe provides two ways to build data processing pipelines:
+TalkPipe provides two ways to build pipelines:
 
 - **Pipe API (Internal DSL)**: Pure Python using the `|` operator
 - **ChatterLang (External DSL)**: Concise text-based syntax
 
-Both approaches use the same underlying components and can be mixed freely.
+Both use the same components and can be mixed.
 
-## Your First Pipeline
+## Your First Pipeline (No LLM Required)
 
-### Using ChatterLang
-
-Create a simple chat interface in python:
+### ChatterLang
 
 ```python
 from talkpipe.chatterlang import compiler
 
-# Define a pipeline that prompts an LLM and prints the response.  Assumed Ollama is installed locally and llama3.2 is downloaded.
+script = 'INPUT FROM echo[data="hello,world,test"] | print'
+pipeline = compiler.compile(script).as_function(single_out=False)
+
+result = pipeline()
+# Prints: hello, world, test (each on its own line)
+# Returns: ['hello', 'world', 'test']
+```
+
+### Pipe API
+
+```python
+from talkpipe.pipe import io
+
+pipeline = io.echo(data="hello,world,test") | io.Print()
+result = pipeline.as_function(single_out=False)()
+
+# Same output and return value
+```
+
+### Data Transformation (No LLM)
+
+```python
+from talkpipe.chatterlang import compiler
+
+# Parse numbers, filter, and print
+script = 'INPUT FROM echo[data="1,2,hello,3,4"] | cast[cast_type="int"] | print'
+pipeline = compiler.compile(script).as_function(single_out=False)
+pipeline()  # Skips "hello", prints 1, 2, 3, 4
+```
+
+## Your First Pipeline (With LLM)
+
+Requires `talkpipe[ollama]` and Ollama running with a model (e.g. `ollama pull llama3.2`).
+
+### ChatterLang
+
+```python
+from talkpipe.chatterlang import compiler
+
 script = '| llmPrompt[model="llama3.2", source="ollama"] | print'
 chat = compiler.compile(script).as_function(single_in=True, single_out=True)
 
-# Use it
 response = chat("Hello! Tell me about the history of computers.")
 ```
 
-### Using the Pipe API
-
-A similar interactive pipeline in pure Python:
+### Pipe API
 
 ```python
 from talkpipe.pipe import io
 from talkpipe.llm import chat
 
-# Create pipeline using the | operator
 pipeline = io.Prompt() | chat.LLMPrompt(model="llama3.2", source="ollama") | io.Print()
 pipeline_func = pipeline.as_function()
-
-# Run it
-pipeline_func()  # This will prompt for input interactively
+pipeline_func()  # Prompts for input interactively
 ```
 
 ## Web Interface
 
-Create a web interface for your pipeline from the command line:
+Use `--display-property` so the stream UI shows the input field value instead of raw JSON. Use `formatItem` to format output for readable display.
+
+### Without LLM (Echo / Transform)
 
 ```bash
-# Use single quotes to avoid escaping double quotes inside
-chatterlang_serve --port 2025 --display-property prompt --script '| llmPrompt[model="llama3.2", source="ollama", field="prompt"]'
+chatterlang_serve --port 2025 --display-property prompt --script '| formatItem[field_list="prompt:You entered"] | print'
 ```
 
-Open http://localhost:2025/stream in your browser to interact with your pipeline through a web form.
+Open http://localhost:2025/stream. Type in the form and submit; the pipeline echoes your input as formatted text.
 
-## Debug Pipelines with diagPrint
+### With LLM
 
-Use `diagPrint` to inspect data as it flows through a pipeline without altering outputs.
-
-### Pipe API
-
-```python
-from talkpipe.pipe import basic
-
-debug = basic.DiagPrint(
-	label="chunk",
-	field_list="id,text",
-	expression="len(item['text'])",
-	output="stderr",  # or a logger name
-)
-pipeline = debug | basic.firstN(n=3)
-list(pipeline([{"id": 1, "text": "hello world"}]))
+```bash
+chatterlang_serve --port 2025 --display-property prompt --script '| llmPrompt[model="llama3.2", source="ollama", field="prompt"] | print'
 ```
 
-### ChatterLang
-
-```
-| diagPrint[label="chunk", field_list="id,text", expression="len(item['text'])", output="stderr"]
-```
-
-### Config-driven output
-
-Set a config key (e.g., in `~/.talkpipe.toml`):
-
-```toml
-diag_output = "stderr"
-```
-
-Then point `diagPrint` to it:
-
-```
-| diagPrint[output="config:diag_output"]
-```
-
-Tips:
-- Use `field_list` to print only the fields you need.
-- `None` or `"None"` for `output` suppresses all diagnostic output.
-- The elapsed time line shows spacing between successive items.
+Open http://localhost:2025/stream to chat with the LLM.
 
 ## Next Steps
 
 ### Learn the Tools
 
-- **[chatterlang_serve](api-reference/chatterlang-server.md)** - Create web APIs and forms
-- **[chatterlang_workbench](api-reference/chatterlang-workbench.md)** - Interactive development environment
+- **[chatterlang_serve](api-reference/chatterlang-server.md)** - Web APIs and forms
+- **[chatterlang_workbench](api-reference/chatterlang-workbench.md)** - Interactive development
 - **[chatterlang_script](api-reference/chatterlang-script.md)** - Run scripts from files
 
 ### Explore Tutorials
 
-Check out the [tutorials directory](tutorials/) for complete tutorials:
-- Document indexing and search
-- RAG (Retrieval-Augmented Generation) systems  
-- Multi-format report generation
+[Tutorials](tutorials/) walk through document indexing, RAG, and report generation. Tutorial 1 can use the included `stories.json` if you skip the LLM data-generation step.
 
 ### Extend with Plugins
 
-TalkPipe supports plugins to add custom functionality:
-
 ```bash
-# List installed plugins
 talkpipe_plugins --list
-
-# Install third-party plugins
 pip install talkpipe-some-plugin
 ```
 
-Plugins automatically extend ChatterLang with new sources and segments. See [Extending TalkPipe](architecture/extending-talkpipe.md) to create your own plugins.
+See [Extending TalkPipe](architecture/extending-talkpipe.md) to create plugins.
 
 ### Dive Deeper
 
 - [Architecture](architecture/) - Technical deep-dives
-- [API Reference](api-reference/) - Complete command reference
-
-
-Ready to build something amazing? Start with the [tutorials](tutorials/)!
+- [API Reference](api-reference/) - Command reference

@@ -1,5 +1,17 @@
 # Changelog
 
+## Unreleased
+- Improved tutorial documentation: condensed main tutorials README with learning path diagram,
+  linked to quickstart for installation; added navigation links, expected outputs, and
+  troubleshooting sections to all three tutorials; added chatterlang language tags and
+  snippet intent labels; fixed file_structure.md header and documented step3_extras naming.
+- Clarified tutorial docs: "Get Started in 5 Minutes" now lists all three steps (search UI
+  requires Step 3); Key Concepts and Beyond the Web Interface no longer imply Elasticsearch
+  or Pinecone are built-in—they are custom segments or plugins you can add.
+- Rewrote quickstart.md: added non-LLM examples (echo, cast, formatItem) so users can run
+  pipelines without Ollama/OpenAI; documented all pip install extras (ollama, openai,
+  anthropic, pypdf, all); reordered content with no-LLM examples first.
+
 ## 0.11.4
 - Documentation example fixes: added missing imports and stubs to extending-talkpipe.md,
   metadata-stream.md, pipe-api.md; introduced `# skip-extract` for blocks that cannot run
