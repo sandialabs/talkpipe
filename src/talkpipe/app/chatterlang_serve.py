@@ -421,7 +421,7 @@ class ChatterlangServer:
         """Process JSON data and return response"""
         try:
             # Determine which processor to use
-            processor = session.compiled_script if session.compiled_script else self._default_print_processor
+            processor = session.compiled_script if session.compiled_script else self.processor_function
             
             # Process the data
             if session.compiled_script:

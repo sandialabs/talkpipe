@@ -2,6 +2,39 @@ from typing import Optional, Annotated
 from talkpipe import AbstractSegment, register_segment
 from talkpipe.search.lancedb import add_to_lancedb, search_lancedb
 from talkpipe.llm.embedding import LLMEmbed
+from talkpipe.data.extraction import listFiles, ReadFile
+from talkpipe.pipe.io import Print
+from talkpipe.pipe.basic import progressTicks, ToDict
+from talkpipe.data.text.chunking_units import ShingleText, splitText
+
+
+@register_segment("processDocuments")
+class ProcessDocumentsSegment(AbstractSegment):
+    """Segment to read files, split, shingle, and prepare documents for vector DB ingestion."""
+
+    def __init__(self,
+                 chunk_size: Annotated[int, "Size threshold for text chunking"] = 300,
+                 shingle_size: Annotated[int, "Size threshold for text chunking shingles"] = 3,
+                 overlap: Annotated[int, "Overlap threshold for text chunking shingles"] = 1,
+                 ):
+        super().__init__()
+        self.chunk_size = chunk_size
+        self.shingle_size = shingle_size
+        self.overlap = overlap
+
+        # listFiles is a segment expecting an iterable of patterns or values, so its input must be the patterns.
+        self.pipeline = (
+            listFiles(full_path=True, files_only=True)
+            | Print()
+            | ReadFile()
+            | splitText(field='content', set_as='content', criteria=self.chunk_size)
+            | ShingleText(field='content', set_as='shingle_text', shingle_size=self.shingle_size, overlap=self.overlap, size_mode='count', delimiter=' ')
+            | ToDict()
+            | progressTicks(tick=".", tick_count=1, eol_count=50)
+        )
+
+    def transform(self, input_iter):
+        yield from self.pipeline.transform(input_iter)
 
 
 @register_segment("makeVectorDatabase")
