@@ -23,13 +23,15 @@ class ProcessDocumentsSegment(AbstractSegment):
         self.overlap = overlap
 
         # listFiles is a segment expecting an iterable of patterns or values, so its input must be the patterns.
+        # ToDict extracts content, source, id, title, shingle_text so they are stored
+        # as separate metadata fields in the vector DB for source citation in RAG.
         self.pipeline = (
             listFiles(full_path=True, files_only=True)
             | Print()
             | ReadFile()
             | splitText(field='content', set_as='content', criteria=self.chunk_size)
             | ShingleText(field='content', set_as='shingle_text', shingle_size=self.shingle_size, overlap=self.overlap, size_mode='count', delimiter=' ')
-            | ToDict()
+            | ToDict(field_list="content,source,id,title,shingle_text")
             | progressTicks(tick=".", tick_count=1, eol_count=50)
         )
 

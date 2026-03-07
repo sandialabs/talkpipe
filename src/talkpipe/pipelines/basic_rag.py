@@ -11,9 +11,26 @@ from talkpipe.pipe.basic import DiagPrint
 
 logger = logging.getLogger(__name__)
 
+
+def _extract_source_paths(background: List) -> List[str]:
+    """Extract unique source paths (or titles) from search results for citation."""
+    seen = set()
+    paths = []
+    for result in background:
+        if not isinstance(result, SearchResult) or not result.document:
+            continue
+        doc = result.document
+        # Prefer source (full path), fallback to title (filename)
+        p = doc.get("source") or doc.get("title")
+        if p and p not in seen:
+            seen.add(p)
+            paths.append(p)
+    return paths
+
 # Default system prompts for RAG pipelines
 DEFAULT_RAG_SYSTEM_PROMPT = """You are a helpful assistant that answers questions based on provided background information.
-Ground your responses in the background context given. If the background does not contain sufficient information to answer the question, acknowledge this limitation rather than speculating or making up information.
+Ground your responses in the background context given. When citing information, include the source using the title or path (source) from the background when available.
+If the background does not contain sufficient information to answer the question, acknowledge this limitation rather than speculating or making up information.
 Be concise and accurate in your responses."""
 
 DEFAULT_BINARY_ANSWER_SYSTEM_PROMPT = "Answer the question with YES (true) or NO (false) based on the provided information. Provide a brief explanation for your answer."
@@ -37,7 +54,7 @@ def construct_background(background: Annotated[Union[str, List[Union[str, Search
             if isinstance(item, str):
                 ans.append(item)
             elif isinstance(item, SearchResult):
-                ans.append(item.prompt_worthy_string(priority_fields=["title"]))
+                ans.append(item.prompt_worthy_string(priority_fields=["title", "source"]))
             else:
                 raise ValueError(f"Unsupported background item type: {type(item)}")
     return "Background:\n" + "\n\n".join(ans)
@@ -67,6 +84,25 @@ class ConstructRAGPrompt(AbstractSegment):
                 yield item
             else:
                 yield prompt
+
+
+@register_segment("appendRagSources")
+class AppendRAGSources(AbstractSegment):
+    """Appends source file paths from _background to the RAG response in _rag_response."""
+
+    def transform(self, input_iter):
+        for item in input_iter:
+            response = extract_property(item, "_rag_response", fail_on_missing=False)
+            background = extract_property(item, "_background", fail_on_missing=False)
+            if response is None:
+                yield item
+                continue
+            text = str(response)
+            if background and isinstance(background, list):
+                paths = _extract_source_paths(background)
+                if paths:
+                    text += "\n\nSources:\n" + "\n".join(f"- {p}" for p in paths)
+            yield text
 
 
 class AbstractRAGPipeline(AbstractSegment):
@@ -164,7 +200,8 @@ class RAGToText(AbstractRAGPipeline):
                  read_consistency_interval: Annotated[int, "Read consistency interval in seconds"] = 10,
                  diagPrintOutput: Annotated[bool, "If true, print diagnostic output"] = None,
                  logging_level: Annotated[int, "Logging level for the pipeline"] = logging.DEBUG,
-                 role_map: Annotated[str, "Initial conversation context as 'role:message,role:message'"] = None):
+                 role_map: Annotated[str, "Initial conversation context as 'role:message,role:message'"] = None,
+                 append_sources_to_output: Annotated[bool, "If True, append source file paths to the answer"] = True):
         super().__init__(embedding_model=embedding_model,
                          embedding_source=embedding_source,
                          completion_model=completion_model,
@@ -181,14 +218,22 @@ class RAGToText(AbstractRAGPipeline):
                          diagPrintOutput=diagPrintOutput,
                          logging_level=logging_level,
                          role_map=role_map)
+        self.append_sources_to_output = append_sources_to_output
 
     def make_completion_segment(self) -> AbstractSegment:
+        set_as = "_rag_response" if self.append_sources_to_output else self.set_as
         return LLMPrompt(model=self.completion_model,
                          source=self.completion_source,
                          system_prompt=self.system_prompt,
                          field="_ragprompt",
-                         set_as=self.set_as,
+                         set_as=set_as,
                          role_map=self.role_map)
+
+    def make_pipeline(self):
+        base = super().make_pipeline()
+        if self.append_sources_to_output:
+            return base | AppendRAGSources()
+        return base
 
     
 @register_segment("ragToBinaryAnswer")

@@ -1,6 +1,14 @@
 # Changelog
 
 ## Unreleased
+- Added **makevectordatabase** command to create a LanceDB vector database from documents.
+  Usage: `makevectordatabase "docs/*.md" --path ./mydb` (default doc_id_field=None for unique chunk IDs).
+- Added **serverag** command to run a RAG pipeline as a web server or interactive CLI.
+  Usage: `serverag --path ./mydb` (web UI) or `serverag --path ./mydb --interactive` (CLI).
+- RAG source citation: ProcessDocumentsSegment preserves title and source (path) as separate
+  metadata fields; construct_background prioritizes them in prompts; default system prompt and
+  prompt_directive instruct the LLM to cite sources; RAGToText appends source file paths to
+  answers by default (append_sources_to_output=True).
 - Improved tutorial documentation: condensed main tutorials README with learning path diagram,
   linked to quickstart for installation; added navigation links, expected outputs, and
   troubleshooting sections to all three tutorials; added chatterlang language tags and

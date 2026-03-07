@@ -26,7 +26,8 @@ def main():
     
     # Other LanceDB options
     parser.add_argument('--table_name', type=str, default='docs', help='Name of the table to create (default: "docs")')
-    parser.add_argument('--doc_id_field', type=str, default='id', help='Field containing document ID (default: "id")')
+    parser.add_argument('--doc_id_field', type=str, default=None,
+                        help='Field containing document ID. Default None generates unique IDs per chunk (recommended for document pipelines with multiple chunks per file)')
     parser.add_argument('--overwrite', action='store_true', help='If set, overwrite existing database table')
     parser.add_argument('--batch_size', type=int, default=100, help='Batch size for committing to database (default: 100)')
     

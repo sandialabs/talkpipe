@@ -28,7 +28,7 @@ def main():
     parser.add_argument('--limit', type=int, default=5, help='Number of search results to retrieve (default: 5)')
     parser.add_argument('--table_name', type=str, default='docs', help='Name of the table to query (default: "docs")')
     parser.add_argument('--prompt_directive', type=str, 
-                        default="Respond to the provided content based on the background information. If the background does not contain relevant information, respond with 'No relevant information found.'",
+                        default="Respond to the provided content based on the background information. When citing information, include the source (title or path) from the background. If the background does not contain relevant information, respond with 'No relevant information found.'",
                         help='Directive to guide the evaluation')
     parser.add_argument('--system_prompt', type=str, help='System prompt for the completion LLM')
     
