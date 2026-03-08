@@ -113,16 +113,14 @@ def main():
             "fields": [
                 {
                     "name": "prompt",
-                    "type": "textarea",
+                    "type": "text",
                     "label": "Question",
                     "placeholder": "Ask a question about your documents...",
                     "required": True,
-                    "rows": 4,
-                    "persist": True
                 }
             ],
             "position": "bottom",
-            "height": "200px",
+            "height": "100px",
             "theme": "dark"
         }
         

@@ -7,6 +7,9 @@ Welcome to the TalkPipe documentation! This directory contains comprehensive, AP
 ### 🚀 [Getting Started](quickstart.md)
 New to TalkPipe? Start here for installation, basic concepts, and your first pipeline.
 
+### 📖 [RAG Commands](guides/makevectordatabase-and-serverag.md)
+Create vector databases and run RAG servers in two commands: `makevectordatabase` and `serverag`.
+
 ### 💡 [Tutorials](tutorials/)
 Real-world usage examples and tutorials:
 - [Tutorial Overview](tutorials/) 

@@ -45,6 +45,10 @@ Each tutorial builds on the previous. Tutorial 1's index feeds Tutorial 2; Tutor
 - **Streaming**: Process large files, see results as they generate, chain without intermediate storage.
 - **Configuration over code**: YAML defines UIs; pipeline logic stays separate.
 
+## Quick RAG Alternative
+
+For document Q&A without writing scripts, use [makevectordatabase and serverag](../guides/makevectordatabase-and-serverag.md): two commands to index documents and run a RAG web server.
+
 ## Beyond the Web Interface
 
 - **REST API**: Every `chatterlang_serve` exposes `POST /process` for JSON requests

@@ -44,6 +44,9 @@ The Application Components layer contains runnable applications that provide use
 - **[chatterlang_serve](docs/api-reference/chatterlang-server.md)**
   Exposes ChatterLang pipelines as REST APIs or web forms, allowing you to deploy workflows as web services or user-facing endpoints.
 
+- **[makevectordatabase & serverag](docs/guides/makevectordatabase-and-serverag.md)**
+  Create vector databases from documents and run RAG web servers in two commands—no scripts required.
+
 - **chatterlang_reference_browser**
   An interactive command line application for searching and browsing installed ChatterLang sources and segments.
 

@@ -4,6 +4,11 @@ Complete technical reference for all TalkPipe commands, components, and APIs.
 
 ## Command-Line Tools
 
+### [makevectordatabase & serverag](../guides/makevectordatabase-and-serverag.md)
+Create vector databases from documents and run RAG web servers. Minimal two-command workflow for document Q&A.
+- `makevectordatabase` — Index files into LanceDB
+- `serverag` — Web UI or CLI for querying
+
 ### [chatterlang_serve](chatterlang-server.md)
 Create web APIs and interactive forms for processing JSON data through ChatterLang pipelines.
 - REST API endpoints

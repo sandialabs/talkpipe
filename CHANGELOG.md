@@ -8,6 +8,8 @@
   Usage: `makevectordatabase "docs/*.md" --path ./mydb` (default doc_id_field=None for unique chunk IDs).
 - Added **serverag** command to run a RAG pipeline as a web server or interactive CLI.
   Usage: `serverag --path ./mydb` (web UI) or `serverag --path ./mydb --interactive` (CLI).
+- Added [makevectordatabase and serverag](docs/guides/makevectordatabase-and-serverag.md) documentation guide.
+  Web UI: single-line prompt field that clears after submit; Enter key submits.
 - RAG source citation: ProcessDocumentsSegment preserves title and source (path) as separate
   metadata fields; construct_background prioritizes them in prompts; default system prompt and
   prompt_directive instruct the LLM to cite sources; RAGToText appends source file paths to
