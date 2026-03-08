@@ -135,6 +135,81 @@ Then open `http://localhost:2026/stream` in your browser and ask questions about
 
 ---
 
+## Running in Containers (Docker and Podman)
+
+You can run `makevectordatabase` and `serverag` in containers using the [TalkPipe image](https://github.com/sandialabs/talkpipe/pkgs/container/talkpipe). The same commands work with **Docker** and **Podman**—replace `docker` with `podman` if you use Podman. For a custom setup (e.g., extra Python packages or a fixed default command), create a separate Dockerfile based on that image.
+
+### Minimal Dockerfile for serverag
+
+Create `Dockerfile.serverag`:
+
+```dockerfile
+FROM ghcr.io/sandialabs/talkpipe:latest
+
+# Optional: install additional Python packages
+# RUN pip install --no-cache-dir some-extra-package
+
+CMD ["serverag", "--path", "/app/data", "--host", "0.0.0.0"]
+```
+
+Build and run:
+
+```bash
+# Build the image
+docker build -f Dockerfile.serverag -t my-serverag .
+
+# Run with your database mounted at /app/data
+docker run -p 2026:2026 -v ./mydb:/app/data my-serverag
+```
+
+Use `--host 0.0.0.0` so the server accepts connections from outside the container. Omit it only if you run in interactive mode (`--interactive`).
+
+### Running makevectordatabase in a container
+
+`makevectordatabase` is a one-shot command. Run it with the base image and override the command:
+
+```bash
+# Mount documents and output directory; override CMD with makevectordatabase
+docker run -v ./docs:/app/docs -v ./mydb:/app/data \
+  ghcr.io/sandialabs/talkpipe \
+  makevectordatabase "/app/docs/*.md" --path /app/data
+```
+
+Or create `Dockerfile.makevectordatabase` for a fixed document set:
+
+```dockerfile
+FROM ghcr.io/sandialabs/talkpipe:latest
+
+COPY --chown=app:app ./docs /app/docs
+
+CMD ["makevectordatabase", "/app/docs/*.md", "--path", "/app/data"]
+```
+
+Build and run with a volume for the output database:
+
+```bash
+docker build -f Dockerfile.makevectordatabase -t my-makevectordb .
+docker run -v ./mydb:/app/data my-makevectordb
+```
+
+### End-to-end with containers
+
+```bash
+# 1. Build the database (one-shot)
+docker run -v $(pwd)/docs:/app/docs -v $(pwd)/mydb:/app/data \
+  ghcr.io/sandialabs/talkpipe \
+  makevectordatabase "/app/docs/*.md" --path /app/data
+
+# 2. Start the RAG server
+docker run -p 2026:2026 -v $(pwd)/mydb:/app/data \
+  ghcr.io/sandialabs/talkpipe \
+  serverag --path /app/data --host 0.0.0.0
+```
+
+Then open `http://localhost:2026/stream` in your browser.
+
+---
+
 ## Configuration
 
 Both commands use TalkPipe's configuration system. Set defaults in `~/.talkpipe.toml`:
