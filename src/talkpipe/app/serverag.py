@@ -135,7 +135,8 @@ def main():
             require_auth=args.require_auth,
             title=args.title,
             processor_func=process_request,
-            form_config=form_config_dict
+            form_config=form_config_dict, 
+            display_property="prompt"
         )
         
         server.start(background=False)

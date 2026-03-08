@@ -1,6 +1,9 @@
 # Changelog
 
 ## Unreleased
+- chatterlang_serve stream UI: response and error messages are now rendered as markdown (using
+  marked and DOMPurify); user messages remain plain text. Copy button still copies raw text.
+  CSP updated to allow script-src from cdn.jsdelivr.net so markdown libraries load.
 - Added **makevectordatabase** command to create a LanceDB vector database from documents.
   Usage: `makevectordatabase "docs/*.md" --path ./mydb` (default doc_id_field=None for unique chunk IDs).
 - Added **serverag** command to run a RAG pipeline as a web server or interactive CLI.

@@ -308,7 +308,7 @@ class ChatterlangServer:
             response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
             response.headers["Content-Security-Policy"] = (
                 "default-src 'self'; "
-                "script-src 'self' 'unsafe-inline'; "
+                "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; "
                 "style-src 'self' 'unsafe-inline'; "
                 "img-src 'self' data:; "
                 "connect-src 'self'; "
@@ -759,13 +759,85 @@ class ChatterlangServer:
                 }}
                 
                 .message-content {{
-                    white-space: pre-wrap;
                     font-family: 'Segoe UI', system-ui, sans-serif;
                 }}
                 
                 .message.user .message-content {{
+                    white-space: pre-wrap;
                     font-family: 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', Consolas, 'Courier New', monospace;
                     font-size: 0.9rem;
+                }}
+                
+                .message.response .message-content,
+                .message.error .message-content {{
+                    line-height: 1.5;
+                }}
+                .message.response .message-content h1,
+                .message.response .message-content h2,
+                .message.response .message-content h3,
+                .message.error .message-content h1,
+                .message.error .message-content h2,
+                .message.error .message-content h3 {{
+                    margin: 0.5rem 0 0.25rem 0;
+                    font-weight: 600;
+                }}
+                .message.response .message-content h1 {{ font-size: 1.25rem; }}
+                .message.response .message-content h2 {{ font-size: 1.1rem; }}
+                .message.response .message-content h3 {{ font-size: 1rem; }}
+                .message.error .message-content h1 {{ font-size: 1.25rem; }}
+                .message.error .message-content h2 {{ font-size: 1.1rem; }}
+                .message.error .message-content h3 {{ font-size: 1rem; }}
+                .message.response .message-content p,
+                .message.error .message-content p {{
+                    margin: 0.25rem 0;
+                }}
+                .message.response .message-content ul,
+                .message.response .message-content ol,
+                .message.error .message-content ul,
+                .message.error .message-content ol {{
+                    margin: 0.25rem 0;
+                    padding-left: 1.5rem;
+                }}
+                .message.response .message-content blockquote,
+                .message.error .message-content blockquote {{
+                    margin: 0.25rem 0;
+                    padding-left: 1rem;
+                    border-left: 3px solid currentColor;
+                    opacity: 0.9;
+                }}
+                .message.response .message-content code,
+                .message.error .message-content code {{
+                    font-family: 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', Consolas, monospace;
+                    font-size: 0.9em;
+                    padding: 0.1rem 0.25rem;
+                    border-radius: 0.25rem;
+                    background: rgba(0,0,0,0.15);
+                }}
+                .message.response .message-content pre,
+                .message.error .message-content pre {{
+                    white-space: pre-wrap;
+                    margin: 0.25rem 0;
+                    padding: 0.5rem;
+                    border-radius: 0.25rem;
+                    background: rgba(0,0,0,0.15);
+                    overflow-x: auto;
+                }}
+                .message.response .message-content pre code,
+                .message.error .message-content pre code {{
+                    padding: 0;
+                    background: none;
+                }}
+                .message.response .message-content a,
+                .message.error .message-content a {{
+                    color: inherit;
+                    text-decoration: underline;
+                }}
+                .message.response .message-content hr,
+                .message.error .message-content hr {{
+                    margin: 0.5rem 0;
+                    border: none;
+                    border-top: 1px solid currentColor;
+                    opacity: 0.5;
                 }}
                 
                 .form-group {{
@@ -975,6 +1047,8 @@ class ChatterlangServer:
                     }}
                 }}
             </style>
+            <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+            <script src="https://cdn.jsdelivr.net/npm/dompurify@3/dist/purify.min.js"></script>
         </head>
         <body>
             <div class="header">
@@ -1009,6 +1083,17 @@ class ChatterlangServer:
             <script>
                 let eventSource = null;
                 let autoScroll = true;
+                
+                function renderMarkdown(text) {{
+                    if (typeof text !== 'string' || text === '') return '';
+                    try {{
+                        const parseFn = (typeof marked !== 'undefined' && marked.parse) ? marked.parse : (typeof marked !== 'undefined' && typeof marked === 'function') ? marked : null;
+                        const raw = parseFn ? parseFn(text, {{ breaks: true }}) : text;
+                        return (typeof DOMPurify !== 'undefined' && DOMPurify.sanitize) ? DOMPurify.sanitize(raw) : raw;
+                    }} catch (e) {{
+                        return text;
+                    }}
+                }}
                 
                 function initSSE() {{
                     eventSource = new EventSource('/output-stream');
@@ -1074,7 +1159,11 @@ class ChatterlangServer:
                     
                     const contentDiv = document.createElement('div');
                     contentDiv.className = 'message-content';
-                    contentDiv.textContent = content;
+                    if (type === 'response' || type === 'error') {{
+                        contentDiv.innerHTML = renderMarkdown(content);
+                    }} else {{
+                        contentDiv.textContent = content;
+                    }}
                     
                     messageDiv.appendChild(timestampDiv);
                     messageDiv.appendChild(contentDiv);
