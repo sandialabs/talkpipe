@@ -15,7 +15,7 @@ Comprehensive pipeline that runs on:
 **Pipeline Jobs:**
 1. **Test** - Multi-version Python testing (3.11, 3.12) with coverage
 2. **Security Scan** - SAST and dependency vulnerability scanning
-3. **Build Container** - Docker image build/push with container security scan
+3. **Build Container** - Multi-architecture Docker image build (linux/amd64, linux/arm64) and push with container security scan
 4. **CodeQL Analysis** - GitHub's semantic code analysis
 5. **Publish Package** - Automated PyPI publishing on releases
 
@@ -41,7 +41,11 @@ The pipeline includes multiple layers of security scanning:
 
 ## Container Registry
 
-Docker images are built and pushed to GitHub Container Registry:
+Docker images are built for multiple architectures (linux/amd64, linux/arm64) and pushed to GitHub Container Registry. This covers:
+- **linux/amd64**: x86_64 Linux, Windows (Docker Desktop/WSL2), Intel Macs
+- **linux/arm64**: Apple Silicon Macs, ARM64 Linux servers (e.g. AWS Graviton)
+
+Images are available at:
 ```
 ghcr.io/sandialabs/talkpipe:latest
 ghcr.io/sandialabs/talkpipe:<branch-name>
