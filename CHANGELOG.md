@@ -1,8 +1,8 @@
 # Changelog
 
 ## Unreleased
-- CI/CD: build Docker images for multiple architectures (linux/amd64, linux/arm64) to support
-  x86_64 Linux, Windows (Docker Desktop/WSL2), Intel Macs, Apple Silicon Macs, and ARM64 servers.
+- CI/CD: build multi-architecture Docker images (linux/amd64, linux/arm64) on release only; push/PR
+  builds use single-platform (linux/amd64) for faster CI.
 - Improved tutorial documentation: condensed main tutorials README with learning path diagram,
   linked to quickstart for installation; added navigation links, expected outputs, and
   troubleshooting sections to all three tutorials; added chatterlang language tags and
