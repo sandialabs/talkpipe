@@ -82,6 +82,9 @@ chatterlang_serve = "talkpipe.app.chatterlang_serve:go"
 chatterlang_reference_browser = "talkpipe.app.chatterlang_reference_browser:main"
 chatterlang_generate_entry_points = "talkpipe.app.chatterlang_generate_entry_points:main"
 talkpipe_plugins = "talkpipe.app.talkpipe_plugin_manager:main"
+talkpipe_makevectordatabase = "talkpipe.app.makevectordatabase:main"
+makevectordatabase = "talkpipe.app.makevectordatabase:main"
+serverag = "talkpipe.app.serverag:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]

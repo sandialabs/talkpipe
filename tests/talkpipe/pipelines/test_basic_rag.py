@@ -1,5 +1,10 @@
 import pytest
-from talkpipe.pipelines.basic_rag import ConstructRAGPrompt, construct_background
+from talkpipe.pipelines.basic_rag import (
+    ConstructRAGPrompt,
+    AppendRAGSources,
+    construct_background,
+    _extract_source_paths,
+)
 from talkpipe.search.abstract import SearchResult
 
 
@@ -50,6 +55,24 @@ def test_construct_background_with_search_results():
     assert "Document 2" in result
 
 
+def test_construct_background_includes_title_and_source_for_citation():
+    """Test that construct_background includes title and source so LLM can cite sources."""
+    search_result = SearchResult(
+        score=0.9,
+        doc_id="doc1",
+        document={
+            "title": "My Document",
+            "source": "/path/to/my-document.md",
+            "content": "Relevant excerpt from the document."
+        }
+    )
+    result = construct_background([search_result])
+
+    assert "Title: My Document" in result
+    assert "Source: /path/to/my-document.md" in result
+    assert "Relevant excerpt" in result
+
+
 def test_construct_background_with_mixed_types():
     """Test construct_background with mixed string and SearchResult types."""
     search_result = SearchResult(
@@ -80,6 +103,44 @@ def test_construct_background_empty_list():
     """Test construct_background with an empty list."""
     result = construct_background([])
     assert result == "Background:\n"
+
+
+def test_extract_source_paths():
+    """Test _extract_source_paths extracts unique paths from search results."""
+    results = [
+        SearchResult(score=0.9, doc_id="1", document={"source": "/path/to/a.md", "title": "A"}),
+        SearchResult(score=0.8, doc_id="2", document={"source": "/path/to/b.md", "title": "B"}),
+        SearchResult(score=0.7, doc_id="3", document={"source": "/path/to/a.md", "title": "A"}),  # duplicate
+    ]
+    paths = _extract_source_paths(results)
+    assert paths == ["/path/to/a.md", "/path/to/b.md"]
+
+
+def test_extract_source_paths_fallback_to_title():
+    """Test _extract_source_paths uses title when source is missing."""
+    results = [
+        SearchResult(score=0.9, doc_id="1", document={"title": "doc1.txt"}),
+    ]
+    paths = _extract_source_paths(results)
+    assert paths == ["doc1.txt"]
+
+
+def test_append_rag_sources_appends_file_paths():
+    """Test AppendRAGSources appends source paths to the response."""
+    segment = AppendRAGSources()
+    item = {
+        "_rag_response": "The answer is 42.",
+        "_background": [
+            SearchResult(score=0.9, doc_id="1", document={"source": "/docs/readme.md", "title": "Readme"}),
+            SearchResult(score=0.8, doc_id="2", document={"source": "/docs/guide.md", "title": "Guide"}),
+        ],
+    }
+    results = list(segment.transform([item]))
+    assert len(results) == 1
+    assert "The answer is 42." in results[0]
+    assert "Sources:" in results[0]
+    assert "/docs/readme.md" in results[0]
+    assert "/docs/guide.md" in results[0]
 
 
 # Tests for ConstructRAGPrompt segment

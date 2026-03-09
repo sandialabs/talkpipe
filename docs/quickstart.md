@@ -127,6 +127,17 @@ chatterlang_serve --port 2025 --display-property prompt --script '| llmPrompt[mo
 
 Open http://localhost:2025/stream to chat with the LLM.
 
+## RAG from Documents
+
+For a minimal document Q&A workflow without writing scripts:
+
+```bash
+makevectordatabase "docs/*.md" --path ./mydb
+serverag --path ./mydb
+```
+
+Then open http://localhost:2026/stream. See [makevectordatabase and serverag](guides/makevectordatabase-and-serverag.md) for full options.
+
 ## Next Steps
 
 ### Learn the Tools

@@ -414,7 +414,17 @@ class TestChatterlangServerEndpoints:
         # Buffer SSE during request to avoid duplicate display
         assert "pendingRequest" in html_content
         assert "sseBuffer" in html_content
-    
+
+    def test_stream_includes_markdown_rendering(self, client):
+        """Stream UI should include marked and DOMPurify for markdown output rendering."""
+        response = client.get("/stream")
+        assert response.status_code == 200
+        html_content = response.text
+        assert "marked.min.js" in html_content
+        assert "purify.min.js" in html_content
+        assert "renderMarkdown" in html_content
+        assert "DOMPurify.sanitize" in html_content
+
     def test_favicon_endpoint(self, client):
         """Test favicon endpoint."""
         response = client.get("/favicon.ico")

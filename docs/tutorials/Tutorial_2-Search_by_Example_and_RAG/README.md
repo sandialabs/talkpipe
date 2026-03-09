@@ -224,6 +224,7 @@ The `--load-module step_3_extras.py` flag registers this segment so the script c
 ## Next Steps
 
 - **Next: [Tutorial 3: Report Generation](../Tutorial_3_Report_Writing/)** — Use this vector index for report generation and summaries
+- **Simpler alternative**: [makevectordatabase and serverag](../../guides/makevectordatabase-and-serverag.md) — Two commands for document Q&A without writing scripts
 - **Customize**: Swap embedding models, adjust the RAG prompt, or add filters
 
 **Previous:** [Tutorial 1: Document Indexing](../Tutorial_1-Document_Indexing/) | **Next:** [Tutorial 3: Report Generation](../Tutorial_3_Report_Writing/)

@@ -3,6 +3,21 @@
 ## Unreleased
 - CI/CD: build multi-architecture Docker images (linux/amd64, linux/arm64) on release only; push/PR
   builds use single-platform (linux/amd64) for faster CI.
+- chatterlang_serve stream UI: response and error messages are now rendered as markdown (using
+  marked and DOMPurify); user messages remain plain text. Copy button still copies raw text.
+  CSP updated to allow script-src from cdn.jsdelivr.net so markdown libraries load.
+- Added **makevectordatabase** command to create a LanceDB vector database from documents.
+  Usage: `makevectordatabase "docs/*.md" --path ./mydb` (default doc_id_field=None for unique chunk IDs).
+- Added **serverag** command to run a RAG pipeline as a web server or interactive CLI.
+  Usage: `serverag --path ./mydb` (web UI) or `serverag --path ./mydb --interactive` (CLI).
+- Added [makevectordatabase and serverag](docs/guides/makevectordatabase-and-serverag.md) documentation guide.
+  Web UI: single-line prompt field that clears after submit; Enter key submits.
+  Guide now includes Docker and Podman examples: separate Dockerfiles for serverag and
+  makevectordatabase, and end-to-end container workflow.
+- RAG source citation: ProcessDocumentsSegment preserves title and source (path) as separate
+  metadata fields; construct_background prioritizes them in prompts; default system prompt and
+  prompt_directive instruct the LLM to cite sources; RAGToText appends source file paths to
+  answers by default (append_sources_to_output=True).
 - Improved tutorial documentation: condensed main tutorials README with learning path diagram,
   linked to quickstart for installation; added navigation links, expected outputs, and
   troubleshooting sections to all three tutorials; added chatterlang language tags and
