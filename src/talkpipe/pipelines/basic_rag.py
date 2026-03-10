@@ -88,7 +88,11 @@ class ConstructRAGPrompt(AbstractSegment):
 
 @register_segment("appendRagSources")
 class AppendRAGSources(AbstractSegment):
-    """Appends source file paths from _background to the RAG response in _rag_response."""
+    """Appends source file paths from _background to the RAG response in _rag_response, storing the result in set_as while preserving the item structure."""
+
+    def __init__(self, set_as: Annotated[str, "Field to store the answer (with sources appended)"] = "answer"):
+        super().__init__()
+        self.set_as = set_as
 
     def transform(self, input_iter):
         for item in input_iter:
@@ -102,7 +106,8 @@ class AppendRAGSources(AbstractSegment):
                 paths = _extract_source_paths(background)
                 if paths:
                     text += "\n\nSources:\n" + "\n".join(f"- {p}" for p in paths)
-            yield text
+            assign_property(item, self.set_as, text)
+            yield item
 
 
 class AbstractRAGPipeline(AbstractSegment):
@@ -232,7 +237,8 @@ class RAGToText(AbstractRAGPipeline):
     def make_pipeline(self):
         base = super().make_pipeline()
         if self.append_sources_to_output:
-            return base | AppendRAGSources()
+            set_as = self.set_as or "answer"
+            return base | AppendRAGSources(set_as=set_as)
         return base
 
     

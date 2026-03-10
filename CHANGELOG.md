@@ -18,6 +18,9 @@
   metadata fields; construct_background prioritizes them in prompts; default system prompt and
   prompt_directive instruct the LLM to cite sources; RAGToText appends source file paths to
   answers by default (append_sources_to_output=True).
+- RAG AppendRAGSources: now modifies the item in place (assigns answer to set_as field) instead of
+  yielding a string; preserves dict structure so output format is consistent regardless of
+  append_sources_to_output.
 - Improved tutorial documentation: condensed main tutorials README with learning path diagram,
   linked to quickstart for installation; added navigation links, expected outputs, and
   troubleshooting sections to all three tutorials; added chatterlang language tags and

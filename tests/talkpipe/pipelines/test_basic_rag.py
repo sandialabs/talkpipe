@@ -126,9 +126,11 @@ def test_extract_source_paths_fallback_to_title():
 
 
 def test_append_rag_sources_appends_file_paths():
-    """Test AppendRAGSources appends source paths to the response."""
-    segment = AppendRAGSources()
+    """Test AppendRAGSources appends source paths to the response and preserves item structure."""
+    segment = AppendRAGSources(set_as="answer")
     item = {
+        "query": "What is 42?",
+        "id": "q1",
         "_rag_response": "The answer is 42.",
         "_background": [
             SearchResult(score=0.9, doc_id="1", document={"source": "/docs/readme.md", "title": "Readme"}),
@@ -137,10 +139,14 @@ def test_append_rag_sources_appends_file_paths():
     }
     results = list(segment.transform([item]))
     assert len(results) == 1
-    assert "The answer is 42." in results[0]
-    assert "Sources:" in results[0]
-    assert "/docs/readme.md" in results[0]
-    assert "/docs/guide.md" in results[0]
+    result = results[0]
+    assert isinstance(result, dict)
+    assert result["query"] == "What is 42?"
+    assert result["id"] == "q1"
+    assert "The answer is 42." in result["answer"]
+    assert "Sources:" in result["answer"]
+    assert "/docs/readme.md" in result["answer"]
+    assert "/docs/guide.md" in result["answer"]
 
 
 # Tests for ConstructRAGPrompt segment
@@ -651,7 +657,7 @@ def test_rag_to_text_basic_functionality(requires_ollama, temp_vector_db_path, s
 
 
 def test_rag_to_text_without_set_as(requires_ollama, temp_vector_db_path, sample_knowledge_base):
-    """Test RAGToText when set_as is None (yields text directly)."""
+    """Test RAGToText when set_as is None (uses 'answer' as default field, yields dict)."""
     from talkpipe.pipelines.vector_databases import MakeVectorDatabaseSegment
     from talkpipe.pipelines.basic_rag import RAGToText
 
@@ -681,16 +687,16 @@ def test_rag_to_text_without_set_as(requires_ollama, temp_vector_db_path, sample
     query_items = [{"query": "What is machine learning?"}]
     results = list(rag_segment.transform(query_items))
 
-    # When set_as is None, should yield the text response directly
+    # When set_as is None, uses "answer" as default; output is always a dict
     assert len(results) == 1
     result = results[0]
-
-    # Result should be a string (the answer)
-    assert isinstance(result, str)
-    assert len(result) > 0
+    assert isinstance(result, dict)
+    assert "answer" in result
+    assert isinstance(result["answer"], str)
+    assert len(result["answer"]) > 0
 
     # Should contain relevant information about machine learning
-    assert "learn" in result.lower() or "data" in result.lower()
+    assert "learn" in result["answer"].lower() or "data" in result["answer"].lower()
 
 
 def test_rag_to_text_with_different_limit(requires_ollama, temp_vector_db_path, sample_knowledge_base):

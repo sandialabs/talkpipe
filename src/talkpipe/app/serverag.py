@@ -63,18 +63,20 @@ def main():
     # We will instantiate it once. Alternatively, it could be instantiated per request if state isolation is needed, 
     # but Talkpipe segments are generally designed to process sequences.
     try:
-        rag_pipeline = RAGToText(
-            path=args.path,
-            content_field='prompt',  # We'll map the UI 'prompt' field to this
-            embedding_model=args.embedding_model or config.get('DEFAULT_EMBEDDING_MODEL'),
-            embedding_source=args.embedding_source or config.get('DEFAULT_EMBEDDING_SOURCE'),
-            completion_model=args.completion_model or config.get('DEFAULT_LLM_MODEL'),
-            completion_source=args.completion_source or config.get('DEFAULT_LLM_SOURCE'),
-            limit=args.limit,
-            table_name=args.table_name,
-            prompt_directive=args.prompt_directive,
-            system_prompt=args.system_prompt if args.system_prompt else None # RAGToText has its own default if None
-        )
+        rag_kwargs = {
+            "path": args.path,
+            "content_field": "prompt",  # We'll map the UI 'prompt' field to this
+            "embedding_model": args.embedding_model or config.get("DEFAULT_EMBEDDING_MODEL"),
+            "embedding_source": args.embedding_source or config.get("DEFAULT_EMBEDDING_SOURCE"),
+            "completion_model": args.completion_model or config.get("DEFAULT_LLM_MODEL"),
+            "completion_source": args.completion_source or config.get("DEFAULT_LLM_SOURCE"),
+            "limit": args.limit,
+            "table_name": args.table_name,
+            "prompt_directive": args.prompt_directive,
+        }
+        if args.system_prompt is not None:
+            rag_kwargs["system_prompt"] = args.system_prompt
+        rag_pipeline = RAGToText(**rag_kwargs)
     except Exception as e:
         logger.error(f"Failed to initialize RAG pipeline: {e}")
         sys.exit(1)
@@ -90,8 +92,9 @@ def main():
         
         # Consume the pipeline results
         for item in cli_pipeline():
-            # RAGToText yields the final string 
-            print("\n" + str(item) + "\n")
+            # RAGToText yields dicts with answer field (or string for older pipelines)
+            content = item.get("answer", str(item)) if isinstance(item, dict) else str(item)
+            print("\n" + str(content) + "\n")
             print("-" * 50)
             
     else:
