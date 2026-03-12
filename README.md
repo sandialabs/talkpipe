@@ -76,11 +76,13 @@ pip install talkpipe[anthropic] # For Anthropic Claude
 pip install talkpipe[all]
 ```
 
+Depending on what source you are using as the API endpoint (Ollama, openai, etc), you may need to set environment variable to specify the API key.  If you have a local Ollama server running and accepting connections from the rest of your network, but are running talkpipie from another host, you will need to set the TALKPIPE_OLLAMA_SERVER_URL environment variable.  It is sufficient just to set it to the name of the host where Ollama is running.
+
 Create a multi-turn chat function in 2 lines:
 ```python
 from talkpipe.chatterlang import compiler
 
-script = '| llmPrompt[model="llama3.2", source="ollama", multi_turn=True]'
+script = '| print | llmPrompt[model="llama3.2", source="ollama", multi_turn=True] | print'
 chat = compiler.compile(script).as_function(single_in=True, single_out=True)
 
 response = chat("Hello! My name is Alice.")
@@ -119,6 +121,7 @@ def uppercase(items):
 # Use it in a pipeline
 pipeline = io.echo(data="hello,world") | uppercase() | io.Print()
 result = pipeline.as_function(single_out=False)()
+print(result)
 
 # Output:
 # HELLO
@@ -193,7 +196,7 @@ from talkpipe.chatterlang import compiler
 
 script = """
 CONST economist_prompt = "You are an economist. Reply in one sentence.";
-CONST theologian_prompt = "You are a theologian. Reply in one sentence.";
+CONST psychologist_prompt = "You are a child psychologist. Reply in one sentence.";
 
 INPUT FROM echo[data="The US should give free puppies to all children."] 
     | @topic 
@@ -202,13 +205,13 @@ INPUT FROM echo[data="The US should give free puppies to all children."]
 
 LOOP 3 TIMES {
     INPUT FROM @topic 
-        | llmPrompt[system_prompt=economist_prompt] 
+        | llmPrompt[system_prompt=economist_prompt, model="llama3.2", source="ollama"] 
         | @topic 
         | accum[variable=@conversation] 
         | print;
     
     INPUT FROM @topic 
-        | llmPrompt[system_prompt=theologian_prompt] 
+        | llmPrompt[system_prompt=psychologist_prompt, model="llama3.2", source="ollama"] 
         | @topic 
         | accum[variable=@conversation] 
         | print;
@@ -247,6 +250,7 @@ CONST scorePrompt = "Rate 1-10 how related to dogs this is:";
 
 pipeline = compiler.compile(script).as_function(single_in=False, single_out=True)
 df = pipeline(documents)
+print(df)
 # df now contains relevance scores for each document
 ```
 
