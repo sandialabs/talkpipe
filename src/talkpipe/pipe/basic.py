@@ -1,6 +1,7 @@
 """Standard operations for data processing pipelines."""
 
 from typing import Iterable, Iterator, Union, Optional, Any, Annotated
+import itertools
 import logging
 import time
 import sys
@@ -11,15 +12,27 @@ import threading
 from queue import Queue
 import pandas as pd
 from talkpipe.util.config import configure_logger, parse_key_value_str, get_config
-from talkpipe.util.data_manipulation import extract_property, extract_template_field_names, get_all_attributes, toDict, assign_property
-from talkpipe.util.data_manipulation import compileLambda
+from talkpipe.util.data_manipulation import (
+    extract_property, extract_template_field_names, get_all_attributes,
+    toDict, assign_property, compileLambda, get_type_safely, fill_template, dict_to_text
+)
 from talkpipe.util.os import run_command
-from talkpipe.util.data_manipulation import get_type_safely
 from talkpipe.pipe.core import AbstractSegment, AbstractFieldSegment, source, segment, field_segment
 import talkpipe.chatterlang.registry as registry
-from talkpipe.util.data_manipulation import fill_template, dict_to_text, toDict
 
 logger = logging.getLogger(__name__)
+
+_SECURE_HASH_ALGOS = frozenset({
+    "SHA224", "SHA256", "SHA384", "SHA512",
+    "SHA3_224", "SHA3_256", "SHA3_384", "SHA3_512"
+})
+
+
+def _validate_hash_algorithm(algorithm: str) -> None:
+    """Raise ValueError if algorithm is insecure or unsupported."""
+    if algorithm.upper() in {"MD5", "SHA1"} or algorithm.upper() not in {a.upper() for a in _SECURE_HASH_ALGOS}:
+        raise ValueError(f"Unsupported or insecure hash algorithm: {algorithm}. Allowed: {', '.join(sorted(_SECURE_HASH_ALGOS))}")
+
 
 @registry.register_segment("diagPrint")
 @segment()
@@ -179,11 +192,7 @@ def firstN(items, n: Annotated[int, "The number of items to yield."] = 1):
         
     Yields:
         Any: The first n items from the input stream."""
-    for i, item in enumerate(items):
-        if i < n:
-            yield item
-        else:
-            break
+    yield from itertools.islice(items, n)
 
 @registry.register_segment(name="describe")
 class DescribeData(AbstractSegment):
@@ -192,9 +201,6 @@ class DescribeData(AbstractSegment):
     This is useful mostly for debugging and understanding the 
     structure of the data.
     """
-
-    def __init__(self):
-        super().__init__()
 
     def transform(self, input_iter: Iterable) -> Iterator:
         for data in input_iter:
@@ -275,9 +281,6 @@ class FormattedItem(AbstractSegment):
         self.field_separator = field_separator
         self.item_suffix = item_suffix
 
-        # Parse field mappings
-        self.field_list = field_list
-
     def transform(self, input_iter: Iterable) -> Iterator:
         """Transform each input item into a single formatted string"""
         for item in input_iter:
@@ -351,9 +354,6 @@ class ToDataFrame(AbstractSegment):
     dictionary represents a row in the DataFrame.
     """
 
-    def __init__(self):
-        super().__init__()
-
     def transform(self, input_iter: Iterable) -> Iterator:
         """Create a DataFrame from the input data.
         
@@ -369,9 +369,6 @@ class ToDataFrame(AbstractSegment):
 @registry.register_segment(name="toList")
 class ToList(AbstractSegment):
     """Drains the input stream and emits a list of all items."""
-
-    def __init__(self):
-        super().__init__()
 
     def transform(self, input_iter: Iterable) -> Iterator:
         yield list(input_iter)
@@ -499,6 +496,25 @@ def longestStr(items,
         else:
             yield longest
 
+def _bool_filter_transform(items, field, predicate, as_filter, set_as):
+    """Common logic for isIn, isNotIn, isTrue, isFalse segments."""
+    for item in items:
+        value = extract_property(item, field)
+        ans = predicate(value)
+        if set_as:
+            assign_property(item, set_as, ans)
+            to_return = item
+        else:
+            to_return = item if as_filter else ans
+        if not as_filter or ans:
+            yield to_return
+
+
+def _is_truthy(value) -> bool:
+    """Check if value is truthy (not None, False, 0, or empty string)."""
+    return bool(value) and (value != 0) and (not isinstance(value, str) or len(value.strip()) > 0)
+
+
 @registry.register_segment("isIn")
 @segment()
 def isIn(items, 
@@ -521,18 +537,7 @@ def isIn(items,
         In boolean mode: True/False for each item.
         If set_as is specified: item with boolean result added as new field.
     """
-    for item in items:
-        data = extract_property(item, field)
-        ans = value in data
-
-        if set_as:
-            assign_property(item, set_as, ans)
-            to_return = item
-        else:
-            to_return = item if as_filter else ans
-
-        if not as_filter or ans:
-            yield to_return
+    yield from _bool_filter_transform(items, field, lambda v: value in v, as_filter, set_as)
 
 @registry.register_segment("isNotIn")
 @segment()
@@ -556,18 +561,7 @@ def isNotIn(items,
         In boolean mode: True/False for each item.
         If set_as is specified: item with boolean result added as new field.
     """
-    for item in items:
-        data = extract_property(item, field)
-        ans = value not in data
-
-        if set_as:
-            assign_property(item, set_as, ans)
-            to_return = item
-        else:
-            to_return = item if as_filter else ans
-
-        if not as_filter or ans:
-            yield to_return
+    yield from _bool_filter_transform(items, field, lambda v: value not in v, as_filter, set_as)
 
 @registry.register_segment("isTrue")
 @segment()
@@ -590,19 +584,7 @@ def isTrue(items,
         In boolean mode: True/False for each item.
         If set_as is specified: item with boolean result added as new field.
     """
-    for item in items:
-        to_eval = extract_property(item, field)
-        # Check if value is truthy (not None, False, 0, or empty string)
-        ans = bool(to_eval) and (to_eval != 0) and (not isinstance(to_eval, str) or len(to_eval.strip()) > 0)
-
-        if set_as:
-            assign_property(item, set_as, ans)
-            to_return = item
-        else:
-            to_return = item if as_filter else ans
-
-        if not as_filter or ans:
-            yield to_return
+    yield from _bool_filter_transform(items, field, _is_truthy, as_filter, set_as)
 
 @registry.register_segment("isFalse")
 @segment()
@@ -625,19 +607,7 @@ def isFalse(items,
         In boolean mode: True/False for each item.
         If set_as is specified: item with boolean result added as new field.
     """
-    for item in items:
-        to_eval = extract_property(item, field)
-        # Check if value is falsy (None, False, 0, or empty string)
-        ans = not (bool(to_eval) and (to_eval != 0) and (not isinstance(to_eval, str) or len(to_eval.strip()) > 0))
-
-        if set_as:
-            assign_property(item, set_as, ans)
-            to_return = item
-        else:
-            to_return = item if as_filter else ans
-
-        if not as_filter or ans:
-            yield to_return
+    yield from _bool_filter_transform(items, field, lambda v: not _is_truthy(v), as_filter, set_as)
 
 @registry.register_segment("everyN")
 @segment()
@@ -726,12 +696,9 @@ def hash_data(data,
     Returns:
         str: The resulting hash digest
     """
-    _SECURE_HASH_ALGOS = {
-        "SHA224", "SHA256", "SHA384", "SHA512",
-        "SHA3_224", "SHA3_256", "SHA3_384", "SHA3_512"
-    }
-    if algorithm.upper() in {"MD5", "SHA1"} or algorithm.upper() not in {algo.upper() for algo in _SECURE_HASH_ALGOS}:
-        raise ValueError(f"Unsupported or insecure hash algorithm: {algorithm}. Allowed: {', '.join(sorted(_SECURE_HASH_ALGOS))}")
+    if isinstance(field_list, str):
+        field_list = list(parse_key_value_str(field_list).keys())
+    _validate_hash_algorithm(algorithm)
     hasher = hashlib.new(algorithm)
     for field in field_list:
         item = extract_property(data, field, fail_on_missing, default=default)
@@ -773,12 +740,7 @@ class Hash(AbstractSegment):
                  set_as: Optional[str] = None, 
                  fail_on_missing: Annotated[bool, "Whether to fail on missing fields"] = True):
         super().__init__()
-        _SECURE_HASH_ALGOS = {
-            "SHA224", "SHA256", "SHA384", "SHA512",
-            "SHA3_224", "SHA3_256", "SHA3_384", "SHA3_512"
-        }
-        if algorithm.upper() in {"MD5", "SHA1"} or algorithm.upper() not in {algo.upper() for algo in _SECURE_HASH_ALGOS}:
-            raise ValueError(f"Unsupported or insecure hash algorithm: {algorithm}. Allowed: {', '.join(sorted(_SECURE_HASH_ALGOS))}")
+        _validate_hash_algorithm(algorithm)
         self.algorithm = algorithm
         self.use_repr = use_repr
         self.field_list = list(parse_key_value_str(field_list).keys())
@@ -898,27 +860,12 @@ class FilterExpression(AbstractSegment):
         
         # Compile the expression into a lambda function
         self.lambda_function = compileLambda(expression)
-        logger.debug(f"Compiled filter expression: {self.expression}")
     
     def transform(self, input_iter: Iterable[Any]) -> Iterator[Any]:
         """Process each item from the input stream."""
         for item in input_iter:
-            logger.debug(f"Processing input item: {item}")
-            
-            # Extract field value if specified
-            if self.field is not None:
-                value = extract_property(item, self.field)
-                logger.debug(f"Extracted value from field {self.field}: {value}")
-            else:
-                value = item
-                logger.debug(f"Using item directly: {value}")
-            
-            # Evaluate the expression on the value
-            result = self.lambda_function(value)
-            logger.debug(f"Evaluation result: {result}")
-            
-            # Yield the item if the expression evaluates to True
-            if result:
+            value = extract_property(item, self.field) if self.field else item
+            if self.lambda_function(value):
                 yield item
 
 

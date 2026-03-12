@@ -30,6 +30,7 @@ data = {"action": "flush", "timestamp": "2025-01-15"}
 flush_signal = Metadata(**data)
 
 # Check if an item is metadata and access fields directly
+item = Metadata(action="flush", buffer_id="main")
 if is_metadata(item):
     if item.action == "flush":
         # Handle flush
@@ -58,13 +59,13 @@ if is_metadata(item):
 A common use case is flushing buffers at the end of a stream:
 
 ```python
-from talkpipe.pipe.core import AbstractSegment, Metadata, is_metadata
+from talkpipe.pipe.core import AbstractSegment, Metadata, is_metadata, source
 
 class BufferedSegment(AbstractSegment):
     """Segment that buffers items and flushes on metadata signal."""
     
-    def __init__(self, buffer_size=10):
-        super().__init__(process_metadata=True)  # Enable metadata processing
+    def __init__(self, buffer_size=10, process_metadata=True):
+        super().__init__(process_metadata=process_metadata)  # Enable metadata processing
         self.buffer_size = buffer_size
         self.buffer = []
     
@@ -104,6 +105,9 @@ pipeline = data_source() | BufferedSegment(buffer_size=10, process_metadata=True
 Sources can emit metadata to signal downstream segments:
 
 ```python
+# skip-extract  (requires file I/O)
+from talkpipe.pipe.core import source, Metadata
+
 @source()
 def file_reader(filename: str):
     with open(filename) as f:
@@ -118,13 +122,15 @@ def file_reader(filename: str):
 By default, segments automatically pass metadata through:
 
 ```python
+from talkpipe.pipe.core import segment
+
 @segment()
 def simple_transform(items):
     """This segment doesn't need to handle metadata - it passes through automatically."""
     for item in items:
         # Metadata items are automatically filtered out before transform() is called
         # when process_metadata=False (the default)
-        yield process_item(item)
+        yield item  # process_item(item) in real usage
 
 # Metadata will still flow through the pipeline but won't be seen by transform()
 ```
@@ -134,9 +140,17 @@ def simple_transform(items):
 When a segment needs to process metadata:
 
 ```python
+from talkpipe.pipe.core import AbstractSegment, is_metadata
+
 class MetadataAwareSegment(AbstractSegment):
     def __init__(self):
         super().__init__(process_metadata=True)  # Enable metadata processing
+    
+    def flush_buffer(self):
+        pass  # Stub for example
+    
+    def process(self, item):
+        return item  # Stub for example
     
     def transform(self, input_iter):
         for item in input_iter:
@@ -217,6 +231,8 @@ pipeline = data_source() | BatchProcessor(batch_size=5)
 ### Example 2: Metadata Passing Through
 
 ```python
+from talkpipe.pipe.core import source, segment, Metadata
+
 @source()
 def source_with_metadata():
     yield {"data": "item1"}

@@ -13,6 +13,10 @@ from pathlib import Path
 from typing import List, Dict, Tuple, Optional
 import sys
 
+# Factory functions that create segments with dynamic names.
+# Format: func(name: str, ...) -> segment. We extract the name from the first arg.
+SEGMENT_FACTORY_FUNCTIONS = frozenset(['_make_comparison_segment'])
+
 
 class DecoratorFinder(ast.NodeVisitor):
     """AST visitor to find decorator usage in Python files."""
@@ -84,6 +88,52 @@ class DecoratorFinder(ast.NodeVisitor):
         return names
 
 
+class FactoryCallFinder(ast.NodeVisitor):
+    """Find assignments to factory function calls that create segments with dynamic names."""
+
+    def __init__(self, module_path: str):
+        self.module_path = module_path
+        self.segments: List[Tuple[str, str]] = []  # [(reg_name, object_name)]
+
+    def visit_Assign(self, node: ast.Assign):
+        """Find VAR = factory_func("name", ...) patterns."""
+        if len(node.targets) != 1:
+            self.generic_visit(node)
+            return
+        target = node.targets[0]
+        if not isinstance(target, ast.Name):
+            self.generic_visit(node)
+            return
+        object_name = target.id
+
+        if not isinstance(node.value, ast.Call):
+            self.generic_visit(node)
+            return
+        call = node.value
+        func_name = self._get_call_func_name(call.func)
+        if func_name not in SEGMENT_FACTORY_FUNCTIONS:
+            self.generic_visit(node)
+            return
+        if not call.args:
+            self.generic_visit(node)
+            return
+        first_arg = call.args[0]
+        if not isinstance(first_arg, ast.Constant) or not isinstance(first_arg.value, str):
+            self.generic_visit(node)
+            return
+        reg_name = first_arg.value
+        self.segments.append((reg_name, object_name))
+        self.generic_visit(node)
+
+    def _get_call_func_name(self, func_node) -> Optional[str]:
+        """Get the function name from a call (handles local func or attr like module.func)."""
+        if isinstance(func_node, ast.Name):
+            return func_node.id
+        if isinstance(func_node, ast.Attribute):
+            return func_node.attr
+        return None
+
+
 def scan_file(file_path: Path, package_root: Path, package_name: str) -> Dict[str, List[Tuple[str, str, str]]]:
     """
     Scan a single Python file for decorator usage.
@@ -115,9 +165,14 @@ def scan_file(file_path: Path, package_root: Path, package_name: str) -> Dict[st
         
         finder = DecoratorFinder(module_path)
         finder.visit(tree)
+
+        factory_finder = FactoryCallFinder(module_path)
+        factory_finder.visit(tree)
         
         sources = [(name, cls, module_path) for name, cls in finder.sources]
         segments = [(name, cls, module_path) for name, cls in finder.segments]
+        # Add factory-created segments (reg_name, object_name) - use object_name for entry point
+        segments.extend((reg_name, obj_name, module_path) for reg_name, obj_name in factory_finder.segments)
         
         return {
             'sources': sources,

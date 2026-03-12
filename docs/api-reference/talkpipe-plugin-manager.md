@@ -60,7 +60,7 @@ The plugin manager discovers plugins through Python entry points in the `talkpip
 Plugins should define entry points in their `setup.py` or `pyproject.toml`:
 
 **setup.py:**
-```python
+```
 setup(
     name="my-talkpipe-plugin",
     entry_points={
@@ -138,8 +138,17 @@ You can also register components at the module level:
 ```python
 # my_plugin/__init__.py
 from talkpipe.chatterlang import registry
-from .sources import MySource
-from .segments import MySegment
+from talkpipe.pipe.core import AbstractSource, AbstractSegment
+
+# In a real plugin: from .sources import MySource; from .segments import MySegment
+class MySource(AbstractSource):
+    def generate(self):
+        yield "example"
+
+class MySegment(AbstractSegment):
+    def transform(self, items):
+        for item in items:
+            yield item
 
 # Registration happens on import
 registry.input_registry.register(MySource, "mySource")
@@ -178,18 +187,8 @@ talkpipe_plugins --list
 
 ## Integration with TalkPipe
 
-Plugins are automatically loaded when you import TalkPipe:
+Plugins are automatically loaded when you import TalkPipe.
 
-```python
-import talkpipe  # Plugins loaded automatically
-
-# Use plugin components
-from talkpipe.chatterlang import compiler
-
-# Plugin components available in ChatterLang scripts
-script = "| httpGet[url='https://api.example.com'] | jsonParse | print"
-pipeline = compiler.compile(script)
-```
 
 ## Troubleshooting
 

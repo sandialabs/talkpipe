@@ -44,6 +44,9 @@ The Application Components layer contains runnable applications that provide use
 - **[chatterlang_serve](docs/api-reference/chatterlang-server.md)**
   Exposes ChatterLang pipelines as REST APIs or web forms, allowing you to deploy workflows as web services or user-facing endpoints.
 
+- **[makevectordatabase & serverag](docs/guides/makevectordatabase-and-serverag.md)**
+  Create vector databases from documents and run RAG web servers in two commands—no scripts required.
+
 - **chatterlang_reference_browser**
   An interactive command line application for searching and browsing installed ChatterLang sources and segments.
 
@@ -265,7 +268,7 @@ script = """
 """
 
 analyzer = compiler.compile(script).as_function(single_in=True)
-analyzer("https://example.com/")
+analyzer("http://example.com/")
 ```
 
 ## Example 4: Content Evaluation Pipeline
@@ -343,7 +346,8 @@ indexing_script = """
     path="./my_knowledge_base",
     embedding_model="nomic-embed-text",
     embedding_source="ollama",
-    embedding_field="text"
+    embedding_field="text",
+    overwrite=True
   ]
 """
 indexer = compiler.compile(indexing_script).as_function(single_in=False)
@@ -524,13 +528,16 @@ result = pipeline.as_function(single_out=False)()
 
 **Segments** transform data:
 ```python
+from talkpipe.pipe.math import arange
+from talkpipe.pipe import core, io
+
 @core.segment()
 def multiplyBy(items, factor=2):
     for item in items:
         yield item * factor
 
 # Use it to double the Fibonacci numbers
-pipeline = fibonacci(n=5) | multiplyBy(factor=3) | io.Print()
+pipeline = arange(lower=5, upper=10) | multiplyBy(factor=3) | io.Print()
 result = pipeline.as_function(single_out=False)()
 
 # Output:

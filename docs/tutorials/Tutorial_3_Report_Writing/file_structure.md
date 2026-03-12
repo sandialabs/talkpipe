@@ -1,4 +1,4 @@
-# Tutorial_3-Report_Writing Complete File Structure
+# Tutorial_3_Report_Writing Complete File Structure
 
 This tutorial creates the following files, following the patterns established in Tutorials 1 and 2:
 
@@ -40,7 +40,7 @@ Tutorial_3_Report_Writing/
 
 **step_2_extras.py**: Contains `generateReportSectionPrompts` and `generateDetailedReport` segments that create multi-section reports by generating individual sections and combining them into cohesive documents.
 
-**step3_extras.py**: Contains `generateMultiFormatReport` segment that adapts the same source material into different formats optimized for different audiences and use cases.
+**step3_extras.py**: Contains `generateMultiFormatReport` segment that adapts the same source material into different formats optimized for different audiences and use cases. (Note: This file uses `step3` without an underscore for historical consistency; Steps 1 and 2 use `step_1_extras.py` and `step_2_extras.py`.)
 
 **report_topic_ui.yml**: Web interface configuration for topic-based report generation, allowing users to specify broad topics rather than specific questions.
 

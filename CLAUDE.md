@@ -38,7 +38,8 @@ TalkPipe is a Python toolkit that makes it easy to create, test, and deploy work
 - Unit tests should be as short as possible while still testing the functionality as completely as possible.
 - User interfaces should be visually appealing and maintain consistency with each other.
 - When writing or updating pipeline examples in documentation, write examples with stand-alone code and 
-    test the examples by running them.
+    test the examples by running them. Prefer unindented \`\`\`python fences for easier extraction; see 
+    docs/architecture/documentation-formatting.md.
 - When creating a new source or segment, update pyproject.toml to include it in the endpoints.
 docs/architecture/protocol.md names protocol conventions to use when writing new sources and segments.
 - When writing documentation for segments or sources, do not document the parameters.

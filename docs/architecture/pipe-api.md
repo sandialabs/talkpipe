@@ -31,7 +31,12 @@ The Pipe API consists of three main components:
 Sources are the entry points for data pipelines. They generate data without requiring upstream input.
 
 ```python
-class AbstractSource(ABC, HasRuntimeComponent, Generic[U]):
+from abc import ABC, abstractmethod
+from typing import Generic, Iterator, TypeVar
+
+U = TypeVar("U")
+
+class AbstractSource(ABC, Generic[U]):
     @abstractmethod
     def generate(self) -> Iterator[U]:
         """Generate data items for the pipeline."""
@@ -58,7 +63,13 @@ class AbstractSource(ABC, HasRuntimeComponent, Generic[U]):
 Segments are operations that transform data flowing through the pipeline.
 
 ```python
-class AbstractSegment(ABC, HasRuntimeComponent, Generic[T, U]):
+from abc import ABC, abstractmethod
+from typing import Generic, Iterable, Iterator, TypeVar
+
+T = TypeVar("T")
+U = TypeVar("U")
+
+class AbstractSegment(ABC, Generic[T, U]):
     @abstractmethod
     def transform(self, input_iter: Iterable[T]) -> Iterator[U]:
         """Transform input items into output items."""
@@ -84,6 +95,9 @@ class AbstractSegment(ABC, HasRuntimeComponent, Generic[T, U]):
 Pipelines chain sources and segments together into executable workflows.
 
 ```python
+from typing import Union
+from talkpipe.pipe.core import AbstractSource, AbstractSegment
+
 class Pipeline(AbstractSegment):
     def __init__(self, *operations: Union[AbstractSource, AbstractSegment]):
         self.operations = list(operations)
@@ -101,7 +115,7 @@ class Pipeline(AbstractSegment):
 
 Use the `|` operator to chain components:
 
-```python
+```
 # Source | Segment | Segment
 pipeline = data_source | transform1 | transform2
 ```
@@ -109,6 +123,7 @@ pipeline = data_source | transform1 | transform2
 ### Execution
 
 ```python
+# skip-extract  (illustrative fragment)
 # Execute pipeline and collect results
 results = list(pipeline())
 
@@ -128,17 +143,22 @@ The Pipe API provides decorators to easily convert functions into sources and se
 Converts a function into a source class:
 
 ```python
+from talkpipe.pipe.core import source
+from talkpipe.pipe import io
+
 @source()
 def my_data_source():
     yield "item1"
     yield "item2"
 
 # Usage
-pipeline = my_data_source() | some_transform
+pipeline = my_data_source() | io.Print()  # some_transform in real usage
 ```
 
 **With Parameters**:
 ```python
+from talkpipe.pipe.core import source
+
 @source(count=10, prefix="item")
 def parameterized_source(count, prefix):
     for i in range(count):
@@ -155,6 +175,9 @@ source_instance = parameterized_source(count=5, prefix="data")
 Converts a function into a segment class:
 
 ```python
+# skip-extract  (data_source from pipeline context)
+from talkpipe.pipe.core import segment
+
 @segment()
 def uppercase(items):
     for item in items:
@@ -166,6 +189,7 @@ pipeline = data_source | uppercase()
 
 **With Parameters**:
 ```python
+# skip-extract  (data_source from pipeline context)
 @segment(multiplier=2)
 def scale(items, multiplier):
     for item in items:
@@ -182,6 +206,9 @@ pipeline = data_source | scale(multiplier=3)
 Creates segments that process specific fields and optionally append results:
 
 ```python
+# skip-extract  (data_source from pipeline context)
+from talkpipe.pipe.core import field_segment
+
 @field_segment(field="text", set_as="word_count")
 def count_words(text):
     return len(text.split())
@@ -236,6 +263,9 @@ This enables segments to:
 Executes segments sequentially, fully resolving each before the next:
 
 ```python
+from typing import List
+from talkpipe.pipe.core import AbstractSegment
+
 class Script(AbstractSegment):
     def __init__(self, segments: List[AbstractSegment]):
         self.segments = segments
@@ -252,6 +282,8 @@ class Script(AbstractSegment):
 Repeats a script multiple times:
 
 ```python
+from talkpipe.pipe.core import AbstractSegment, Script
+
 class Loop(AbstractSegment):
     def __init__(self, times: int, script: Script):
         self.times = times
@@ -265,6 +297,10 @@ class Loop(AbstractSegment):
 Parallel processing with multiple branches:
 
 ```python
+from typing import List
+from talkpipe.pipe.core import AbstractSegment
+from talkpipe.pipe.fork import ForkMode
+
 class ForkSegment(AbstractSegment):
     def __init__(self, branches: List[AbstractSegment], 
                  mode: ForkMode = ForkMode.BROADCAST):
@@ -284,6 +320,9 @@ class ForkSegment(AbstractSegment):
 Components can be registered for use in ChatterLang DSL:
 
 ```python
+import talkpipe.chatterlang.registry as registry
+from talkpipe.pipe.core import AbstractSegment, AbstractSource
+
 @registry.register_segment("my_transform")
 class MyTransform(AbstractSegment):
     pass
@@ -307,6 +346,7 @@ The registry enables:
 Converts segments to callable functions:
 
 ```python
+# skip-extract  (my_segment from pipeline context)
 # Convert segment to function
 func = my_segment.as_function(single_in=True, single_out=True)
 result = func(input_item)
@@ -325,6 +365,7 @@ result = func(input_item)
 Use `yield` in transform methods for memory efficiency:
 
 ```python
+# skip-extract  (method fragment)
 def transform(self, input_iter):
     for item in input_iter:
         yield process(item)  # Lazy - processes on demand
@@ -335,6 +376,7 @@ def transform(self, input_iter):
 Handle errors gracefully in segments:
 
 ```python
+# skip-extract  (method fragment)
 def transform(self, input_iter):
     for item in input_iter:
         try:
@@ -349,6 +391,7 @@ def transform(self, input_iter):
 Use context managers for resources:
 
 ```python
+# skip-extract  (method fragment)
 def generate(self):
     with open(self.filename) as f:
         for line in f:

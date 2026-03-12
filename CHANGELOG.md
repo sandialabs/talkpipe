@@ -1,21 +1,60 @@
 # Changelog
 
-## In Development
-- Fixed misleading "Segment 'X' not found" when the real error was a missing constant or variable
-  in segment/source parameters. The compiler now reports "Constant or variable 'X' not found"
-  in that case. This commonly affected TOOL pipelines using `llmPrompt[source=SOURCE, model=MODEL]`
-  when SOURCE/MODEL were not defined.
-- TOOL pipelines are now compiled with the script's runtime, so `CONST SOURCE`, `CONST MODEL`,
-  and other constants are available when resolving parameters in the tool pipeline string.
-- Added tool calling support to `LLMPrompt` for Ollama models. The `tools` parameter accepts
-  either a FastMCP instance or a list of callable functions. When the model requests tool calls,
-  they are automatically executed and the results are sent back to the model, enabling multi-turn
-  conversations with tool usage. Tool calling automatically handles function signature extraction, 
-  JSON schema generation, tool execution, and multi-round conversations until the model returns 
-  a final response.
-- Fixed `llmPrompt[..., tools="article_tools"]` when the server name is given as a quoted string:
-  the compiler now resolves such a string from `const_store` so the adapter receives the MCP
-  server instance instead of the string, eliminating "Could not extract tools from FastMCP instance".
+## 0.11.5
+- CI/CD: build multi-architecture Docker images (linux/amd64, linux/arm64) on release only; push/PR
+  builds use single-platform (linux/amd64) for faster CI.
+- chatterlang_serve stream UI: response and error messages are now rendered as markdown (using
+  marked and DOMPurify); user messages remain plain text. Copy button still copies raw text.
+  CSP updated to allow script-src from cdn.jsdelivr.net so markdown libraries load.
+- Added **makevectordatabase** command to create a LanceDB vector database from documents.
+  Usage: `makevectordatabase "docs/*.md" --path ./mydb` (default doc_id_field=None for unique chunk IDs).
+- Added **serverag** command to run a RAG pipeline as a web server or interactive CLI.
+  Usage: `serverag --path ./mydb` (web UI) or `serverag --path ./mydb --interactive` (CLI).
+- Added [makevectordatabase and serverag](docs/guides/makevectordatabase-and-serverag.md) documentation guide.
+  Web UI: single-line prompt field that clears after submit; Enter key submits.
+  Guide now includes Docker and Podman examples: separate Dockerfiles for serverag and
+  makevectordatabase, and end-to-end container workflow.
+- RAG source citation: ProcessDocumentsSegment preserves title and source (path) as separate
+  metadata fields; construct_background prioritizes them in prompts; default system prompt and
+  prompt_directive instruct the LLM to cite sources; RAGToText appends source file paths to
+  answers by default (append_sources_to_output=True).
+- RAG AppendRAGSources: now modifies the item in place (assigns answer to set_as field) instead of
+  yielding a string; preserves dict structure so output format is consistent regardless of
+  append_sources_to_output.
+- Improved tutorial documentation: condensed main tutorials README with learning path diagram,
+  linked to quickstart for installation; added navigation links, expected outputs, and
+  troubleshooting sections to all three tutorials; added chatterlang language tags and
+  snippet intent labels; fixed file_structure.md header and documented step3_extras naming.
+- Clarified tutorial docs: "Get Started in 5 Minutes" now lists all three steps (search UI
+  requires Step 3); Key Concepts and Beyond the Web Interface no longer imply Elasticsearch
+  or Pinecone are built-in—they are custom segments or plugins you can add.
+- Rewrote quickstart.md: added non-LLM examples (echo, cast, formatItem) so users can run
+  pipelines without Ollama/OpenAI; documented all pip install extras (ollama, openai,
+  anthropic, pypdf, all); reordered content with no-LLM examples first.
+
+## 0.11.4
+- Documentation example fixes: added missing imports and stubs to extending-talkpipe.md,
+  metadata-stream.md, pipe-api.md; introduced `# skip-extract` for blocks that cannot run
+  standalone (setup.py, relative imports, illustrative fragments); updated
+  documentation-formatting.md with skip-extract guidance.
+- Improved Tutorial 1 (Document Indexing), Tutorial 2 (Search by Example and RAG), and Tutorial 3
+  (Report Generation) documentation: clearer structure, prerequisites and quick-start section,
+  value-focused intro, and step-by-step guidance for running the tutorials.
+- Fixed documentation examples: corrected lazy-loading.md ChatterLang syntax (range as source
+  needs INPUT FROM, uses lower/upper not start/stop; scale uses multiplier not factor);
+  corrected protocol.md assign_property example (nested paths require direct assignment).
+  Replaced optional-dependency examples (tensorflow, pandas) in lazy-loading.md with stdlib
+  equivalents (csv, sqlite3) so all snippets run out of the box.
+- Fixed ReadFile segment naming discrepency.
+- Internal simplifications: removed unreachable code, extracted shared hash validation logic,
+  consolidated boolean filter segments (isIn/isNotIn/isTrue/isFalse) with common helper.
+- Additional simplifications: consolidated imports and simplified firstN (itertools.islice),
+  removed verbose per-item debug logging in FilterExpression, factored comparison segments
+  (eq/neq/gt/gte/lt/lte) via factory, fixed hash_data to parse string field_list, removed
+  redundant empty __init__ from DescribeData/ToList/ToDataFrame.
+- chatterlang_generate_entry_points now discovers factory-created segments (e.g. gt, eq, lt).
+  Fixed pyproject.toml entry points for comparison segments to reference correct object names
+  (GT, EQ, etc.) instead of lowercase.
 
 ## 0.11.3
 - Fixed chatterlang_serve stream interface so search results display reliably. The UI now
