@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.11.5
 - CI/CD: build multi-architecture Docker images (linux/amd64, linux/arm64) on release only; push/PR
   builds use single-platform (linux/amd64) for faster CI.
 - chatterlang_serve stream UI: response and error messages are now rendered as markdown (using
