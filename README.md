@@ -98,7 +98,7 @@ from talkpipe.pipe import io
 from talkpipe.llm import chat
 
 # Create a pipeline that prompts for input, gets an LLM response, and prints it
-pipeline = io.Prompt() | chat.LLMPrompt(model="llama3.2") | io.Print()
+pipeline = io.Prompt() | chat.LLMPrompt(model="llama3.2", source="ollama") | io.Print()
 pipeline = pipeline.as_function()
 pipeline()  # Run the interactive pipeline
 ```
@@ -202,13 +202,13 @@ INPUT FROM echo[data="The US should give free puppies to all children."]
 
 LOOP 3 TIMES {
     INPUT FROM @topic 
-        | llmPrompt[system_prompt=economist_prompt] 
+        | llmPrompt[system_prompt=economist_prompt, model="llama3.2", source="ollama"] 
         | @topic 
         | accum[variable=@conversation] 
         | print;
     
     INPUT FROM @topic 
-        | llmPrompt[system_prompt=theologian_prompt] 
+        | llmPrompt[system_prompt=theologian_prompt, model="llama3.2", source="ollama"] 
         | @topic 
         | accum[variable=@conversation] 
         | print;
@@ -240,7 +240,7 @@ script = """
 CONST scorePrompt = "Rate 1-10 how related to dogs this is:";
 
 | loadsJsonl 
-| llmScore[system_prompt=scorePrompt, model="llama3.2", set_as="dog_relevance"] 
+| llmScore[system_prompt=scorePrompt, model="llama3.2", source="ollama", set_as="dog_relevance"] 
 | setAs[field_list="dog_relevance.score:relevance_score"] 
 | toDataFrame
 """
@@ -262,7 +262,8 @@ script = """
 | htmlToText
 | llmPrompt[
     system_prompt="Summarize this article in 3 bullet points",
-    model="llama3.2"
+    model="llama3.2",
+    source="ollama"
   ]
 | print
 """
@@ -296,11 +297,11 @@ CONST iot_prompt = "Rate 0-10 how relevant this is to IoT researchers. Consider 
 | concat[fields="title,summary", set_as="full_text"]
 
 # Score for AI relevance
-| llmScore[system_prompt=ai_prompt, field="full_text", set_as="ai_eval", model="llama3.2"]
+| llmScore[system_prompt=ai_prompt, field="full_text", set_as="ai_eval", model="llama3.2", source="ollama"]
 | setAs[field_list="ai_eval.score:ai_score,ai_eval.explanation:ai_reason"]
 
 # Score for IoT relevance
-| llmScore[system_prompt=iot_prompt, field="full_text", set_as="iot_eval", model="llama3.2"]
+| llmScore[system_prompt=iot_prompt, field="full_text", set_as="iot_eval", model="llama3.2", source="ollama"]
 | setAs[field_list="iot_eval.score:iot_score,iot_eval.explanation:iot_reason"]
 
 # Find highest score

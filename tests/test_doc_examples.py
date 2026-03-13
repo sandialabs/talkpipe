@@ -24,6 +24,13 @@ def _cleanup_doc_example_artifacts():
             shutil.rmtree(path, ignore_errors=True)
 
 
+def _safe_test_id(path: Path, line_num: int) -> str:
+    """Produce a test ID safe for shell and IDE parsing (no brackets, colons, or dots in ID)."""
+    # e.g. README.md:277 -> README_md-277, docs/foo.md:74 -> docs_foo_md-74
+    stem = str(path).replace(".", "_").replace("/", "_").replace("\\", "_")
+    return f"{stem}-{line_num}"
+
+
 def pytest_generate_tests(metafunc: pytest.Metafunc) -> None:
     """Collect doc examples at collection time so new examples are picked up after doc edits."""
     if "path" in metafunc.fixturenames and "line_num" in metafunc.fixturenames and "code" in metafunc.fixturenames:
@@ -31,12 +38,12 @@ def pytest_generate_tests(metafunc: pytest.Metafunc) -> None:
         metafunc.parametrize(
             "path,line_num,code",
             examples,
-            ids=[f"{path}:{line_num}" for path, line_num, _ in examples],
+            ids=[_safe_test_id(path, line_num) for path, line_num, _ in examples],
         )
 
 
 @pytest.mark.requires_ollama
-def test_doc_example(path: Path, line_num: int, code: str) -> None:
+def test_doc_example(requires_ollama,path: Path, line_num: int, code: str) -> None:
     """Run a documentation example. Requires Ollama for LLM examples."""
     location = f"{path}:{line_num}"
     success, exc = run_example(location, code)
