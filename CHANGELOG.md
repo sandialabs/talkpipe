@@ -5,6 +5,7 @@
 - Doc examples tests now use `pytest_generate_tests` so new examples are picked up immediately after documentation edits (no stale collection).
 - Doc examples tests clean up artifacts (e.g. `my_knowledge_base` from RAG examples) after each test.
 - Doc examples test IDs use shell/IDE-safe format (e.g. `README_md-278`) to avoid parser errors when running from Cursor/VSCode.
+- Doc examples cleanup validates paths before deletion to prevent path traversal (only deletes strict children of project root).
 
 ## 0.11.5
 - CI/CD: build multi-architecture Docker images (linux/amd64, linux/arm64) on release only; push/PR

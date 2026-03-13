@@ -14,11 +14,37 @@ _project_root = Path(__file__).resolve().parent.parent
 _DOC_EXAMPLE_ARTIFACTS = ["my_knowledge_base"]
 
 
+def _is_safe_to_delete(root: Path, name: str) -> bool:
+    """Return True only if name is a safe child of root (no path traversal)."""
+    if not name or "/" in name or "\\" in name or ".." in name:
+        return False
+    try:
+        child = (root / name).resolve()
+        root_resolved = root.resolve()
+        return child != root_resolved and child.is_relative_to(root_resolved)
+    except (OSError, RuntimeError, ValueError):
+        return False
+
+
+def test_is_safe_to_delete():
+    """Ensure cleanup only deletes paths strictly under project root."""
+    root = _project_root
+    assert _is_safe_to_delete(root, "my_knowledge_base") is True
+    assert _is_safe_to_delete(root, "foo") is True
+    assert _is_safe_to_delete(root, "") is False
+    assert _is_safe_to_delete(root, "..") is False
+    assert _is_safe_to_delete(root, "a/b") is False
+    assert _is_safe_to_delete(root, "a\\b") is False
+    assert _is_safe_to_delete(root, "../etc") is False
+
+
 @pytest.fixture(autouse=True)
 def _cleanup_doc_example_artifacts():
     """Remove artifacts created by doc examples (e.g. vector DBs) after each test."""
     yield
     for name in _DOC_EXAMPLE_ARTIFACTS:
+        if not _is_safe_to_delete(_project_root, name):
+            continue
         path = _project_root / name
         if path.exists():
             shutil.rmtree(path, ignore_errors=True)
