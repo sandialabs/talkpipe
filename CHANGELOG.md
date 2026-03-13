@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+- Streamlined doc examples testing: added `talkpipe.app.doc_examples` module, `pytest tests/test_doc_examples.py` for standard test output, and `run-doc-examples` CLI. Doc examples marked with `requires_ollama`; skip with `-m "not requires_ollama"` when Ollama unavailable.
+- Doc examples tests now use `pytest_generate_tests` so new examples are picked up immediately after documentation edits (no stale collection).
+- Doc examples tests clean up artifacts (e.g. `my_knowledge_base` from RAG examples) after each test.
+
 ## 0.11.5
 - CI/CD: build multi-architecture Docker images (linux/amd64, linux/arm64) on release only; push/PR
   builds use single-platform (linux/amd64) for faster CI.

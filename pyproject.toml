@@ -84,7 +84,13 @@ chatterlang_generate_entry_points = "talkpipe.app.chatterlang_generate_entry_poi
 talkpipe_plugins = "talkpipe.app.talkpipe_plugin_manager:main"
 talkpipe_makevectordatabase = "talkpipe.app.makevectordatabase:main"
 makevectordatabase = "talkpipe.app.makevectordatabase:main"
+run_doc_examples = "talkpipe.app.doc_examples:main"
 serverag = "talkpipe.app.serverag:main"
+
+[tool.pytest.ini_options]
+markers = [
+    "requires_ollama: mark test as requiring Ollama (LLM examples). Skip with -m 'not requires_ollama'.",
+]
 
 [tool.setuptools.packages.find]
 where = ["src"]

@@ -6,6 +6,8 @@
 - `python -m build` — create a new release
 - `pytest --cov=src` — run unit tests with coverage
 - `python .cursor/skills/update-entry-points/scripts/update_entry_points.py` — generate entry points from decorators and update pyproject.toml (preferred over chatterlang_generate_entry_points when updating pyproject.toml)
+- `pytest tests/test_doc_examples.py -v` — run all doc examples as tests (requires full_network for LLM examples; skip with `-m "not requires_ollama"` when Ollama unavailable)
+- `run_doc_examples` — extract and run all doc examples (alternative to pytest; requires full_network for LLM examples)
 
 ## Project Overview
 TalkPipe is a Python toolkit that makes it easy to create, test, and deploy workflows that integrate Generative AI with your existing tools and data sources. TalkPipe treats LLMs as one tool in your arsenal - letting you build practical solutions that combine AI with data processing, file handling, and more.  
