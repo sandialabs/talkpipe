@@ -1,6 +1,9 @@
 # Changelog
 
 ## 0.11.5
+- Fixed chatterlang_serve stream UI duplicate output: response items are no longer added to the
+  SSE output queue when returned in the /process response, eliminating duplicate display in the
+  browser when both the HTTP response and SSE deliver the same content.
 - CI/CD: build multi-architecture Docker images (linux/amd64, linux/arm64) on release only; push/PR
   builds use single-platform (linux/amd64) for faster CI.
 - chatterlang_serve stream UI: response and error messages are now rendered as markdown (using

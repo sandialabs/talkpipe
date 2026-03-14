@@ -437,7 +437,6 @@ class ChatterlangServer:
                 try:
                     for item in result:
                         if item is not None:
-                            session.add_output(str(item), "response")
                             output_items.append(item)
                 except Exception as e:
                     error_msg = f"Error processing iterator: {str(e)}"
@@ -446,8 +445,10 @@ class ChatterlangServer:
             else:
                 # Single result
                 if result is not None:
-                    session.add_output(str(result), "response")
                     output_items.append(result)
+
+            # Do not add response items to output_queue - the stream UI displays from the
+            # /process response to avoid duplicates. SSE output_queue is only used for errors.
             
             # Store in session history
             session.add_to_history({

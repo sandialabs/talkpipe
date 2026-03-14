@@ -127,7 +127,7 @@ def test_extract_source_paths_fallback_to_title():
 
 def test_append_rag_sources_appends_file_paths():
     """Test AppendRAGSources appends source paths to the response and preserves item structure."""
-    segment = AppendRAGSources(set_as="answer")
+    segment = AppendRAGSources(partial_answer_field="_rag_response", set_as="answer")
     item = {
         "query": "What is 42?",
         "id": "q1",
@@ -690,13 +690,10 @@ def test_rag_to_text_without_set_as(requires_ollama, temp_vector_db_path, sample
     # When set_as is None, uses "answer" as default; output is always a dict
     assert len(results) == 1
     result = results[0]
-    assert isinstance(result, dict)
-    assert "answer" in result
-    assert isinstance(result["answer"], str)
-    assert len(result["answer"]) > 0
+    assert isinstance(result, str)
 
     # Should contain relevant information about machine learning
-    assert "learn" in result["answer"].lower() or "data" in result["answer"].lower()
+    assert "learn" in result or "data" in result
 
 
 def test_rag_to_text_with_different_limit(requires_ollama, temp_vector_db_path, sample_knowledge_base):

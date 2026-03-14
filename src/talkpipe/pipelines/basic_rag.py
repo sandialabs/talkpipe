@@ -90,13 +90,14 @@ class ConstructRAGPrompt(AbstractSegment):
 class AppendRAGSources(AbstractSegment):
     """Appends source file paths from _background to the RAG response in _rag_response, storing the result in set_as while preserving the item structure."""
 
-    def __init__(self, set_as: Annotated[str, "Field to store the answer (with sources appended)"] = "answer"):
+    def __init__(self, partial_answer_field: Annotated[str, "Field with the llm response"], set_as: Annotated[str, "Field to store the answer (with sources appended)"] = None):
         super().__init__()
         self.set_as = set_as
+        self.partial_answer_field = partial_answer_field
 
     def transform(self, input_iter):
         for item in input_iter:
-            response = extract_property(item, "_rag_response", fail_on_missing=False)
+            response = extract_property(item, self.partial_answer_field, fail_on_missing=False)
             background = extract_property(item, "_background", fail_on_missing=False)
             if response is None:
                 yield item
@@ -106,8 +107,11 @@ class AppendRAGSources(AbstractSegment):
                 paths = _extract_source_paths(background)
                 if paths:
                     text += "\n\nSources:\n" + "\n".join(f"- {p}" for p in paths)
-            assign_property(item, self.set_as, text)
-            yield item
+            if self.set_as is None:
+                yield text
+            else:
+                assign_property(item, self.set_as, text)
+                yield item
 
 
 class AbstractRAGPipeline(AbstractSegment):
@@ -226,20 +230,14 @@ class RAGToText(AbstractRAGPipeline):
         self.append_sources_to_output = append_sources_to_output
 
     def make_completion_segment(self) -> AbstractSegment:
-        set_as = "_rag_response" if self.append_sources_to_output else self.set_as
+        partial_answer_set_as = "_partial_rag_response" if self.append_sources_to_output else self.set_as
         return LLMPrompt(model=self.completion_model,
                          source=self.completion_source,
                          system_prompt=self.system_prompt,
                          field="_ragprompt",
-                         set_as=set_as,
-                         role_map=self.role_map)
-
-    def make_pipeline(self):
-        base = super().make_pipeline()
-        if self.append_sources_to_output:
-            set_as = self.set_as or "answer"
-            return base | AppendRAGSources(set_as=set_as)
-        return base
+                         set_as=partial_answer_set_as,
+                         role_map=self.role_map) | \
+                AppendRAGSources(partial_answer_field=partial_answer_set_as, set_as=self.set_as)
 
     
 @register_segment("ragToBinaryAnswer")
