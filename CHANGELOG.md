@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.11.6
 - Fixed chatterlang_serve stream UI duplicate output: response items are no longer added to the
   SSE output queue when returned in the /process response, eliminating duplicate display in the
   browser when both the HTTP response and SSE deliver the same content.
