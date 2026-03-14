@@ -1,9 +1,15 @@
 # Changelog
 
-## 0.11.5
+## Unreleased
 - Fixed chatterlang_serve stream UI duplicate output: response items are no longer added to the
   SSE output queue when returned in the /process response, eliminating duplicate display in the
   browser when both the HTTP response and SSE deliver the same content.
+- Fixed a bug that caused all RagToText output to be a complex object.  If set_as is false, you
+  (again) only get the text of the response.
+- Added an option to embeddings to skip on error.  This can happen when a text chunk is turned
+  into too many tokens.
+
+## 0.11.5
 - CI/CD: build multi-architecture Docker images (linux/amd64, linux/arm64) on release only; push/PR
   builds use single-platform (linux/amd64) for faster CI.
 - chatterlang_serve stream UI: response and error messages are now rendered as markdown (using

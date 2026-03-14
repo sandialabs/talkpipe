@@ -23,6 +23,7 @@ def main():
     parser.add_argument('--embedding_model', type=str, help='Model to use for embedding (defaults to config)')
     parser.add_argument('--embedding_source', type=str, help='Source of the embedding model (defaults to config)')
     parser.add_argument('--embedding_field', type=str, default='shingle_text', help='Field to use for embeddings (default: shingle_text)')
+    parser.add_argument('--embedding_fail_on_error', action='store_true', help='If set, fail on error when embedding', default=False)
     
     # Other LanceDB options
     parser.add_argument('--table_name', type=str, default='docs', help='Name of the table to create (default: "docs")')
@@ -66,7 +67,8 @@ def main():
             table_name=args.table_name,
             doc_id_field=args.doc_id_field,
             overwrite=args.overwrite,
-            batch_size=args.batch_size
+            batch_size=args.batch_size,
+            fail_on_error=args.embedding_fail_on_error
         )
     )
 
