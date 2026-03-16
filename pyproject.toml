@@ -84,7 +84,13 @@ chatterlang_generate_entry_points = "talkpipe.app.chatterlang_generate_entry_poi
 talkpipe_plugins = "talkpipe.app.talkpipe_plugin_manager:main"
 talkpipe_makevectordatabase = "talkpipe.app.makevectordatabase:main"
 makevectordatabase = "talkpipe.app.makevectordatabase:main"
+run_doc_examples = "talkpipe.app.doc_examples:main"
 serverag = "talkpipe.app.serverag:main"
+
+[tool.pytest.ini_options]
+markers = [
+    "requires_ollama: mark test as requiring Ollama (LLM examples). Skip with -m 'not requires_ollama'.",
+]
 
 [tool.setuptools.packages.find]
 where = ["src"]
@@ -115,6 +121,7 @@ rss = "talkpipe.data.rss:rss_source"
 accum = "talkpipe.chatterlang.compiler:Accum"
 addToLancDB = "talkpipe.search.lancedb:add_to_lancedb"
 addToLanceDB = "talkpipe.search.lancedb:add_to_lancedb"
+appendRagSources = "talkpipe.pipelines.basic_rag:AppendRAGSources"
 cast = "talkpipe.pipe.basic:Cast"
 collectMetadata = "talkpipe.pipe.metadata:CollectMetadata"
 concat = "talkpipe.pipe.basic:concat"
@@ -169,6 +176,7 @@ mongoInsert = "talkpipe.data.mongo:MongoInsert"
 mongoSearch = "talkpipe.data.mongo:MongoSearch"
 neq = "talkpipe.pipe.math:NEQ"
 print = "talkpipe.pipe.io:Print"
+processDocuments = "talkpipe.pipelines.vector_databases:ProcessDocumentsSegment"
 progressTicks = "talkpipe.pipe.basic:progressTicks"
 ragToBinaryAnswer = "talkpipe.pipelines.basic_rag:RAGToBinaryAnswer"
 ragToScore = "talkpipe.pipelines.basic_rag:RAGToScore"
