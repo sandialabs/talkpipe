@@ -1,11 +1,16 @@
 # Changelog
 
 ## Unreleased
+- Updated `.github/copilot-instructions.md`: fixed broken references (CLAUDE.md, compiler.py, pyproject.toml), aligned with AGENTS.md (pytest coverage, entry points script, doc examples), simplified component registration example, added Cursor cross-reference.
+- Added skills for changelog updates, test-driven development, and doc example formatting.
 - Streamlined doc examples testing: added `talkpipe.app.doc_examples` module, `pytest tests/test_doc_examples.py` for standard test output, and `run-doc-examples` CLI. Doc examples marked with `requires_ollama`; skip with `-m "not requires_ollama"` when Ollama unavailable.
 - Doc examples tests now use `pytest_generate_tests` so new examples are picked up immediately after documentation edits (no stale collection).
 - Doc examples tests clean up artifacts (e.g. `my_knowledge_base` from RAG examples) after each test.
 - Doc examples test IDs use shell/IDE-safe format (e.g. `README_md-278`) to avoid parser errors when running from Cursor/VSCode.
 - Doc examples cleanup validates paths before deletion to prevent path traversal (only deletes strict children of project root).
+- Added skill for checking documentation examples.
+- Added skill for updating pyproject.toml when a new source or segment is added to the repository.
+- Updated AGENTS.md, consolidating different coding assistant configuration files.
 
 ## 0.11.5
 - CI/CD: build multi-architecture Docker images (linux/amd64, linux/arm64) on release only; push/PR
