@@ -6,9 +6,9 @@ This document describes how TalkPipe manages configuration across different envi
 
 TalkPipe uses a layered configuration system that supports multiple sources with clear precedence rules. Configuration can come from:
 
-3. **Command-line arguments** (including unknown arguments that get added to the configuration)
+1. **Command-line arguments** (including unknown arguments that get added to the configuration)
 2. **Environment variables** (with `TALKPIPE_` prefix)
-1. **Configuration files** (TOML format)
+3. **Configuration files** (TOML format)
 4. **Default values** (hard-coded in the application)
 
 ## Configuration File Formats
@@ -145,6 +145,15 @@ For application settings (logging, server ports, etc.):
 2. **Environment variables** (`TALKPIPE_KEY`)
 3. **Configuration file values** (`~/.talkpipe.toml`)
 4. **Application defaults** (hard-coded values)
+
+### Embedding and LLM defaults: `serverag` vs segment keys
+
+Several components resolve embedding and chat model defaults from `get_config()`. Two naming patterns appear in configuration:
+
+- **Segment defaults** — `LLMEmbed` and `LLMPrompt` fall back to these keys when `model` / `source` arguments are omitted: `default_embedding_model_name`, `default_embedding_model_source`, `default_model_name`, and `default_model_source` (see `talkpipe.util.constants`).
+- **`serverag` defaults** — When you omit `--embedding_model`, `--embedding_source`, `--completion_model`, and `--completion_source`, `serverag` reads `DEFAULT_EMBEDDING_MODEL`, `DEFAULT_EMBEDDING_SOURCE`, `DEFAULT_LLM_MODEL`, and `DEFAULT_LLM_SOURCE` from the merged config. If those keys are unset, `serverag` passes `None` into the RAG pipeline, and the segments above apply their `default_*` fallbacks.
+
+Use **`default_*`** in `~/.talkpipe.toml` for one consistent set of defaults across pipelines. Use **`DEFAULT_*`** when you want values applied at the `serverag` CLI layer (still overridable per invocation). Environment variables use the usual `TALKPIPE_` prefix and map to the exact key name after the prefix (for example, `TALKPIPE_default_model_name` or `TALKPIPE_DEFAULT_LLM_MODEL`).
 
 ### ChatterLang Script Variable Access
 

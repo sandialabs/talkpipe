@@ -1,6 +1,6 @@
 # TalkPipe Documentation
 
-Welcome to the TalkPipe documentation! This directory contains comprehensive, API references, and examples for using TalkPipe effectively.
+Welcome to the TalkPipe documentation! This directory contains guides, API references, and examples for using TalkPipe effectively.
 
 ## Quick Navigation
 
@@ -19,10 +19,10 @@ Real-world usage examples and tutorials:
 
 ### 📚 [API Reference](api-reference/)
 Complete documentation for all TalkPipe commands and components:
-- [chatterlang_serve](api-reference/chatterlang-server.md) - Run a script as an API endpoint and with a customizable web interface
+- [chatterlang_serve](api-reference/chatterlang-server.md) - Run a script as an API endpoint with a customizable web interface
 - [ChatterLang Workbench](api-reference/chatterlang-workbench.md) - Interactive web interface for writing and testing scripts interactively
 - [ChatterLang Script Runner](api-reference/chatterlang-script.md) - Run a script from the command line
-- [Documentation Generator](api-reference/talkpipe-ref.md) - Generate reference documentations for Segments and Sources
+- [Documentation Generator](api-reference/talkpipe-ref.md) - Generate reference documentation for Segments and Sources
 - [Plugin Manager](api-reference/talkpipe-plugin-manager.md) - Manage and inspect TalkPipe plugins
 
 ### 🏗️ [Architecture](architecture/)

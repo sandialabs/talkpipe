@@ -16,7 +16,7 @@ Each tutorial builds on the previous. Tutorial 1's index feeds Tutorial 2; Tutor
 
 ## Get Started in 5 Minutes
 
-1. **Install**: See [Getting Started](../quickstart.md) for installation. For tutorials: `pip install talkpipe[ollama]` or `talkpipe[all]`
+1. **Install**: See [Getting Started](../quickstart.md) for installation. For tutorials: `pip install talkpipe[ollama]` or `pip install talkpipe[all]`
 2. **Run Tutorial 1** (from `docs/tutorials/Tutorial_1-Document_Indexing`):
    - `./Step_1_CreateSyntheticData.sh` — creates `stories.json` (~5–10 min)
    - `./Step_2_IndexStories.sh` — builds search index (~5 sec)

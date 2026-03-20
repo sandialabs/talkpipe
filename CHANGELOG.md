@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Documentation: fixed internal link and config overview ordering; developer handbook grammar, `$var_name`
+  explanation, and `default_embedding_model_source` key; pip install examples; RAG/config notes on
+  `DEFAULT_*` vs `default_*` keys for `serverag` vs segments; minor README and workbench markdown fixes.
+
 - README: stronger opening (audience, fit, differentiation), badges and Python version note, shorter
   architecture section, documentation map table, tightened Quick Start and config pointer, RAG “at a
   glance” under Quick Start, per-example problem/result blurbs, and status note on what is stable;

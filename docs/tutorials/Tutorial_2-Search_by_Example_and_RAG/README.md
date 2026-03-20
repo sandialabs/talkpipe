@@ -28,7 +28,7 @@ Keyword search breaks when users ask "find documents similar to this" or "show m
 ## Prerequisites
 
 - **Tutorial 1 completed**: `stories.json` must exist at `../Tutorial_1-Document_Indexing/stories.json`
-- **TalkPipe** installed: See [Getting Started](../../quickstart.md). For this tutorial: `pip install talkpipe[ollama]` or `talkpipe[all]`
+- **TalkPipe** installed: See [Getting Started](../../quickstart.md). For this tutorial: `pip install talkpipe[ollama]` or `pip install talkpipe[all]`
 - **Ollama** with these models:
   - `mxbai-embed-large` (embeddings): `ollama pull mxbai-embed-large`
   - `llama3.2` (Step 3 only): `ollama pull llama3.2`

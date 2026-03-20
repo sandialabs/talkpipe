@@ -4,9 +4,9 @@ Contributor-oriented reference: glossary, repository conventions, parameter sema
 
 ## Glossary
 
-* **Unit** - A component in a pipeline that either produces or processes data.  There are two types of units, Source, and Segments.
+* **Unit** - A component in a pipeline that either produces or processes data.  There are two types of units: Sources and Segments.
 * **Segment** - A unit that reads from another Unit and may or may not yield data of its own.  All units that
-are not at the start of a pipeline is a Segment.
+are not at the start of a pipeline are Segments.
 * **Source** - A unit that takes nothing as input and yields data items.  These Units are used in the
 "INPUT FROM..." portion of a pipeline.
 
@@ -24,9 +24,9 @@ The following are the main breakdown of the codebase. These should be considered
   * Example: chatterlang_script
 * **talkpipe.operations** - Contains general algorithm implementations.  Associated segments and sources can be included next to the algorithm implementations, but the algorithms themselves should also work stand-alone.
   * Example: bloom filters
-* **talkpipe.data** - Contain components having to do with complex, type-specific data manipulation.
+* **talkpipe.data** - Contains components having to do with complex, type-specific data manipulation.
   * Example: extracting text from files.
-* **talkpipe.llm** - Contain the abstract classes and implementations for accessing LLMs, both code for accessing specific LLMs and code for doing prompting.
+* **talkpipe.llm** - Contains the abstract classes and implementations for accessing LLMs, both code for accessing specific LLMs and code for doing prompting.
   * Example: Code for talking with Ollama or OpenAI
 * **talkpipe.pipe** - Code that implements the core classes and decorators for the pipe api as well and misc implementations of helper segments and sources.
   * Example: echo and the definition of the @segment decorator
@@ -58,7 +58,7 @@ These parameter names should behave consistently across all units:
   If used, any processed output is attached to the original data using bracket notation. The original item is then emitted.
 
 - **fail_on_error**
-  If True, an operation the exception should be raised, likely aborting the pipeline.  If False, the operation should continue
+  If True, the exception should be raised, likely aborting the pipeline.  If False, the operation should continue
   and either None should be yielded or nothing, depending on the segment or source.  A warning message should be logged.
 
 - **field**
@@ -68,7 +68,7 @@ These parameter names should behave consistently across all units:
 - **field_list**
   Specifies that a list of fields can or should be provided, with each field separated
   by a comma.  In some cases, each field needs to be mapped to some other name.  In
-  those case, the field and name should be separated by a colon.  In field_lists,
+  those cases, the field and name should be separated by a colon.  In field_lists,
   the underscore (_) refers to the item as a whole.
   - For example, "X.2.0:SomeName,X.1:SomeOtherName".  If no "name" is provided,
   the fieldname itself is used.  Where only a list of fields is needed and no names,
@@ -88,11 +88,9 @@ After talkpipe is installed, a script called "chatterlang_reference_browser" is 
 
 ### Standard Configuration File Items
 
-Configuration constants can be defined either in ~/.talkpipe.toml or in environment variables.  Any constant defined in an environment variable needs to be prefixed with TALKPIPE_.  So email_password, stored in an environment variable, needs to be TALKPIPE_email_password.  Note that in Chatterlang, any variable stored in the format
-can be specified as a parameter using $var_name.  This will get dereferenced to
-the environment variable TALKPIPE_var_name or var_name in talkpipe.toml.
+Configuration constants can be defined either in ~/.talkpipe.toml or in environment variables.  Any constant defined in an environment variable needs to be prefixed with TALKPIPE_.  So email_password, stored in an environment variable, needs to be TALKPIPE_email_password.  Note that in ChatterLang, any key defined in ~/.talkpipe.toml or set via a TALKPIPE_* environment variable can be referenced in scripts as a parameter using $var_name.  That reference resolves to the environment variable TALKPIPE_var_name or to var_name in talkpipe.toml.
 
-* **default_embedding_source** - The default source (e.g. ollama) to be used for creating sentence embeddings.
+* **default_embedding_model_source** - The default source (e.g. ollama) to be used for creating sentence embeddings.
 * **default_embedding_model_name** - The name of the LLM model to be used for creating sentence embeddings.
 * **default_model_name** - The default name of a LLM model to be used in chat
 * **default_model_source** - The default source (e.g. ollama) to be used in chat
