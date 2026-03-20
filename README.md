@@ -1,10 +1,22 @@
 <center><img src="docs/TalkPipe.png" width=500></center>
 
+[![PyPI version](https://img.shields.io/pypi/v/talkpipe.svg)](https://pypi.org/project/talkpipe/)
+[![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
+[![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
+
 **Build and iterate on AI workflows efficiently.**
 
-TalkPipe is a Python toolkit that makes it easy to create, test, and deploy workflows that integrate Generative AI with your existing tools and data sources. TalkPipe treats LLMs as one tool in your arsenal - letting you build practical solutions that combine AI with data processing, file handling, and more.  
+TalkPipe is a Python toolkit for creating, testing, and deploying workflows that combine generative AI with your data and tools. Use **Python** (`|` pipelines) or **ChatterLang** (text scripts) with the same building blocks—LLMs as one tool among many.
 
-This README introduces TalkPipe at a high level.  See the [complete documentation](docs/README.md) for more detail.
+**Who it is for:** engineers and researchers who want **scriptable AI pipelines**—RAG, batch scoring, web ingestion, agents, and automation—without giving up normal Python when you need it. First-party CLIs and apps (workbench, `chatterlang_serve`) help you go from experiment to batch jobs or a small HTTP surface without a bespoke framework.
+
+**When TalkPipe fits well:** streaming, composable steps; sharing pipelines as text; quick vector-store and RAG flows; mixing LLM calls with pandas, files, and HTTP. **When to look elsewhere:** if you need a large prebuilt agent platform or GUI-first orchestration as your primary model, you may prefer another tool or layer one on top—TalkPipe stays close to code and scripts.
+
+TalkPipe emphasizes **streaming generators** (memory-friendly streams), a **dual API** (Pipe in Python, ChatterLang as a concise DSL), and **built-in tooling** (script runner, reference browser, serve). That complements “everything in Python” stacks by keeping pipeline definitions portable where that helps operations and review.
+
+**Typical vertical flow:** ingest → chunk/embed → index (for example LanceDB) → retrieve → prompt → answer, then expose the same script with `chatterlang_serve` if you want an API. See **[Example 5: RAG pipeline](#example-5-rag-pipeline-with-vector-database)** for a full walkthrough.
+
+This README is a high-level overview. Use the **[documentation map](#documentation)** below or the [documentation hub](docs/README.md) for depth.
 
 ## What Can You Do With TalkPipe?
 
@@ -13,25 +25,19 @@ This README introduces TalkPipe at a high level.  See the [complete documentatio
 - **Build RAG Pipelines** - Create end-to-end Retrieval-Augmented Generation workflows with vector databases
 - **Analyze Web Content** - Download web pages (respecting robots.txt), extract readable text, and summarize
 - **Build Data Pipelines** - Chain together data transformations, filtering, and analysis with Unix-like simplicity
-- **Create AI Agents** - Build agents that can debate topics, evaluate streams of documents, or monitor RSS feeds
 - **Deploy Anywhere** - Run in Jupyter notebooks, as Docker containers, or as standalone Python applications
 
-## Structure
+## How TalkPipe Is Organized
 
 <center><img src="docs/talkpipe_architecture.png" width=700></center>
 
-TalkPipe is structured in three layers: ChatterLang Foundation, AI & Data Primitives, and Pipeline Application components.  Applications can draw from any or all of these layers.
+Three layers; use any mix of them in one project:
 
-The Pipe/ChatterLang Foundation layer offers foundational utilities and abstractions that ensure consistency across the entire system. Pipe serves as TalkPipe's internal domain-specific language (DSL), enabling you to construct sophisticated workflows directly in Python. By instantiating modular classes and chaining them together using the `|` (pipe) operator, you can seamlessly connect sources, segments, and sinks to process data in a clear, readable, and composable manner. The Pipe layer is ideal for users who prefer programmatic control and want to integrate TalkPipe pipelines into larger Python applications or scripts.
+- **Pipe and ChatterLang** — Chain **sources**, **segments**, and sinks with `|` in Python, or write **ChatterLang** scripts for the same concepts (easy to drive from env vars and CI).
+- **AI and data primitives** — LLMs, full-text search, and vector databases behind one style of component.
+- **Pipelines and applications** — Higher-level RAG-style pieces plus CLIs and web apps.
 
-ChatterLang is TalkPipe's external domain-specific language (DSL), enabling you to define workflows using concise, human-readable text scripts. These scripts can be compiled directly in Python, producing callable functions that integrate seamlessly with your codebase. ChatterLang also supports specifying workflows via environment variables or command-line arguments, making it easy to configure and automate pipelines in Docker containers, shell scripts, CI/CD pipelines, and other deployment environments. This flexibility empowers both developers and non-developers to create, share, and modify AI-powered workflows without writing Python code, streamlining experimentation and operationalization.
-
-
-Layer 2, "AI & Data Primitives" is built on Pipe and ChatterLang, provides standardized wrappers for interacting with LLMs, full-text search engines, and vector databases. These components provide a unified interface for core capabilities, making it easy to integrate advanced AI and search features throughout your workflows.
-
-Layer 3, "Pipeline Application Components" assembles components from the lower layers to provide higher level components that can serve as application components. They make simplifying assumptions that provide easy access to complex functionality. For example, the pipelines package includes ready-to-use RAG (Retrieval-Augmented Generation) workflows that combine vector search, prompt construction, and LLM completion in a single component. These are designed both as examples and as ways to rapidly get complex functionality with reasonable assumptions. When those assumptions break, the developer can reach deeper into the other layers and build their own custom solutions.
-
-The Application Components layer contains runnable applications that provide user interfaces and automation tools for working with TalkPipe pipelines and ChatterLang scripts. These components are designed to make it easy to interact with TalkPipe from the command line, web browser, or as part of automated workflows.
+For the full story, see **[Architecture](docs/architecture/)**. Define a pipeline once and run it from Python, Jupyter, Docker, `chatterlang_script`, or `chatterlang_serve`.
 
 ### Key Applications
 
@@ -60,25 +66,25 @@ These applications are entry points for different usage scenarios, from interact
 
 ## Quick Start
 
-Install TalkPipe:
+**Requirements:** Python 3.11 or newer.
+
 ```bash
 pip install talkpipe
 ```
 
 For LLM support, install the provider(s) you need:
-```bash
-# Install specific providers
-pip install talkpipe[openai]    # For OpenAI
-pip install talkpipe[ollama]    # For Ollama
-pip install talkpipe[anthropic] # For Anthropic Claude
 
-# Or install all LLM providers
-pip install talkpipe[all]
+```bash
+pip install talkpipe[openai]    # OpenAI
+pip install talkpipe[ollama]    # Ollama
+pip install talkpipe[anthropic] # Anthropic Claude
+# Or: pip install talkpipe[all]
 ```
 
-Depending on what source you are using as the API endpoint (Ollama, openai, etc), you may need to set environment variable to specify the API key.  If you have a local Ollama server running and accepting connections from the rest of your network, but are running talkpipie from another host, you will need to set the TALKPIPE_OLLAMA_SERVER_URL environment variable.  It is sufficient just to set it to the name of the host where Ollama is running.
+Configure API keys and provider URLs via environment variables (for example `TALKPIPE_openai_api_key`) or `~/.talkpipe.toml`. If TalkPipe runs on a different machine than your Ollama server, set `TALKPIPE_OLLAMA_SERVER_URL` to that host. See **[Configuration](docs/architecture/configuration.md)** for details and ChatterLang `$var` substitution.
 
-Create a multi-turn chat function in 2 lines:
+Multi-turn chat in a few lines:
+
 ```python
 from talkpipe.chatterlang import compiler
 
@@ -87,6 +93,25 @@ chat = compiler.compile(script).as_function(single_in=True, single_out=True)
 
 response = chat("Hello! My name is Alice.")
 response = chat("What's my name?")  # Will remember context
+```
+
+### RAG at a glance
+
+Index a list of strings, then ask questions against the store (expand with options in [Example 5](#example-5-rag-pipeline-with-vector-database)):
+
+```python
+from talkpipe.chatterlang import compiler
+
+docs = ["TalkPipe builds AI pipelines with Python or ChatterLang."]
+indexer = compiler.compile(
+    '| toDict[field_list="_:text"] | makeVectorDatabase[path="./my_kb", embedding_model="nomic-embed-text", embedding_source="ollama", embedding_field="text", overwrite=True]'
+).as_function(single_in=False)
+indexer(docs)
+
+rag = compiler.compile(
+    '| toDict[field_list="_:text"] | ragToText[path="./my_kb", embedding_model="nomic-embed-text", embedding_source="ollama", completion_model="llama3.2", completion_source="ollama", content_field="text", limit=3] | print'
+).as_function(single_in=True)
+rag("What is TalkPipe?")
 ```
 
 # Core Components
@@ -189,7 +214,7 @@ TalkPipe components work seamlessly in Jupyter notebooks for interactive data an
 
 ## Example 1: Multi-Agent Debate
 
-Create agents with different perspectives that debate a topic:
+**Problem:** Run two LLM personas on one seed topic for several rounds. **Result:** Printed turns accumulated in `@conversation`.
 
 ```python
 from talkpipe.chatterlang import compiler
@@ -226,7 +251,7 @@ debate = pipeline()  # Watch the debate unfold!
 
 ## Example 2: Document Stream Evaluation
 
-Score documents based on relevance to a topic:
+**Problem:** Score a stream of JSONL rows with an LLM against a fixed rubric. **Result:** A pandas `DataFrame` with extracted scores per row.
 
 ```python
 import pandas as pd
@@ -256,7 +281,7 @@ print(df)
 
 ## Example 3: Web Page Analysis
 
-Download and summarize web content:
+**Problem:** Fetch a page, strip boilerplate, summarize with an LLM. **Result:** Model output to stdout (here, three bullet points).
 
 ```python
 from talkpipe.chatterlang import compiler
@@ -277,7 +302,7 @@ analyzer("http://example.com/")
 
 ## Example 4: Content Evaluation Pipeline
 
-Evaluate and filter articles based on relevance scores:
+**Problem:** Score each article on two axes, keep only strong matches. **Result:** Printed dicts for items whose best score exceeds a threshold.
 
 ```python
 from talkpipe.chatterlang import compiler
@@ -329,7 +354,7 @@ results = evaluator(articles)
 
 ## Example 5: RAG Pipeline with Vector Database
 
-Build a complete RAG (Retrieval-Augmented Generation) system with standalone data:
+**Problem:** Embed texts into a local vector store, then answer questions with retrieval + completion. **Result:** String answers from `ragToText`, plus patterns for yes/no (`ragToBinaryAnswer`) and numeric scores (`ragToScore`).
 
 ```python
 from talkpipe.chatterlang import compiler
@@ -415,13 +440,21 @@ score_rag("How well does this text describe pipe smoking?")
 
 # Documentation
 
-For comprehensive documentation, and examples, see the **[docs/](docs/)** directory:
+For comprehensive documentation and examples, see the **[docs/](docs/)** directory.
 
-- **[📚 Documentation Hub](docs/)** - Complete documentation index and navigation
-- **[🚀 Getting Started](docs/quickstart.md)** - Installation, concepts, and first pipeline  
-- **[📖 API Reference](docs/api-reference/)** - Complete command and component reference
-- **[🏗️ Architecture](docs/architecture/)** - Technical deep-dives and design concepts
-- **[💡 Tutorials](docs/tutorials/)** - Real-world usage examples and patterns
+| Goal | Start here |
+|------|------------|
+| Install and first pipeline | [Getting started](docs/quickstart.md) |
+| Commands and components | [API reference](docs/api-reference/) |
+| Walkthroughs | [Tutorials](docs/tutorials/) |
+| Design and extending TalkPipe | [Architecture](docs/architecture/) |
+| Contributor glossary and conventions | [Developer handbook](docs/contributing/developer-handbook.md) |
+
+- **[Documentation hub](docs/)** — Index and navigation
+- **[Getting started](docs/quickstart.md)** — Installation, concepts, first pipeline
+- **[API reference](docs/api-reference/)** — Commands and components
+- **[Architecture](docs/architecture/)** — Technical deep dives
+- **[Tutorials](docs/tutorials/)** — Patterns and real-world examples
 
 ## Quick Reference
 
@@ -603,116 +636,15 @@ We welcome contributions! Whether it's new components, bug fixes, documentation,
 
 ## Status
 
-TalkPipe is currently in active development. While feature-rich and actively used, APIs may evolve. We follow semantic versioning - minor versions maintain compatibility within the same major version, while major version changes may include breaking changes.
+TalkPipe is in active development: feature-rich and in use, but APIs may evolve. We follow [semantic versioning](https://semver.org/): minor versions aim for compatibility within a major series; major bumps may include breaking changes. **Reasonably stable for everyday use:** install from PyPI, the `|` pipeline model, `compiler.compile(...).as_function(...)`, and optional extras for LLM providers.
 
 ## License
 
 TalkPipe is licensed under the Apache License 2.0. See LICENSE file for details.
 
-# Developer Documentation
+## Developer handbook
 
-## Glossary
-
-* **Unit** - A component in a pipeline that either produces or processes data.  There are two types of units, Source, and Segments.
-* **Segment** - A unit that reads from another Unit and may or may not yield data of its own.  All units that
-are not at the start of a pipeline is a Segment.
-* **Source** - A unit that takes nothing as input and yields data items.  These Units are used in the
-"INPUT FROM..." portion of a pipeline.  
-
-## Conventions
-
-### Versioning
-
-This codebase will use [semantic versioning](https://semver.org/) with the additional convention that during the 0.x.y development that each MINOR version will mostly maintain backward compatibility and PATCH versions will include substantial new capability.  So, for example, every 0.2.x version will be mostly backward compatible, but 0.3.0 might contain code reorganization.
-
-### Codebase Structure
-
-The following are the main breakdown of the codebase. These should be considered firm but not strict breakdowns. Sometimes a source could fit within either operations or data, for example.  
-
-* **talkpipe.app** - Contains the primary runnable applications. 
-  * Example: chatterlang_script
-* **talkpipe.operations** - Contains general algorithm implementations.  Associated segments and sources can be included next to the algorithm implementations, but the algorithms themselves should also work stand-alone.
-  * Example: bloom filters
-* **talkpipe.data** - Contain components having to do with complex, type-specific data manipulation.  
-  * Example: extracting text from files.
-* **talkpipe.llm** - Contain the abstract classes and implementations for accessing LLMs, both code for accessing specific LLMs and code for doing prompting.
-  * Example: Code for talking with Ollama or OpenAI
-* **talkpipe.pipe** - Code that implements the core classes and decorators for the pipe api as well and misc implementations of helper segments and sources.
-  * Example: echo and the definition of the @segment decorator
-* **talkpipe.chatterlang** - The definition, parsers, and compiler for the chatterlang language as well as any chatterlang specific segments and sources
-  * Example: the chatterlang compiler and the variable segment
-
-### Source/Segment Names
-
-- **For your own Units, do whatever you want!** These conventions are for authors writing units intended for broader reuse.
-- **Classes that implement Units** are named in CamelCase with the initial letter in uppercase.
-- **Units defined using `@segment` and `@source` decorators** should be named in camelCase with an initial lowercase letter.
-- In **ChatterLang**, sources and segments also use camelCase with an initial lowercase letter.
-- Except for the **`cast`** segment, segments that convert data into a specific format—whether they process items one-by-one or drain the entire input—should be named using the form `[tT]oX`, where **X** is the output data type (e.g., `toDataFrame` outputs a pandas DataFrame).
-- **Segments that write files** use the form `[Ww]riteX`, where **X** is the file type (e.g., `writeExcel` writes an Excel file, `writePickle` writes a pickle file).
-- **Segments that read files** use the form `[Rr]eadX`, where **X** is the file type (e.g., `readExcel` should read an Excel file).
-- **Parameter names in segments** should be in all lower case with words separated by an underscore (_)
-
-### Parameter Names
-
-These parameter names should behave consistently across all units:
-
-- **item** should be used in field_segment, referring to the item passed to the function.  It will not
-  be a parameter to the segment in ChatterLang.
-
-- **items** are used in segment definitions, referring to the iterable over all the pieces of data in the stream.
-  It will not be a parameter used anywhere as a parameter in ChatterLang.
-
-- **set_as**  
-  If used, any processed output is attached to the original data using bracket notation. The original item is then emitted.
-
-- **fail_on_error**
-  If True, an operation the exception should be raised, likely aborting the pipeline.  If False, the operation should continue
-  and either None should be yielded or nothing, depending on the segment or source.  A warning message should be logged.
-
-- **field**  
-  Specifies that the unit should operate on data accessed via “field syntax.” This syntax can include indices, properties, or parameter-free methods, separated by periods.  
-  - For example, given `{"X": ["a", "b", ["c", "d"]]}`, the field `"X.2.0"` refers to `"c"`.
-
-- **field_list**
-  Specifies that a list of fields can or should be provided, with each field separated
-  by a comma.  In some cases, each field needs to be mapped to some other name.  In
-  those case, the field and name should be separated by a colon.  In field_lists,
-  the underscore (_) refers to the item as a whole.  
-  - For example, "X.2.0:SomeName,X.1:SomeOtherName".  If no "name" is provided, 
-  the fieldname itself is used.  Where only a list of fields is needed and no names,
-  the names can still be provided but have no effect.  
-
-### General Behavior Principles
-
-* Units that have side effects (e.g. writing data to a disk) should generally also pass
-on their data.
-
-### Source and Segement Reference
-
-The chatterlang_workbench command starts a web service designed for experimentation.  It also contains links to HTML and text versions
-of all the sources and segments included in TalkPipe.
-
-After talkpipe is installed, a script called "chatterlang_reference_browser" is available that provides an interactive command-line search and exploration of sources and segments.  The command "chatterlang_reference_generator" will generate single page HTML and text versions of all the source and segment documentation.
-
-### Standard Configuration File Items
-
- Configuration constants can be defined either in ~/.talkpipe.toml or in environment variables.  Any constant defined in an environment variable needs to be prefixed with TALKPIPE_.  So email_password, stored in an environment variable, needs to be TALKPIPE_email_password.  Note that in Chatterlang, any variable stored in the format
- can be specified as a parameter using $var_name.  This will get dereferenced to 
- the environment varaible TALKPIPE_var_name or var_name in talkpipe.toml.
-
-* **default_embedding_source** - The default source (e.g. ollama) to be used for creating sentence embeddings.
-* **default_embedding_model_name** - The name of the LLM model to be used for creating sentence embeddings.
-* **default_model_name** - The default name of a LLM model to be used in chat
-* **default_model_source** - The default source (e.g. ollama) to be used in chat
-* **email_password** - Password for the SMTP server
-* **logger_files** - Files to store logs, in the form logger1:fname1,logger2:fname2,...
-* **logger_levels** - Logger levels in the form logger1:level1,logger2:level2
-* **recipient_email** - Who should receive a sent email
-* **rss_url** - The default URL used by the rss segment
-* **sender_email** - Who the sender of an email should be
-* **smtp_port** - SMTP server port
-* **smtp_server** - SMTP server hostname
+Contributor-focused **glossary, naming conventions, parameter semantics, standard config keys, and segment/source reference notes** live in **[docs/contributing/developer-handbook.md](docs/contributing/developer-handbook.md)**.
 
 ---
-Last Reviewed: 20251128
+Last reviewed: 2026-03-20

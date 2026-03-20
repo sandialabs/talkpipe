@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+- README: stronger opening (audience, fit, differentiation), badges and Python version note, shorter
+  architecture section, documentation map table, tightened Quick Start and config pointer, RAG “at a
+  glance” under Quick Start, per-example problem/result blurbs, and status note on what is stable;
+  contributor glossary/conventions moved to [docs/contributing/developer-handbook.md](docs/contributing/developer-handbook.md)
+  with links from the README and [docs/README.md](docs/README.md).
+
 ## 0.11.6
 - Fixed chatterlang_serve stream UI duplicate output: response items are no longer added to the
   SSE output queue when returned in the /process response, eliminating duplicate display in the

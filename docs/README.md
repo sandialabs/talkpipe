@@ -32,6 +32,9 @@ Deep technical documentation:
 - [Extending TalkPipe](architecture/extending-talkpipe.md) - Creating custom components and plugins
 - [Configuration](architecture/configuration.md) - Configuring variables for scripts
 
+### 🧩 [Contributing / developer handbook](contributing/developer-handbook.md)
+Glossary, repository conventions, shared parameter semantics (`set_as`, `field`, `field_list`, …), and standard `~/.talkpipe.toml` keys—reference material for contributors and advanced users.
+
 
 ## Contributing to Documentation
 
