@@ -1,6 +1,8 @@
 # Changelog
 
 ## Unreleased
+- Added extractors and default registry support for html/htm (`readhtml`), json (`readjson`),
+  tsv (`readtsv`), and rst file types. `ReadFile` / `fileToText` now handles these automatically.
 - Fixed `extract_html` so it yields an `ExtractionResult` with readable `content`, preserved `raw_html`, and the same metadata as `extract_text`; added unit test.
 - Updated `.github/copilot-instructions.md`: fixed broken references (CLAUDE.md, compiler.py, pyproject.toml), aligned with AGENTS.md (pytest coverage, entry points script, doc examples), simplified component registration example, added Cursor cross-reference.
 - Added skills for changelog updates, test-driven development, and doc example formatting.
