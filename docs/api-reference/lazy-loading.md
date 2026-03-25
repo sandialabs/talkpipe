@@ -574,6 +574,6 @@ print(f'Total: {len(seen)} unique names')
 
 **See Also:**
 - [Plugin Manager](talkpipe-plugin-manager.md) for managing external plugins
-- [ChatterLang Compiler](../architecture/compiler.md) for how components are resolved during compilation
+- [ChatterLang compiler layer](../architecture/chatterlang.md#2-compiler-layer) for how components are resolved during compilation
 
 Last Reviewed: 20251025

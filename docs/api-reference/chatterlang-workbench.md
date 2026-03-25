@@ -132,7 +132,7 @@ chatterlang_workbench --reload
 
 ---
 
-*For conceptual information about ChatterLang, see [ChatterLang Architecture](../architecture/chatterlang.md). 
+*For conceptual information about ChatterLang, see [ChatterLang Architecture](../architecture/chatterlang.md).*
 
 ---
 Last Reviewed: 20250814

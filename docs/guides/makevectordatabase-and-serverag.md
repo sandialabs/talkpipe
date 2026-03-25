@@ -19,7 +19,7 @@ Together they form a minimal path from raw documents to a queryable RAG interfac
 
 ## Prerequisites
 
-- **TalkPipe** with LLM support: `pip install talkpipe[ollama]` or `talkpipe[all]`
+- **TalkPipe** with LLM support: `pip install talkpipe[ollama]` or `pip install talkpipe[all]`
 - **Embedding model**: Ollama with an embedding model (e.g. `ollama pull mxbai-embed-large`)
 - **Completion model** (for serverag): Ollama with an LLM (e.g. `ollama pull llama3.2`)
 - **Configuration**: Set `DEFAULT_EMBEDDING_MODEL`, `DEFAULT_EMBEDDING_SOURCE`, `DEFAULT_LLM_MODEL`, and `DEFAULT_LLM_SOURCE` in `~/.talkpipe.toml` or pass them on the command line

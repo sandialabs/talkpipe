@@ -27,7 +27,7 @@ TalkPipe lets you prototype searchable document systems without external databas
 
 ## Prerequisites
 
-- **TalkPipe** installed: See [Getting Started](../../quickstart.md) for installation. For this tutorial: `pip install talkpipe[ollama]` or `talkpipe[all]`
+- **TalkPipe** installed: See [Getting Started](../../quickstart.md) for installation. For this tutorial: `pip install talkpipe[ollama]` or `pip install talkpipe[all]`
 - **Step 1 only**: Ollama installed locally with the `llama3.2` model (or adjust the script to use another model)
 
 > **Tip:** If you skip Step 1, you can use the included `stories.json` and go straight to Step 2.
