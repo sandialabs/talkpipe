@@ -3,7 +3,7 @@ from pathlib import Path
 from unittest.mock import patch
 from talkpipe.data.extraction import (
     ReadFile, readtxt, readdocx, readpdf, readcsv, readjsonl, listFiles,
-    ExtractorRegistry, extract_text, extract_docx, extract_pdf, extract_csv, extract_jsonl, skip_file, get_default_registry,
+    ExtractorRegistry, extract_text, extract_html, extract_docx, extract_pdf, extract_csv, extract_jsonl, skip_file, get_default_registry,
     global_extractor_registry, ExtractionResult
 )
 
@@ -242,6 +242,30 @@ def test_ReadFile_with_custom_registry(tmp_path):
 
     with pytest.raises(Exception):
         next(fe([tmp_path / "test.md"]))
+
+
+def test_extract_html(tmp_path):
+    """Test extract_html: readable text, raw_html preserved, same metadata as extract_text."""
+    html_path = tmp_path / "page.html"
+    raw = (
+        "<html><head><title>Ignored title</title></head>"
+        "<body><p>Hello HTML</p><script>function_call()</script></body></html>"
+    )
+    html_path.write_text(raw, encoding="utf-8")
+
+    results = list(extract_html(html_path))
+    assert len(results) == 1
+    r = results[0]
+    assert isinstance(r, ExtractionResult)
+    assert "Hello HTML" in r.content
+    assert "function_call" not in r.content
+    assert r.raw_html == raw
+    assert str(html_path.resolve()) in r.source
+    assert r.id == r.source
+    assert r.title == "page.html"
+
+    with pytest.raises(FileNotFoundError):
+        list(extract_html(tmp_path / "missing.html"))
 
 
 def test_standalone_extractors(tmp_path):

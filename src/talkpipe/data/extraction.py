@@ -11,6 +11,7 @@ from pathlib import PosixPath, Path
 from docx import Document
 from talkpipe.pipe.core import segment, AbstractFieldSegment, field_segment
 from talkpipe.chatterlang.registry import register_segment
+from .html import htmlToText
 
 
 logger = logging.getLogger(__name__)
@@ -148,6 +149,17 @@ def extract_text(file_path: Union[str, Path]) -> Iterator[ExtractionResult]:
             id=source_str,
             title=p.name
         )
+
+def extract_html(file_path: Union[str, Path]) -> Iterator[ExtractionResult]:
+    """
+    Extract readable text from an HTML file.
+    """
+    result = next(extract_text(file_path))
+    raw_html = result.content
+    readable_text = htmlToText(raw_html)
+    result.content = readable_text
+    result.raw_html = raw_html
+    yield result
 
 
 def extract_docx(file_path: Union[str, Path]) -> Iterator[ExtractionResult]:
