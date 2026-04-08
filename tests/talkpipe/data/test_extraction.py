@@ -2,9 +2,10 @@ import pytest
 from pathlib import Path
 from unittest.mock import patch
 from talkpipe.data.extraction import (
-    ReadFile, readtxt, readdocx, readpdf, readcsv, readjsonl, listFiles,
-    ExtractorRegistry, extract_text, extract_docx, extract_pdf, extract_csv, extract_jsonl, skip_file, get_default_registry,
-    global_extractor_registry, ExtractionResult
+    ReadFile, readtxt, readhtml, readjson, readtsv, readdocx, readpdf, readcsv, readjsonl, listFiles,
+    ExtractorRegistry, extract_text, extract_html, extract_docx, extract_pdf,
+    extract_csv, extract_tsv, extract_json, extract_jsonl, skip_file,
+    get_default_registry, global_extractor_registry, ExtractionResult
 )
 
 def test_readdocx(tmp_path):
@@ -242,6 +243,57 @@ def test_ReadFile_with_custom_registry(tmp_path):
 
     with pytest.raises(Exception):
         next(fe([tmp_path / "test.md"]))
+
+
+def test_extract_html(tmp_path):
+    """Test extract_html: readable text, raw_html preserved, same metadata as extract_text."""
+    html_path = tmp_path / "page.html"
+    raw = (
+        "<html><head><title>Ignored title</title></head>"
+        "<body><p>Hello HTML</p><script>function_call()</script></body></html>"
+    )
+    html_path.write_text(raw, encoding="utf-8")
+
+    results = list(extract_html(html_path))
+    assert len(results) == 1
+    r = results[0]
+    assert isinstance(r, ExtractionResult)
+    assert "Hello HTML" in r.content
+    assert "function_call" not in r.content
+    assert r.raw_html == raw
+    assert str(html_path.resolve()) in r.source
+    assert r.id == r.source
+    assert r.title == "page.html"
+
+    with pytest.raises(FileNotFoundError):
+        list(extract_html(tmp_path / "missing.html"))
+
+
+def test_html_in_default_registry(tmp_path):
+    """Test html/htm registered in default registry and extractable via ReadFile.
+
+    Would have failed before: html was not registered AND extract_html did not yield.
+    """
+    registry = get_default_registry()
+    assert "html" in registry.registered_extensions
+    assert "htm" in registry.registered_extensions
+
+    raw = "<html><body><p>Registry HTML</p></body></html>"
+    for ext in ("html", "htm"):
+        p = tmp_path / f"test.{ext}"
+        p.write_text(raw, encoding="utf-8")
+
+        results = list(registry.extract(p))
+        assert len(results) == 1
+        assert "Registry HTML" in results[0].content
+        assert results[0].raw_html == raw
+
+    fe = ReadFile()
+    html_path = tmp_path / "readfile.html"
+    html_path.write_text(raw, encoding="utf-8")
+    results = list(fe([str(html_path)]))
+    assert len(results) == 1
+    assert "Registry HTML" in results[0].content
 
 
 def test_standalone_extractors(tmp_path):
@@ -721,3 +773,188 @@ def test_jsonl_in_default_registry(tmp_path):
     results = list(registry.extract(jsonl_path))
     assert len(results) == 1
     assert results[0].key == "value"
+
+
+# --- extract_json tests ---
+
+def test_extract_json_dict(tmp_path):
+    """Test extract_json with a dictionary value."""
+    json_path = tmp_path / "test.json"
+    json_path.write_text('{"name": "Alice", "age": 30}', encoding="utf-8")
+
+    results = list(extract_json(json_path))
+    assert len(results) == 1
+    r = results[0]
+    assert isinstance(r, ExtractionResult)
+    assert "name: Alice" in r.content
+    assert "age: 30" in r.content
+    assert str(json_path.resolve()) in r.source
+    assert r.id == r.source
+    assert r.title == "test.json"
+    assert r.name == "Alice"
+    assert r.age == 30
+
+
+def test_extract_json_dict_with_matching_fields(tmp_path):
+    """Test extract_json when dict keys match ExtractionResult fields."""
+    json_path = tmp_path / "matching.json"
+    json_path.write_text('{"content": "My content", "title": "My title", "extra": "val"}', encoding="utf-8")
+
+    results = list(extract_json(json_path))
+    assert len(results) == 1
+    r = results[0]
+    assert r.content == "My content"
+    assert r.title == "My title"
+    assert r.extra == "val"
+    assert str(json_path.resolve()) in r.source
+
+
+def test_extract_json_non_dict(tmp_path):
+    """Test extract_json with non-dict values (string, number, array)."""
+    str_path = tmp_path / "string.json"
+    str_path.write_text('"hello world"', encoding="utf-8")
+    results = list(extract_json(str_path))
+    assert len(results) == 1
+    assert results[0].content == "hello world"
+    assert results[0].value == "hello world"
+
+    num_path = tmp_path / "number.json"
+    num_path.write_text('42', encoding="utf-8")
+    results = list(extract_json(num_path))
+    assert results[0].content == "42"
+    assert results[0].value == 42
+
+    arr_path = tmp_path / "array.json"
+    arr_path.write_text('[1, 2, 3]', encoding="utf-8")
+    results = list(extract_json(arr_path))
+    assert results[0].content == "[1, 2, 3]"
+    assert results[0].value == [1, 2, 3]
+
+
+def test_extract_json_error_cases(tmp_path):
+    """Test extract_json error handling."""
+    with pytest.raises(FileNotFoundError, match="Path does not exist"):
+        list(extract_json(tmp_path / "nonexistent.json"))
+
+    (tmp_path / "subdir").mkdir()
+    with pytest.raises(FileNotFoundError, match="Unsupported path type"):
+        list(extract_json(tmp_path / "subdir"))
+
+
+def test_readjson(tmp_path):
+    """Test readjson segment."""
+    json_path = tmp_path / "data.json"
+    json_path.write_text('{"product": "Apple", "price": 1.50}', encoding="utf-8")
+
+    results = list(readjson()([str(json_path)]))
+    assert len(results) == 1
+    assert results[0].product == "Apple"
+    assert results[0].price == 1.50
+
+
+def test_json_in_default_registry(tmp_path):
+    """Test that JSON extractor is registered in default registry."""
+    registry = get_default_registry()
+    assert "json" in registry.registered_extensions
+
+    json_path = tmp_path / "registry_test.json"
+    json_path.write_text('{"key": "value"}', encoding="utf-8")
+    results = list(registry.extract(json_path))
+    assert len(results) == 1
+    assert results[0].key == "value"
+
+
+# --- extract_tsv tests ---
+
+def test_extract_tsv(tmp_path):
+    """Test extract_tsv with basic tab-separated data."""
+    tsv_content = "name\temail\tage\nAlice\talice@example.com\t30\nBob\tbob@example.com\t25\n"
+    tsv_path = tmp_path / "test.tsv"
+    tsv_path.write_text(tsv_content)
+
+    results = list(extract_tsv(tsv_path))
+    assert len(results) == 2
+
+    assert isinstance(results[0], ExtractionResult)
+    assert results[0].name == "Alice"
+    assert results[0].email == "alice@example.com"
+    assert results[0].age == "30"
+    assert results[0].id == f"{tsv_path.resolve()}:1"
+    assert results[0].title == "test.tsv:1"
+
+    assert results[1].name == "Bob"
+    assert results[1].id == f"{tsv_path.resolve()}:2"
+
+
+def test_extract_tsv_with_matching_fields(tmp_path):
+    """Test extract_tsv when columns match ExtractionResult fields."""
+    tsv_content = "content\ttitle\textra\nMy content\tMy title\textra_val\n"
+    tsv_path = tmp_path / "matching.tsv"
+    tsv_path.write_text(tsv_content)
+
+    results = list(extract_tsv(tsv_path))
+    assert len(results) == 1
+    assert results[0].content == "My content"
+    assert results[0].title == "My title"
+    assert results[0].extra == "extra_val"
+
+
+def test_extract_tsv_error_cases(tmp_path):
+    """Test extract_tsv error handling."""
+    with pytest.raises(FileNotFoundError, match="Path does not exist"):
+        list(extract_tsv(tmp_path / "nonexistent.tsv"))
+
+
+def test_readtsv(tmp_path):
+    """Test readtsv segment."""
+    tsv_content = "product\tprice\nApple\t1.50\nBanana\t0.75\n"
+    tsv_path = tmp_path / "products.tsv"
+    tsv_path.write_text(tsv_content)
+
+    results = list(readtsv()([str(tsv_path)]))
+    assert len(results) == 2
+    assert results[0].product == "Apple"
+    assert results[0].price == "1.50"
+    assert results[1].product == "Banana"
+
+
+def test_tsv_in_default_registry(tmp_path):
+    """Test that TSV extractor is registered in default registry."""
+    registry = get_default_registry()
+    assert "tsv" in registry.registered_extensions
+
+    tsv_content = "col1\tcol2\nval1\tval2\n"
+    tsv_path = tmp_path / "registry_test.tsv"
+    tsv_path.write_text(tsv_content)
+
+    results = list(registry.extract(tsv_path))
+    assert len(results) == 1
+    assert results[0].col1 == "val1"
+    assert results[0].col2 == "val2"
+
+
+# --- RST in default registry ---
+
+def test_rst_in_default_registry(tmp_path):
+    """Test that .rst files are handled via extract_text in the default registry."""
+    registry = get_default_registry()
+    assert "rst" in registry.registered_extensions
+
+    rst_path = tmp_path / "readme.rst"
+    rst_path.write_text("=====\nTitle\n=====\n\nSome reStructuredText.", encoding="utf-8")
+
+    results = list(registry.extract(rst_path))
+    assert len(results) == 1
+    assert "Title" in results[0].content
+    assert "reStructuredText" in results[0].content
+    assert results[0].title == "readme.rst"
+
+
+# --- Comprehensive default registry extensions check ---
+
+def test_default_registry_has_all_extensions():
+    """Verify all expected extensions are registered in the default registry."""
+    registry = get_default_registry()
+    expected = {"txt", "md", "rst", "html", "htm", "docx", "pdf", "csv", "tsv", "json", "jsonl"}
+    actual = set(registry.registered_extensions)
+    assert expected.issubset(actual), f"Missing extensions: {expected - actual}"

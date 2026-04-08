@@ -1,6 +1,7 @@
 """This module contains segments for extracting text from files."""
 
 from typing import Union, Iterable, Annotated, Callable, Optional, Iterator
+from functools import partial
 import logging
 import csv
 import json
@@ -11,6 +12,7 @@ from pathlib import PosixPath, Path
 from docx import Document
 from talkpipe.pipe.core import segment, AbstractFieldSegment, field_segment
 from talkpipe.chatterlang.registry import register_segment
+from .html import htmlToText
 
 
 logger = logging.getLogger(__name__)
@@ -149,6 +151,17 @@ def extract_text(file_path: Union[str, Path]) -> Iterator[ExtractionResult]:
             title=p.name
         )
 
+def extract_html(file_path: Union[str, Path]) -> Iterator[ExtractionResult]:
+    """
+    Extract readable text from an HTML file.
+    """
+    result = next(extract_text(file_path))
+    raw_html = result.content
+    readable_text = htmlToText(raw_html)
+    result.content = readable_text
+    result.raw_html = raw_html
+    yield result
+
 
 def extract_docx(file_path: Union[str, Path]) -> Iterator[ExtractionResult]:
     """
@@ -186,24 +199,25 @@ def extract_docx(file_path: Union[str, Path]) -> Iterator[ExtractionResult]:
     )
 
 
-def extract_csv(file_path: Union[str, Path]) -> Iterator[ExtractionResult]:
+def extract_csv(file_path: Union[str, Path], delimiter: str = ',') -> Iterator[ExtractionResult]:
     """
-    Extract rows from a CSV file, yielding each row as an ExtractionResult.
+    Extract rows from a delimited text file, yielding each row as an ExtractionResult.
 
-    For each row, if a CSV column name matches an ExtractionResult field
+    For each row, if a column name matches an ExtractionResult field
     (content, source, id, title), that value is used. Otherwise:
     - content: string representation of all fields
     - source: the file path
     - id: file path plus row number
     - title: filename plus row number
 
-    Any additional CSV columns are passed through as extra fields.
+    Any additional columns are passed through as extra fields.
 
     Args:
-        file_path: Path to the CSV file.
+        file_path: Path to the CSV/TSV file.
+        delimiter: Column delimiter character (default ',').
 
     Yields:
-        ExtractionResult for each row in the CSV.
+        ExtractionResult for each row.
 
     Raises:
         FileNotFoundError: If the file does not exist.
@@ -221,7 +235,7 @@ def extract_csv(file_path: Union[str, Path]) -> Iterator[ExtractionResult]:
     extraction_fields = {'content', 'source', 'id', 'title'}
 
     with p.open("r", newline='', encoding='utf-8') as file:
-        reader = csv.DictReader(file)
+        reader = csv.DictReader(file, delimiter=delimiter)
         for row_num, row in enumerate(reader, start=1):
             # Build ExtractionResult fields, using CSV values if present
             result_fields = {}
@@ -339,6 +353,62 @@ def extract_jsonl(file_path: Union[str, Path]) -> Iterator[ExtractionResult]:
             yield ExtractionResult(**result_fields, **extra_fields)
 
 
+extract_tsv = partial(extract_csv, delimiter='\t')
+extract_tsv.__doc__ = "Extract rows from a TSV (tab-separated) file. See extract_csv."
+
+
+def extract_json(file_path: Union[str, Path]) -> Iterator[ExtractionResult]:
+    """
+    Extract content from a JSON file, yielding a single ExtractionResult.
+
+    If the JSON value is a dictionary and has keys matching ExtractionResult
+    fields (content, source, id, title), those values are used.  All dict keys
+    are passed through as extra fields.  Non-dict values use the same logic as
+    extract_jsonl (string used directly, others JSON-serialised).
+
+    Args:
+        file_path: Path to the JSON file.
+
+    Yields:
+        A single ExtractionResult for the file.
+
+    Raises:
+        FileNotFoundError: If the file does not exist.
+    """
+    p = Path(file_path)
+    if not p.exists():
+        logger.error(f"Path does not exist: {file_path}")
+        raise FileNotFoundError(f"Path does not exist: {file_path}")
+    if not p.is_file():
+        logger.error(f"Unsupported path type: {file_path}")
+        raise FileNotFoundError(f"Unsupported path type: {file_path}")
+
+    logger.debug(f"Reading JSON file: {p}")
+    source_str = str(p.resolve())
+    extraction_fields = {'content', 'source', 'id', 'title'}
+
+    with p.open("r", encoding="utf-8") as f:
+        data = json.load(f)
+
+    result_fields: dict = {}
+    extra_fields: dict = {}
+
+    if isinstance(data, dict):
+        result_fields['content'] = str(data['content']) if 'content' in data else ', '.join(f"{k}: {v}" for k, v in data.items())
+        result_fields['source'] = str(data['source']) if 'source' in data else source_str
+        result_fields['id'] = str(data['id']) if 'id' in data else source_str
+        result_fields['title'] = str(data['title']) if 'title' in data else p.name
+        extra_fields = {k: v for k, v in data.items() if k not in extraction_fields}
+    else:
+        result_fields['content'] = data if isinstance(data, str) else json.dumps(data)
+        result_fields['source'] = source_str
+        result_fields['id'] = source_str
+        result_fields['title'] = p.name
+        extra_fields['value'] = data
+
+    yield ExtractionResult(**result_fields, **extra_fields)
+
+
 def extract_pdf(file_path: Union[str, Path]) -> Iterator[ExtractionResult]:
     """
     Extract text from a PDF file.
@@ -405,9 +475,14 @@ def get_default_registry() -> ExtractorRegistry:
     registry = ExtractorRegistry()
     registry.register("txt", extract_text)
     registry.register("md", extract_text)
+    registry.register("rst", extract_text)
+    registry.register("html", extract_html)
+    registry.register("htm", extract_html)
     registry.register("docx", extract_docx)
     registry.register("pdf", extract_pdf)
     registry.register("csv", extract_csv)
+    registry.register("tsv", extract_tsv)
+    registry.register("json", extract_json)
     registry.register("jsonl", extract_jsonl)
     registry.register_default(skip_file)
     return registry
@@ -432,6 +507,55 @@ def readtxt(file_path: Annotated[str, "Path to the text file to read"]):
         IOError: If there is an error reading any of the files.
     """
     yield from extract_text(file_path)
+
+
+@register_segment("readhtml")
+@field_segment(multi_emit=True)
+def readhtml(file_path: Annotated[str, "Path to the HTML file to read"]):
+    """Read and extract readable text from HTML files.
+
+    Yields:
+        ExtractionResult: Result containing readable text as content,
+                         raw HTML preserved in the raw_html field,
+                         and source path, id, and title.
+
+    Raises:
+        FileNotFoundError: If a path does not exist.
+    """
+    yield from extract_html(file_path)
+
+
+@register_segment("readjson")
+@field_segment(multi_emit=True)
+def readjson(file_path: Annotated[str, "Path to the JSON file to read"]):
+    """Read and extract content from a JSON file.
+
+    Yields:
+        ExtractionResult: A single result for the file. If the JSON is a
+                         dictionary, keys matching ExtractionResult fields
+                         are used; all keys are passed through as extra fields.
+
+    Raises:
+        FileNotFoundError: If a path does not exist.
+    """
+    yield from extract_json(file_path)
+
+
+@register_segment("readtsv")
+@field_segment(multi_emit=True)
+def readtsv(file_path: Annotated[str, "Path to the TSV file to read"]):
+    """Read and extract rows from a TSV (tab-separated) file.
+
+    Each row is emitted as an ExtractionResult, following the same logic
+    as readcsv but with tab delimiters.
+
+    Yields:
+        ExtractionResult: Result for each row.
+
+    Raises:
+        FileNotFoundError: If a path does not exist.
+    """
+    yield from extract_tsv(file_path)
 
 
 @register_segment("readdocx")

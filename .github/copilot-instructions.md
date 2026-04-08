@@ -1,5 +1,7 @@
 # TalkPipe AI Coding Instructions
 
+*Cursor users: See [AGENTS.md](../AGENTS.md) and `.cursor/skills/` for additional workflows (TDD, changelog, doc examples, entry points).*
+
 ## Project Overview
 
 TalkPipe is a Python toolkit for building AI workflows that combine LLMs, data processing, and search. It provides two complementary ways to build pipelines:
@@ -34,7 +36,7 @@ Layer 1: Pipe Foundation (pipe/) + ChatterLang (chatterlang/) - DSL and core abs
 ```bash
 pytest                                    # All tests
 pytest tests/talkpipe/pipe/test_basic.py # Specific file
-pytest --cov=talkpipe --cov-report=html  # With coverage (configured in tasks.json)
+pytest --cov=src  # With coverage
 ```
 
 ### Build & Package
@@ -45,8 +47,11 @@ python -m build  # Creates wheel and sdist
 ### Component Registration
 New segments/sources must be:
 1. Decorated with `@segment()` or `@source()`
-2. Added to `pyproject.toml` entry-points (under `[project.entry-points."talkpipe.segments"]` or `"talkpipe.sources"`)
-3. Registered in registry via decorator: `@registry.register_segment("name")`
+2. Registered via `@register_segment("name")` or `@register_source("name")` (from `talkpipe` or `talkpipe.chatterlang.registry`)
+3. Added to `pyproject.toml` entry-points. Prefer the update-entry-points script over manual edits:
+   ```bash
+   python .cursor/skills/update-entry-points/scripts/update_entry_points.py
+   ```
 
 ## Design Patterns
 
@@ -118,7 +123,7 @@ pipeline = compiler.compile(script)  # Returns Script with callable(input) inter
 result = list(pipeline.generate())
 ```
 
-**Critical flow**: `compiler.py` lines 45-100 show parameter resolution with `_resolve_params()` - this handles constants and arrays from the script.
+**Critical flow**: `compiler.py` defines `_resolve_params()` for parameter resolution - this handles constants and arrays from the script.
 
 ### Registry & Entry Points
 
@@ -127,11 +132,11 @@ The `HybridRegistry` supports discovery via:
 - Entry-point discovery (fallback for lazy loading)
 
 **Development workflow**: When adding new segment:
-1. Add `@registry.register_segment("mySegment")` decorator
-2. Add entry-point in `pyproject.toml`
-3. Entry-point = "segment_name" → "module:function_or_class"
+1. Add `@register_segment("mySegment")` decorator (from `talkpipe` or `talkpipe.chatterlang.registry`)
+2. Run `python .cursor/skills/update-entry-points/scripts/update_entry_points.py` to update `pyproject.toml`
+3. Entry-point format: "segment_name" → "module:function_or_class"
 
-See `pyproject.toml` lines 130-200 for all registered segments/sources.
+See `pyproject.toml` `[project.entry-points."talkpipe.segments"]` and `"talkpipe.sources"` sections for all registered segments/sources.
 
 ## Environment Setup
 
@@ -167,7 +172,7 @@ This ensures:
 
 ### Testing Strategy
 
-From CLAUDE.md: "Write unit test that fails without change, verify it fails, implement, verify it passes."
+From AGENTS.md: "Write unit test that fails without change, verify it fails, implement, verify it passes." See `.cursor/skills/test-driven-development/SKILL.md` for the full TDD workflow.
 
 - Tests in `tests/talkpipe/` mirror src structure
 - Keep tests concise while covering functionality completely
@@ -179,11 +184,13 @@ From CLAUDE.md: "Write unit test that fails without change, verify it fails, imp
 - Update `CHANGELOG.md` after implementing features
 - For minor changes to existing features, update existing entry if present
 - Use semantic versioning
+- See `.cursor/skills/changelog-update/SKILL.md` for detailed rules
 
 ### Documentation Examples
 
 - Document examples must be runnable standalone code
-- Test examples by executing them before committing
+- Prefer unindented code fences for easier extraction; see `docs/architecture/documentation-formatting.md`
+- Test examples: `run_doc_examples` or `pytest tests/test_doc_examples.py -v` (use `-m "not requires_ollama"` when Ollama unavailable)
 - See `docs/architecture/protocol.md` for data convention examples
 
 ### Code Quality
@@ -200,9 +207,9 @@ From CLAUDE.md: "Write unit test that fails without change, verify it fails, imp
 ```python
 # In pipe/basic.py or domain-specific module
 from talkpipe.pipe.core import segment, field_segment
-import talkpipe.chatterlang.registry as registry
+from talkpipe import register_segment
 
-@registry.register_segment("myNewSegment")
+@register_segment("myNewSegment")
 @segment()
 def my_new_segment(items: Iterator[Any], param1: str = "default") -> Iterator[Any]:
     """Docstring with Annotated types for IDE help."""
@@ -210,8 +217,7 @@ def my_new_segment(items: Iterator[Any], param1: str = "default") -> Iterator[An
         # Process and yield
         yield result
 
-# Add to pyproject.toml:
-# myNewSegment = "talkpipe.pipe.basic:my_new_segment"
+# Then run: python .cursor/skills/update-entry-points/scripts/update_entry_points.py
 ```
 
 ### Modifying Segment Parameters

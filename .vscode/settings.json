@@ -20,5 +20,8 @@
         "OLLAMA",
         "pydantic",
         "talkpipe"
+    ],
+    "python.testing.pytestArgs": [
+        "tests"
     ]
 }

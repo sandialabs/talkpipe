@@ -13,12 +13,12 @@ assignees: ''
 - [ ] Merge into master
 - [ ] Run bandit and safety
 - [ ] Build docker images and make sure runnable unit tests pass
-        - docker build . -t talkpipe:experimental
+        - podman build . -t talkpipe:experimental
 - [ ] Tag repository
 - [ ] Build whl files
 - [ ] Install whl file in new environment and test a script in chatterlang_workbench
 - [ ] Run examples in the tutorials
 - [ ] Push code to repo
-- [ ] Push tags to repo
 - [ ] Make sure everything passes on github
+- [ ] Push tags to repo
 - [ ] Create a release on github
