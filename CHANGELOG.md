@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.11.7
 - Added extractors and default registry support for html/htm (`readhtml`), json (`readjson`),
   tsv (`readtsv`), and rst file types. `ReadFile` / `fileToText` now handles these automatically.
 - Fixed `extract_html` so it yields an `ExtractionResult` with readable `content`, preserved `raw_html`, and the same metadata as `extract_text`; added unit test.
