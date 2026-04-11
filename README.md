@@ -53,6 +53,9 @@ For the full story, see **[Architecture](docs/architecture/)**. Define a pipelin
 - **[makevectordatabase & serverag](docs/guides/makevectordatabase-and-serverag.md)**
   Create vector databases from documents and run RAG web servers in two commands—no scripts required.
 
+- **[Container images](docs/guides/container-images.md)**
+  Pull release images from GitHub Container Registry (multi-platform on each GitHub release).
+
 - **chatterlang_reference_browser**
   An interactive command line application for searching and browsing installed ChatterLang sources and segments.
 
@@ -449,6 +452,7 @@ For comprehensive documentation and examples, see the **[docs/](docs/)** directo
 | Commands and components | [API reference](docs/api-reference/) |
 | Walkthroughs | [Tutorials](docs/tutorials/) |
 | Design and extending TalkPipe | [Architecture](docs/architecture/) |
+| Official container images (GHCR, multi-arch releases) | [Container images](docs/guides/container-images.md) |
 | Contributor glossary and conventions | [Developer handbook](docs/contributing/developer-handbook.md) |
 
 - **[Documentation hub](docs/)** — Index and navigation

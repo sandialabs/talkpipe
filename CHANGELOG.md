@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+- Documented [container images](docs/guides/container-images.md): GitHub Container Registry package URL, multi-platform release builds (linux/amd64, linux/arm64), tags (`latest`, version, `experimental`), pull and auth notes; linked from the README and docs hub.
+  Expanded with example `docker`/`podman run` commands for common CLIs, **`--host` / `-o 0.0.0.0`** for HTTP services, and **localhost vs 127.0.0.1** when port-forwarding.
+
 ## 0.11.7
 - Added extractors and default registry support for html/htm (`readhtml`), json (`readjson`),
   tsv (`readtsv`), and rst file types. `ReadFile` / `fileToText` now handles these automatically.

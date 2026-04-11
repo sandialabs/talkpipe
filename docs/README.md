@@ -10,6 +10,9 @@ New to TalkPipe? Start here for installation, basic concepts, and your first pip
 ### 📖 [RAG Commands](guides/makevectordatabase-and-serverag.md)
 Create vector databases and run RAG servers in two commands: `makevectordatabase` and `serverag`.
 
+### 🐳 [Container images](guides/container-images.md)
+Pull multi-platform release images from GitHub Container Registry (`ghcr.io`), tags, and Docker/Podman usage.
+
 ### 💡 [Tutorials](tutorials/)
 Real-world usage examples and tutorials:
 - [Tutorial Overview](tutorials/) 
