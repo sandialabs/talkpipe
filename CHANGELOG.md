@@ -1,6 +1,9 @@
 # Changelog
 
 ## Unreleased
+- Rewrote [extending TalkPipe](docs/architecture/extending-talkpipe.md): open with a minimal
+  `@segment` + `@register_segment` example, clarify registry/entry points/plugins, and fix
+  examples (`compile` import, ChatterLang `INPUT FROM`, pipe `|` usage).
 - Documented [container images](docs/guides/container-images.md): GitHub Container Registry package URL, multi-platform release builds (linux/amd64, linux/arm64), tags (`latest`, version, `experimental`), pull and auth notes; linked from the README and docs hub.
   Expanded with example `docker`/`podman run` commands for common CLIs, **`--host` / `-o 0.0.0.0`** for HTTP services, and **localhost vs 127.0.0.1** when port-forwarding.
 

@@ -1,643 +1,441 @@
 # Extending TalkPipe
 
-Comprehensive guide to extending TalkPipe with custom functionality.
+This guide explains how to add custom **sources** (pipeline starters) and **segments** (stream processors), register them for the ChatterLang DSL, and ship them in packages. Read the [Data Protocol](protocol.md) first so stream conventions (especially dictionary-shaped data in higher-level pipelines) stay consistent.
 
-## Overview
+## A minimal registered segment
 
-TalkPipe is designed to be highly extensible, allowing developers to create custom data sources, processing segments, and complete pipeline components. The framework provides multiple extension mechanisms that integrate seamlessly with the existing pipeline architecture.
+You usually implement a segment as a small function and attach two decorators: `@segment()` turns the function into a segment class factory, and `@register_segment("nameInChatterLang")` adds that class to the global registry under one or more ChatterLang names.
 
-> **Note**: Before creating custom components, review the [Data Protocol](protocol.md) documentation to understand the conventions for data flowing through pipelines, particularly the dictionary convention used at the `talkpipe/pipelines` level.
+```python
+from typing import Iterator, Any
 
-## Creating Custom Sources and Segments
+from talkpipe import segment, register_segment
+from talkpipe.chatterlang import compile
+from talkpipe.pipe import io
 
-### Understanding the Core Abstractions
 
-TalkPipe defines two primary building blocks for pipelines:
+@register_segment("doubleEach")
+@segment()
+def double_each(items: Iterator[Any], factor: int = 2) -> Iterator[Any]:
+    """Multiply each numeric item by factor (strings are parsed as integers)."""
+    for item in items:
+        yield int(item) * factor
 
-- **AbstractSource** - Data generators that start pipelines without requiring input
-- **AbstractSegment** - Data processors that transform input streams into output streams
 
-Both follow the streaming, generator-based architecture for memory efficiency and lazy evaluation.
+# Pipe API: build and run in the same Python process where the decorators ran.
+pipeline = io.echo(data="1,2,3") | double_each(factor=10)
+print(list(pipeline()))
 
-### Custom Sources
+# ChatterLang: the name matches @register_segment; parameters map to the segment.
+# Add "| print" when you want each item on stdout while developing.
+fn = compile('INPUT FROM echo[data="1,2,3"] | doubleEach[factor=10]')
+print(list(fn()))
+```
 
-Sources generate data for pipeline consumption. They implement the `AbstractSource` base class:
+**Why this pattern fits many workflows**
 
-#### Class-Based Sources
+- **Notebooks and ad hoc scripts**: Define the function in a cell or file and run it. Decorators run at import time, so the segment is registered in that interpreter session. Use the pipe API (`source | segment() | …`) immediately, or call `compile(...)` on ChatterLang text in the same process.
+- **Application code**: Keep segments in a project module and import that module early (for example from your `main`). Registration is a side effect of import, so ChatterLang and any tooling that resolves names through the registry see your segment without extra wiring.
+- **Installable libraries**: Publish a package whose modules use `@register_segment` / `@register_source`, and declare **`talkpipe.segments`** / **`talkpipe.sources`** entry points in `pyproject.toml` so the hybrid registry can import the defining module on demand (see [Registry, ChatterLang names, and entry points](#registry-chatterlang-names-and-entry-points)). Optional **`talkpipe.plugins`** entry points load whole plugin modules when `talkpipe` is imported—useful for one-time setup or side-effect imports across many components.
+
+The same streaming model applies everywhere: sources `yield` items, segments consume an iterable and `yield` outputs, so pipelines stay lazy and memory-friendly from a notebook through to production services.
+
+---
+
+## Core building blocks
+
+TalkPipe pipelines are built from:
+
+- **`AbstractSource`** — starts a pipeline; implements `generate()` and yields items.
+- **`AbstractSegment`** — transforms a stream; implements `transform(input_iter)` and yields items.
+
+Both are iterator-based so work is done on demand, which matters for large data or slow IO.
+
+### Custom sources
+
+**Class-based** sources subclass `AbstractSource` and implement `generate()`. Use this when you hold connection state, configuration, or other resources tied to the source instance.
+
+**Function-based** sources use `@source` or `@source(...)`. The decorator wraps a generator function in a small `AbstractSource` subclass, which keeps simple cases short and readable.
+
+The examples below use stubs where a real integration would open databases or files.
+
+#### Class-based source (sketch)
 
 ```python
 from contextlib import contextmanager
-from talkpipe.pipe.core import AbstractSource
-from talkpipe.pipe import io
 from typing import Iterator
+
+from talkpipe.pipe import io
+from talkpipe.pipe.core import AbstractSource
+
 
 @contextmanager
 def get_connection(connection_string: str):
-    """Connect to database (stub: override with real implementation)."""
+    """Replace with a real connection (e.g. DB driver)."""
     class Conn:
         def execute(self, query):
-            return []  # Stub: return empty result
+            return []  # Stub: yield no rows
+
     yield Conn()
 
+
 class DatabaseSource(AbstractSource[dict]):
-    """Custom source that reads from a database."""
-    
+    """Example source that reads rows from a database."""
+
     def __init__(self, connection_string: str, query: str):
         super().__init__()
         self.connection_string = connection_string
         self.query = query
-    
+
     def generate(self) -> Iterator[dict]:
-        """Generate records from database query."""
         with get_connection(self.connection_string) as conn:
             for row in conn.execute(self.query):
-                yield dict(row)  # Convert to dictionary
+                yield dict(row)
 
-# Usage
+
 db_source = DatabaseSource("sqlite:///data.db", "SELECT * FROM users")
 pipeline = db_source | io.Print()
-list(pipeline())  # Run pipeline
+list(pipeline())
 ```
 
-#### Function-Based Sources with Decorators
-
-The `@source` decorator converts functions into source classes:
+#### Function-based source with `@source`
 
 ```python
 from talkpipe.pipe.core import source
 
-# Simple function source
+
 @source
 def count_source():
-    """Generate counting numbers."""
+    """Emit counting numbers."""
     for i in range(100):
         yield i
 
-# Parameterized function source  
+
 @source()
 def file_lines_source(filename: str):
-    """Read lines from a file."""
-    with open(filename, 'r') as f:
+    """Emit one dict per line from a file."""
+    with open(filename, encoding="utf-8") as f:
         for line_num, line in enumerate(f, 1):
-            yield {
-                'line_number': line_num,
-                'content': line.strip()
-            }
+            yield {"line_number": line_num, "content": line.strip()}
 
-# Usage
+
 numbers = count_source()
 file_data = file_lines_source(filename="data.txt")
 ```
 
-### Custom Segments
+### Custom segments
 
-Segments process data flowing through pipelines. They implement the `AbstractSegment` base class:
+**Class-based** segments subclass `AbstractSegment` and implement `transform(self, input_iter)`.
 
-#### Class-Based Segments
+**Function-based** segments use `@segment` or `@segment(...)`. The function receives the upstream iterable as the first argument; additional arguments become constructor parameters on the generated class (for example `filter_by_field(field="status", value="active")`).
+
+**Field helpers**: `@field_segment()` builds a segment that reads one field per item, applies your function, and can write results to another field—useful for record-shaped dicts (see the protocol doc for metadata and field conventions).
+
+#### Class-based segment
 
 ```python
-from talkpipe.pipe.core import AbstractSegment
 from typing import Iterable, Iterator
 
+from talkpipe.pipe import io
+from talkpipe.pipe.core import AbstractSegment
+
+
 class JsonParseSegment(AbstractSegment[str, dict]):
-    """Parse JSON strings into dictionaries."""
-    
+    """Parse JSON strings into dicts."""
+
     def __init__(self, fail_on_invalid: bool = True):
         super().__init__()
         self.fail_on_invalid = fail_on_invalid
-    
+
     def transform(self, input_iter: Iterable[str]) -> Iterator[dict]:
-        """Transform JSON strings to dictionaries."""
         import json
-        
+
         for json_str in input_iter:
             try:
                 yield json.loads(json_str)
             except json.JSONDecodeError as e:
                 if self.fail_on_invalid:
                     raise ValueError(f"Invalid JSON: {json_str}") from e
-                else:
-                    # Skip invalid JSON and continue
-                    continue
 
-# Usage
-from talkpipe.pipe import io
 
 json_parser = JsonParseSegment(fail_on_invalid=False)
 json_source = io.echo(data='{"a":1}|{"b":2}', delimiter="|")
 pipeline = json_source | json_parser | io.Print()
-list(pipeline())  # Run pipeline
+list(pipeline())
 ```
 
-#### Function-Based Segments with Decorators
-
-The `@segment` decorator converts functions into segment classes:
+#### Function-based segments
 
 ```python
 from talkpipe.pipe.core import segment, field_segment
 
-# Simple segment function
+
 @segment
 def uppercase_segment(items):
-    """Convert strings to uppercase."""
     for item in items:
-        yield item.upper()
+        yield str(item).upper()
 
-# Parameterized segment function
+
 @segment()
 def filter_by_field(items, field: str, value: str):
-    """Filter items where field equals value."""
     for item in items:
-        if item.get(field) == value:
+        if isinstance(item, dict) and item.get(field) == value:
             yield item
 
-# Field-specific segment
+
 @field_segment()
 def extract_domain(email: str):
-    """Extract domain from email address."""
-    return email.split('@')[1] if '@' in email else None
+    return email.split("@", 1)[1] if "@" in email else None
 
-# Usage
+
 uppercase = uppercase_segment()
 active_users = filter_by_field(field="status", value="active")
 get_domain = extract_domain(field="email", set_as="domain")
 ```
 
-#### Advanced Segment Patterns
+#### Patterns: errors and state
 
-**Error Handling Segments:**
+**Resilient per-item processing** — catch only what you intend to handle; either yield a fallback or skip and log.
 
 ```python
 from logging import getLogger
+
 from talkpipe.pipe.core import segment
 
 logger = getLogger(__name__)
 
+
 @segment()
-def safe_process(items, processor_func, default_value=None):
-    """Apply processor with error handling."""
+def safe_process(items, default=None):
     for item in items:
         try:
-            yield processor_func(item)
+            yield expensive_step(item)
         except Exception as e:
-            if default_value is not None:
-                yield default_value
+            if default is not None:
+                yield default
             else:
-                logger.warning(f"Processing failed for {item}: {e}")
-                continue
+                logger.warning("skip item after error: %s", e)
 ```
 
-**Stateful Segments:**
+**Stateful logic** — when you need instance state across items (windows, running totals), a small `AbstractSegment` subclass is often clearer than closing over mutable globals.
 
 ```python
-from talkpipe.pipe.core import AbstractSegment
-from typing import Iterable, Iterator
+from typing import Any, Iterable, Iterator, List
 
-class WindowSegment(AbstractSegment):
-    """Collect items into sliding windows."""
-    
+from talkpipe.pipe.core import AbstractSegment
+
+
+class WindowSegment(AbstractSegment[Any, List[Any]]):
+    """Emit sliding windows of `window_size` items."""
+
     def __init__(self, window_size: int, step_size: int = 1):
         super().__init__()
         self.window_size = window_size
         self.step_size = step_size
-    
-    def transform(self, input_iter: Iterable) -> Iterator[list]:
-        window = []
-        step_count = 0
-        
+
+    def transform(self, input_iter: Iterable[Any]) -> Iterator[List[Any]]:
+        window: list[Any] = []
         for item in input_iter:
             window.append(item)
-            
             if len(window) == self.window_size:
-                yield list(window)  # Emit window copy
-                
-                # Slide window by step_size
-                window = window[self.step_size:]
-                
-        # Emit final partial window if exists
+                yield list(window)
+                window = window[self.step_size :]
         if window:
-            yield window
+            yield list(window)
 ```
 
-## Plugin Architecture
+---
 
-TalkPipe supports two mechanisms for extending functionality: direct component registration and installable plugins via entry points.
+## Registry, ChatterLang names, and entry points
 
-### Registry System
+### Why a registry exists
 
-TalkPipe uses a registry system to manage and discover components:
+ChatterLang resolves segment and source names at compile time. The **hybrid registry** (`talkpipe.chatterlang.registry`) stores classes registered by decorators and, if a name is missing, loads **`talkpipe.segments`** / **`talkpipe.sources`** entry points so the defining module is imported (which runs the decorators). That gives you:
 
-#### Component Registration
+- **Fast startup** when you only use the pipe API and never touch unknown ChatterLang names.
+- **Discoverability** for tools and IDEs that list `segment_registry.all` / `input_registry.all`.
+- **Packaging** — third-party packages can expose components without forking TalkPipe.
+
+### Registering with decorators
 
 ```python
 import talkpipe.chatterlang.registry as registry
 from talkpipe.pipe.core import AbstractSegment, AbstractSource
 
-# Register segments for ChatterLang DSL
+
 @registry.register_segment("customParser")
 class CustomParserSegment(AbstractSegment):
-    # Implementation here
-    pass
+    ...
 
-# Register sources  
+
 @registry.register_source("apiData")
 class APIDataSource(AbstractSource):
-    # Implementation here
-    pass
+    ...
 ```
 
-#### Registry Usage
+`register_segment` and `register_source` are also re-exported from the top-level `talkpipe` package; use whichever import style matches your project.
 
-The registry enables dynamic component loading in ChatterLang scripts:
+ChatterLang uses the names you pass to the decorators (multiple names are allowed in one decorator). Example script shape:
 
 ```chatterlang
-// ChatterLang can now use registered components
-input apiData(url="https://api.example.com/data")
+INPUT FROM apiData(url="https://api.example.com/data")
 | customParser(format="json")
 | print
 ```
 
-### Entry Point Plugin System
+### Entry points for distributable components
 
-TalkPipe automatically discovers and loads plugins installed via Python entry points. This enables distributable plugin packages that integrate seamlessly with TalkPipe.
+For code in **this** repository, after adding or renaming `@register_segment` / `@register_source` classes, regenerate `pyproject.toml` entry points with:
 
-#### How Plugin Loading Works
+`python .cursor/skills/update-entry-points/scripts/update_entry_points.py`
 
-When TalkPipe is imported, it:
+(from the project root; see [protocol.md](protocol.md)). That keeps **`talkpipe.segments`** and **`talkpipe.sources`** aligned with decorators so installs and lazy loading resolve the right modules.
 
-1. **Discovers plugins** via the `talkpipe.plugins` entry point group
-2. **Imports plugin modules** which triggers automatic component registration
-3. **Calls initialization functions** if they exist for additional setup
+In a **separate** package, declare the same groups in your own `pyproject.toml`, pointing each name at `module:ClassName` (the class your decorators attach to).
 
-The key mechanism is that importing a plugin module automatically registers any components defined with registry decorators.
+### `talkpipe.plugins` (optional)
 
-#### Creating Distributable Plugins
+The `talkpipe.plugins` entry point group is separate from per-segment registration. Importing `talkpipe` runs `load_plugins()`, which loads each plugin entry point. Prefer pointing the entry point at a **module** so importing it runs your `@register_*` decorators; optionally define a module-level `initialize_plugin()` for extra setup. See [TalkPipe Plugin Manager](../api-reference/talkpipe-plugin-manager.md) for CLI (`talkpipe_plugins`) and configuration details.
 
-**1. Define your plugin components:**
+**Example `pyproject.toml` snippet:**
 
-```python
-# my_plugin/components.py
-from talkpipe.chatterlang import registry
-from talkpipe.pipe.core import AbstractSource, AbstractSegment
-
-@registry.register_source("httpGet")
-class HttpGetSource(AbstractSource):
-    """HTTP GET request source."""
-    
-    def __init__(self, url: str):
-        super().__init__()
-        self.url = url
-    
-    def generate(self):
-        import requests
-        response = requests.get(self.url)
-        yield response.json()
-
-@registry.register_segment("filterKeys") 
-class FilterKeysSegment(AbstractSegment):
-    """Filter dictionary by keys."""
-    
-    def __init__(self, keys: list):
-        super().__init__()
-        self.keys = keys
-    
-    def transform(self, input_iter):
-        for item in input_iter:
-            if isinstance(item, dict):
-                yield {k: v for k, v in item.items() if k in self.keys}
-```
-
-**2. Create a plugin class:**
-
-```python
-# my_plugin/plugin.py
-# In a real plugin package: from . import components  # Import triggers registration
-
-class NetworkPlugin:
-    """Main plugin class referenced by entry point."""
-    
-    def initialize_plugin(self):
-        """Optional: Called after module import."""
-        print("Network plugin initialized!")
-        # Additional setup if needed
-```
-
-**3. Configure entry points:**
-
-**pyproject.toml:**
 ```toml
 [project.entry-points."talkpipe.plugins"]
-network_plugin = "my_plugin.plugin:NetworkPlugin"
+network_plugin = "my_plugin.plugin"
 ```
 
-**setup.py:**
+**Example plugin module** (`my_plugin/plugin.py`):
+
 ```python
-# skip-extract  (setup() invokes distutils; not runnable in isolation)
+# Import side effects: registers components defined in sibling modules.
+from my_plugin import components as _components  # noqa: F401
+
+
+def initialize_plugin() -> None:
+    """Optional: logging, config checks, etc."""
+```
+
+```python
+# skip-extract
+# setup.py alternative (legacy packaging)
 from setuptools import setup
 
-# Run with: pip install .
 setup(
     name="my-talkpipe-plugin",
     entry_points={
         "talkpipe.plugins": [
-            "network_plugin = my_plugin.plugin:NetworkPlugin",
-        ]
-    }
+            "network_plugin = my_plugin.plugin",
+        ],
+    },
 )
 ```
 
-#### Plugin Installation and Usage
+### Manual registration
 
-```bash
-# Install plugin
-pip install my-talkpipe-plugin
-```
-
-```python
-# skip-extract  (requires plugin with httpGet, filterKeys to be installed)
-# Use in Python - plugins loaded automatically
-import talkpipe
-
-from talkpipe.chatterlang import compiler
-
-# Plugin components available in ChatterLang scripts
-script = "| httpGet[url='https://api.example.com'] | filterKeys[keys=['name', 'id']] | print"
-pipeline = compiler.compile(script)
-```
-
-#### Plugin Management
-
-Use the plugin manager CLI to inspect and manage plugins:
-
-```bash
-# List all plugins
-talkpipe_plugins --list
-
-# Reload a plugin during development
-talkpipe_plugins --reload network_plugin
-```
-
-### Alternative: Manual Plugin Loading
-
-For simpler use cases, you can manually register components:
-
-```python
-# skip-extract  (relative imports require package layout)
-# my_plugin/registry.py
-import talkpipe.chatterlang.registry as registry
-from .sources import MyCustomSource
-from .segments import MyCustomSegment
-
-def register_all_components():
-    """Register all plugin components."""
-    registry.input_registry.register(MyCustomSource, "mySource")
-    registry.segment_registry.register(MyCustomSegment, "mySegment")
-
-# Import and call registration function
-from my_plugin.registry import register_all_components
-register_all_components()
-```
-
-## Module Loading and Registration
-
-### Automatic Discovery
-
-TalkPipe automatically loads components from several locations:
-
-#### Core Module Loading
-
-The main `__init__.py` imports all built-in components:
-
-```python
-# talkpipe/__init__.py
-from talkpipe.pipe.basic import *
-from talkpipe.pipe.math import *
-from talkpipe.pipe.io import *
-from talkpipe.data.email import *
-from talkpipe.data.rss import *
-# ... other modules
-```
-
-#### Dynamic Registration Pattern
-
-Components register themselves when their modules are imported:
-
-```python
-import talkpipe.chatterlang.registry as registry
-from talkpipe.pipe.core import AbstractSegment
-
-# In any module
-@registry.register_segment("myComponent")
-class MyComponent(AbstractSegment):
-    pass
-
-# Registration happens at import time
-```
-
-### Manual Registration
-
-For fine-grained control, components can be registered manually:
+Rarely, you may register a class without decorators:
 
 ```python
 from talkpipe.chatterlang import registry
 from talkpipe.pipe.core import AbstractSegment, AbstractSource
+
 
 class MySegment(AbstractSegment):
     def transform(self, input_iter):
         yield from input_iter
 
+
 class MySource(AbstractSource):
     def generate(self):
         yield "example"
 
-# Manual registration
+
 registry.segment_registry.register(MySegment, name="mySegment")
 registry.input_registry.register(MySource, name="mySource")
 
-# Verify registration
-all_segments = registry.segment_registry.all
-all_sources = registry.input_registry.all
+names = sorted(registry.segment_registry.all.keys())
 ```
 
-## API Compatibility Guidelines
+`HybridRegistry.all` returns a mapping of registered names to classes and may trigger loading of entry-point modules the first time you access it.
 
-### Interface Contracts
+---
 
-#### AbstractSource Requirements
+## What runs on import
 
-Custom sources must implement:
+`talkpipe/__init__.py` loads optional **`talkpipe.plugins`** entry points and re-exports `segment`, `source`, `register_segment`, and `register_source`. It does **not** import every built-in segment module up front.
 
-```python
-from talkpipe.pipe.core import AbstractSource
-from typing import Iterator, TypeVar
+Many built-in components live in subpackages (`talkpipe.pipe.basic`, `talkpipe.llm.chat`, …). Those modules register names when imported. ChatterLang compilation uses `HybridRegistry.get(name)`, which imports the module listed in **`talkpipe.segments`** / **`talkpipe.sources`** if the name is not yet registered. So a “minimal” `import talkpipe` stays light; pulling in a specific name pulls in its module.
 
-OutputType = TypeVar("OutputType")
+---
 
-class CustomSource(AbstractSource[OutputType]):
-    def generate(self) -> Iterator[OutputType]:
-        """REQUIRED: Generate data items."""
-        # Must yield items, not return a list
-        # Should handle resource cleanup
-        # May generate infinite sequences
-```
+## Implementation guidelines
 
-#### AbstractSegment Requirements
+### `AbstractSource`
 
-Custom segments must implement:
+- Implement `generate(self) -> Iterator[OutputType]` and **yield** items (do not return a big list unless you truly need batching).
+- Manage resources with context managers or careful cleanup in `generate`.
 
-```python
-from talkpipe.pipe.core import AbstractSegment
-from typing import Iterable, Iterator, TypeVar
+### `AbstractSegment`
 
-InputType = TypeVar("InputType")
-OutputType = TypeVar("OutputType")
+- Implement `transform(self, input_iter: Iterable[T]) -> Iterator[U]` and **yield** results.
+- You may filter (fewer outputs), expand (more outputs), or change types between segments.
 
-class CustomSegment(AbstractSegment[InputType, OutputType]):
-    def transform(self, input_iter: Iterable[InputType]) -> Iterator[OutputType]:
-        """REQUIRED: Transform input stream to output stream."""
-        # Must consume input_iter completely if processing all items
-        # Must yield results, not return a list
-        # Should handle errors gracefully
-        # May produce different number of outputs than inputs
-```
+### Streaming and memory
 
-### Memory Efficiency Guidelines
-
-**Streaming Requirements:**
-- Always use `yield` instead of collecting results in lists
-- Process items one at a time when possible
-- Avoid loading entire datasets into memory
+Prefer streaming one item at a time:
 
 ```python
-# GOOD: Streaming approach
 def transform(self, input_iter):
     for item in input_iter:
-        processed = self.process_item(item)
-        yield processed
-
-# BAD: Memory-intensive approach  
-def transform(self, input_iter):
-    all_items = list(input_iter)  # Loads everything into memory
-    results = [self.process_item(item) for item in all_items]
-    return iter(results)
+        yield self.process(item)
 ```
 
-### Error Handling Standards
+Avoid `all_items = list(input_iter)` unless the algorithm genuinely needs the full sequence.
 
-**Exception Propagation:**
-- Let exceptions bubble up unless specifically handling them
-- Provide meaningful error messages with context
-- Support optional graceful degradation
+### Errors
 
-```python
-from logging import getLogger
-logger = getLogger(__name__)
-class SpecificError(Exception): pass
-class ProcessingError(Exception): pass
+Let exceptions propagate when they represent programmer or data errors; catch and log only when you have a defined recovery path (skip item, substitute value, etc.).
 
-def transform(self, input_iter):
-    for item in input_iter:
-        try:
-            yield self.risky_operation(item)
-        except SpecificError as e:
-            if self.fail_silently:
-                logger.warning(f"Skipping item {item}: {e}")
-                continue
-            else:
-                raise ProcessingError(f"Failed processing {item}") from e
-```
+### Types and compatibility
 
-### Type Safety
+Use generics (`AbstractSegment[Input, Output]`) when it helps readers and type checkers. Preserve backwards compatibility for public call signatures when possible; use `warnings.warn` for deprecations.
 
-**Generic Type Parameters:**
-- Use appropriate type hints for input and output types
-- Leverage generic type parameters for type safety
+### Testing
 
-```python
-from talkpipe.pipe.core import AbstractSegment
-from typing import TypeVar, Generic, Iterator, Iterable
-
-T = TypeVar('T')
-U = TypeVar('U')
-
-class TypedSegment(AbstractSegment[T, U], Generic[T, U]):
-    def transform(self, input_iter: Iterable[T]) -> Iterator[U]:
-        # Type checker can verify correctness
-        pass
-```
-
-### Backwards Compatibility
-
-**API Stability:**
-- Avoid breaking changes in public interfaces
-- Use deprecation warnings for API changes
-- Provide migration paths for major changes
-
-```python
-import warnings
-from talkpipe.pipe.core import AbstractSegment
-
-class LegacySegment(AbstractSegment):
-    def __init__(self, old_param=None, new_param=None):
-        if old_param is not None:
-            warnings.warn(
-                "old_param is deprecated, use new_param instead",
-                DeprecationWarning,
-                stacklevel=2
-            )
-            new_param = old_param
-        
-        self.param = new_param
-```
-
-### Testing Extensions
-
-**Unit Testing Pattern:**
+Unit-test `transform`/`generate` with small iterables. For integration tests, build a short pipeline with `compile(...)` or the pipe API and assert on `list(pipeline())`.
 
 ```python
 import unittest
+
 from talkpipe.pipe.core import AbstractSegment
 
-class CustomSegment(AbstractSegment):
+
+class DoubleSegment(AbstractSegment):
     def __init__(self, fail_on_error=False):
+        super().__init__()
         self.fail_on_error = fail_on_error
+
     def transform(self, input_iter):
         for item in input_iter:
             if self.fail_on_error and item == "invalid_input":
                 raise ValueError("invalid")
             yield item * 2
 
-class TestCustomSegment(unittest.TestCase):
-    def test_basic_functionality(self):
-        segment = CustomSegment()
-        input_data = [1, 2, 3]
-        results = list(segment.transform(input_data))
-        self.assertEqual(results, [2, 4, 6])  # Expected output
-    
-    def test_empty_input(self):
-        segment = CustomSegment()
-        results = list(segment.transform([]))
-        self.assertEqual(results, [])
-    
-    def test_error_handling(self):
-        segment = CustomSegment(fail_on_error=True)
+
+class TestDoubleSegment(unittest.TestCase):
+    def test_basic(self):
+        seg = DoubleSegment()
+        self.assertEqual(list(seg.transform([1, 2, 3])), [2, 4, 6])
+
+    def test_empty(self):
+        seg = DoubleSegment()
+        self.assertEqual(list(seg.transform([])), [])
+
+    def test_error(self):
+        seg = DoubleSegment(fail_on_error=True)
         with self.assertRaises(ValueError):
-            list(segment.transform(["invalid_input"]))
+            list(seg.transform(["invalid_input"]))
 ```
-
-**Integration Testing:**
-
-```python
-# skip-extract  (fragment: source, output_segment from pipeline context)
-def test_pipeline_integration(self):
-    """Test segment works in pipeline context."""
-    pipeline = source() | CustomSegment() | output_segment()
-    results = list(pipeline())
-    # Verify end-to-end functionality
-```
-
-This extension system enables TalkPipe to grow organically while maintaining consistent interfaces and performance characteristics across all components.
 
 ---
 
-Last Reviewed: 20250818
+Last reviewed: 2026-04-15
