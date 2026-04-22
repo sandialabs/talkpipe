@@ -7,6 +7,107 @@ from talkpipe.util import config
 from talkpipe.llm.chat import LLMPrompt, LlmScore, LlmExtractTerms, LlmBinaryAnswer
 from talkpipe.chatterlang import compiler
 
+def test_context_management_defaults_are_backward_compatible():
+    adapter = OllamaPromptAdapter("llama3.2")
+    assert adapter._summarization_mode == "off"
+    assert adapter._summary_strategy == "llm"
+    assert adapter._summary_message is None
+    assert adapter._needs_compaction() is False
+
+def test_context_compaction_falls_back_from_llm(monkeypatch):
+    adapter = OllamaPromptAdapter(
+        "llama3.2",
+        summarization_mode="rolling",
+        summary_strategy="llm",
+        max_context_tokens=40,
+        reserve_response_tokens=0,
+        keep_recent_turns=1,
+    )
+    adapter._messages = [
+        {"role": "user", "content": "A long user message to overflow the token budget."},
+        {"role": "assistant", "content": "A long assistant reply with details."},
+        {"role": "user", "content": "Recent message that should be preserved."},
+    ]
+
+    def raise_summary(*args, **kwargs):
+        raise RuntimeError("summary call failed")
+
+    monkeypatch.setattr(adapter, "_summarize_with_llm", raise_summary)
+    adapter._compact_context_if_needed()
+    assert adapter._summary_message is not None
+    assert "deterministic fallback" in adapter._summary_message["content"].lower()
+    assert len(adapter._messages) == 1
+    assert adapter._messages[0]["content"] == "Recent message that should be preserved."
+
+def test_llmprompt_passes_context_params(monkeypatch):
+    captured = {}
+
+    class CaptureAdapter:
+        def __init__(self, **kwargs):
+            captured.update(kwargs)
+
+        def execute(self, prompt):
+            return prompt
+
+    monkeypatch.setattr("talkpipe.llm.chat.getPromptSources", lambda: ["capture"])
+    monkeypatch.setattr("talkpipe.llm.chat.getPromptAdapter", lambda _source: CaptureAdapter)
+
+    _segment = LLMPrompt(
+        model="model-a",
+        source="capture",
+        summarization_mode="rolling",
+        summary_strategy="llm",
+        max_context_tokens=2048,
+        reserve_response_tokens=256,
+        summary_trigger_ratio=0.8,
+        keep_recent_turns=4,
+        summary_model="model-summary",
+        summary_source="capture",
+        summary_max_tokens=300,
+        summary_max_chars=1200,
+    )
+
+    assert captured["model"] == "model-a"
+    assert captured["summarization_mode"] == "rolling"
+    assert captured["summary_strategy"] == "llm"
+    assert captured["max_context_tokens"] == 2048
+    assert captured["reserve_response_tokens"] == 256
+    assert captured["summary_trigger_ratio"] == 0.8
+    assert captured["keep_recent_turns"] == 4
+    assert captured["summary_model"] == "model-summary"
+    assert captured["summary_source"] == "capture"
+    assert captured["summary_max_tokens"] == 300
+    assert captured["summary_max_chars"] == 1200
+
+def test_guided_generation_passes_context_params(monkeypatch):
+    captured = {}
+
+    class CaptureAdapter:
+        def __init__(self, **kwargs):
+            captured.update(kwargs)
+
+        def execute(self, prompt):
+            return prompt
+
+    monkeypatch.setattr("talkpipe.llm.chat.getPromptSources", lambda: ["capture"])
+    monkeypatch.setattr("talkpipe.llm.chat.getPromptAdapter", lambda _source: CaptureAdapter)
+
+    _segment = LlmScore(
+        system_prompt="score it",
+        model="model-a",
+        source="capture",
+        summarization_mode="rolling",
+        summary_strategy="truncate",
+        max_context_tokens=4096,
+        reserve_response_tokens=512,
+    )
+
+    assert captured["model"] == "model-a"
+    assert captured["summarization_mode"] == "rolling"
+    assert captured["summary_strategy"] == "truncate"
+    assert captured["max_context_tokens"] == 4096
+    assert captured["reserve_response_tokens"] == 512
+
 
 def test_invalid_source(monkeypatched_env, patch_get_config):
 

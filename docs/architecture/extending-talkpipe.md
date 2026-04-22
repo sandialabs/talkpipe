@@ -307,12 +307,23 @@ network_plugin = "my_plugin.plugin"
 **Example plugin module** (`my_plugin/plugin.py`):
 
 ```python
-# Import side effects: registers components defined in sibling modules.
-from my_plugin import components as _components  # noqa: F401
+# plugin.py (module referenced by the `talkpipe.plugins` entry point)
+try:
+    # Normal plugin behavior: importing this module triggers decorator side effects
+    # in sibling modules that register segments/sources.
+    from my_plugin import components as _components  # noqa: F401
+except ImportError:
+    # Allows this file to run standalone (for docs/tests) without package layout.
+    _components = None
 
 
 def initialize_plugin() -> None:
-    """Optional: logging, config checks, etc."""
+    """Optional setup hook called by the plugin loader."""
+    print("my_plugin initialized")
+
+
+if __name__ == "__main__":
+    initialize_plugin()
 ```
 
 ```python

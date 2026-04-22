@@ -49,7 +49,17 @@ class LLMPrompt(AbstractSegment):
             set_as: Annotated[Optional[str], "The field to append the response to"] = None,
             temperature: Annotated[Optional[float], "The temperature to use for the model"] = None,
             output_format: Annotated[Optional[BaseModel], "A class used for guided generation"] = None,
-            role_map: Annotated[Optional[str], "Initial conversation context as 'role:message,role:message'"] = None):
+            role_map: Annotated[Optional[str], "Initial conversation context as 'role:message,role:message'"] = None,
+            max_context_tokens: Annotated[Optional[int], "Maximum context tokens before compaction"] = None,
+            reserve_response_tokens: Annotated[int, "Reserved tokens for model response"] = 1024,
+            summary_trigger_ratio: Annotated[float, "Compaction trigger ratio of available input budget"] = 0.75,
+            keep_recent_turns: Annotated[int, "Recent message count to keep unsummarized"] = 6,
+            summarization_mode: Annotated[str, "Conversation summarization mode: off or rolling"] = "off",
+            summary_strategy: Annotated[str, "Summary strategy: llm, deterministic, or truncate"] = "llm",
+            summary_model: Annotated[Optional[str], "Optional model override for summary generation"] = None,
+            summary_source: Annotated[Optional[str], "Optional source override for summary generation"] = None,
+            summary_max_tokens: Annotated[int, "Max tokens requested for LLM summary generation"] = 512,
+            summary_max_chars: Annotated[int, "Max characters stored in summary memory"] = 2400):
         super().__init__()
         logging.debug(f"Initializing LLMPrompt with name={model}, source={source}")
         cfg = get_config()
@@ -67,7 +77,24 @@ class LLMPrompt(AbstractSegment):
 
         logging.debug(f"Creating chat model with name: {model}")
         # Always pass system_prompt, even if None, so the adapter can handle it correctly
-        self.chat = getPromptAdapter(source)(model=model, system_prompt=system_prompt, multi_turn=multi_turn, temperature=temperature, output_format=output_format, role_map=role_map)
+        self.chat = getPromptAdapter(source)(
+            model=model,
+            system_prompt=system_prompt,
+            multi_turn=multi_turn,
+            temperature=temperature,
+            output_format=output_format,
+            role_map=role_map,
+            max_context_tokens=max_context_tokens,
+            reserve_response_tokens=reserve_response_tokens,
+            summary_trigger_ratio=summary_trigger_ratio,
+            keep_recent_turns=keep_recent_turns,
+            summarization_mode=summarization_mode,
+            summary_strategy=summary_strategy,
+            summary_model=summary_model,
+            summary_source=summary_source,
+            summary_max_tokens=summary_max_tokens,
+            summary_max_chars=summary_max_chars
+        )
 
         self.pass_prompts = pass_prompts
         self.field = field
@@ -122,7 +149,17 @@ class AbstractLLMGuidedGeneration(LLMPrompt):
             field: Annotated[Optional[str], "The field in the input item containing the prompt"] = None,
             temperature: Annotated[Optional[float], "The temperature to use for the model"] = None,
             set_as: Annotated[Optional[str], "The field to append the response to"] = None,
-            role_map: Annotated[Optional[str], "Initial conversation context as 'role:message,role:message'"] = None):
+            role_map: Annotated[Optional[str], "Initial conversation context as 'role:message,role:message'"] = None,
+            max_context_tokens: Annotated[Optional[int], "Maximum context tokens before compaction"] = None,
+            reserve_response_tokens: Annotated[int, "Reserved tokens for model response"] = 1024,
+            summary_trigger_ratio: Annotated[float, "Compaction trigger ratio of available input budget"] = 0.75,
+            keep_recent_turns: Annotated[int, "Recent message count to keep unsummarized"] = 6,
+            summarization_mode: Annotated[str, "Conversation summarization mode: off or rolling"] = "off",
+            summary_strategy: Annotated[str, "Summary strategy: llm, deterministic, or truncate"] = "llm",
+            summary_model: Annotated[Optional[str], "Optional model override for summary generation"] = None,
+            summary_source: Annotated[Optional[str], "Optional source override for summary generation"] = None,
+            summary_max_tokens: Annotated[int, "Max tokens requested for LLM summary generation"] = 512,
+            summary_max_chars: Annotated[int, "Max characters stored in summary memory"] = 2400):
 
         super().__init__(
             model,
@@ -134,7 +171,17 @@ class AbstractLLMGuidedGeneration(LLMPrompt):
             set_as=set_as,
             temperature=temperature,
             output_format=self.__class__.get_output_format(),
-            role_map=role_map)
+            role_map=role_map,
+            max_context_tokens=max_context_tokens,
+            reserve_response_tokens=reserve_response_tokens,
+            summary_trigger_ratio=summary_trigger_ratio,
+            keep_recent_turns=keep_recent_turns,
+            summarization_mode=summarization_mode,
+            summary_strategy=summary_strategy,
+            summary_model=summary_model,
+            summary_source=summary_source,
+            summary_max_tokens=summary_max_tokens,
+            summary_max_chars=summary_max_chars)
         
 
 @register_segment("llmScore")

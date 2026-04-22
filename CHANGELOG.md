@@ -1,6 +1,7 @@
 # Changelog
 
 ## Unreleased
+- Added optional rolling context summarization controls to LLM prompt adapters and `llmPrompt`/guided-generation segments. Existing constructor calls remain compatible and unchanged by default (`summarization_mode='off'`), with opt-in strategy-based compaction that defaults to LLM-backed summaries plus deterministic/truncate fallback paths.
 - Rewrote [extending TalkPipe](docs/architecture/extending-talkpipe.md): open with a minimal
   `@segment` + `@register_segment` example, clarify registry/entry points/plugins, and fix
   examples (`compile` import, ChatterLang `INPUT FROM`, pipe `|` usage).
