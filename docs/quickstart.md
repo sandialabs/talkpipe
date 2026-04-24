@@ -96,6 +96,9 @@ chat = compiler.compile(script).as_function(single_in=True, single_out=True)
 response = chat("Hello! Tell me about the history of computers.")
 ```
 
+For `llmPrompt` memory behavior (`context_token_trigger`, `memory_mode`, `unsummarized_message_count`, `memory_size`), see
+[ChatterLang memory controls](architecture/chatterlang.md#llmprompt-conversation-memory-controls).
+
 ### Pipe API
 
 ```python

@@ -36,6 +36,18 @@ class LLMPrompt(AbstractSegment):
     you specify "ollama," you can optionally set the OLLAMA_SERVER_URL environment
     variable or configuration value to point to a different server.  By default,
     ollama assumes localhost.
+
+    Memory controls:
+    - context_token_trigger controls when compaction triggers.
+      - If context_token_trigger >= 1, it is treated as an approximate absolute token budget.
+      - Values < 1 are ignored.
+    - memory_mode controls how compaction is performed once it triggers.
+      - full: no compaction
+      - recent_only: keep only recent messages
+      - summary_llm / summary_deterministic / summary_truncate: summarize older messages
+    - unsummarized_message_count controls how many recent messages are kept verbatim during compaction.
+      This is a message count, not a user+assistant turn-pair count.
+    - memory_size controls the target max tokens for summaries created during compaction.
     """
 
     def __init__(
@@ -50,16 +62,11 @@ class LLMPrompt(AbstractSegment):
             temperature: Annotated[Optional[float], "The temperature to use for the model"] = None,
             output_format: Annotated[Optional[BaseModel], "A class used for guided generation"] = None,
             role_map: Annotated[Optional[str], "Initial conversation context as 'role:message,role:message'"] = None,
-            max_context_tokens: Annotated[Optional[int], "Maximum context tokens before compaction"] = None,
-            reserve_response_tokens: Annotated[int, "Reserved tokens for model response"] = 1024,
-            summary_trigger_ratio: Annotated[float, "Compaction trigger ratio of available input budget"] = 0.75,
-            keep_recent_turns: Annotated[int, "Recent message count to keep unsummarized"] = 6,
-            summarization_mode: Annotated[str, "Conversation summarization mode: off or rolling"] = "off",
-            summary_strategy: Annotated[str, "Summary strategy: llm, deterministic, or truncate"] = "llm",
-            summary_model: Annotated[Optional[str], "Optional model override for summary generation"] = None,
-            summary_source: Annotated[Optional[str], "Optional source override for summary generation"] = None,
-            summary_max_tokens: Annotated[int, "Max tokens requested for LLM summary generation"] = 512,
-            summary_max_chars: Annotated[int, "Max characters stored in summary memory"] = 2400):
+            memory_mode: Annotated[str, "Memory behavior: full, recent_only, summary_llm, summary_deterministic, or summary_truncate"] = "full",
+            unsummarized_message_count: Annotated[int, "Recent message count kept out of summary compaction"] = 6,
+            context_token_trigger: Annotated[Optional[float], "Approximate context-token trigger for rolling memory compaction (values < 1 are ignored)"] = None,
+            memory_size: Annotated[int, "Target max tokens for generated summary memory"] = 512,
+            debug_messages: Annotated[bool, "Whether to log outbound LLM request messages"] = False):
         super().__init__()
         logging.debug(f"Initializing LLMPrompt with name={model}, source={source}")
         cfg = get_config()
@@ -84,16 +91,11 @@ class LLMPrompt(AbstractSegment):
             temperature=temperature,
             output_format=output_format,
             role_map=role_map,
-            max_context_tokens=max_context_tokens,
-            reserve_response_tokens=reserve_response_tokens,
-            summary_trigger_ratio=summary_trigger_ratio,
-            keep_recent_turns=keep_recent_turns,
-            summarization_mode=summarization_mode,
-            summary_strategy=summary_strategy,
-            summary_model=summary_model,
-            summary_source=summary_source,
-            summary_max_tokens=summary_max_tokens,
-            summary_max_chars=summary_max_chars
+            memory_mode=memory_mode,
+            unsummarized_message_count=unsummarized_message_count,
+            context_token_trigger=context_token_trigger,
+            memory_size=memory_size,
+            debug_messages=debug_messages,
         )
 
         self.pass_prompts = pass_prompts
@@ -150,16 +152,11 @@ class AbstractLLMGuidedGeneration(LLMPrompt):
             temperature: Annotated[Optional[float], "The temperature to use for the model"] = None,
             set_as: Annotated[Optional[str], "The field to append the response to"] = None,
             role_map: Annotated[Optional[str], "Initial conversation context as 'role:message,role:message'"] = None,
-            max_context_tokens: Annotated[Optional[int], "Maximum context tokens before compaction"] = None,
-            reserve_response_tokens: Annotated[int, "Reserved tokens for model response"] = 1024,
-            summary_trigger_ratio: Annotated[float, "Compaction trigger ratio of available input budget"] = 0.75,
-            keep_recent_turns: Annotated[int, "Recent message count to keep unsummarized"] = 6,
-            summarization_mode: Annotated[str, "Conversation summarization mode: off or rolling"] = "off",
-            summary_strategy: Annotated[str, "Summary strategy: llm, deterministic, or truncate"] = "llm",
-            summary_model: Annotated[Optional[str], "Optional model override for summary generation"] = None,
-            summary_source: Annotated[Optional[str], "Optional source override for summary generation"] = None,
-            summary_max_tokens: Annotated[int, "Max tokens requested for LLM summary generation"] = 512,
-            summary_max_chars: Annotated[int, "Max characters stored in summary memory"] = 2400):
+            memory_mode: Annotated[str, "Memory behavior: full, recent_only, summary_llm, summary_deterministic, or summary_truncate"] = "full",
+            unsummarized_message_count: Annotated[int, "Recent message count kept out of summary compaction"] = 6,
+            context_token_trigger: Annotated[Optional[float], "Approximate context-token trigger for rolling memory compaction (values < 1 are ignored)"] = None,
+            memory_size: Annotated[int, "Target max tokens for generated summary memory"] = 512,
+            debug_messages: Annotated[bool, "Whether to log outbound LLM request messages"] = False):
 
         super().__init__(
             model,
@@ -172,16 +169,11 @@ class AbstractLLMGuidedGeneration(LLMPrompt):
             temperature=temperature,
             output_format=self.__class__.get_output_format(),
             role_map=role_map,
-            max_context_tokens=max_context_tokens,
-            reserve_response_tokens=reserve_response_tokens,
-            summary_trigger_ratio=summary_trigger_ratio,
-            keep_recent_turns=keep_recent_turns,
-            summarization_mode=summarization_mode,
-            summary_strategy=summary_strategy,
-            summary_model=summary_model,
-            summary_source=summary_source,
-            summary_max_tokens=summary_max_tokens,
-            summary_max_chars=summary_max_chars)
+            memory_mode=memory_mode,
+            unsummarized_message_count=unsummarized_message_count,
+            context_token_trigger=context_token_trigger,
+            memory_size=memory_size,
+            debug_messages=debug_messages)
         
 
 @register_segment("llmScore")

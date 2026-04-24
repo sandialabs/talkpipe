@@ -9,7 +9,7 @@ from talkpipe.chatterlang import compiler
 
 def test_context_management_defaults_are_backward_compatible():
     adapter = OllamaPromptAdapter("llama3.2")
-    assert adapter._summarization_mode == "off"
+    assert adapter._memory_mode == "full"
     assert adapter._summary_strategy == "llm"
     assert adapter._summary_message is None
     assert adapter._needs_compaction() is False
@@ -17,11 +17,9 @@ def test_context_management_defaults_are_backward_compatible():
 def test_context_compaction_falls_back_from_llm(monkeypatch):
     adapter = OllamaPromptAdapter(
         "llama3.2",
-        summarization_mode="rolling",
-        summary_strategy="llm",
-        max_context_tokens=40,
-        reserve_response_tokens=0,
-        keep_recent_turns=1,
+        memory_mode="summary_llm",
+        context_token_trigger=40,
+        unsummarized_message_count=1,
     )
     adapter._messages = [
         {"role": "user", "content": "A long user message to overflow the token budget."},
@@ -39,6 +37,66 @@ def test_context_compaction_falls_back_from_llm(monkeypatch):
     assert len(adapter._messages) == 1
     assert adapter._messages[0]["content"] == "Recent message that should be preserved."
 
+def test_ollama_execute_multi_turn_appends_assistant_response(monkeypatch):
+    adapter = OllamaPromptAdapter("llama3.2", multi_turn=True)
+
+    class DummyMessage:
+        content = "assistant reply"
+
+    class DummyResponse:
+        message = DummyMessage()
+
+    monkeypatch.setattr(adapter, "_chat_completion", lambda **kwargs: DummyResponse())
+    result = adapter.execute("hello")
+    assert result == "assistant reply"
+    assert adapter._messages == [
+        {"role": "user", "content": "hello"},
+        {"role": "assistant", "content": "assistant reply"},
+    ]
+
+def test_ollama_execute_single_turn_clears_history(monkeypatch):
+    adapter = OllamaPromptAdapter("llama3.2", multi_turn=False)
+
+    class DummyMessage:
+        content = "assistant reply"
+
+    class DummyResponse:
+        message = DummyMessage()
+
+    monkeypatch.setattr(adapter, "_chat_completion", lambda **kwargs: DummyResponse())
+    result = adapter.execute("hello")
+    assert result == "assistant reply"
+    assert adapter._messages == []
+
+def test_anthropic_execute_includes_summary_in_system_and_messages(monkeypatch):
+    adapter = AnthropicPromptAdapter("claude-3-5-haiku-latest", memory_mode="summary_deterministic")
+    adapter._summary_message = {"role": "system", "content": "Older summary"}
+    adapter._messages = [{"role": "assistant", "content": "recent"}]
+    captured = {}
+
+    def fake_compact():
+        return None
+
+    class TextBlock:
+        text = "ok"
+
+    class DummyResponse:
+        content = [TextBlock()]
+
+    def fake_messages_create(**kwargs):
+        captured.update(kwargs)
+        return DummyResponse()
+
+    monkeypatch.setattr(adapter, "_compact_context_if_needed", fake_compact)
+    monkeypatch.setattr(adapter, "_messages_create", fake_messages_create)
+    result = adapter.execute("new prompt")
+    assert result == "ok"
+    assert "Conversation memory:\nOlder summary" in captured["system"]
+    assert any(
+        msg["role"] == "assistant" and "Conversation memory:\nOlder summary" in msg["content"]
+        for msg in captured["messages"]
+    )
+
 def test_llmprompt_passes_context_params(monkeypatch):
     captured = {}
 
@@ -55,29 +113,19 @@ def test_llmprompt_passes_context_params(monkeypatch):
     _segment = LLMPrompt(
         model="model-a",
         source="capture",
-        summarization_mode="rolling",
-        summary_strategy="llm",
-        max_context_tokens=2048,
-        reserve_response_tokens=256,
-        summary_trigger_ratio=0.8,
-        keep_recent_turns=4,
-        summary_model="model-summary",
-        summary_source="capture",
-        summary_max_tokens=300,
-        summary_max_chars=1200,
+        memory_mode="summary_deterministic",
+        context_token_trigger=0.8,
+        unsummarized_message_count=4,
+        memory_size=256,
+        debug_messages=True,
     )
 
     assert captured["model"] == "model-a"
-    assert captured["summarization_mode"] == "rolling"
-    assert captured["summary_strategy"] == "llm"
-    assert captured["max_context_tokens"] == 2048
-    assert captured["reserve_response_tokens"] == 256
-    assert captured["summary_trigger_ratio"] == 0.8
-    assert captured["keep_recent_turns"] == 4
-    assert captured["summary_model"] == "model-summary"
-    assert captured["summary_source"] == "capture"
-    assert captured["summary_max_tokens"] == 300
-    assert captured["summary_max_chars"] == 1200
+    assert captured["memory_mode"] == "summary_deterministic"
+    assert captured["context_token_trigger"] == 0.8
+    assert captured["unsummarized_message_count"] == 4
+    assert captured["memory_size"] == 256
+    assert captured["debug_messages"] is True
 
 def test_guided_generation_passes_context_params(monkeypatch):
     captured = {}
@@ -96,17 +144,46 @@ def test_guided_generation_passes_context_params(monkeypatch):
         system_prompt="score it",
         model="model-a",
         source="capture",
-        summarization_mode="rolling",
-        summary_strategy="truncate",
-        max_context_tokens=4096,
-        reserve_response_tokens=512,
+        memory_mode="recent_only",
+        context_token_trigger=4096,
+        unsummarized_message_count=5,
+        memory_size=128,
     )
 
     assert captured["model"] == "model-a"
-    assert captured["summarization_mode"] == "rolling"
-    assert captured["summary_strategy"] == "truncate"
-    assert captured["max_context_tokens"] == 4096
-    assert captured["reserve_response_tokens"] == 512
+    assert captured["memory_mode"] == "recent_only"
+    assert captured["context_token_trigger"] == 4096
+    assert captured["unsummarized_message_count"] == 5
+    assert captured["memory_size"] == 128
+
+def test_context_token_trigger_ratio_is_ignored():
+    adapter = OllamaPromptAdapter(
+        "llama3.2",
+        memory_mode="summary_deterministic",
+        context_token_trigger=0.5,
+    )
+    assert adapter._get_effective_context_token_trigger() is None
+
+def test_context_token_trigger_absolute_value_is_used():
+    adapter = OllamaPromptAdapter(
+        "llama3.2",
+        memory_mode="summary_deterministic",
+        context_token_trigger=4000,
+    )
+    assert adapter._get_effective_context_token_trigger() == 4000
+
+def test_log_message_payload_when_debug_enabled(monkeypatch):
+    adapter = OllamaPromptAdapter("llama3.2", debug_messages=True)
+    adapter._messages = [{"role": "user", "content": "hello"}]
+    captured = {"called": False}
+
+    def fake_debug(message, *args):
+        if "LLM outbound payload" in message:
+            captured["called"] = True
+
+    monkeypatch.setattr("talkpipe.llm.prompt_adapters.logger.debug", fake_debug)
+    adapter._log_message_payload("messages", adapter._request_messages())
+    assert captured["called"] is True
 
 
 def test_invalid_source(monkeypatched_env, patch_get_config):

@@ -31,6 +31,16 @@ def main():
                         default="Respond to the provided content based on the background information. When citing information, include the source (title or path) from the background. If the background does not contain relevant information, respond with 'No relevant information found.'",
                         help='Directive to guide the evaluation')
     parser.add_argument('--system_prompt', type=str, help='System prompt for the completion LLM')
+    parser.add_argument('--memory_mode', type=str, default='full',
+                        help='LLM memory behavior: full, recent_only, summary_llm, summary_deterministic, summary_truncate (default: full)')
+    parser.add_argument('--unsummarized_message_count', type=int, default=6,
+                        help='Number of recent messages kept out of summary compaction (default: 6)')
+    parser.add_argument('--context_token_trigger', type=float,
+                        help='Compaction trigger as an approximate context-token budget (values < 1 are ignored)')
+    parser.add_argument('--memory_size', type=int, default=512,
+                        help='Target max tokens for summaries created during compaction (default: 512)')
+    parser.add_argument('--debug_messages', action='store_true',
+                        help='Log outbound LLM request payloads and summary updates at DEBUG level')
     
     # Server settings
     parser.add_argument('-p', '--port', type=int, default=2026, help='Port to listen on (default: 2026)')
@@ -73,6 +83,11 @@ def main():
             "limit": args.limit,
             "table_name": args.table_name,
             "prompt_directive": args.prompt_directive,
+            "memory_mode": args.memory_mode,
+            "unsummarized_message_count": args.unsummarized_message_count,
+            "context_token_trigger": args.context_token_trigger,
+            "memory_size": args.memory_size,
+            "debug_messages": args.debug_messages,
         }
         if args.system_prompt is not None:
             rag_kwargs["system_prompt"] = args.system_prompt

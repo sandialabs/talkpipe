@@ -57,6 +57,37 @@ INPUT FROM @variable_name
 | llmPrompt[system_prompt="Analyze this:"]
 ```
 
+#### `llmPrompt` conversation memory controls
+
+When using `llmPrompt`, three parameters control memory compaction behavior:
+
+- `context_token_trigger`: **when** compaction triggers.
+  - If `context_token_trigger >= 1`, it is treated as an approximate absolute token threshold.
+  - Values `< 1` are ignored.
+- `memory_mode`: **how** compaction works once triggered.
+  - `full`: no compaction
+  - `recent_only`: keep only recent messages, drop older messages
+  - `summary_llm`: summarize older messages with the LLM
+  - `summary_deterministic`: summarize older messages with deterministic fallback logic
+  - `summary_truncate`: summarize older messages by truncation
+- `unsummarized_message_count`: how many recent messages are kept verbatim during compaction.
+  This is a **message count**, not a user+assistant turn-pair count.
+- `memory_size`: target max token count for summaries generated during compaction.
+
+Example:
+
+```chatterlang
+| llmPrompt[
+    model="llama3.2",
+    source="ollama",
+    memory_mode="summary_llm",
+    context_token_trigger=7000,
+    unsummarized_message_count=6,
+    memory_size=512
+  ]
+| print
+```
+
 **Variables**: Store intermediate results
 ```chatterlang
 | @my_variable    # Store results in variable

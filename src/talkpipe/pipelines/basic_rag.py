@@ -138,7 +138,12 @@ class AbstractRAGPipeline(AbstractSegment):
                  read_consistency_interval: Annotated[int, "Read consistency interval in seconds"] = 10,
                  diagPrintOutput: Annotated[bool, "Diagnostic Print Parameter"] = None,
                  logging_level: Annotated[int, "Logging level for the pipeline"] = logging.DEBUG,
-                 role_map: Annotated[str, "Initial conversation context as 'role:message,role:message'"] = None):
+                 role_map: Annotated[str, "Initial conversation context as 'role:message,role:message'"] = None,
+                 memory_mode: Annotated[str, "Memory behavior: full, recent_only, summary_llm, summary_deterministic, or summary_truncate"] = "full",
+                 unsummarized_message_count: Annotated[int, "Recent message count kept out of summary compaction"] = 6,
+                 context_token_trigger: Annotated[float, "Approximate context-token trigger for rolling memory compaction (values < 1 are ignored)"] = None,
+                 memory_size: Annotated[int, "Target max tokens for generated summary memory"] = 512,
+                 debug_messages: Annotated[bool, "Whether to log outbound LLM request messages"] = False):
 
         super().__init__()
         self.embedding_model = embedding_model
@@ -157,6 +162,11 @@ class AbstractRAGPipeline(AbstractSegment):
         self.diagPrintOutput = diagPrintOutput
         self.logging_level = logging_level
         self.role_map = role_map
+        self.memory_mode = memory_mode
+        self.unsummarized_message_count = unsummarized_message_count
+        self.context_token_trigger = context_token_trigger
+        self.memory_size = memory_size
+        self.debug_messages = debug_messages
 
     @abstractmethod
     def make_completion_segment(self) -> AbstractSegment:
@@ -210,6 +220,11 @@ class RAGToText(AbstractRAGPipeline):
                  diagPrintOutput: Annotated[bool, "If true, print diagnostic output"] = None,
                  logging_level: Annotated[int, "Logging level for the pipeline"] = logging.DEBUG,
                  role_map: Annotated[str, "Initial conversation context as 'role:message,role:message'"] = None,
+                 memory_mode: Annotated[str, "Memory behavior: full, recent_only, summary_llm, summary_deterministic, or summary_truncate"] = "full",
+                 unsummarized_message_count: Annotated[int, "Recent message count kept out of summary compaction"] = 6,
+                 context_token_trigger: Annotated[float, "Approximate context-token trigger for rolling memory compaction (values < 1 are ignored)"] = None,
+                 memory_size: Annotated[int, "Target max tokens for generated summary memory"] = 512,
+                 debug_messages: Annotated[bool, "Whether to log outbound LLM request messages"] = False,
                  append_sources_to_output: Annotated[bool, "If True, append source file paths to the answer"] = True):
         super().__init__(embedding_model=embedding_model,
                          embedding_source=embedding_source,
@@ -226,7 +241,12 @@ class RAGToText(AbstractRAGPipeline):
                          read_consistency_interval=read_consistency_interval,
                          diagPrintOutput=diagPrintOutput,
                          logging_level=logging_level,
-                         role_map=role_map)
+                         role_map=role_map,
+                         memory_mode=memory_mode,
+                         unsummarized_message_count=unsummarized_message_count,
+                         context_token_trigger=context_token_trigger,
+                         memory_size=memory_size,
+                         debug_messages=debug_messages)
         self.append_sources_to_output = append_sources_to_output
 
     def make_completion_segment(self) -> AbstractSegment:
@@ -236,7 +256,12 @@ class RAGToText(AbstractRAGPipeline):
                          system_prompt=self.system_prompt,
                          field="_ragprompt",
                          set_as=partial_answer_set_as,
-                         role_map=self.role_map) | \
+                         role_map=self.role_map,
+                         memory_mode=self.memory_mode,
+                         unsummarized_message_count=self.unsummarized_message_count,
+                         context_token_trigger=self.context_token_trigger,
+                         memory_size=self.memory_size,
+                         debug_messages=self.debug_messages) | \
                 AppendRAGSources(partial_answer_field=partial_answer_set_as, set_as=self.set_as)
 
     
@@ -265,7 +290,12 @@ class RAGToBinaryAnswer(AbstractRAGPipeline):
                  read_consistency_interval: Annotated[int, "Read consistency interval in seconds"] = 10,
                  diagPrintOutput: Annotated[bool, "If true, print diagnostic output"] = None,
                  logging_level: Annotated[int, "Logging level for the pipeline"] = logging.DEBUG,
-                 role_map: Annotated[str, "Initial conversation context as 'role:message,role:message'"] = None):
+                 role_map: Annotated[str, "Initial conversation context as 'role:message,role:message'"] = None,
+                 memory_mode: Annotated[str, "Memory behavior: full, recent_only, summary_llm, summary_deterministic, or summary_truncate"] = "full",
+                 unsummarized_message_count: Annotated[int, "Recent message count kept out of summary compaction"] = 6,
+                 context_token_trigger: Annotated[float, "Approximate context-token trigger for rolling memory compaction (values < 1 are ignored)"] = None,
+                 memory_size: Annotated[int, "Target max tokens for generated summary memory"] = 512,
+                 debug_messages: Annotated[bool, "Whether to log outbound LLM request messages"] = False):
         super().__init__(embedding_model=embedding_model,
                          embedding_source=embedding_source,
                          completion_model=completion_model,
@@ -281,7 +311,12 @@ class RAGToBinaryAnswer(AbstractRAGPipeline):
                          read_consistency_interval=read_consistency_interval,
                          diagPrintOutput=diagPrintOutput,
                          logging_level=logging_level,
-                         role_map=role_map)
+                         role_map=role_map,
+                         memory_mode=memory_mode,
+                         unsummarized_message_count=unsummarized_message_count,
+                         context_token_trigger=context_token_trigger,
+                         memory_size=memory_size,
+                         debug_messages=debug_messages)
 
     def make_completion_segment(self) -> AbstractSegment:
         return LlmBinaryAnswer(system_prompt=self.system_prompt,
@@ -289,7 +324,12 @@ class RAGToBinaryAnswer(AbstractRAGPipeline):
                                source=self.completion_source,
                                field="_ragprompt",
                                set_as=self.set_as,
-                               role_map=self.role_map)
+                               role_map=self.role_map,
+                               memory_mode=self.memory_mode,
+                               unsummarized_message_count=self.unsummarized_message_count,
+                               context_token_trigger=self.context_token_trigger,
+                               memory_size=self.memory_size,
+                               debug_messages=self.debug_messages)
 
 @register_segment("ragToScore")
 class RAGToScore(AbstractRAGPipeline):
@@ -316,7 +356,12 @@ class RAGToScore(AbstractRAGPipeline):
                  read_consistency_interval: Annotated[int, "Read consistency interval in seconds"] = 10,
                  diagPrintOutput: Annotated[bool, "If true, print diagnostic output"] = None,
                  logging_level: Annotated[int, "Logging level for the pipeline"] = logging.DEBUG,
-                 role_map: Annotated[str, "Initial conversation context as 'role:message,role:message'"] = None):
+                 role_map: Annotated[str, "Initial conversation context as 'role:message,role:message'"] = None,
+                 memory_mode: Annotated[str, "Memory behavior: full, recent_only, summary_llm, summary_deterministic, or summary_truncate"] = "full",
+                 unsummarized_message_count: Annotated[int, "Recent message count kept out of summary compaction"] = 6,
+                 context_token_trigger: Annotated[float, "Approximate context-token trigger for rolling memory compaction (values < 1 are ignored)"] = None,
+                 memory_size: Annotated[int, "Target max tokens for generated summary memory"] = 512,
+                 debug_messages: Annotated[bool, "Whether to log outbound LLM request messages"] = False):
         super().__init__(embedding_model=embedding_model,
                          embedding_source=embedding_source,
                          completion_model=completion_model,
@@ -332,7 +377,12 @@ class RAGToScore(AbstractRAGPipeline):
                          read_consistency_interval=read_consistency_interval,
                          diagPrintOutput=diagPrintOutput,
                          logging_level=logging_level,
-                         role_map=role_map)
+                         role_map=role_map,
+                         memory_mode=memory_mode,
+                         unsummarized_message_count=unsummarized_message_count,
+                         context_token_trigger=context_token_trigger,
+                         memory_size=memory_size,
+                         debug_messages=debug_messages)
 
     def make_completion_segment(self) -> AbstractSegment:
         return LlmScore(system_prompt=self.system_prompt,
@@ -340,4 +390,9 @@ class RAGToScore(AbstractRAGPipeline):
                         source=self.completion_source,
                         field="_ragprompt",
                         set_as=self.set_as,
-                        role_map=self.role_map)
+                        role_map=self.role_map,
+                        memory_mode=self.memory_mode,
+                        unsummarized_message_count=self.unsummarized_message_count,
+                        context_token_trigger=self.context_token_trigger,
+                        memory_size=self.memory_size,
+                        debug_messages=self.debug_messages)

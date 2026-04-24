@@ -434,6 +434,44 @@ def test_rag_to_text_diagPrintOutput_parameter_stored():
     assert rag_segment_stderr.diagPrintOutput == "stderr"
 
 
+def test_rag_to_text_memory_controls_passed_to_llm_prompt(monkeypatch):
+    """Test that RAGToText forwards memory/debug controls to LLMPrompt."""
+    from talkpipe.pipelines.basic_rag import RAGToText
+
+    captured = {}
+
+    class FakeLLM:
+        def __init__(self, **kwargs):
+            captured.update(kwargs)
+
+        def __or__(self, other):
+            return ("fake_pipeline", other)
+
+    class FakeAppend:
+        def __init__(self, **kwargs):
+            self.kwargs = kwargs
+
+    monkeypatch.setattr("talkpipe.pipelines.basic_rag.LLMPrompt", FakeLLM)
+    monkeypatch.setattr("talkpipe.pipelines.basic_rag.AppendRAGSources", FakeAppend)
+
+    rag_segment = RAGToText(
+        path="tmp://rag_test",
+        content_field="query",
+        memory_mode="summary_deterministic",
+        unsummarized_message_count=4,
+        context_token_trigger=0.7,
+        memory_size=384,
+        debug_messages=True,
+    )
+    _ = rag_segment.make_completion_segment()
+
+    assert captured["memory_mode"] == "summary_deterministic"
+    assert captured["unsummarized_message_count"] == 4
+    assert captured["context_token_trigger"] == 0.7
+    assert captured["memory_size"] == 384
+    assert captured["debug_messages"] is True
+
+
 def test_rag_to_text_diagPrintOutput_in_pipeline(capsys):
     """Test that diagPrintOutput parameter correctly controls DiagPrint output in the pipeline."""
     from talkpipe.pipelines.basic_rag import RAGToText

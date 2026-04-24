@@ -236,3 +236,4 @@ def test_shingle_generator_single_incomplete_shingle_with_overlap():
     _, shingle2 = result[1]
     assert shingle1 == "hello", f"Expected 'hello', got '{shingle1}'"
     assert shingle2 == "world", f"Expected 'world', got '{shingle2}'"
+
