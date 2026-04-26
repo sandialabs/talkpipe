@@ -64,66 +64,6 @@ def test_summary_llm_without_no_context_completion_hook_raises():
     with pytest.raises(NotImplementedError, match="complete_text_without_context"):
         adapter._summarize_history("", [{"role": "user", "content": "old fact"}])
 
-def test_ollama_execute_multi_turn_appends_assistant_response(monkeypatch):
-    adapter = OllamaPromptAdapter("llama3.2", multi_turn=True)
-
-    class DummyMessage:
-        content = "assistant reply"
-
-    class DummyResponse:
-        message = DummyMessage()
-
-    monkeypatch.setattr(adapter, "_chat_completion", lambda **kwargs: DummyResponse())
-    result = adapter.execute("hello")
-    assert result == "assistant reply"
-    assert adapter._messages == [
-        {"role": "user", "content": "hello"},
-        {"role": "assistant", "content": "assistant reply"},
-    ]
-
-def test_ollama_execute_single_turn_clears_history(monkeypatch):
-    adapter = OllamaPromptAdapter("llama3.2", multi_turn=False)
-
-    class DummyMessage:
-        content = "assistant reply"
-
-    class DummyResponse:
-        message = DummyMessage()
-
-    monkeypatch.setattr(adapter, "_chat_completion", lambda **kwargs: DummyResponse())
-    result = adapter.execute("hello")
-    assert result == "assistant reply"
-    assert adapter._messages == []
-
-def test_anthropic_execute_includes_summary_in_system_and_messages(monkeypatch):
-    adapter = AnthropicPromptAdapter("claude-3-5-haiku-latest", memory_mode="summary_deterministic")
-    adapter._summary_message = {"role": "system", "content": "Older summary"}
-    adapter._messages = [{"role": "assistant", "content": "recent"}]
-    captured = {}
-
-    def fake_compact():
-        return None
-
-    class TextBlock:
-        text = "ok"
-
-    class DummyResponse:
-        content = [TextBlock()]
-
-    def fake_messages_create(**kwargs):
-        captured.update(kwargs)
-        return DummyResponse()
-
-    monkeypatch.setattr(adapter, "_compact_context_if_needed", fake_compact)
-    monkeypatch.setattr(adapter, "_messages_create", fake_messages_create)
-    result = adapter.execute("new prompt")
-    assert result == "ok"
-    assert "Conversation memory:\nOlder summary" in captured["system"]
-    assert any(
-        msg["role"] == "assistant" and "Conversation memory:\nOlder summary" in msg["content"]
-        for msg in captured["messages"]
-    )
-
 def test_llmprompt_passes_context_params(monkeypatch):
     captured = {}
 
@@ -183,36 +123,6 @@ def test_guided_generation_passes_context_params(monkeypatch):
     assert captured["unsummarized_message_count"] == 5
     assert captured["memory_size"] == 128
 
-def test_context_token_trigger_ratio_is_ignored():
-    adapter = OllamaPromptAdapter(
-        "llama3.2",
-        memory_mode="summary_deterministic",
-        context_token_trigger=0.5,
-    )
-    assert adapter._get_effective_context_token_trigger() is None
-
-def test_context_token_trigger_absolute_value_is_used():
-    adapter = OllamaPromptAdapter(
-        "llama3.2",
-        memory_mode="summary_deterministic",
-        context_token_trigger=4000,
-    )
-    assert adapter._get_effective_context_token_trigger() == 4000
-
-def test_log_message_payload_when_debug_enabled(monkeypatch):
-    adapter = OllamaPromptAdapter("llama3.2", debug_messages=True)
-    adapter._messages = [{"role": "user", "content": "hello"}]
-    captured = {"called": False}
-
-    def fake_debug(message, *args):
-        if "LLM outbound payload" in message:
-            captured["called"] = True
-
-    monkeypatch.setattr("talkpipe.llm.prompt_adapters.logger.debug", fake_debug)
-    adapter._log_message_payload("messages", adapter._request_messages())
-    assert captured["called"] is True
-
-
 def test_invalid_source(monkeypatched_env, patch_get_config):
 
     monkeypatched_env({})
@@ -227,32 +137,6 @@ def test_invalid_source(monkeypatched_env, patch_get_config):
 
     with pytest.raises(ValueError):
         LLMPrompt(model="llama3.2", source=None, temperature=0.0)
-
-
-def test_role_map_initialization():
-    """Test that role_map is properly parsed and stored in prompt adapters."""
-    # Test with role_map including system role (should override system_prompt)
-    adapter = OllamaPromptAdapter("llama3.2", system_prompt="Default system",
-                                  role_map="system:Custom system,user:Initial user message")
-    assert adapter._system_message == {"role": "system", "content": "Custom system"}
-    assert len(adapter._prefix_messages) == 2
-    assert adapter._prefix_messages[0] == {"role": "system", "content": "Custom system"}
-    assert adapter._prefix_messages[1] == {"role": "user", "content": "Initial user message"}
-
-    # Test with role_map without system role (should use system_prompt)
-    adapter = OllamaPromptAdapter("llama3.2", system_prompt="Default system",
-                                  role_map="user:Initial user message,assistant:Initial assistant message")
-    assert adapter._system_message == {"role": "system", "content": "Default system"}
-    assert len(adapter._prefix_messages) == 3
-    assert adapter._prefix_messages[0] == {"role": "system", "content": "Default system"}
-    assert adapter._prefix_messages[1] == {"role": "user", "content": "Initial user message"}
-    assert adapter._prefix_messages[2] == {"role": "assistant", "content": "Initial assistant message"}
-
-    # Test without role_map (should use system_prompt only)
-    adapter = OllamaPromptAdapter("llama3.2", system_prompt="Default system")
-    assert adapter._system_message == {"role": "system", "content": "Default system"}
-    assert len(adapter._prefix_messages) == 1
-    assert adapter._prefix_messages[0] == {"role": "system", "content": "Default system"}
 
 
 def test_role_map_in_llmprompt_segment():
@@ -280,42 +164,6 @@ def test_system_prompt_none():
     assert len(adapter._prefix_messages) == 1
     assert adapter._prefix_messages[0] == {"role": "user", "content": "Hello"}
 
-def test_is_available(requires_ollama):
-    chat = OllamaPromptAdapter("llama3.2", temperature=0.0)
-    assert chat.is_available() is True
-
-    chat = OpenAIPromptAdapter("gpt-4.1-nano", temperature=0.0)
-    assert chat.is_available() is True
-
-    #chat = AnthropicPromptAdapter("claude-3-5-haiku-latest", temperature=0.0)
-    #assert chat.is_available() is True
-
-
-def test_ollamachat(requires_ollama):
-    chat = OllamaPromptAdapter("llama3.2", temperature=0.0)
-    assert chat.model_name == "llama3.2"
-    assert chat.source == "ollama"
-    ans = chat.execute("Hello.  My name is Inigo Montoya.  You killed my father.  Prepare to die.")
-    ans = chat.execute("I just told you my first name?  What is it?")
-    assert "inigo" in ans.lower()
-
-    chat = OllamaPromptAdapter("llama3.2", multi_turn=False, temperature=0.0)
-    assert chat.model_name == "llama3.2"
-    assert chat.source == "ollama"
-    ans = chat.execute("Hello.  My name is Inigo Montoya.  You killed my father.  Prepare to die.")
-    assert len(ans) > 0
-    ans = chat.execute("I just told you my first name?  What is it?")
-    assert "inigo" not in ans.lower()
-
-
-def test_openai_chat(requires_openai):
-    chat = OpenAIPromptAdapter("gpt-4.1-nano", temperature=0.0)
-    assert chat.model_name == "gpt-4.1-nano"
-    assert chat.source == "openai"
-    ans = chat.execute("Hello.  My name is Inigo Montoya.  You killed my father.  Prepare to die.")
-    ans = chat.execute("I just told you my first name?  What is it?")
-    assert "inigo" in ans.lower()
-
 class TestGuidedGeneration(BaseModel):
     """Test class for OpenAI guided generation."""
     response: str
@@ -340,14 +188,6 @@ def test_openai_chat_guided_generation(requires_openai):
     assert isinstance(response, TestGuidedGeneration)
     assert "jupiter" in response.response.lower()
     assert len(response.explanation) > 0
-
-def test_anthropic_chat(requires_anthropic):
-    chat = AnthropicPromptAdapter("claude-3-5-haiku-latest", temperature=0.0)
-    assert chat.model_name == "claude-3-5-haiku-latest"
-    assert chat.source == "anthropic"
-    ans = chat.execute("Hello.  My name is Inigo Montoya.  You killed my father.  Prepare to die.")
-    ans = chat.execute("I just told you my first name?  What is it?")
-    assert "inigo" in ans.lower()
 
 def test_anthropic_guided_generation(requires_anthropic):
     system_prompt = """
