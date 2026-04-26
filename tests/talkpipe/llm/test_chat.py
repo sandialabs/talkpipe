@@ -1,6 +1,11 @@
 from pydantic import BaseModel
 import pytest
-from talkpipe.llm.prompt_adapters import OllamaPromptAdapter, OpenAIPromptAdapter, AnthropicPromptAdapter
+from talkpipe.llm.prompt_adapters import (
+    AbstractLLMPromptAdapter,
+    OllamaPromptAdapter,
+    OpenAIPromptAdapter,
+    AnthropicPromptAdapter,
+)
 from testutils import monkeypatched_env, patch_get_config
 from talkpipe.util import config
 
@@ -36,6 +41,28 @@ def test_context_compaction_falls_back_from_llm(monkeypatch):
     assert "deterministic fallback" in adapter._summary_message["content"].lower()
     assert len(adapter._messages) == 1
     assert adapter._messages[0]["content"] == "Recent message that should be preserved."
+
+def test_summary_llm_uses_no_context_completion_hook():
+    class SummaryHookAdapter(OllamaPromptAdapter):
+        def complete_text_without_context(self, prompt, *, model=None, temperature=0.0, max_tokens=None):
+            assert model == "llama3.2"
+            assert temperature == 0.0
+            assert max_tokens == self._summary_max_tokens
+            assert "Previous summary:" in prompt
+            assert "Archived messages:" in prompt
+            return "hook summary"
+
+    adapter = SummaryHookAdapter("llama3.2", memory_mode="summary_llm")
+    assert adapter._summarize_history("", [{"role": "user", "content": "old fact"}]) == "hook summary"
+
+def test_summary_llm_without_no_context_completion_hook_raises():
+    class NoSummaryHookAdapter(OllamaPromptAdapter):
+        complete_text_without_context = AbstractLLMPromptAdapter.complete_text_without_context
+
+    adapter = NoSummaryHookAdapter("llama3.2", memory_mode="summary_llm")
+
+    with pytest.raises(NotImplementedError, match="complete_text_without_context"):
+        adapter._summarize_history("", [{"role": "user", "content": "old fact"}])
 
 def test_ollama_execute_multi_turn_appends_assistant_response(monkeypatch):
     adapter = OllamaPromptAdapter("llama3.2", multi_turn=True)

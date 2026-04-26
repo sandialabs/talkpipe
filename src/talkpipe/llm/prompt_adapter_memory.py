@@ -53,6 +53,16 @@ class PromptAdapterMemoryMixin:
             lines.append(f"{role}: {content}")
         return "\n".join(lines)
 
+    def _build_summary_prompt(self, previous_summary: str, archived_messages: list) -> str:
+        history_text = self._messages_to_summary_text(archived_messages)
+        return (
+            "Summarize the archived chat history for future context. "
+            "Keep key facts, user constraints/preferences, decisions, open questions, and actionable items. "
+            "Be concise.\n\n"
+            f"Previous summary:\n{previous_summary or '(none)'}\n\n"
+            f"Archived messages:\n{history_text}"
+        )
+
     def _summarize_deterministic(self, previous_summary: str, archived_messages: list) -> str:
         history_text = self._messages_to_summary_text(archived_messages)
         combined = history_text if not previous_summary else f"{previous_summary}\n{history_text}"
@@ -69,6 +79,16 @@ class PromptAdapterMemoryMixin:
             return ""
         return combined.strip()[-self._summary_max_chars :]
 
+    def _summarize_with_llm(self, previous_summary: str, archived_messages: list) -> str:
+        summary_model = self._summary_model or self._model_name
+        summary_prompt = self._build_summary_prompt(previous_summary, archived_messages)
+        return self.complete_text_without_context(
+            summary_prompt,
+            model=summary_model,
+            temperature=0.0,
+            max_tokens=self._summary_max_tokens,
+        ).strip()
+
     def _summarize_history(self, previous_summary: str, archived_messages: list) -> str:
         # Strategy order is intentional: requested strategy first, then deterministic, then truncate.
         if self._summary_strategy == "deterministic":
@@ -81,6 +101,8 @@ class PromptAdapterMemoryMixin:
             summary = self._summarize_with_llm(previous_summary, archived_messages)
             if summary and summary.strip():
                 return summary.strip()[: self._summary_max_chars]
+        except NotImplementedError:
+            raise
         except Exception as exc:
             logger.warning(f"LLM summary strategy failed, using deterministic fallback: {exc}")
 

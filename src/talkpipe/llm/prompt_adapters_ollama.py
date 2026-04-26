@@ -91,14 +91,21 @@ class OllamaPromptAdapter(AbstractLLMPromptAdapter):
         client = ollama.Client(server_url) if server_url else ollama
         return client.chat(model, messages=messages, format=format_schema, options=options)
 
-    def _summarize_with_llm(self, previous_summary: str, archived_messages: list) -> str:
-        self._resolve_summary_source("ollama", "Ollama")
-        summary_model = self._summary_model or self._model_name
-        summary_prompt = self._build_summary_prompt(previous_summary, archived_messages)
+    def complete_text_without_context(
+        self,
+        prompt: str,
+        *,
+        model: Optional[str] = None,
+        temperature: float = 0.0,
+        max_tokens: Optional[int] = None,
+    ) -> str:
+        options = {"temperature": temperature}
+        if max_tokens is not None:
+            options["num_predict"] = max_tokens
         response = self._chat_completion(
-            summary_model,
-            messages=[{"role": "user", "content": summary_prompt}],
-            options={"temperature": 0.0, "num_predict": self._summary_max_tokens},
+            model or self._model_name,
+            messages=[{"role": "user", "content": prompt}],
+            options=options,
         )
         return str(response.message.content).strip()
 

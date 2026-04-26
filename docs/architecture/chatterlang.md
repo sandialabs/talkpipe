@@ -88,6 +88,9 @@ Example:
 | print
 ```
 
+Adapter implementations get deterministic and truncate summarization from the shared prompt-adapter memory mixin.
+Adapters only need to implement `complete_text_without_context(...)` when they support `memory_mode="summary_llm"`.
+
 **Variables**: Store intermediate results
 ```chatterlang
 | @my_variable    # Store results in variable

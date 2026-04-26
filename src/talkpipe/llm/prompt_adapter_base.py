@@ -58,7 +58,6 @@ class AbstractLLMPromptAdapter(PromptAdapterMemoryMixin, ABC):
         self._summary_max_tokens = memory_size
         self._summary_max_chars = 2400
         self._summary_model = None
-        self._summary_source = None
         self._configure_memory_mode(memory_mode)
 
         # Initialize system message and prefix messages.
@@ -107,22 +106,6 @@ class AbstractLLMPromptAdapter(PromptAdapterMemoryMixin, ABC):
             logger.debug("Single-turn mode, clearing message history")
             self._messages = []
 
-    def _build_summary_prompt(self, previous_summary: str, archived_messages: list) -> str:
-        history_text = self._messages_to_summary_text(archived_messages)
-        return (
-            "Summarize the archived chat history for future context. "
-            "Keep key facts, user constraints/preferences, decisions, open questions, and actionable items. "
-            "Be concise.\n\n"
-            f"Previous summary:\n{previous_summary or '(none)'}\n\n"
-            f"Archived messages:\n{history_text}"
-        )
-
-    def _resolve_summary_source(self, expected_source: str, adapter_name: str) -> str:
-        source = self._summary_source or self._source
-        if source != expected_source:
-            raise ValueError(f"Unsupported summary source for {adapter_name} adapter: {source}")
-        return source
-
     def _log_message_payload(self, payload_name: str, messages: list) -> None:
         if not self._debug_messages:
             return
@@ -147,9 +130,19 @@ class AbstractLLMPromptAdapter(PromptAdapterMemoryMixin, ABC):
             return text
         return text[:limit] + "...[truncated]"
 
-    def _summarize_with_llm(self, previous_summary: str, archived_messages: list) -> str:
-        # Provider subclasses implement transport-specific summary calls.
-        raise NotImplementedError("LLM summary strategy is not implemented for this adapter.")
+    def complete_text_without_context(
+        self,
+        prompt: str,
+        *,
+        model: Optional[str] = None,
+        temperature: float = 0.0,
+        max_tokens: Optional[int] = None,
+    ) -> str:
+        """Return a plain text completion without reading or mutating chat history."""
+        raise NotImplementedError(
+            f"{self.__class__.__name__} must implement complete_text_without_context() "
+            "to support memory_mode='summary_llm'."
+        )
 
     @property
     def model_name(self) -> str:

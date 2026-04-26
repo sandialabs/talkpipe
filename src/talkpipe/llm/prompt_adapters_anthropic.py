@@ -117,15 +117,19 @@ class AnthropicPromptAdapter(AbstractLLMPromptAdapter):
                 response_text += block.text
         return response_text
 
-    def _summarize_with_llm(self, previous_summary: str, archived_messages: list) -> str:
-        self._resolve_summary_source("anthropic", "Anthropic")
-        summary_model = self._summary_model or self._model_name
-        summary_prompt = self._build_summary_prompt(previous_summary, archived_messages)
+    def complete_text_without_context(
+        self,
+        prompt: str,
+        *,
+        model: Optional[str] = None,
+        temperature: float = 0.0,
+        max_tokens: Optional[int] = None,
+    ) -> str:
         response = self._messages_create(
-            model=summary_model,
-            messages=[{"role": "user", "content": summary_prompt}],
-            max_tokens=self._summary_max_tokens,
-            temperature=0.0,
+            model=model or self._model_name,
+            messages=[{"role": "user", "content": prompt}],
+            max_tokens=max_tokens or self._summary_max_tokens,
+            temperature=temperature,
         )
         return self._extract_anthropic_text(response).strip()
 

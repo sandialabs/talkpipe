@@ -76,17 +76,22 @@ class OpenAIPromptAdapter(AbstractLLMPromptAdapter):
             return self.client.responses.parse(**request_params)
         return self.client.responses.create(**request_params)
 
-    def _summarize_with_llm(self, previous_summary: str, archived_messages: list) -> str:
-        self._resolve_summary_source("openai", "OpenAI")
-        summary_model = self._summary_model or self._model_name
-        summary_prompt = self._build_summary_prompt(previous_summary, archived_messages)
-        response = self._responses_request(
-            parse=False,
-            model=summary_model,
-            input=[{"role": "user", "content": summary_prompt}],
-            temperature=0.0,
-            max_output_tokens=self._summary_max_tokens,
-        )
+    def complete_text_without_context(
+        self,
+        prompt: str,
+        *,
+        model: Optional[str] = None,
+        temperature: float = 0.0,
+        max_tokens: Optional[int] = None,
+    ) -> str:
+        request_params = {
+            "model": model or self._model_name,
+            "input": [{"role": "user", "content": prompt}],
+            "temperature": temperature,
+        }
+        if max_tokens is not None:
+            request_params["max_output_tokens"] = max_tokens
+        response = self._responses_request(parse=False, **request_params)
         return str(getattr(response, "output_text", "")).strip()
 
     def is_available(self) -> bool:
