@@ -1,6 +1,20 @@
 # Changelog
 
 ## Unreleased
+- Refactored prompt-adapter tests into a shared contract suite with per-provider files. Added
+  `tests/prompt_adapter_contract_suite.py` and split adapter checks into
+  `test_prompt_adapters_ollama.py`, `test_prompt_adapters_openai.py`, and
+  `test_prompt_adapters_anthropic.py` with both offline (mocked transport) and live
+  provider-gated contract checks. Shared checks now verify execute-path memory hooks
+  (`_compact_context_if_needed`, `_record_assistant_response`) and exercise
+  `complete_text_without_context(...)` in both offline and live test paths.
+- Added focused unit tests for prompt adapter internals:
+  `test_prompt_adapters_base.py` now provides full coverage for `prompt_adapter_base.py`, and
+  `test_prompt_adapters_memory.py` provides full coverage for `prompt_adapter_memory.py` using
+  dummy `AbstractLLMPromptAdapter` implementations.
+- Updated `tests/talkpipe/llm/test_chat.py` to reduce redundant adapter-basic checks and keep
+  integration coverage centered on `LLMPrompt`, guided-generation segments, and ChatterLang
+  pipeline behavior.
 - Added LLM memory controls to prompt adapters and `llmPrompt`/guided-generation segments: `memory_mode`, `unsummarized_message_count`, `context_token_trigger`, and `memory_size`. `memory_mode` supports `full`, `recent_only`, `summary_llm`, `summary_deterministic`, and `summary_truncate`; `context_token_trigger` uses an approximate absolute token budget (`>=1`) and values `<1` are ignored.
   Added clear ChatterLang docs and quickstart cross-link explaining that `context_token_trigger` is when compaction triggers, `memory_mode` is how compaction works, `unsummarized_message_count` is a message count (not turn pairs), and `memory_size` is the summary target token size.
   Deterministic fallback summarization now delegates to reusable `talkpipe.data.text.englishnormalize.summarize(iterable[str])` for model-free, generic text summarization with deterministic scoring/ranking (category + role + recency + length) and budget-aware trimming.
