@@ -4,7 +4,7 @@ from talkpipe.search.lancedb import add_to_lancedb, search_lancedb
 from talkpipe.llm.embedding import LLMEmbed
 from talkpipe.data.extraction import listFiles, ReadFile
 from talkpipe.pipe.io import Print
-from talkpipe.pipe.basic import progressTicks, ToDict
+from talkpipe.pipe.basic import progressTicks, setAs, ToDict
 from talkpipe.data.text.chunking_units import ShingleText, splitText
 
 
@@ -23,8 +23,8 @@ class ProcessDocumentsSegment(AbstractSegment):
         self.overlap = overlap
 
         # listFiles is a segment expecting an iterable of patterns or values, so its input must be the patterns.
-        # ToDict extracts content, source, id, title, shingle_text so they are stored
-        # as separate metadata fields in the vector DB for source citation in RAG.
+        # Store the shingled text as content so retrieved documents contain the same
+        # text that was embedded, not just the final split chunk in the shingle.
         self.pipeline = (
             listFiles(full_path=True, files_only=True)
             | Print()
@@ -32,6 +32,7 @@ class ProcessDocumentsSegment(AbstractSegment):
             | splitText(field='content', set_as='content', criteria=self.chunk_size)
             | ShingleText(field='content', set_as='shingle_text', shingle_size=self.shingle_size, overlap=self.overlap, size_mode='count', delimiter=' ')
             | ToDict(field_list="content,source,id,title,shingle_text")
+            | setAs(field_list="shingle_text:content")
             | progressTicks(tick=".", tick_count=1, eol_count=50)
         )
 

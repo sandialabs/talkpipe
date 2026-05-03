@@ -4,7 +4,8 @@ import os
 import threading
 import queue
 import time
-from talkpipe.pipelines.vector_databases import MakeVectorDatabaseSegment, SearchVectorDatabaseSegment
+from talkpipe import AbstractSegment
+from talkpipe.pipelines.vector_databases import MakeVectorDatabaseSegment, ProcessDocumentsSegment, SearchVectorDatabaseSegment
 from talkpipe.search.lancedb import LanceDBDocumentStore
 from talkpipe.search.abstract import SearchResult
 
@@ -24,6 +25,60 @@ def sample_documents():
         {"text": "Python is a great programming language", "title": "Python Info", "id": "doc2"},
         {"text": "Machine learning is transforming technology", "title": "ML Article", "id": "doc3"}
     ]
+
+
+def test_process_documents_segment_shingles_with_defaults(tmp_path):
+    """ProcessDocumentsSegment should honor default chunk, shingle, and overlap sizes."""
+    chunks = ["a" * 300, "b" * 300, "c" * 300, "d" * 50]
+    document_path = tmp_path / "document.txt"
+    document_path.write_text("".join(chunks))
+
+    segment = ProcessDocumentsSegment()
+
+    results = list(segment.transform([str(document_path)]))
+
+    assert [item["shingle_text"] for item in results] == [
+        f"{chunks[0]} {chunks[1]} {chunks[2]}",
+        f"{chunks[2]} {chunks[3]}",
+    ]
+
+
+def test_make_vector_database_indexes_default_shingles_as_content(tmp_path, monkeypatch):
+    """Indexed documents should store the shingled text as the content chunk."""
+    class FakeLLMEmbed(AbstractSegment):
+        def __init__(self, model=None, source=None, field=None, set_as=None, fail_on_error=True):
+            super().__init__()
+            self.field = field
+            self.set_as = set_as
+
+        def transform(self, input_iter):
+            for item in input_iter:
+                text = item[self.field] if self.field else item
+                item[self.set_as] = [float(len(text)), 0.0, 0.0]
+                yield item
+
+    monkeypatch.setattr("talkpipe.pipelines.vector_databases.LLMEmbed", FakeLLMEmbed)
+
+    chunks = ["a" * 300, "b" * 300, "c" * 300, "d" * 50]
+    document_path = tmp_path / "document.txt"
+    document_path.write_text("".join(chunks))
+    db_path = str(tmp_path / "vector_db")
+    pipeline = ProcessDocumentsSegment() | MakeVectorDatabaseSegment(
+        embedding_field="shingle_text",
+        embedding_model="fake-model",
+        embedding_source="fake-source",
+        path=db_path,
+        overwrite=True,
+        batch_size=1,
+    )
+
+    indexed_items = list(pipeline.transform([str(document_path)]))
+
+    db_store = LanceDBDocumentStore(path=db_path, table_name="docs", vector_dim=3)
+    stored_doc = db_store.get_document(indexed_items[0]["_doc_id"])
+    assert stored_doc is not None
+    assert stored_doc["content"] == indexed_items[0]["shingle_text"]
+    assert 900 <= len(stored_doc["content"]) <= 910
 
 
 def test_make_vector_database_basic(requires_ollama, temp_db_path, sample_documents):

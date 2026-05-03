@@ -1,6 +1,7 @@
 # Changelog
 
 ## Unreleased
+- Fixed `makevectordatabase` document indexing so stored LanceDB `content` contains the shingled text that was embedded, rather than only the final split chunk.
 - Refactored prompt-adapter tests into a shared contract suite with per-provider files. Added
   `tests/prompt_adapter_contract_suite.py` and split adapter checks into
   `test_prompt_adapters_ollama.py`, `test_prompt_adapters_openai.py`, and
