@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.12.0
 - Fixed `makevectordatabase` document indexing so stored LanceDB `content` contains the
   shingled text that was embedded, rather than only the final split chunk.
 - Added LLM memory controls to prompt adapters, `llmPrompt`, and guided-generation
