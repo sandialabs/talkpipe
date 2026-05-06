@@ -1,32 +1,56 @@
 # Changelog
 
 ## Unreleased
-- Fixed `makevectordatabase` document indexing so stored LanceDB `content` contains the shingled text that was embedded, rather than only the final split chunk.
-- Refactored prompt-adapter tests into a shared contract suite with per-provider files. Added
-  `tests/prompt_adapter_contract_suite.py` and split adapter checks into
-  `test_prompt_adapters_ollama.py`, `test_prompt_adapters_openai.py`, and
-  `test_prompt_adapters_anthropic.py` with both offline (mocked transport) and live
-  provider-gated contract checks. Shared checks now verify execute-path memory hooks
-  (`_compact_context_if_needed`, `_record_assistant_response`) and exercise
+- Fixed `makevectordatabase` document indexing so stored LanceDB `content` contains the
+  shingled text that was embedded, rather than only the final split chunk.
+- Added LLM memory controls to prompt adapters, `llmPrompt`, and guided-generation
+  segments: `memory_mode`, `unsummarized_message_count`, `context_token_trigger`,
+  and `memory_size`. `memory_mode` supports `full`, `recent_only`, `summary_llm`,
+  `summary_deterministic`, and `summary_truncate`; `context_token_trigger` uses an
+  approximate absolute token budget (`>=1`) and ignores values `<1`.
+- Propagated `memory_mode`, `unsummarized_message_count`, `context_token_trigger`,
+  `memory_size`, and `debug_messages` through RAG pipeline segments and `serverag`
+  CLI flags so `RAGToText` completions can use the same memory controls.
+- Added `debug_messages` on `llmPrompt` and guided-generation prompt adapters to log
+  outbound payload content, including summary updates, at DEBUG level.
+- Added ChatterLang docs and a quickstart cross-link for LLM memory controls,
+  clarifying when compaction triggers, how compaction works, how unsummarized
+  messages are counted, and how summary target size is configured.
+- Added deterministic fallback summarization with
+  `talkpipe.data.text.englishnormalize.summarize(iterable[str])`, a reusable
+  model-free text summarizer with deterministic scoring, ranking, and budget-aware
+  trimming.
+- Updated summary LLM support to use a shared memory-mixin implementation. Adapters
+  implement `complete_text_without_context(...)` only when they support `summary_llm`.
+- Preserved compatibility for older registered prompt adapters that do not accept
+  memory constructor options when default memory settings are used, with a warning
+  that memory summarization is unsupported. Explicit memory requests now raise a
+  clear error for those adapters.
+- Refactored prompt-adapter tests into a shared contract suite with per-provider
+  files. Added `tests/prompt_adapter_contract_suite.py` and split adapter checks
+  into `test_prompt_adapters_ollama.py`, `test_prompt_adapters_openai.py`, and
+  `test_prompt_adapters_anthropic.py` with offline mocked transport and live
+  provider-gated contract checks.
+- Expanded prompt-adapter contract coverage for execute-path memory hooks
+  (`_compact_context_if_needed`, `_record_assistant_response`) and
   `complete_text_without_context(...)` in both offline and live test paths.
-- Added focused unit tests for prompt adapter internals:
-  `test_prompt_adapters_base.py` now provides full coverage for `prompt_adapter_base.py`, and
-  `test_prompt_adapters_memory.py` provides full coverage for `prompt_adapter_memory.py` using
-  dummy `AbstractLLMPromptAdapter` implementations.
-- Updated `tests/talkpipe/llm/test_chat.py` to reduce redundant adapter-basic checks and keep
-  integration coverage centered on `LLMPrompt`, guided-generation segments, and ChatterLang
-  pipeline behavior.
-- Added LLM memory controls to prompt adapters and `llmPrompt`/guided-generation segments: `memory_mode`, `unsummarized_message_count`, `context_token_trigger`, and `memory_size`. `memory_mode` supports `full`, `recent_only`, `summary_llm`, `summary_deterministic`, and `summary_truncate`; `context_token_trigger` uses an approximate absolute token budget (`>=1`) and values `<1` are ignored.
-  Added clear ChatterLang docs and quickstart cross-link explaining that `context_token_trigger` is when compaction triggers, `memory_mode` is how compaction works, `unsummarized_message_count` is a message count (not turn pairs), and `memory_size` is the summary target token size.
-  Deterministic fallback summarization now delegates to reusable `talkpipe.data.text.englishnormalize.summarize(iterable[str])` for model-free, generic text summarization with deterministic scoring/ranking (category + role + recency + length) and budget-aware trimming.
-  Summary LLM support now uses a shared memory-mixin implementation; adapters implement `complete_text_without_context(...)` only when they support `summary_llm`.
-  Added `debug_messages` on `llmPrompt`/guided-generation prompt adapters to log outbound payload content (including summary updates) at DEBUG level.
-  Propagated `memory_mode`, `unsummarized_message_count`, `context_token_trigger`, `memory_size`, and `debug_messages` through RAG pipeline segments and `serverag` CLI flags so `RAGToText` completions can use the same memory controls.
-- Rewrote [extending TalkPipe](docs/architecture/extending-talkpipe.md): open with a minimal
-  `@segment` + `@register_segment` example, clarify registry/entry points/plugins, and fix
-  examples (`compile` import, ChatterLang `INPUT FROM`, pipe `|` usage).
-- Documented [container images](docs/guides/container-images.md): GitHub Container Registry package URL, multi-platform release builds (linux/amd64, linux/arm64), tags (`latest`, version, `experimental`), pull and auth notes; linked from the README and docs hub.
-  Expanded with example `docker`/`podman run` commands for common CLIs, **`--host` / `-o 0.0.0.0`** for HTTP services, and **localhost vs 127.0.0.1** when port-forwarding.
+- Added focused unit tests for prompt adapter internals. `test_prompt_adapters_base.py`
+  covers `prompt_adapter_base.py`, and `test_prompt_adapters_memory.py` covers
+  `prompt_adapter_memory.py` using dummy `AbstractLLMPromptAdapter` implementations.
+- Updated `tests/talkpipe/llm/test_chat.py` to reduce redundant adapter-basic checks
+  and keep integration coverage centered on `LLMPrompt`, guided-generation segments,
+  and ChatterLang pipeline behavior.
+- Rewrote [extending TalkPipe](docs/architecture/extending-talkpipe.md) to open with
+  a minimal `@segment` + `@register_segment` example, clarify registry, entry points,
+  and plugins, and fix examples for `compile` imports, ChatterLang `INPUT FROM`, and
+  pipe `|` usage.
+- Documented [container images](docs/guides/container-images.md): GitHub Container
+  Registry package URL, multi-platform release builds (linux/amd64, linux/arm64),
+  tags (`latest`, version, `experimental`), pull and auth notes, and links from the
+  README and docs hub.
+- Expanded container image docs with example `docker` and `podman run` commands for
+  common CLIs, `--host` / `-o 0.0.0.0` for HTTP services, and `localhost` vs
+  `127.0.0.1` guidance when port-forwarding.
 
 ## 0.11.7
 - Added extractors and default registry support for html/htm (`readhtml`), json (`readjson`),

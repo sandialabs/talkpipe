@@ -6,6 +6,7 @@ concrete classes for chatting with models from Ollama.
 
 from typing import Optional, Iterable, Iterator, Annotated
 from abc import ABC, abstractmethod
+import inspect
 import logging
 from pydantic import BaseModel
 
@@ -19,6 +20,14 @@ from talkpipe.chatterlang.registry import register_segment
 from talkpipe.util.config import get_config
 
 logger = logging.getLogger(__name__)
+
+PROMPT_ADAPTER_COMPAT_KWARG_DEFAULTS = {
+    "memory_mode": "full",
+    "unsummarized_message_count": 6,
+    "context_token_trigger": None,
+    "memory_size": 512,
+    "debug_messages": False,
+}
 
 @register_segment("llmPrompt")
 class LLMPrompt(AbstractSegment):
@@ -83,24 +92,65 @@ class LLMPrompt(AbstractSegment):
             raise ValueError(f"Unknown source: {source}")
 
         logging.debug(f"Creating chat model with name: {model}")
-        # Always pass system_prompt, even if None, so the adapter can handle it correctly
-        self.chat = getPromptAdapter(source)(
-            model=model,
-            system_prompt=system_prompt,
-            multi_turn=multi_turn,
-            temperature=temperature,
-            output_format=output_format,
-            role_map=role_map,
-            memory_mode=memory_mode,
-            unsummarized_message_count=unsummarized_message_count,
-            context_token_trigger=context_token_trigger,
-            memory_size=memory_size,
-            debug_messages=debug_messages,
-        )
+        adapter_kwargs = {
+            "model": model,
+            # Always pass system_prompt, even if None, so the adapter can handle it correctly.
+            "system_prompt": system_prompt,
+            "multi_turn": multi_turn,
+            "temperature": temperature,
+            "output_format": output_format,
+            "role_map": role_map,
+            "memory_mode": memory_mode,
+            "unsummarized_message_count": unsummarized_message_count,
+            "context_token_trigger": context_token_trigger,
+            "memory_size": memory_size,
+            "debug_messages": debug_messages,
+        }
+        self.chat = self._create_prompt_adapter(getPromptAdapter(source), source, adapter_kwargs)
 
         self.pass_prompts = pass_prompts
         self.field = field
         self.set_as = set_as
+
+    def _create_prompt_adapter(self, adapter_cls, source: str, adapter_kwargs: dict):
+        accepted_kwargs = self._supported_adapter_kwargs(adapter_cls, adapter_kwargs)
+        unsupported_compat_kwargs = set(PROMPT_ADAPTER_COMPAT_KWARG_DEFAULTS) - accepted_kwargs
+
+        if unsupported_compat_kwargs:
+            non_default_kwargs = {
+                name: adapter_kwargs[name]
+                for name in unsupported_compat_kwargs
+                if adapter_kwargs[name] != PROMPT_ADAPTER_COMPAT_KWARG_DEFAULTS[name]
+            }
+            if non_default_kwargs:
+                unsupported = ", ".join(sorted(non_default_kwargs))
+                raise ValueError(
+                    f"Prompt adapter '{source}' does not support memory controls: {unsupported}. "
+                    "Update the adapter to accept the current prompt-adapter constructor options."
+                )
+
+            logger.warning(
+                "Prompt adapter '%s' does not support memory summarization; memory controls are disabled.",
+                source,
+            )
+            adapter_kwargs = {
+                name: value
+                for name, value in adapter_kwargs.items()
+                if name not in unsupported_compat_kwargs
+            }
+
+        return adapter_cls(**adapter_kwargs)
+
+    def _supported_adapter_kwargs(self, adapter_cls, adapter_kwargs: dict) -> set[str]:
+        signature = inspect.signature(adapter_cls)
+        parameters = signature.parameters.values()
+        if any(parameter.kind == inspect.Parameter.VAR_KEYWORD for parameter in parameters):
+            return set(adapter_kwargs)
+        return {
+            name
+            for name in adapter_kwargs
+            if name in signature.parameters
+        }
 
     def transform(self, input_iter: Iterable) -> Iterator:
         for item in input_iter:

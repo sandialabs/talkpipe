@@ -123,6 +123,66 @@ def test_guided_generation_passes_context_params(monkeypatch):
     assert captured["unsummarized_message_count"] == 5
     assert captured["memory_size"] == 128
 
+def test_llmprompt_supports_old_adapter_defaults(monkeypatch, caplog):
+    captured = {}
+
+    class OldStyleAdapter:
+        def __init__(
+            self,
+            model,
+            system_prompt="You are a helpful assistant.",
+            multi_turn=True,
+            temperature=None,
+            output_format=None,
+            role_map=None,
+        ):
+            captured.update(
+                {
+                    "model": model,
+                    "system_prompt": system_prompt,
+                    "multi_turn": multi_turn,
+                    "temperature": temperature,
+                    "output_format": output_format,
+                    "role_map": role_map,
+                }
+            )
+
+        def execute(self, prompt):
+            return prompt
+
+    monkeypatch.setattr("talkpipe.llm.chat.getPromptSources", lambda: ["old"])
+    monkeypatch.setattr("talkpipe.llm.chat.getPromptAdapter", lambda _source: OldStyleAdapter)
+
+    with caplog.at_level("WARNING", logger="talkpipe.llm.chat"):
+        segment = LLMPrompt(model="model-a", source="old")
+
+    assert isinstance(segment.chat, OldStyleAdapter)
+    assert captured["model"] == "model-a"
+    assert "memory_mode" not in captured
+    assert "does not support memory summarization" in caplog.text
+
+def test_llmprompt_rejects_old_adapter_with_memory_request(monkeypatch):
+    class OldStyleAdapter:
+        def __init__(
+            self,
+            model,
+            system_prompt="You are a helpful assistant.",
+            multi_turn=True,
+            temperature=None,
+            output_format=None,
+            role_map=None,
+        ):
+            pass
+
+        def execute(self, prompt):
+            return prompt
+
+    monkeypatch.setattr("talkpipe.llm.chat.getPromptSources", lambda: ["old"])
+    monkeypatch.setattr("talkpipe.llm.chat.getPromptAdapter", lambda _source: OldStyleAdapter)
+
+    with pytest.raises(ValueError, match="does not support memory controls"):
+        LLMPrompt(model="model-a", source="old", memory_mode="summary_deterministic")
+
 def test_invalid_source(monkeypatched_env, patch_get_config):
 
     monkeypatched_env({})
