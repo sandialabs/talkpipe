@@ -24,7 +24,8 @@ logger = logging.getLogger(__name__)
 PROMPT_ADAPTER_COMPAT_KWARG_DEFAULTS = {
     "memory_mode": "full",
     "unsummarized_message_count": 6,
-    "context_token_trigger": None,
+    # Controls memory token-budget compaction; not a credential.
+    "context_token_trigger": None,  # nosec B105
     "memory_size": 512,
     "debug_messages": False,
 }

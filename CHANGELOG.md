@@ -1,6 +1,8 @@
 # Changelog
 
 ## 0.12.0
+- Fixed Bandit security scan false positive on the LLM memory default
+  `context_token_trigger`.
 - Fixed `makevectordatabase` document indexing so stored LanceDB `content` contains the
   shingled text that was embedded, rather than only the final split chunk.
 - Added LLM memory controls to prompt adapters, `llmPrompt`, and guided-generation
