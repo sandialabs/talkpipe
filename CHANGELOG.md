@@ -1,5 +1,8 @@
 # Changelog
 
+## Unreleased
+- Added OpenAI embedding support via `OpenAIEmbeddingAdapter` and `llmEmbed` source `openai`.
+
 ## 0.12.0
 - Fixed Bandit security scan false positive on the LLM memory default
   `context_token_trigger`.
