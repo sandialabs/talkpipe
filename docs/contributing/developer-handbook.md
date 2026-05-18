@@ -90,6 +90,8 @@ After talkpipe is installed, a script called "chatterlang_reference_browser" is 
 
 Configuration constants can be defined either in ~/.talkpipe.toml or in environment variables.  Any constant defined in an environment variable needs to be prefixed with TALKPIPE_.  So email_password, stored in an environment variable, needs to be TALKPIPE_email_password.  Note that in ChatterLang, any key defined in ~/.talkpipe.toml or set via a TALKPIPE_* environment variable can be referenced in scripts as a parameter using $var_name.  That reference resolves to the environment variable TALKPIPE_var_name or to var_name in talkpipe.toml.
 
+For how `model`, `source`, and LLM defaults interact across segments and CLIs, see [Model and source configuration](../guides/model-and-source-configuration.md).
+
 * **default_embedding_model_source** - The default source (e.g. ollama) to be used for creating sentence embeddings.
 * **default_embedding_model_name** - The name of the LLM model to be used for creating sentence embeddings.
 * **default_model_name** - The default name of a LLM model to be used in chat

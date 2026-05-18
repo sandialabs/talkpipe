@@ -59,6 +59,8 @@ INPUT FROM @variable_name
 
 #### `llmPrompt` conversation memory controls
 
+For `model`, `source`, and global defaults, see [Model and source configuration](../guides/model-and-source-configuration.md).
+
 When using `llmPrompt`, three parameters control memory compaction behavior:
 
 - `context_token_trigger`: **when** compaction triggers.

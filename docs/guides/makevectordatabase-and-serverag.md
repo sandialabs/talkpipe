@@ -24,7 +24,7 @@ Together they form a minimal path from raw documents to a queryable RAG interfac
 - **Completion model** (for serverag): Ollama with an LLM (e.g. `ollama pull llama3.2`)
 - **Configuration**: Set `DEFAULT_EMBEDDING_MODEL`, `DEFAULT_EMBEDDING_SOURCE`, `DEFAULT_LLM_MODEL`, and `DEFAULT_LLM_SOURCE` in `~/.talkpipe.toml` or pass them on the command line
 
-See [Configuration](../architecture/configuration.md) for details.
+See [Model and source configuration](model-and-source-configuration.md) for how embedding and completion defaults work. For general config (logging, `$key` syntax), see [Configuration](../architecture/configuration.md).
 
 ---
 

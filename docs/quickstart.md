@@ -96,6 +96,8 @@ chat = compiler.compile(script).as_function(single_in=True, single_out=True)
 response = chat("Hello! Tell me about the history of computers.")
 ```
 
+To avoid repeating `model` and `source` on every segment, set defaults in `~/.talkpipe.toml` or environment variables. See [Model and source configuration](guides/model-and-source-configuration.md).
+
 For `llmPrompt` memory behavior (`context_token_trigger`, `memory_mode`, `unsummarized_message_count`, `memory_size`), see
 [ChatterLang memory controls](architecture/chatterlang.md#llmprompt-conversation-memory-controls).
 

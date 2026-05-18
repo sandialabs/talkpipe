@@ -55,6 +55,8 @@ How TalkPipe manages configuration across different environments.
 - Precedence rules
 - Security considerations
 
+For LLM and embedding `model` / `source` defaults, see [Model and source configuration](../guides/model-and-source-configuration.md).
+
 ---
 
 *For API details, see [API Reference](../api-reference/). For working examples, see the [tutorials](../tutorials/) directory.*

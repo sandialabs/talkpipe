@@ -38,9 +38,8 @@ class LLMPrompt(AbstractSegment):
     The model name and source can be specified in three different ways.  If
     explicitly included in the constructor, those values will be used.  If not,
     the values will be loaded from environment variables (TALKPIPE_default_model_name
-    and TALKPIPE_default_source).  If those are not set, the values will be loaded
-    from the configuration file (~/.talkpipe.toml).  If none of those are set, an 
-    error will be raised.
+    and TALKPIPE_default_model_source) or the configuration file (~/.talkpipe.toml).
+    If none of those are set, an error will be raised.
 
     Currently supported sources are "ollama," "openai," and "anthropic."  If 
     you specify "ollama," you can optionally set the OLLAMA_SERVER_URL environment
