@@ -107,12 +107,12 @@ from talkpipe.chatterlang import compiler
 
 docs = ["TalkPipe builds AI pipelines with Python or ChatterLang."]
 indexer = compiler.compile(
-    '| toDict[field_list="_:text"] | makeVectorDatabase[path="./my_kb", embedding_model="nomic-embed-text", embedding_source="ollama", embedding_field="text", overwrite=True]'
+    '| toDict[field_list="_:text"] | makeVectorDatabase[path="tmp://my_kb", embedding_model="nomic-embed-text", embedding_source="ollama", embedding_field="text", overwrite=True]'
 ).as_function(single_in=False)
 indexer(docs)
 
 rag = compiler.compile(
-    '| toDict[field_list="_:text"] | ragToText[path="./my_kb", embedding_model="nomic-embed-text", embedding_source="ollama", completion_model="llama3.2", completion_source="ollama", content_field="text", limit=3] | print'
+    '| toDict[field_list="_:text"] | ragToText[path="tmp://my_kb", embedding_model="nomic-embed-text", embedding_source="ollama", completion_model="llama3.2", completion_source="ollama", content_field="text", limit=3] | print'
 ).as_function(single_in=True)
 rag("What is TalkPipe?")
 ```

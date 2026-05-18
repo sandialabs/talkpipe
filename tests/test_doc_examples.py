@@ -11,7 +11,7 @@ from talkpipe.app.doc_examples import extract_all_examples, run_example
 _project_root = Path(__file__).resolve().parent.parent
 
 # Artifacts created by doc examples (e.g. README RAG example creates my_knowledge_base)
-_DOC_EXAMPLE_ARTIFACTS = ["my_knowledge_base"]
+_DOC_EXAMPLE_ARTIFACTS = ["my_knowledge_base", "my_kb"]
 
 
 def _is_safe_to_delete(root: Path, name: str) -> bool:

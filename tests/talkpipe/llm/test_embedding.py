@@ -63,6 +63,14 @@ def test_openai_embedding(requires_openai):
     assert all(isinstance(x, float) for x in ans)
     assert len(ans) > 0
 
+    f = compile("| llmEmbed[model='text-embedding-3-small', source='openai']")
+    f = f.as_function(single_in=True, single_out=False)
+    response = list(f("Hello"))
+    assert len(response) == 1
+    assert len(response[0]) > 0
+    assert all(isinstance(x, float) for x in response[0])
+
+
 def test_ollama_embedding(requires_ollama):
     model = OllamaEmbedderAdapter("mxbai-embed-large")
     assert model.model_name == "mxbai-embed-large"
