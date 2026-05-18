@@ -56,7 +56,9 @@ jobs:
   security-scan:
     runs-on: ubuntu-latest
     needs: test
-    
+    env:
+      SAFETY_API_KEY: ${{ secrets.SAFETY_API_KEY }}
+
     steps:
     - uses: actions/checkout@v6
       with:
@@ -80,8 +82,8 @@ jobs:
     
     - name: Run Safety dependency scan
       run: |
-        safety check --json > safety-report.json || true
-        safety check 
+        safety scan --save-as json safety-report.json || true
+        safety scan
     
     - name: Upload security scan results
       uses: actions/upload-artifact@v7

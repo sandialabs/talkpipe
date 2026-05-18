@@ -1,6 +1,7 @@
 # Changelog
 
 ## Unreleased
+- CI security scan uses `safety scan` with `SAFETY_API_KEY` (GitHub Actions secret) instead of deprecated `safety check`.
 - Added OpenAI embedding support via `OpenAIEmbeddingAdapter` and `llmEmbed` source `openai`.
 
 ## 0.12.0

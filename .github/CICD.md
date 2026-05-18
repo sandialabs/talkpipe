@@ -95,7 +95,8 @@ pytest --cov=src --cov-report=xml --cov-report=html
 
 # Run security scans
 bandit -r src/
-safety check
+export SAFETY_API_KEY=your-key   # optional; links results to Safety Platform
+safety scan
 
 # Build container (matches CI)
 docker build -t talkpipe:local .
