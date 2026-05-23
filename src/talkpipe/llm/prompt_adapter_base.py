@@ -109,12 +109,7 @@ class AbstractLLMPromptAdapter(PromptAdapterMemoryMixin, ABC):
     def _log_message_payload(self, payload_name: str, messages: list) -> None:
         if not self._debug_messages:
             return
-        sanitized = []
-        for message in messages:
-            content = str(message.get("content", ""))
-            if len(content) > 500:
-                content = content[:500] + "...[truncated]"
-            sanitized.append({"role": message.get("role", "unknown"), "content": content})
+        sanitized = [self._format_message_for_debug(message) for message in messages]
         logger.debug(
             "LLM outbound payload (%s) for %s (%s): %s",
             payload_name,
@@ -122,6 +117,35 @@ class AbstractLLMPromptAdapter(PromptAdapterMemoryMixin, ABC):
             self._source,
             json.dumps(sanitized, ensure_ascii=True),
         )
+
+    def _format_message_for_debug(self, message: dict) -> dict:
+        role = message.get("role", "unknown")
+        if message.get("images"):
+            content = str(message.get("content", ""))
+            if len(content) > 500:
+                content = content[:500] + "...[truncated]"
+            return {
+                "role": role,
+                "content": content,
+                "images": [f"<{len(image)} base64 chars>" for image in message["images"]],
+            }
+        content = message.get("content", "")
+        if isinstance(content, list):
+            sanitized_parts = []
+            for part in content:
+                if not isinstance(part, dict):
+                    sanitized_parts.append(part)
+                    continue
+                part_type = part.get("type", "unknown")
+                if "image" in part_type or part.get("type") == "image":
+                    sanitized_parts.append({"type": part_type, "image": "<redacted>"})
+                else:
+                    sanitized_parts.append(part)
+            return {"role": role, "content": sanitized_parts}
+        content = str(content)
+        if len(content) > 500:
+            content = content[:500] + "...[truncated]"
+        return {"role": role, "content": content}
 
     def _clip_debug_text(self, text: str, limit: int = 1200) -> str:
         if text is None:
@@ -168,6 +192,12 @@ class AbstractLLMPromptAdapter(PromptAdapterMemoryMixin, ABC):
 
         This method is used to execute the chat model with a given input.
         """
+
+    def execute_turn(self, user_turn) -> str:
+        """Execute the chat model with a multimodal user turn."""
+        raise NotImplementedError(
+            f"{self.__class__.__name__} must implement execute_turn() for multimodal prompts."
+        )
 
     @abstractmethod
     def is_available(self) -> bool:

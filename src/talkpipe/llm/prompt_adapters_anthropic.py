@@ -4,6 +4,8 @@ from typing import Optional, Union
 from pydantic import BaseModel
 
 from .prompt_adapter_base import AbstractLLMPromptAdapter, logger
+from .content import UserTurn
+from .multimodal import to_anthropic_user_message
 
 
 class AnthropicPromptAdapter(AbstractLLMPromptAdapter):
@@ -64,27 +66,7 @@ class AnthropicPromptAdapter(AbstractLLMPromptAdapter):
 
         logger.debug(f"Sending chat request to Anthropic model {self._model_name}")
 
-        # Anthropic treats `system` separately, so we strip system-role messages from `messages`.
-        non_system_prefix = [msg for msg in self._prefix_messages if msg["role"].lower() != "system"]
-        non_system_summary = []
-        if self._summary_message:
-            non_system_summary = [
-                {"role": "assistant", "content": f"Conversation memory:\n{self._summary_message['content']}"}
-            ]
-        request_params = {
-            "model": self._model_name,
-            "messages": non_system_prefix + non_system_summary + self._messages,
-            "max_tokens": self._max_tokens,
-        }
-
-        # Keep memory in sync across channels: summary is echoed into `messages` and appended to `system`.
-        if self._system_message:
-            summary_text = (
-                f"\n\nConversation memory:\n{self._summary_message['content']}" if self._summary_message else ""
-            )
-            request_params["system"] = self._system_message["content"] + summary_text
-
-        self._apply_temperature_if_explicit(request_params)
+        request_params = self._build_messages_request_params()
 
         self._log_message_payload("messages", request_params["messages"])
         if self._debug_messages and "system" in request_params:
@@ -106,6 +88,58 @@ class AnthropicPromptAdapter(AbstractLLMPromptAdapter):
 
         logger.debug(f"Returning response: {result}")
         return result
+
+    def execute_turn(self, user_turn: UserTurn) -> str:
+        """Execute the chat model with a multimodal user turn."""
+        self._require_dependency("anthropic", "Anthropic", "anthropic")
+
+        user_message = to_anthropic_user_message(user_turn)
+        logger.debug("Adding multimodal user message to chat history")
+        self._messages.append(user_message)
+        self._compact_context_if_needed()
+
+        logger.debug(f"Sending chat request to Anthropic model {self._model_name}")
+        request_params = self._build_messages_request_params()
+        self._log_message_payload("messages", request_params["messages"])
+        if self._debug_messages and "system" in request_params:
+            logger.debug(
+                "LLM outbound payload (system) for %s (%s): %s",
+                self._model_name,
+                self._source,
+                self._clip_debug_text(str(request_params["system"])),
+            )
+        response = self._messages_create(**request_params)
+
+        response_text = self._extract_anthropic_text(response)
+        self._record_assistant_response(response_text)
+
+        if self._output_format:
+            result = self._output_format.model_validate_json(response_text)
+        else:
+            result = response_text
+
+        logger.debug(f"Returning response: {result}")
+        return result
+
+    def _build_messages_request_params(self) -> dict:
+        non_system_prefix = [msg for msg in self._prefix_messages if msg["role"].lower() != "system"]
+        non_system_summary = []
+        if self._summary_message:
+            non_system_summary = [
+                {"role": "assistant", "content": f"Conversation memory:\n{self._summary_message['content']}"}
+            ]
+        request_params = {
+            "model": self._model_name,
+            "messages": non_system_prefix + non_system_summary + self._messages,
+            "max_tokens": self._max_tokens,
+        }
+        if self._system_message:
+            summary_text = (
+                f"\n\nConversation memory:\n{self._summary_message['content']}" if self._summary_message else ""
+            )
+            request_params["system"] = self._system_message["content"] + summary_text
+        self._apply_temperature_if_explicit(request_params)
+        return request_params
 
     def _messages_create(self, **request_params):
         return self.client.messages.create(**request_params)

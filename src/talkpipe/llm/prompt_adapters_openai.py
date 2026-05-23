@@ -3,6 +3,8 @@ from typing import Optional, Union
 from pydantic import BaseModel
 
 from .prompt_adapter_base import AbstractLLMPromptAdapter, logger
+from .content import UserTurn
+from .multimodal import to_openai_user_message
 
 
 class OpenAIPromptAdapter(AbstractLLMPromptAdapter):
@@ -66,6 +68,30 @@ class OpenAIPromptAdapter(AbstractLLMPromptAdapter):
 
         self._record_assistant_response(response.output_text)
 
+        result = response.output_parsed if self._output_format else response.output_text
+        logger.debug(f"Returning response: {result}")
+        return result
+
+    def execute_turn(self, user_turn: UserTurn) -> str:
+        """Execute the chat model with a multimodal user turn."""
+        openai = self._require_dependency("openai", "OpenAI", "openai")
+
+        user_message = to_openai_user_message(user_turn)
+        logger.debug("Adding multimodal user message to chat history")
+        self._messages.append(user_message)
+        self._compact_context_if_needed()
+
+        logger.debug(f"Sending chat request to OpenAI model {self._model_name}")
+        request_params = {
+            "model": self._model_name,
+            "input": self._request_messages(),
+            "text_format": openai.NOT_GIVEN if self._output_format is None else self._output_format,
+        }
+        self._apply_temperature_if_explicit(request_params)
+        self._log_message_payload("input", request_params["input"])
+        response = self._responses_request(parse=True, **request_params)
+
+        self._record_assistant_response(response.output_text)
         result = response.output_parsed if self._output_format else response.output_text
         logger.debug(f"Returning response: {result}")
         return result

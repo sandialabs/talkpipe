@@ -1,6 +1,10 @@
 # Changelog
 
 ## Unreleased
+- Added vision model support via `loadImage`, `downloadImageURL`, and `llmVisionPrompt`
+  segments, `talkpipe.data.image` for loading images from paths, URLs, or bytes, and
+  multimodal adapter hooks for Ollama, OpenAI, and Anthropic. `llmVisionPrompt` defaults
+  to single-turn mode with prompt "Explains the contents of this image."
 - CI security scan uses `safety scan` with `SAFETY_API_KEY` (GitHub Actions secret) instead of deprecated `safety check`.
 - Added OpenAI embedding support via `OpenAIEmbeddingAdapter` and `llmEmbed` source `openai`.
 

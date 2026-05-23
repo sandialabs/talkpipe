@@ -6,6 +6,8 @@ from talkpipe.util.config import get_config
 from talkpipe.util.constants import OLLAMA_SERVER_URL
 
 from .prompt_adapter_base import AbstractLLMPromptAdapter, logger
+from .content import UserTurn
+from .multimodal import to_ollama_user_message
 
 
 class OllamaPromptAdapter(AbstractLLMPromptAdapter):
@@ -61,6 +63,34 @@ class OllamaPromptAdapter(AbstractLLMPromptAdapter):
         logger.debug(f"Adding user message to chat history: {prompt}")
         self._messages.append({"role": "user", "content": prompt})
         # Memory compaction may update `_summary_message` and trim `_messages` before request dispatch.
+        self._compact_context_if_needed()
+
+        logger.debug(f"Sending chat request to Ollama model {self._model_name}")
+        self._log_message_payload("messages", self._request_messages())
+        response = self._chat_completion(
+            model=self._model_name,
+            messages=self._request_messages(),
+            format_schema=self._output_format.model_json_schema() if self._output_format else None,
+            options={"temperature": self._temperature},
+        )
+
+        self._record_assistant_response(str(response.message.content))
+
+        result = (
+            self._output_format.model_validate_json(response.message.content)
+            if self._output_format
+            else response.message.content
+        )
+        logger.debug(f"Returning response: {result}")
+        return result
+
+    def execute_turn(self, user_turn: UserTurn) -> str:
+        """Execute the chat model with a multimodal user turn."""
+        self._require_dependency("ollama", "Ollama", "ollama")
+
+        user_message = to_ollama_user_message(user_turn)
+        logger.debug("Adding multimodal user message to chat history")
+        self._messages.append(user_message)
         self._compact_context_if_needed()
 
         logger.debug(f"Sending chat request to Ollama model {self._model_name}")

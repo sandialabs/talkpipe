@@ -70,8 +70,11 @@ anthropic = [
 pypdf = [
     'pypdf'
 ]
+pillow = [
+    'Pillow'
+]
 all = [
-    'talkpipe[openai,ollama,anthropic,pypdf]'
+    'talkpipe[openai,ollama,anthropic,pypdf,pillow]'
 ]
 
 [project.scripts]
@@ -134,6 +137,7 @@ deleteFile = "talkpipe.pipe.io:DeleteFile"
 describe = "talkpipe.pipe.basic:DescribeData"
 diagPrint = "talkpipe.pipe.basic:DiagPrint"
 distinctBloomFilter = "talkpipe.operations.filtering:distinctBloomFilter"
+downloadImageURL = "talkpipe.data.image:downloadImageURLSegment"
 downloadURL = "talkpipe.data.html:downloadURLSegment"
 dumpsJsonl = "talkpipe.pipe.io:dumpsJsonl"
 eq = "talkpipe.pipe.math:EQ"
@@ -160,11 +164,13 @@ isTrue = "talkpipe.pipe.basic:isTrue"
 lambda = "talkpipe.pipe.basic:EvalExpression"
 lambdaFilter = "talkpipe.pipe.basic:FilterExpression"
 listFiles = "talkpipe.data.extraction:listFiles"
+loadImage = "talkpipe.data.image:loadImageSegment"
 llmBinaryAnswer = "talkpipe.llm.chat:LlmBinaryAnswer"
 llmEmbed = "talkpipe.llm.embedding:LLMEmbed"
 llmExtractTerms = "talkpipe.llm.chat:LlmExtractTerms"
 llmPrompt = "talkpipe.llm.chat:LLMPrompt"
 llmScore = "talkpipe.llm.chat:LlmScore"
+llmVisionPrompt = "talkpipe.llm.vision:LLMVisionPrompt"
 loadsJsonl = "talkpipe.pipe.io:loadsJsonl"
 log = "talkpipe.pipe.io:Log"
 longestStr = "talkpipe.pipe.basic:longestStr"
