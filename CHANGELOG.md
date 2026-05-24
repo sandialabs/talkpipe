@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.12.1
 - Added vision model support via `loadImage`, `downloadImageURL`, and `llmVisionPrompt`
   segments, `talkpipe.data.image` for loading images from paths, URLs, or bytes, and
   multimodal adapter hooks for Ollama, OpenAI, and Anthropic. `llmVisionPrompt` defaults
