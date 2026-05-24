@@ -508,7 +508,7 @@ talkpipe/
 
 ## Configuration
 
-TalkPipe uses a flexible configuration system via `~/.talkpipe.toml` or environment variables:
+TalkPipe uses a flexible configuration system via `~/.talkpipe.toml` or environment variables. For LLM and embedding `model` / `source` defaults, see [Model and source configuration](docs/guides/model-and-source-configuration.md).
 
 ```toml
 # ~/.talkpipe.toml

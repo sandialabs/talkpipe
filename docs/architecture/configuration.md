@@ -148,6 +148,8 @@ For application settings (logging, server ports, etc.):
 
 ### Embedding and LLM defaults: `serverag` vs segment keys
 
+See [Model and source configuration](../guides/model-and-source-configuration.md) for a user-focused guide to `model`, `source`, and related config keys.
+
 Several components resolve embedding and chat model defaults from `get_config()`. Two naming patterns appear in configuration:
 
 - **Segment defaults** — `LLMEmbed` and `LLMPrompt` fall back to these keys when `model` / `source` arguments are omitted: `default_embedding_model_name`, `default_embedding_model_source`, `default_model_name`, and `default_model_source` (see `talkpipe.util.constants`).

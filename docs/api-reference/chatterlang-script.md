@@ -66,7 +66,7 @@ chatterlang_script \
     --factor 10
 ```
 
-This feature is useful for parameterizing scripts without editing configuration files or script content.
+This feature is useful for parameterizing scripts without editing configuration files or script content. You can use `$key` for `model` and `source` on LLM segments (for example `llmPrompt[model=$default_model_name, source=$default_model_source]`). See [Model and source configuration](../guides/model-and-source-configuration.md).
 
 ## Troubleshooting
 
