@@ -106,6 +106,37 @@ def test_interactive_go_not_found(client):
     data = response.json()
     assert data["detail"] == "Script instance not found"
 
+def test_static_logo_served(client):
+    """The workbench should serve a logo image that examples can fetch from itself."""
+    response = client.get("/static/talkpipe_logo.png")
+    assert response.status_code == 200
+    assert response.headers["content-type"].startswith("image/")
+    assert len(response.content) > 0
+
+
+def test_examples_include_image_example(client):
+    """The /examples endpoint should expose an image example that references the workbench logo."""
+    response = client.get("/examples")
+    assert response.status_code == 200
+    data = response.json()
+    examples = data["examples"]
+    assert "Image Examples" in examples
+    image_examples = examples["Image Examples"]
+    assert len(image_examples) >= 1
+    code_blobs = "\n".join(ex["code"] for ex in image_examples)
+    assert "llmVisionPrompt" in code_blobs
+    assert "$workbench_logo_url" in code_blobs
+
+
+def test_main_sets_workbench_logo_url(monkeypatch):
+    """main() should publish a workbench_logo_url config value derived from --host / --port."""
+    monkeypatch.setattr("sys.argv", ["chatterlang_workbench", "--host", "127.0.0.1", "--port", "9999"])
+    monkeypatch.setattr(chatterlang_workbench.uvicorn, "run", lambda *a, **k: None)
+    chatterlang_workbench.main()
+    from talkpipe.util.config import get_config
+    assert get_config()["workbench_logo_url"] == "http://127.0.0.1:9999/static/talkpipe_logo.png"
+
+
 def test_interactive_go_non_interactive(client):
     # Compile a non-interactive script and then call /go.
     script = "print('Hello World')"
