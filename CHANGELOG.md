@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+- Added a "Day-to-day usage" section to [model and source configuration](docs/guides/model-and-source-configuration.md)
+  showing the recommended pattern: set provider credentials in the environment, set `default_*`
+  keys once for the main model and embedding source, and override `model`/`source` per segment only
+  when a specific call needs something different. Also documented that `llmVisionPrompt` shares the
+  chat `default_model_name` / `default_model_source` keys (no separate vision default) and added it
+  to the supported-sources table, segment-parameters reference, and troubleshooting guide.
+
 ## 0.12.1
 - Added vision model support via `loadImage`, `downloadImageURL`, and `llmVisionPrompt`
   segments, `talkpipe.data.image` for loading images from paths, URLs, or bytes, and
