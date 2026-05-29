@@ -119,7 +119,7 @@ The first piece of the pattern above is the `source` value itself. Sources are r
 |---------|-------------------|
 | **`llmPrompt`** (chat) | `ollama`, `openai`, `anthropic` |
 | **`llmVisionPrompt`** (multimodal chat) | `ollama`, `openai`, `anthropic` |
-| **`llmEmbed`** (embeddings) | `ollama`, `openai`, `local` |
+| **`llmEmbed`** (embeddings) | `ollama`, `openai`, `model2vec` |
 
 Additional sources can be registered at runtime with `registerPromptAdapter` or `registerEmbeddingAdapter` (see [Extending TalkPipe](../architecture/extending-talkpipe.md)).
 
@@ -130,16 +130,14 @@ Install optional provider dependencies as needed:
 | `talkpipe[ollama]` | Ollama chat and embeddings |
 | `talkpipe[openai]` | OpenAI chat and embeddings |
 | `talkpipe[anthropic]` | Anthropic chat |
-| `talkpipe[all]` | All **lightweight** optional features (providers, PDF, images). Does **not** include in-process HF embeddings. |
-| `talkpipe[local-embeddings]` | In-process Hugging Face embeddings via `sentence-transformers` (**large** install; opt-in). See [Local embeddings](local-embeddings.md). |
-| `talkpipe[all-local]` | `all` plus `local-embeddings` |
+| `talkpipe[model2vec]` | In-process static embeddings via model2vec (lightweight; included in `[all]`) |
+| `talkpipe[all]` | All optional features including model2vec, providers, PDF, and images |
 
 ```bash
 pip install talkpipe[ollama]
 pip install talkpipe[openai]
-pip install talkpipe[local-embeddings]   # large; not in [all]
-pip install talkpipe[all]                # lightweight full stack
-pip install talkpipe[all-local]        # everything including local HF embeddings
+pip install talkpipe[model2vec]
+pip install talkpipe[all]   # includes model2vec
 ```
 
 ---

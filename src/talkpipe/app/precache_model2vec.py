@@ -1,41 +1,39 @@
-"""CLI for precaching local Hugging Face embedding models."""
+"""CLI for precaching model2vec embedding models."""
 
 from __future__ import annotations
 
 import argparse
 import sys
 
-from talkpipe.llm.local_embeddings import DEFAULT_MODEL, LocalEmbedder, precache_model
+from talkpipe.llm.model2vec_embeddings import DEFAULT_MODEL, Model2VecEmbedder, precache_model
 
 
 def _demo() -> None:
     """Quick end-to-end check with the default model."""
-    embedder = LocalEmbedder()
-    print(f"Model:      {embedder.model_name}")
-    print(f"Dimension:  {embedder.dimension}")
-    print(f"Max tokens: {embedder.max_tokens}")
+    embedder = Model2VecEmbedder()
+    print(f"Model:     {embedder.model_name}")
+    print(f"Dimension: {embedder.dimension}")
+    print(f"Normalize: {embedder.normalize}")
 
     paragraph = (
-        "Sentence-transformer models that target sentence-level inputs "
-        "typically cap context at 256 to 512 tokens. For full paragraphs, "
-        "a model with a longer context window avoids silent truncation, "
-        "which would otherwise drop the tail of the input and produce "
-        "embeddings that ignore part of what was passed in."
+        "Static embeddings tokenize input text and combine fixed token vectors. "
+        "They are much smaller and faster than full transformer models, with "
+        "competitive quality for many retrieval tasks."
     )
     vec = embedder.embed_one(paragraph)
-    print(f"Length:     {len(vec)}")
+    print(f"Length:    {len(vec)}")
 
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
-        prog="talkpipe_precache_embeddings",
-        description="Precache local Hugging Face embedding models for offline use.",
+        prog="talkpipe_precache_model2vec",
+        description="Precache model2vec embedding models for offline use.",
     )
     sub = parser.add_subparsers(dest="command")
 
     p = sub.add_parser(
         "precache",
-        help="Download and cache a model (or just its tokenizer) for offline use.",
+        help="Download and cache a model2vec model for offline use.",
     )
     p.add_argument(
         "model_name",
@@ -53,11 +51,6 @@ def main(argv: list[str] | None = None) -> int:
         default=None,
         help="Override the HF cache directory.",
     )
-    p.add_argument(
-        "--tokenizer-only",
-        action="store_true",
-        help="Download only tokenizer files (~1 MB) instead of the full model.",
-    )
 
     sub.add_parser("demo", help="Run a quick embedding demo with the default model.")
 
@@ -68,7 +61,6 @@ def main(argv: list[str] | None = None) -> int:
             args.model_name,
             revision=args.revision,
             cache_dir=args.cache_dir,
-            tokenizer_only=args.tokenizer_only,
         )
         for key, value in result.items():
             print(f"{key}: {value}")

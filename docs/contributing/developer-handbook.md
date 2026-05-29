@@ -92,9 +92,9 @@ Configuration constants can be defined either in ~/.talkpipe.toml or in environm
 
 For how `model`, `source`, and LLM defaults interact across segments and CLIs, see [Model and source configuration](../guides/model-and-source-configuration.md).
 
-* **default_embedding_model_source** - The default source (e.g. ollama, openai, or local) to be used for creating sentence embeddings.
+* **default_embedding_model_source** - The default source (e.g. ollama, openai, or model2vec) to be used for creating sentence embeddings.
 * **default_embedding_model_name** - The name of the LLM model to be used for creating sentence embeddings.
-* **LOCAL_EMBEDDING_*** - Optional settings for `source="local"` embeddings (device, cache dir, revision, etc.). See [Local embeddings](../guides/local-embeddings.md).
+* **MODEL2VEC_REVISION**, **MODEL2VEC_CACHE_DIR** - Optional settings for `source="model2vec"` embeddings. See [Model2vec embeddings](../guides/model2vec-embeddings.md).
 * **default_model_name** - The default name of a LLM model to be used in chat
 * **default_model_source** - The default source (e.g. ollama) to be used in chat
 * **email_password** - Password for the SMTP server

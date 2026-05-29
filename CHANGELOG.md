@@ -1,11 +1,10 @@
 # Changelog
 
 ## Unreleased
-- Added local Hugging Face embedding support via `LocalEmbeddingAdapter` and `llmEmbed`
-  source `local`, using in-process `sentence-transformers` models with offline-ready HF
-  cache precaching. Install with `pip install talkpipe[local-embeddings]`; this extra is
-  not included in `talkpipe[all]` (use `talkpipe[all-local]` for the full stack including
-  local embeddings). Added `talkpipe_precache_embeddings` CLI for build-time model download.
+- Added model2vec embedding support via `Model2VecEmbeddingAdapter` and `llmEmbed`
+  source `model2vec`, using in-process static embeddings with offline-ready HF cache
+  precaching. Install with `pip install talkpipe[model2vec]` or `talkpipe[all]`. Added
+  `talkpipe_precache_model2vec` CLI for build-time model download.
 - Added an "Image Examples" category to `chatterlang_workbench` containing a "Describe the
   TalkPipe Logo" example that pulls a logo image (`/static/talkpipe_logo.png`) from the
   workbench's own HTTP server and feeds it to `llmVisionPrompt`. The workbench now publishes
