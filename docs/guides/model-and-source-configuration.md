@@ -16,11 +16,28 @@ Sources are registered in `talkpipe.llm.config`:
 | Segment | Registered sources |
 |---------|-------------------|
 | **`llmPrompt`** (chat) | `ollama`, `openai`, `anthropic` |
-| **`llmEmbed`** (embeddings) | `ollama` |
+| **`llmEmbed`** (embeddings) | `ollama`, `openai`, `local` |
 
 Additional sources can be registered at runtime with `registerPromptAdapter` or `registerEmbeddingAdapter` (see [Extending TalkPipe](../architecture/extending-talkpipe.md)).
 
-Install optional provider dependencies as needed: `pip install talkpipe[ollama]`, `talkpipe[openai]`, `talkpipe[anthropic]`, or `talkpipe[all]`.
+Install optional provider dependencies as needed:
+
+| Extra | Purpose |
+|-------|---------|
+| `talkpipe[ollama]` | Ollama chat and embeddings |
+| `talkpipe[openai]` | OpenAI chat and embeddings |
+| `talkpipe[anthropic]` | Anthropic chat |
+| `talkpipe[all]` | All **lightweight** optional features (providers, PDF, images). Does **not** include in-process HF embeddings. |
+| `talkpipe[local-embeddings]` | In-process Hugging Face embeddings via `sentence-transformers` (**large** install; opt-in). See [Local embeddings](local-embeddings.md). |
+| `talkpipe[all-local]` | `all` plus `local-embeddings` |
+
+```bash
+pip install talkpipe[ollama]
+pip install talkpipe[openai]
+pip install talkpipe[local-embeddings]   # large; not in [all]
+pip install talkpipe[all]                # lightweight full stack
+pip install talkpipe[all-local]        # everything including local HF embeddings
+```
 
 ---
 

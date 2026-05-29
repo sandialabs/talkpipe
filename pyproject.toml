@@ -73,8 +73,15 @@ pypdf = [
 pillow = [
     'Pillow'
 ]
+local-embeddings = [
+    'sentence-transformers>=3.0',
+    'huggingface_hub',
+]
 all = [
     'talkpipe[openai,ollama,anthropic,pypdf,pillow]'
+]
+all-local = [
+    'talkpipe[all,local-embeddings]'
 ]
 
 [project.scripts]
@@ -88,6 +95,7 @@ talkpipe_plugins = "talkpipe.app.talkpipe_plugin_manager:main"
 talkpipe_makevectordatabase = "talkpipe.app.makevectordatabase:main"
 makevectordatabase = "talkpipe.app.makevectordatabase:main"
 run_doc_examples = "talkpipe.app.doc_examples:main"
+talkpipe_precache_embeddings = "talkpipe.app.precache_embeddings:main"
 serverag = "talkpipe.app.serverag:main"
 
 [tool.pytest.ini_options]

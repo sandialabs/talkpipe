@@ -81,7 +81,9 @@ For LLM support, install the provider(s) you need:
 pip install talkpipe[openai]    # OpenAI
 pip install talkpipe[ollama]    # Ollama
 pip install talkpipe[anthropic] # Anthropic Claude
-# Or: pip install talkpipe[all]
+pip install talkpipe[local-embeddings]  # In-process HF embeddings (large; not in [all])
+# Or: pip install talkpipe[all]         # lightweight optional features
+# Or: pip install talkpipe[all-local]     # all + local-embeddings
 ```
 
 Configure API keys and provider URLs via environment variables (for example `TALKPIPE_openai_api_key`) or `~/.talkpipe.toml`. If TalkPipe runs on a different machine than your Ollama server, set `TALKPIPE_OLLAMA_SERVER_URL` to that host. See **[Configuration](docs/architecture/configuration.md)** for details and ChatterLang `$var` substitution.

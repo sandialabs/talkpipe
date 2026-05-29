@@ -20,7 +20,7 @@ Together they form a minimal path from raw documents to a queryable RAG interfac
 ## Prerequisites
 
 - **TalkPipe** with LLM support: `pip install talkpipe[ollama]` or `pip install talkpipe[all]`
-- **Embedding model**: Ollama with an embedding model (e.g. `ollama pull mxbai-embed-large`)
+- **Embedding model**: Ollama with an embedding model (e.g. `ollama pull mxbai-embed-large`), or for offline in-process embeddings see [Local embeddings](local-embeddings.md) (`pip install talkpipe[local-embeddings]`, `embedding_source=local`)
 - **Completion model** (for serverag): Ollama with an LLM (e.g. `ollama pull llama3.2`)
 - **Configuration**: Set `DEFAULT_EMBEDDING_MODEL`, `DEFAULT_EMBEDDING_SOURCE`, `DEFAULT_LLM_MODEL`, and `DEFAULT_LLM_SOURCE` in `~/.talkpipe.toml` or pass them on the command line
 
@@ -47,7 +47,7 @@ makevectordatabase "docs/*.md" --path ./mydb
 |--------|-------------|---------|
 | `--path` | Path for the LanceDB database | Required |
 | `--embedding_model` | Embedding model name | Config default |
-| `--embedding_source` | Embedding source (e.g. `ollama`) | Config default |
+| `--embedding_source` | Embedding source (e.g. `ollama`, `local`) | Config default |
 | `--table_name` | Table name in the database | `docs` |
 | `--chunk_size` | Characters per text chunk | 300 |
 | `--overwrite` | Overwrite existing table | False |
@@ -61,6 +61,15 @@ makevectordatabase "content/**/*.md" --path ./vault \
   --embedding_source ollama \
   --table_name docs \
   --chunk_size 400 \
+  --overwrite
+```
+
+**Local Hugging Face embeddings** (no Ollama server; requires `pip install talkpipe[local-embeddings]`):
+
+```bash
+makevectordatabase "content/**/*.md" --path ./vault \
+  --embedding_model jinaai/jina-embeddings-v2-base-en \
+  --embedding_source local \
   --overwrite
 ```
 

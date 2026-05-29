@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+- Added local Hugging Face embedding support via `LocalEmbeddingAdapter` and `llmEmbed`
+  source `local`, using in-process `sentence-transformers` models with offline-ready HF
+  cache precaching. Install with `pip install talkpipe[local-embeddings]`; this extra is
+  not included in `talkpipe[all]` (use `talkpipe[all-local]` for the full stack including
+  local embeddings). Added `talkpipe_precache_embeddings` CLI for build-time model download.
+
 ## 0.12.1
 - Added vision model support via `loadImage`, `downloadImageURL`, and `llmVisionPrompt`
   segments, `talkpipe.data.image` for loading images from paths, URLs, or bytes, and
