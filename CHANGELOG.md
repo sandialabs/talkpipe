@@ -6,6 +6,17 @@
   cache precaching. Install with `pip install talkpipe[local-embeddings]`; this extra is
   not included in `talkpipe[all]` (use `talkpipe[all-local]` for the full stack including
   local embeddings). Added `talkpipe_precache_embeddings` CLI for build-time model download.
+- Added an "Image Examples" category to `chatterlang_workbench` containing a "Describe the
+  TalkPipe Logo" example that pulls a logo image (`/static/talkpipe_logo.png`) from the
+  workbench's own HTTP server and feeds it to `llmVisionPrompt`. The workbench now publishes
+  its logo URL as the `workbench_logo_url` configuration value (derived from `--host` and
+  `--port`) so example scripts can reference it via `$workbench_logo_url`.
+- Added a "Day-to-day usage" section to [model and source configuration](docs/guides/model-and-source-configuration.md)
+  showing the recommended pattern: set provider credentials in the environment, set `default_*`
+  keys once for the main model and embedding source, and override `model`/`source` per segment only
+  when a specific call needs something different. Also documented that `llmVisionPrompt` shares the
+  chat `default_model_name` / `default_model_source` keys (no separate vision default) and added it
+  to the supported-sources table, segment-parameters reference, and troubleshooting guide.
 
 ## 0.12.1
 - Added vision model support via `loadImage`, `downloadImageURL`, and `llmVisionPrompt`

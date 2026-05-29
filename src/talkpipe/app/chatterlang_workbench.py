@@ -80,6 +80,13 @@ EXAMPLE_SCRIPTS = {
             "code": '| downloadURL | htmlToText | llmPrompt[system_prompt="Summarize the following text in 3-5 sentences:"]'
         }
     ],
+    "Image Examples": [
+        {
+            "name": "Describe the TalkPipe Logo",
+            "description": "Fetch the workbench's own logo image and ask a vision LLM to describe it",
+            "code": '# Pulls the logo image from this running TalkPipe workbench server.\n# $workbench_logo_url is populated by chatterlang_workbench at startup\n# based on the --host and --port arguments.\n# Example assumes that ollama is installed and the gemma4:31b-cloud has been pulled.\nINPUT FROM echo[data=$workbench_logo_url]\n    | toDict[field_list="_:image"]\n    | llmVisionPrompt[\n        image_field="image",\n        model="gemma4:31b-cloud",\n        source="ollama",\n        prompt="Describe what you see in this image in two or three sentences.",\n        set_as="answer"\n      ]\n    | print'
+        }
+    ],
     "Advanced Examples": [
         {
             "name": "Data Analysis Loop",
@@ -1123,6 +1130,14 @@ def main():
     if constants:
         add_config_values(constants, override=True)
         print(f"Added command-line values to configuration: {list(constants.keys())}")
+
+    # Expose the workbench's own logo URL so example scripts can fetch it from
+    # the running server via $workbench_logo_url.
+    logo_host = "localhost" if args.host in ("0.0.0.0", "::") else args.host
+    add_config_values(
+        {"workbench_logo_url": f"http://{logo_host}:{args.port}/static/talkpipe_logo.png"},
+        override=True,
+    )
 
     if args.load_module:
         for module_file in args.load_module:

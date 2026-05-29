@@ -7,15 +7,118 @@ TalkPipe LLM segments need two values for every call:
 
 You can set these on each segment, in `~/.talkpipe.toml`, via `TALKPIPE_*` environment variables, or through ChatterLang `$key` substitution. This guide explains how those layers interact. For logging, security, and general config mechanics, see [Configuration architecture](../architecture/configuration.md).
 
+## Contents
+
+- [Day-to-day usage](#day-to-day-usage)
+  - [Example: Ollama-first, occasional OpenAI](#example-ollama-first-occasional-openai)
+  - [Why this layout](#why-this-layout)
+- [Supported sources](#supported-sources)
+- [How values are resolved](#how-values-are-resolved)
+  - [Precedence (highest first)](#precedence-highest-first)
+- [Configuration keys](#configuration-keys)
+  - [Segment defaults (`default_*`)](#segment-defaults-default_)
+  - [RAG CLI defaults (`DEFAULT_*`)](#rag-cli-defaults-default_)
+- [Segment parameters](#segment-parameters)
+  - [`llmPrompt` / `LLMPrompt`](#llmprompt--llmprompt)
+  - [`llmVisionPrompt` / `LLMVisionPrompt`](#llmvisionprompt--llmvisionprompt)
+  - [`llmEmbed` / `LLMEmbed`](#llmembed--llmembed)
+  - [RAG and vector pipelines](#rag-and-vector-pipelines)
+  - [Ollama server URL](#ollama-server-url)
+- [Examples](#examples)
+- [Troubleshooting](#troubleshooting)
+- [Related documentation](#related-documentation)
+
+---
+
+## Day-to-day usage
+
+TalkPipe gives you several ways to configure `model` and `source` — segment parameters, ChatterLang `$key` substitution, `TALKPIPE_*` environment variables, and `~/.talkpipe.toml`. The setup below is not the only valid one; it is intended to be the simplest, lowest-maintenance path for day-to-day usage. The rest of this guide details each layer so you can deviate when you need to.
+
+The pattern assumes you have a single "main" LLM source for most calls and only reach for alternatives occasionally:
+
+1. **Set provider credentials in your shell environment** for whichever sources you actually use. These are SDK-level keys, not TalkPipe config keys:
+   - Ollama: nothing required if running on `localhost:11434`; otherwise set `TALKPIPE_OLLAMA_SERVER_URL`.
+   - OpenAI: `OPENAI_API_KEY`.
+   - Anthropic: `ANTHROPIC_API_KEY`.
+2. **Set the `default_*` keys** for the model and source you reach for most often (chat and embeddings) — once, in `~/.talkpipe.toml` or as `TALKPIPE_*` environment variables.
+3. **Write pipelines without specifying `model` / `source`** by default. Only override on the specific segments where you genuinely want a different model.
+
+### Example: Ollama-first, occasional OpenAI
+
+To make that concrete, here is what an Ollama-first setup looks like end-to-end. Start by writing the defaults to `~/.talkpipe.toml` once and forgetting about them:
+
+```toml
+default_model_name = "llama3.2"
+default_model_source = "ollama"
+default_embedding_model_name = "mxbai-embed-large"
+default_embedding_model_source = "ollama"
+```
+
+Then add provider credentials to your shell for any non-Ollama backends you might use:
+
+```bash
+export OPENAI_API_KEY=sk-...
+```
+
+With those defaults in place, day-to-day ChatterLang lets a bare `llmPrompt` pick up the configured model and source — no per-call boilerplate:
+
+```chatterlang
+INPUT FROM echo[data="Quick question"]
+| llmPrompt
+| print
+```
+
+When a specific call needs a stronger (or just different) model, override only on that segment with `[model=..., source=...]`:
+
+```chatterlang
+INPUT FROM echo[data="Tougher question"]
+| llmPrompt[model="gpt-4o", source="openai"]
+| print
+```
+
+The same pattern works in the Python pipe API. Default usage relies on the config:
+
+```python
+# skip-extract
+from talkpipe.pipe import io
+from talkpipe.llm.chat import LLMPrompt
+
+pipeline = io.echo(data="Summarize the latest meeting notes.") | LLMPrompt()
+list(pipeline.as_function(single_out=False)())
+```
+
+And per-call overrides are the same as in ChatterLang — just constructor arguments:
+
+```python
+# skip-extract
+from talkpipe.pipe import io
+from talkpipe.llm.chat import LLMPrompt
+
+careful = io.echo(data="Draft a careful legal summary.") | LLMPrompt(
+    model="gpt-4o",
+    source="openai",
+)
+list(careful.as_function(single_out=False)())
+```
+
+### Why this layout
+
+- Provider credentials belong in the environment because the underlying SDKs read them directly and they are sensitive.
+- `default_*` keys belong in `~/.talkpipe.toml` because they are stable preferences, not secrets, and you want them shared across every shell, notebook, and script.
+- Per-segment overrides belong in code because the choice of model is usually tied to the specific task — and the segment parameter is the highest-precedence layer, so it always wins.
+
+The remaining sections fill in the details behind that pattern: which `source` values are actually accepted, exactly how `model` and `source` are resolved when you omit them, every configuration key that participates, and the segment-by-segment parameter reference.
+
 ---
 
 ## Supported sources
 
-Sources are registered in `talkpipe.llm.config`:
+The first piece of the pattern above is the `source` value itself. Sources are registered in `talkpipe.llm.config`:
 
 | Segment | Registered sources |
 |---------|-------------------|
 | **`llmPrompt`** (chat) | `ollama`, `openai`, `anthropic` |
+| **`llmVisionPrompt`** (multimodal chat) | `ollama`, `openai`, `anthropic` |
 | **`llmEmbed`** (embeddings) | `ollama`, `openai`, `local` |
 
 Additional sources can be registered at runtime with `registerPromptAdapter` or `registerEmbeddingAdapter` (see [Extending TalkPipe](../architecture/extending-talkpipe.md)).
@@ -42,6 +145,8 @@ pip install talkpipe[all-local]        # everything including local HF embedding
 ---
 
 ## How values are resolved
+
+The day-to-day pattern relies on TalkPipe quietly filling in `model` and `source` when you omit them. Here is the full rule it uses.
 
 When `LLMPrompt` or `LLMEmbed` is constructed, TalkPipe fills in missing `model` / `source` from `get_config()` (merged `~/.talkpipe.toml` plus `TALKPIPE_*` environment variables). If either is still missing, construction raises an error.
 
@@ -75,17 +180,21 @@ Within `get_config()`, environment variables override file values. ChatterLang `
 
 ## Configuration keys
 
+The precedence table above refers to "config" generically. This section lists the specific keys TalkPipe looks for — the ones the Day-to-day section recommended setting in `~/.talkpipe.toml`, plus the separate set used by the RAG CLIs.
+
 ### Segment defaults (`default_*`)
 
-Used by `llmPrompt` and `llmEmbed` when `model` / `source` are omitted:
+Used by `llmPrompt`, `llmVisionPrompt`, and `llmEmbed` when `model` / `source` are omitted:
 
 | Purpose | TOML / config key | Environment variable |
 |---------|-------------------|----------------------|
-| Default chat model | `default_model_name` | `TALKPIPE_default_model_name` |
-| Default chat source | `default_model_source` | `TALKPIPE_default_model_source` |
+| Default chat model (also used by `llmVisionPrompt`) | `default_model_name` | `TALKPIPE_default_model_name` |
+| Default chat source (also used by `llmVisionPrompt`) | `default_model_source` | `TALKPIPE_default_model_source` |
 | Default embedding model | `default_embedding_model_name` | `TALKPIPE_default_embedding_model_name` |
 | Default embedding source | `default_embedding_model_source` | `TALKPIPE_default_embedding_model_source` |
 | Ollama server URL | `OLLAMA_SERVER_URL` | `TALKPIPE_OLLAMA_SERVER_URL` |
+
+`llmVisionPrompt` shares the chat defaults — there is no separate `default_vision_model_*` key. If your `default_model_name` is a text-only model (for example `llama3.2`), passing it to `llmVisionPrompt` will fail at the provider rather than at construction. In practice, set `model` (and usually `source`) explicitly on `llmVisionPrompt`, or set `default_model_name` to a vision-capable model and override text-only `llmPrompt` calls when you need a smaller model.
 
 Example `~/.talkpipe.toml`:
 
@@ -116,6 +225,8 @@ If a CLI flag is omitted and the matching `DEFAULT_*` key is unset, the value pa
 
 ## Segment parameters
 
+Those configuration keys provide the fallback values; the per-segment parameters below override them and take final precedence at construction time.
+
 ### `llmPrompt` / `LLMPrompt`
 
 Required (directly or via config): `model`, `source`.
@@ -133,6 +244,30 @@ segment = LLMPrompt(model="gpt-4o", source="openai", system_prompt="You are conc
 ```
 
 Memory and compaction options (`memory_mode`, `context_token_trigger`, etc.) are described in [ChatterLang memory controls](../architecture/chatterlang.md#llmprompt-conversation-memory-controls).
+
+### `llmVisionPrompt` / `LLMVisionPrompt`
+
+Required (directly or via config): `model`, `source`. Required as a segment parameter: `image_field` (the item field holding the image path, URL, bytes, or `ImageResult`).
+
+`llmVisionPrompt` resolves `model` / `source` from the same `default_model_name` / `default_model_source` keys as `llmPrompt`. There is no separate vision-specific default, so if your chat default is text-only you should override `model` (and usually `source`) on `llmVisionPrompt`:
+
+```chatterlang
+INPUT FROM loadImage[path="/path/to/diagram.png", set_as="image"]
+| llmVisionPrompt[image_field="image", model="llava", source="ollama"]
+| print
+```
+
+```python
+# skip-extract
+from talkpipe.llm.vision import LLMVisionPrompt
+
+segment = LLMVisionPrompt(
+    image_field="/path/to/image",
+    model="gpt-4o",
+    source="openai",
+    prompt="Describe the chart.",
+)
+```
 
 ### `llmEmbed` / `LLMEmbed`
 
@@ -190,6 +325,27 @@ export TALKPIPE_default_embedding_model_source=ollama
 chatterlang_script --script 'INPUT FROM prompt[data="Hi"] | llmPrompt | print'
 ```
 
+Because `TALKPIPE_*` variables override the TOML file (see [Precedence](#precedence-highest-first)), this pattern is convenient for building a single generic TalkPipe container image that does not bake in any particular model or backend. The base image ships pipelines that omit `model` / `source`, and derived images — or runtime `docker run -e ...` / Kubernetes env — parameterize the deployment by setting `TALKPIPE_default_model_name`, `TALKPIPE_default_model_source`, and the embedding equivalents (plus `OPENAI_API_KEY` / `ANTHROPIC_API_KEY` / `TALKPIPE_OLLAMA_SERVER_URL` as needed). For example, two derived images can target different backends from the same base:
+
+```dockerfile
+FROM my-org/talkpipe-pipelines:1.0
+ENV TALKPIPE_default_model_name=llama3.2 \
+    TALKPIPE_default_model_source=ollama \
+    TALKPIPE_default_embedding_model_name=mxbai-embed-large \
+    TALKPIPE_default_embedding_model_source=ollama \
+    TALKPIPE_OLLAMA_SERVER_URL=http://ollama:11434
+```
+
+```dockerfile
+FROM my-org/talkpipe-pipelines:1.0
+ENV TALKPIPE_default_model_name=gpt-4o \
+    TALKPIPE_default_model_source=openai \
+    TALKPIPE_default_embedding_model_name=text-embedding-3-small \
+    TALKPIPE_default_embedding_model_source=openai
+```
+
+`OPENAI_API_KEY` is intentionally left to the runtime (a Docker secret, Kubernetes secret, or `--env` flag) rather than baked into the image.
+
 ### 4. ChatterLang `$key` and CLI overrides
 
 ```bash
@@ -214,7 +370,8 @@ segment = LLMPrompt(system_prompt="You are helpful.")
 | Symptom | What to check |
 |---------|----------------|
 | `Model name and source must be provided` | Set `model` and `source` on the segment, or add `default_model_name` and `default_model_source` (or embedding equivalents for `llmEmbed`). |
-| `Unknown source` | Chat: use `ollama`, `openai`, or `anthropic`. Embeddings: only `ollama` is registered unless you added adapters. |
+| `Unknown source` | Chat / vision: use `ollama`, `openai`, or `anthropic`. Embeddings: use `ollama` or `openai` (or register additional adapters). |
+| `llmVisionPrompt` errors at the provider with model-not-found / unsupported-input | `llmVisionPrompt` reads `default_model_name` / `default_model_source` (the chat defaults). Set `model` and `source` explicitly on the segment, or change the chat defaults to a vision-capable model. |
 | Ollama connection refused | Run `ollama serve` or set `OLLAMA_SERVER_URL` / `TALKPIPE_OLLAMA_SERVER_URL`. |
 | OpenAI / Anthropic auth errors | Set `OPENAI_API_KEY` or `ANTHROPIC_API_KEY`; these are not read from `TALKPIPE_*` model keys. |
 | RAG CLI uses unexpected models | Check `DEFAULT_*` keys and CLI flags; then check segment `default_*` fallbacks. |
