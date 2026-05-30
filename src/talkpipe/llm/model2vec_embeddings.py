@@ -8,7 +8,7 @@ from typing import Sequence
 import numpy as np
 
 # ~7.5M params, 256 dims, ~30 MB. Recommended English default from MinishLab.
-DEFAULT_MODEL = "minishlab/potion-base-8M"
+DEFAULT_MODEL = "minishlab/potion-base-32M"
 
 
 def _require_model2vec():
@@ -19,6 +19,27 @@ def _require_model2vec():
             "Model2Vec is not installed. Install with: pip install talkpipe[model2vec]"
         ) from exc
     return StaticModel
+
+
+def _resolve_snapshot(
+    model_name: str,
+    revision: str | None,
+    cache_dir: str | Path | None,
+) -> str:
+    """Resolve a HF repo + optional revision to a local snapshot directory.
+
+    Used to honor ``revision`` and ``cache_folder`` semantics that
+    ``model2vec.StaticModel.from_pretrained`` does not itself accept: we pin the
+    revision via huggingface_hub and then load the model from the resulting
+    local path. Idempotent; cached files are not re-downloaded.
+    """
+    import huggingface_hub
+
+    return huggingface_hub.snapshot_download(
+        repo_id=model_name,
+        revision=revision,
+        cache_dir=str(cache_dir) if cache_dir else None,
+    )
 
 
 class Model2VecEmbedder:
@@ -34,12 +55,11 @@ class Model2VecEmbedder:
         self.model_name = model_name
         self.revision = revision
         StaticModel = _require_model2vec()
-        kwargs = {}
-        if revision is not None:
-            kwargs["revision"] = revision
-        if cache_folder is not None:
-            kwargs["cache_folder"] = str(cache_folder)
-        self.model = StaticModel.from_pretrained(model_name, **kwargs)
+        if revision is not None or cache_folder is not None:
+            path = _resolve_snapshot(model_name, revision, cache_folder)
+        else:
+            path = model_name
+        self.model = StaticModel.from_pretrained(path)
 
     @property
     def dimension(self) -> int:
@@ -78,17 +98,15 @@ def precache_model(
     re-downloaded.
 
     Returns:
-        Dict with: model, revision, dimension, smoke_test_length.
+        Dict with: model, revision, snapshot_dir, dimension, smoke_test_length.
 
     Raises:
         RuntimeError: if the smoke-test embedding is empty.
     """
-    embedder = Model2VecEmbedder(
-        model_name,
-        revision=revision,
-        cache_folder=cache_dir,
-    )
-    vec = embedder.embed("model2vec smoke test")
+    snapshot_dir = _resolve_snapshot(model_name, revision, cache_dir)
+    StaticModel = _require_model2vec()
+    model = StaticModel.from_pretrained(snapshot_dir)
+    vec = model.encode("model2vec smoke test")
     arr = np.asarray(vec, dtype=float)
     if arr.size == 0:
         raise RuntimeError(
@@ -98,6 +116,7 @@ def precache_model(
     return {
         "model": model_name,
         "revision": revision,
-        "dimension": embedder.dimension,
+        "snapshot_dir": snapshot_dir,
+        "dimension": model.dim,
         "smoke_test_length": int(arr.size),
     }

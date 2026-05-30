@@ -1,5 +1,5 @@
 import json
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import numpy as np
 import pytest
@@ -93,50 +93,150 @@ def test_model2vec_embedder_embed_one_returns_list(monkeypatch):
     assert all(isinstance(x, float) for x in result)
 
 
-def test_precache_model_smoke():
-    mock_model = MagicMock()
-    mock_model.encode.return_value = np.array([0.1, 0.2, 0.3])
-    mock_model.dim = 3
+def test_embedder_without_revision_loads_by_model_name(monkeypatch):
+    """When no revision/cache_folder is set, StaticModel.from_pretrained is called
+    with the bare model name (not unsupported revision/cache_folder kwargs)."""
+    captured = {}
 
-    DummyStaticModel = MagicMock(return_value=mock_model)
-    DummyStaticModel.from_pretrained = MagicMock(return_value=mock_model)
+    class DummyModel:
+        dim = 3
+        normalize = True
 
-    with patch(
+        @classmethod
+        def from_pretrained(cls, path, **kwargs):
+            captured["path"] = path
+            captured["kwargs"] = kwargs
+            return cls()
+
+        def encode(self, text, **_):
+            return np.array([0.1, 0.2, 0.3])
+
+    monkeypatch.setattr(
         "talkpipe.llm.model2vec_embeddings._require_model2vec",
-        return_value=DummyStaticModel,
-    ):
-        result = precache_model(
-            "minishlab/potion-base-8M",
-            revision="abc123",
-            cache_dir="/tmp/cache",
-        )
+        lambda: DummyModel,
+    )
+    Model2VecEmbedder("minishlab/potion-base-8M")
+    assert captured["path"] == "minishlab/potion-base-8M"
+    assert captured["kwargs"] == {}
 
-    DummyStaticModel.from_pretrained.assert_called_once_with(
+
+def test_embedder_with_revision_resolves_via_snapshot_download(monkeypatch):
+    """When revision/cache_folder is set, the embedder uses huggingface_hub.snapshot_download
+    to pin the revision and then loads StaticModel from the resulting local directory."""
+    download_calls = []
+
+    def fake_snapshot_download(**kwargs):
+        download_calls.append(kwargs)
+        return "/cache/snapshots/abc123"
+
+    captured = {}
+
+    class DummyModel:
+        dim = 3
+        normalize = True
+
+        @classmethod
+        def from_pretrained(cls, path, **kwargs):
+            captured["path"] = path
+            captured["kwargs"] = kwargs
+            return cls()
+
+        def encode(self, text, **_):
+            return np.array([0.1, 0.2, 0.3])
+
+    monkeypatch.setattr(
+        "talkpipe.llm.model2vec_embeddings._require_model2vec",
+        lambda: DummyModel,
+    )
+    monkeypatch.setattr(
+        "huggingface_hub.snapshot_download", fake_snapshot_download
+    )
+
+    Model2VecEmbedder(
         "minishlab/potion-base-8M",
         revision="abc123",
         cache_folder="/tmp/cache",
     )
-    mock_model.encode.assert_called_once_with("model2vec smoke test")
+    assert download_calls == [
+        {
+            "repo_id": "minishlab/potion-base-8M",
+            "revision": "abc123",
+            "cache_dir": "/tmp/cache",
+        }
+    ]
+    assert captured["path"] == "/cache/snapshots/abc123"
+    assert captured["kwargs"] == {}
+
+
+def test_precache_model_smoke(monkeypatch):
+    download_calls = []
+
+    def fake_snapshot_download(**kwargs):
+        download_calls.append(kwargs)
+        return "/cache/snapshots/abc123"
+
+    class DummyModel:
+        dim = 3
+        normalize = True
+
+        @classmethod
+        def from_pretrained(cls, path, **kwargs):
+            return cls()
+
+        def encode(self, text, **_):
+            return np.array([0.1, 0.2, 0.3])
+
+    monkeypatch.setattr(
+        "talkpipe.llm.model2vec_embeddings._require_model2vec",
+        lambda: DummyModel,
+    )
+    monkeypatch.setattr(
+        "huggingface_hub.snapshot_download", fake_snapshot_download
+    )
+
+    result = precache_model(
+        "minishlab/potion-base-8M",
+        revision="abc123",
+        cache_dir="/tmp/cache",
+    )
+
+    assert download_calls == [
+        {
+            "repo_id": "minishlab/potion-base-8M",
+            "revision": "abc123",
+            "cache_dir": "/tmp/cache",
+        }
+    ]
     assert result["model"] == "minishlab/potion-base-8M"
     assert result["revision"] == "abc123"
+    assert result["snapshot_dir"] == "/cache/snapshots/abc123"
     assert result["dimension"] == 3
     assert result["smoke_test_length"] == 3
 
 
-def test_precache_model_raises_on_empty_embedding():
-    mock_model = MagicMock()
-    mock_model.encode.return_value = np.array([])
-    mock_model.dim = 0
+def test_precache_model_raises_on_empty_embedding(monkeypatch):
+    class DummyModel:
+        dim = 0
+        normalize = True
 
-    DummyStaticModel = MagicMock(return_value=mock_model)
-    DummyStaticModel.from_pretrained = MagicMock(return_value=mock_model)
+        @classmethod
+        def from_pretrained(cls, path, **kwargs):
+            return cls()
 
-    with patch(
+        def encode(self, text, **_):
+            return np.array([])
+
+    monkeypatch.setattr(
         "talkpipe.llm.model2vec_embeddings._require_model2vec",
-        return_value=DummyStaticModel,
-    ):
-        with pytest.raises(RuntimeError, match="produced empty output"):
-            precache_model("broken/model")
+        lambda: DummyModel,
+    )
+    monkeypatch.setattr(
+        "huggingface_hub.snapshot_download",
+        lambda **kwargs: "/cache/snapshots/x",
+    )
+
+    with pytest.raises(RuntimeError, match="produced empty output"):
+        precache_model("broken/model")
 
 
 def test_require_model2vec_import_error():

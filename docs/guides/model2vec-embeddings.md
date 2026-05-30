@@ -108,12 +108,15 @@ For scripts outside ChatterLang:
 ```python
 from talkpipe.llm.model2vec_embeddings import Model2VecEmbedder, precache_model
 
-precache_model("minishlab/potion-base-8M", revision="abc123")
+precache_model("minishlab/potion-base-8M")
 
 embedder = Model2VecEmbedder()
 vector = embedder.embed_one("Paragraph text.")
 batch = embedder.embed(["first", "second"])
 ```
+
+Pin to a specific HF commit by passing `revision="<commit-sha>"` to either
+`precache_model` or `Model2VecEmbedder(...)` for reproducible builds.
 
 ---
 

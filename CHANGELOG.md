@@ -4,7 +4,11 @@
 - Added model2vec embedding support via `Model2VecEmbeddingAdapter` and `llmEmbed`
   source `model2vec`, using in-process static embeddings with offline-ready HF cache
   precaching. Install with `pip install talkpipe[model2vec]` or `talkpipe[all]`. Added
-  `talkpipe_precache_model2vec` CLI for build-time model download.
+  `talkpipe_precache_model2vec` CLI for build-time model download. Revision pinning
+  (`revision=` / `--revision` / `MODEL2VEC_REVISION`) and cache overrides
+  (`cache_folder=` / `--cache-dir` / `MODEL2VEC_CACHE_DIR`) are resolved through
+  `huggingface_hub.snapshot_download`, since `model2vec.StaticModel.from_pretrained`
+  itself does not accept those kwargs.
 - Added an "Image Examples" category to `chatterlang_workbench` containing a "Describe the
   TalkPipe Logo" example that pulls a logo image (`/static/talkpipe_logo.png`) from the
   workbench's own HTTP server and feeds it to `llmVisionPrompt`. The workbench now publishes
