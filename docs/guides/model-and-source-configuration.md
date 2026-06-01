@@ -223,7 +223,7 @@ If a CLI flag is omitted and the matching `DEFAULT_*` key is unset, the value pa
 
 ## Segment parameters
 
-Those configuration keys provide the fallback values; the per-segment parameters below override them and take final precedence at construction time.
+For `llmPrompt`, `llmVisionPrompt`, and `llmEmbed`, only **`model`** and **`source`** fall back to `default_*` config keys when omitted. Every other segment parameter must be set on the segment (ChatterLang or Python); it is not read from `~/.talkpipe.toml` or `TALKPIPE_*` unless noted below for a specific higher-level segment.
 
 ### `llmPrompt` / `LLMPrompt`
 
@@ -269,7 +269,26 @@ segment = LLMVisionPrompt(
 
 ### `llmEmbed` / `LLMEmbed`
 
-Required (directly or via config): `model`, `source`. Optional: `field` (text field to embed), `set_as` (field to store the vector on the item).
+| Parameter | From config? | Notes |
+|-----------|--------------|--------|
+| `model` | Yes — `default_embedding_model_name` | Required if not passed on the segment |
+| `source` | Yes — `default_embedding_model_source` | Required if not passed on the segment |
+| `field` | No | Text field to embed on structured items |
+| `set_as` | No | Field on the item where the vector is stored |
+| `batch_size` | No | Scalar items per provider call (default `1`) |
+| `fail_on_error` | No | Default `true` |
+
+**Batching (two patterns):**
+
+1. **Built-in buffering** — set `batch_size` greater than `1` on `llmEmbed` to amortize API round-trips without changing upstream segments.
+2. **Composable buffering** — group items with `makeLists`, then embed the batch in one call:
+
+```chatterlang
+| makeLists[num_items=100, field="_"]
+| llmEmbed[model="mxbai-embed-large", source="ollama", field="content", set_as="vector"]
+```
+
+List-shaped items are expanded back to one output per document (with `set_as`, each dict is updated and yielded).
 
 ```chatterlang
 INPUT FROM echo[data="Hello world"]

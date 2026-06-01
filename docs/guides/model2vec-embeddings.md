@@ -113,6 +113,9 @@ precache_model("minishlab/potion-base-8M")
 embedder = Model2VecEmbedder()
 vector = embedder.embed_one("Paragraph text.")
 batch = embedder.embed(["first", "second"])
+
+# ChatterLang / llmEmbed use Model2VecEmbeddingAdapter, which batches via the same encode path:
+# adapter.execute_batch(["first", "second"]) or adapter(["first", "second"])
 ```
 
 Pin to a specific HF commit by passing `revision="<commit-sha>"` to either

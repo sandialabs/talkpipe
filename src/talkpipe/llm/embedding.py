@@ -1,8 +1,7 @@
 """Module for embedding text using different models"""
 
-from typing import Optional, Annotated
+from typing import Optional, Annotated, Iterator, Any, List
 import logging
-from talkpipe.llm.embedding_adapters import OllamaEmbedderAdapter
 from talkpipe.pipe.core import AbstractSegment
 from talkpipe.chatterlang.registry import register_segment
 from talkpipe.util.data_manipulation import extract_property, assign_property
@@ -30,7 +29,8 @@ class LLMEmbed(AbstractSegment):
             source: Annotated[Optional[str], "The source of the embedding model (e.g., 'ollama')"] = None,
             field: Annotated[Optional[str], "If provided, extract text from this field in the input items"] = None,
             set_as: Annotated[Optional[str], "If provided, append embeddings to input items under this field name"] = None,
-            fail_on_error: Annotated[bool, "Whether to raise an error on failure or to silently ignore it"] = True
+            fail_on_error: Annotated[bool, "Whether to raise an error on failure or to silently ignore it"] = True,
+            batch_size: Annotated[int, "Number of texts to embed per provider call when items are scalars"] = 1,
             ):
         """Initialize the embedding segment with the specified parameters.
         
@@ -44,10 +44,69 @@ class LLMEmbed(AbstractSegment):
         if source not in getEmbeddingSources():
             logger.error(f"Source '{source}' is not supported. Supported sources are: {getEmbeddingSources()}")
             raise ValueError(f"Source '{source}' is not supported. Supported sources are: {getEmbeddingSources()}")
+        if batch_size < 1:
+            raise ValueError("batch_size must be a positive integer")
         self.embedder = getEmbeddingAdapter(source)(model=model)
         self.field = field
         self.set_as = set_as
         self.fail_on_error = fail_on_error
+        self.batch_size = batch_size
+
+    def _text_from_item(self, item: Any) -> str:
+        if self.field is not None:
+            return str(extract_property(item, self.field))
+        return str(item)
+
+    def _yield_embedded(
+        self, items: List[Any], vectors: List[List[float]]
+    ) -> Iterator[Any]:
+        for item, ans in zip(items, vectors):
+            logger.debug(f"Received embedding: {ans}")
+            if self.set_as is not None:
+                logger.debug(f"Appending embedding to field {self.set_as}")
+                assign_property(item, self.set_as, ans)
+                yield item
+            else:
+                logger.debug("Yielding embedding directly")
+                yield ans
+
+    def _vectors_for_texts(self, texts: List[str]) -> List[List[float]]:
+        if not texts:
+            return []
+        if len(texts) == 1:
+            return [self.embedder.execute_one(texts[0])]
+        return self.embedder.execute_batch(texts)
+
+    def _embed_and_emit(self, items: List[Any], texts: List[str]) -> Iterator[Any]:
+        if not items or not texts:
+            return
+        logger.debug(f"Embedding batch of {len(texts)} texts")
+        try:
+            vectors = self._vectors_for_texts(texts)
+            yield from self._yield_embedded(items, vectors)
+        except Exception as e:
+            logger.error(f"Error during batch embedding: {e}")
+            if self.fail_on_error:
+                raise
+            if len(texts) == 1:
+                return
+            logger.warning(
+                "Batch embedding failed; falling back to per-item embedding"
+            )
+            for item, text in zip(items, texts):
+                try:
+                    ans = self.embedder.execute_one(text)
+                except Exception as item_error:
+                    logger.error(f"Error during embedding: {item_error}")
+                    continue
+                yield from self._yield_embedded([item], [ans])
+
+    def _embed_list_item(self, list_item: list) -> Iterator[Any]:
+        if not list_item:
+            return
+        items = list(list_item)
+        texts = [self._text_from_item(item) for item in items]
+        yield from self._embed_and_emit(items, texts)
 
     def transform(self, input_iter):
         """Transform input items by creating embeddings.
@@ -59,30 +118,32 @@ class LLMEmbed(AbstractSegment):
             If set_as is specified, yields the original items with embeddings added.
             Otherwise, yields the embeddings directly.
         """
+        buffer_items: List[Any] = []
+        buffer_texts: List[str] = []
+
+        def flush_buffer() -> Iterator[Any]:
+            if not buffer_items:
+                return
+            yield from self._embed_and_emit(buffer_items, buffer_texts)
+            buffer_items.clear()
+            buffer_texts.clear()
+
         for item in input_iter:
             logging.debug(f"Processing input item: {item}")
-            if self.field is not None:
-                text = extract_property(item, self.field)
-                logging.debug(f"Extracted text from field {self.field}: {text}")
-            else:
-                text = item
-                logging.debug(f"Using item as text: {text}")
+            if isinstance(item, list):
+                yield from flush_buffer()
+                yield from self._embed_list_item(item)
+                continue
 
-            logger.debug(f"Embedding text: {text}")
-            try:
-                ans = self.embedder.execute(str(text))
-            except Exception as e:
-                logger.error(f"Error during embedding: {e}")
-                if self.fail_on_error:
-                    raise e
-                else:
-                    continue
-            logger.debug(f"Received embedding: {ans}")
+            text = self._text_from_item(item)
+            logging.debug(f"Embedding text: {text}")
 
-            if self.set_as is not None:
-                logger.debug(f"Appending embedding to field {self.set_as}")
-                assign_property(item, self.set_as, ans)
-                yield item
+            if self.batch_size <= 1:
+                yield from self._embed_and_emit([item], [text])
             else:
-                logger.debug("Yielding embedding directly")
-                yield ans
+                buffer_items.append(item)
+                buffer_texts.append(text)
+                if len(buffer_items) >= self.batch_size:
+                    yield from flush_buffer()
+
+        yield from flush_buffer()

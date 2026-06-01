@@ -1,9 +1,9 @@
-from typing import List, Optional
+from typing import List, Optional, Sequence
 
 from talkpipe.util.config import get_config
 from talkpipe.util.constants import MODEL2VEC_CACHE_DIR, MODEL2VEC_REVISION
 
-from .embedding_adapters import AbstractEmbeddingAdapter
+from .embedding_adapters import AbstractEmbeddingAdapter, _vectors_to_lists
 from .model2vec_embeddings import DEFAULT_MODEL, Model2VecEmbedder
 
 
@@ -20,5 +20,10 @@ class Model2VecEmbeddingAdapter(AbstractEmbeddingAdapter):
             cache_folder=cfg.get(MODEL2VEC_CACHE_DIR),
         )
 
-    def execute(self, text: str) -> List[float]:
-        return self._embedder.embed_one(text)
+    def execute_batch(self, texts: Sequence[str]) -> List[List[float]]:
+        if not texts:
+            return []
+        return _vectors_to_lists(self._embedder.embed(list(texts)))
+
+    def execute_one(self, text: str) -> List[float]:
+        return self.execute_batch([text])[0]

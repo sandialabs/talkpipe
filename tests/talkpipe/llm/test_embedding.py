@@ -101,7 +101,7 @@ def test_fail_on_error_parameter():
     """Test that fail_on_error parameter works correctly to prevent duplicate execute() calls."""
     # Create a mock embedder that always fails
     mock_embedder = Mock()
-    mock_embedder.execute = Mock(side_effect=RuntimeError("Embedding failed"))
+    mock_embedder.execute_one = Mock(side_effect=RuntimeError("Embedding failed"))
 
     # Test with fail_on_error=True (should raise exception)
     embedder_true = LLMEmbed(model="test-model", source="ollama", fail_on_error=True)
@@ -111,7 +111,7 @@ def test_fail_on_error_parameter():
         list(embedder_true(["test input"]))
 
     # Verify execute was called only once (not twice due to duplicate line bug)
-    assert mock_embedder.execute.call_count == 1
+    assert mock_embedder.execute_one.call_count == 1
 
     # Reset mock
     mock_embedder.reset_mock()
@@ -126,5 +126,5 @@ def test_fail_on_error_parameter():
     # Result should be empty since the embedding failed and was skipped
     assert result == []
 
-    # Verify execute was called only once (not twice due to duplicate line bug)
-    assert mock_embedder.execute.call_count == 1
+    # Verify execute_one was called only once (not twice due to duplicate line bug)
+    assert mock_embedder.execute_one.call_count == 1
