@@ -284,11 +284,17 @@ segment = LLMVisionPrompt(
 2. **Composable buffering** — group items with `makeLists`, then embed the batch in one call:
 
 ```chatterlang
-| makeLists[num_items=100, field="_"]
-| llmEmbed[model="mxbai-embed-large", source="ollama", field="content", set_as="vector"]
+| makeLists[num_items=100, field="content"]
+| llmEmbed[model="mxbai-embed-large", source="ollama", set_as="vector"]
 ```
 
-List-shaped items are expanded back to one output per document (with `set_as`, each dict is updated and yielded).
+Collect text on `makeLists` (`field="content"`). Do **not** set `field` on `llmEmbed` when the
+stream item is a list — `field` applies to each scalar item, not to a list container or to each
+dict inside a batched list. List-shaped inputs produce **one list-shaped output**: a list of
+vectors, or (with `set_as` on string lists only) one list per batch. For dicts with `field` and
+`set_as`, pass **scalar** dicts (one per stream item), not a list of dicts. Use `| flatten` if a
+downstream segment needs one item per document. With `fail_on_error=False`, failed elements are
+dropped from list outputs.
 
 ```chatterlang
 INPUT FROM echo[data="Hello world"]

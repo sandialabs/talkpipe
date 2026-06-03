@@ -13,10 +13,12 @@ logger = logging.getLogger(__name__)
 
 @register_segment("llmEmbed")
 class LLMEmbed(AbstractSegment):
-    """Read strings from the input stream and emit an embedding for each string using a language model.
-    
-    This segment creates vector embeddings from text using the specified embedding model.
-    It can extract text from a specific field in structured data or process the input directly.
+    """Create embeddings from text using an embedding model.
+
+    Scalar stream items produce one output per item (a vector, or the item with
+    ``set_as`` updated). List-shaped stream items (e.g. from ``makeLists``) produce
+    one list-shaped output: a list of vectors, or the same list with ``set_as`` set
+    on each element.
     
     Attributes:
         embedder: The embedding adapter instance that performs the actual embedding.
@@ -52,9 +54,11 @@ class LLMEmbed(AbstractSegment):
         self.fail_on_error = fail_on_error
         self.batch_size = batch_size
 
-    def _text_from_item(self, item: Any) -> str:
+    def _text_from_item(self, item: Any, *, fail_on_missing: bool = False) -> str:
         if self.field is not None:
-            return str(extract_property(item, self.field))
+            return str(
+                extract_property(item, self.field, fail_on_missing=fail_on_missing)
+            )
         return str(item)
 
     def _yield_embedded(
@@ -69,6 +73,17 @@ class LLMEmbed(AbstractSegment):
             else:
                 logger.debug("Yielding embedding directly")
                 yield ans
+
+    def _yield_list_output(
+        self, items: List[Any], vectors: List[List[float]]
+    ) -> Iterator[Any]:
+        if self.set_as is not None:
+            for item, vec in zip(items, vectors):
+                logger.debug(f"Appending embedding to field {self.set_as}")
+                assign_property(item, self.set_as, vec)
+            yield items
+        else:
+            yield vectors
 
     def _vectors_for_texts(self, texts: List[str]) -> List[List[float]]:
         if not texts:
@@ -102,11 +117,41 @@ class LLMEmbed(AbstractSegment):
                 yield from self._yield_embedded([item], [ans])
 
     def _embed_list_item(self, list_item: list) -> Iterator[Any]:
-        if not list_item:
-            return
+        if self.field is not None:
+            raise ValueError(
+                "llmEmbed 'field' cannot be used when the stream item is a list; "
+                "the list object has no such property. Use makeLists to collect text "
+                "into a list of strings and omit 'field', or pass scalar items with "
+                "'field' set on each item."
+            )
         items = list(list_item)
+        if not items:
+            yield []
+            return
         texts = [self._text_from_item(item) for item in items]
-        yield from self._embed_and_emit(items, texts)
+        logger.debug(f"Embedding list input of {len(texts)} texts")
+        try:
+            vectors = self._vectors_for_texts(texts)
+            yield from self._yield_list_output(items, vectors)
+        except Exception as e:
+            logger.error(f"Error during list batch embedding: {e}")
+            if self.fail_on_error:
+                raise
+            logger.warning(
+                "List batch embedding failed; falling back to per-item embedding"
+            )
+            succeeded_items: List[Any] = []
+            succeeded_vectors: List[List[float]] = []
+            for item, text in zip(items, texts):
+                try:
+                    succeeded_vectors.append(self.embedder.execute_one(text))
+                    succeeded_items.append(item)
+                except Exception as item_error:
+                    logger.error(f"Error during embedding: {item_error}")
+            if not succeeded_items:
+                yield []
+                return
+            yield from self._yield_list_output(succeeded_items, succeeded_vectors)
 
     def transform(self, input_iter):
         """Transform input items by creating embeddings.
@@ -115,8 +160,8 @@ class LLMEmbed(AbstractSegment):
             input_iter: Iterator of input items to process.
             
         Yields:
-            If set_as is specified, yields the original items with embeddings added.
-            Otherwise, yields the embeddings directly.
+            For scalar items: one embedding (or item with ``set_as``) per input.
+            For list items: one list of embeddings (or one list of updated items).
         """
         buffer_items: List[Any] = []
         buffer_texts: List[str] = []
