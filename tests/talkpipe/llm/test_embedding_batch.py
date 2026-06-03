@@ -172,42 +172,22 @@ def test_llmembed_batch_size_calls_execute_batch():
     assert batch_calls == [["a", "b", "c"], ["d", "e"]]
 
 
-def test_llmembed_list_input_with_field_raises():
+@pytest.mark.parametrize(
+    "stream_input",
+    [
+        [["one", "two"]],
+        [[]],
+        [[{"text": "a"}, {"text": "b"}]],
+    ],
+)
+def test_llmembed_rejects_list_shaped_stream_items(stream_input):
     mock_embedder = Mock()
-    embedder = LLMEmbed(
-        model="test-model",
-        source="ollama",
-        field="text",
-        set_as="vector",
-    )
+    embedder = LLMEmbed(model="test-model", source="ollama", field="text", set_as="vector")
     embedder.embedder = mock_embedder
-    with pytest.raises(ValueError, match="field"):
-        list(embedder([[{"text": "one"}, {"text": "two"}]]))
+    with pytest.raises(TypeError, match="list-shaped"):
+        list(embedder(stream_input))
     mock_embedder.execute_batch.assert_not_called()
-
-
-def test_llmembed_list_input_yields_vector_list():
-    mock_embedder = Mock()
-    mock_embedder.execute_batch = Mock(return_value=[[1.0, 2.0], [3.0, 4.0]])
-    embedder = LLMEmbed(model="test-model", source="ollama")
-    embedder.embedder = mock_embedder
-    result = list(embedder([["one", "two"]]))
-    assert result == [[[1.0, 2.0], [3.0, 4.0]]]
-
-
-def test_llmembed_list_input_fail_on_error_false_yields_partial_list():
-    mock_embedder = Mock()
-    mock_embedder.execute_batch = Mock(side_effect=RuntimeError("batch failed"))
-    mock_embedder.execute_one = Mock(side_effect=[[1.0], RuntimeError("bad"), [3.0]])
-    embedder = LLMEmbed(
-        model="test-model",
-        source="ollama",
-        fail_on_error=False,
-    )
-    embedder.embedder = mock_embedder
-    result = list(embedder([["a", "b", "c"]]))
-    assert result == [[[1.0], [3.0]]]
-    assert mock_embedder.execute_one.call_count == 3
+    mock_embedder.execute_one.assert_not_called()
 
 
 def test_llmembed_batch_failure_fallback_when_fail_on_error_false():
@@ -224,14 +204,6 @@ def test_llmembed_batch_failure_fallback_when_fail_on_error_false():
     result = list(embedder(["a", "b", "c"]))
     assert result == [[1.0], [3.0]]
     assert mock_embedder.execute_one.call_count == 3
-
-
-def test_llmembed_empty_batch_input():
-    mock_embedder = Mock()
-    embedder = LLMEmbed(model="test-model", source="ollama")
-    embedder.embedder = mock_embedder
-    assert list(embedder([[]])) == [[]]
-    mock_embedder.execute_batch.assert_not_called()
 
 
 def _make_tracking_embedder():
@@ -275,11 +247,10 @@ def _check_dict_vectors(result, field="vector"):
         assert isinstance(row[field], list)
 
 
-# Output shape contract (stream yields):
-# - Scalar items + batch_size=1: N yields (one vector or dict per item); execute_one per item.
-# - Scalar items + batch_size>1: N yields (expanded); execute_batch per flush; tail len 1 uses execute_one.
-# - List stream item: 1 yield (list of vectors OR list of dicts with set_as); execute_batch once.
-# - expects_exception: default fail_on_error=True surfaces embedder/assign_property errors.
+# Output shape contract (one stream item in, one out; batch_size batches API calls only):
+# - batch_size=1: N yields, execute_one per item.
+# - batch_size>1: N yields; execute_batch per flush; tail of 1 uses execute_one.
+# - list-shaped stream items: TypeError before embedding.
 LLM_EMBED_SHAPE_CASES = [
     LLMEmbedShapeCase(
         # handed a stream of three items, one vector per yield
@@ -317,26 +288,6 @@ LLM_EMBED_SHAPE_CASES = [
         expected_one_calls=["c"],
     ),
     LLMEmbedShapeCase(
-        # handed a stream of one list of three items, one item is returned which
-        # is a list of three vectors.  The output is analogous to the input.
-        id="list_input_one_yield_vector_matrix",
-        embedder_kwargs={},
-        stream_input=[["a", "b", "c"]],
-        # list stream item: one yield, nested list of vectors
-        expected_yields=[[[10.0], [20.0], [30.0]]],
-        expected_batch_calls=[["a", "b", "c"]],
-        expected_one_calls=[],
-    ),
-    LLMEmbedShapeCase(
-        # handed a stream of an empty list, one empty list is returned
-        id="list_input_empty_one_yield_empty_list",
-        embedder_kwargs={},
-        stream_input=[[]],
-        expected_yields=[[]],
-        expected_batch_calls=[],
-        expected_one_calls=[],
-    ),
-    LLMEmbedShapeCase(
         # handed a stream of two dicts, one vector per yield, with the vectors attached to the dicts.
         id="scalar_dicts_set_as_expanded_items",
         embedder_kwargs={"field": "text", "set_as": "vector"},
@@ -350,41 +301,15 @@ LLM_EMBED_SHAPE_CASES = [
         result_checker=_check_dict_vectors,
     ),
     LLMEmbedShapeCase(
-        # list stream item + field: field targets the list, not each dict (even if dicts
-        # have "text"). Same failure for content-only dicts or text-bearing dicts.
-        id="list_dicts_set_as_one_yield_updated_list",
+        id="list_shaped_input_raises",
         embedder_kwargs={"field": "text", "set_as": "vector"},
         stream_input=[[{"text": "a"}, {"text": "b"}]],
         expected_yields=[],
         expected_batch_calls=[],
         expected_one_calls=[],
         expects_exception=True,
-        exception_type=ValueError,
-        exception_match="field",
-    ),
-    LLMEmbedShapeCase(
-        # equivalent input (no text key on dicts): same ValueError, not AttributeError.
-        id="list_dicts_missing_text_with_field_raises",
-        embedder_kwargs={"field": "text", "set_as": "vector"},
-        stream_input=[[{"content": "a"}, {"content": "b"}]],
-        expected_yields=[],
-        expected_batch_calls=[],
-        expected_one_calls=[],
-        expects_exception=True,
-        exception_type=ValueError,
-        exception_match="field",
-    ),
-    LLMEmbedShapeCase(
-        # list stream item of plain strings with set_as: cannot attach vector to str elements.
-        id="list_strings_set_as_raises",
-        embedder_kwargs={"set_as": "vector"},
-        stream_input=[["a", "b"]],
-        expected_yields=[],
-        expected_batch_calls=[["a", "b"]],
-        expected_one_calls=[],
-        expects_exception=True,
-        exception_type=AttributeError,
-        exception_match="vector",
+        exception_type=TypeError,
+        exception_match="list-shaped",
     ),
     LLMEmbedShapeCase(
         # fail_on_error=True (default): embedder errors propagate.
@@ -422,7 +347,7 @@ def _embedder_for_case(case: LLMEmbedShapeCase):
 
 @pytest.mark.parametrize("case", LLM_EMBED_SHAPE_CASES, ids=[c.id for c in LLM_EMBED_SHAPE_CASES])
 def test_llmembed_output_shape_by_configuration(case: LLMEmbedShapeCase):
-    """Encode llmEmbed output stream shape: expanded scalars vs single list yield."""
+    """Encode llmEmbed output shape: one item in, one item out; internal batch_size only."""
     mock, state = _embedder_for_case(case)
     embedder = LLMEmbed(model="test-model", source="ollama", **case.embedder_kwargs)
     embedder.embedder = mock

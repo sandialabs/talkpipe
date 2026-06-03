@@ -2,13 +2,9 @@
 
 ## Unreleased
 - Added batch embedding support: embedding adapters expose `execute_one` and `execute_batch`;
-  `execute` remains as a deprecated alias for `execute_one` (removed in 1.0). `llmEmbed` uses
-  `execute_one` / `execute_batch` only, accepts list-shaped items (e.g. after `makeLists`), and
-  optional `batch_size` for built-in buffering. List-shaped inputs yield one list-shaped output
-  (vectors or items with `set_as`); scalar inputs still yield one output per item. `field` cannot
-  be used when the stream item is a list (use `makeLists[field="text"]` then `llmEmbed` without
-  `field`, or pass scalar dicts). With `fail_on_error=False`, failed entries are omitted from
-  list outputs.
+  `execute` remains as a deprecated alias for `execute_one` (removed in 1.0). `llmEmbed` extends
+  `AbstractFieldSegment`, uses `batch_size` for internal provider batching only (one stream item
+  in and one out per document), and rejects list-shaped stream items with `TypeError`.
 - Added model2vec embedding support via `Model2VecEmbeddingAdapter` and `llmEmbed`
   source `model2vec`, using in-process static embeddings with offline-ready HF cache
   precaching. Install with `pip install talkpipe[model2vec]` or `talkpipe[all]`. Added
