@@ -3,7 +3,7 @@
 import pytest
 from unittest.mock import Mock
 
-from talkpipe.llm.embedding import LLMEmbed, EmbeddingTokenOverflowError
+from talkpipe.llm.embedding import LLMEmbed, EmbeddingTokenOverflowError, estimate_tokens
 from talkpipe.llm.embedding_errors import is_token_overflow_error
 
 TOKEN_OVERFLOW = RuntimeError("maximum context length exceeded")
@@ -13,6 +13,12 @@ def test_is_token_overflow_error_recognizes_common_messages():
     assert is_token_overflow_error(TOKEN_OVERFLOW)
     assert is_token_overflow_error(RuntimeError("input is too long for model"))
     assert not is_token_overflow_error(RuntimeError("connection reset"))
+
+
+def test_estimate_tokens_uses_word_and_character_heuristics():
+    assert estimate_tokens("") == 0
+    assert estimate_tokens("one two three four") == 5
+    assert estimate_tokens("x" * 100) == 25
 
 
 def _overflow_if_long(max_len: int = 10):
@@ -88,6 +94,29 @@ def test_on_token_overflow_truncate_single_item():
     assert not last_call.startswith("START")
 
 
+def test_max_estimated_tokens_preemptively_truncates_single_item():
+    mock = Mock()
+    mock.execute_one = Mock(side_effect=lambda text: [float(len(text))])
+    mock.execute_batch = Mock()
+    embedder = LLMEmbed(
+        model="test-model",
+        source="ollama",
+        max_estimated_tokens=3,
+        truncate_side="tail",
+    )
+    embedder.embedder = mock
+    long_text = "one two three four five"
+
+    result = list(embedder([long_text]))
+
+    assert result == [[float(len(mock.execute_one.call_args[0][0]))]]
+    sent_text = mock.execute_one.call_args[0][0]
+    assert sent_text != long_text
+    assert long_text.endswith(sent_text)
+    assert estimate_tokens(sent_text) <= 3
+    mock.execute_one.assert_called_once()
+
+
 def test_on_token_overflow_chunk_pool_single_item():
     batch_calls = []
 
@@ -158,6 +187,37 @@ def test_on_token_overflow_truncate_batch_recovers_middle_item():
     mock.execute_batch.assert_called_once()
 
 
+def test_max_estimated_tokens_preemptively_truncates_batch_items():
+    batch_calls = []
+
+    def execute_batch(texts):
+        texts = list(texts)
+        batch_calls.append(texts)
+        return [[float(len(t))] for t in texts]
+
+    mock = Mock()
+    mock.execute_one = Mock()
+    mock.execute_batch = Mock(side_effect=execute_batch)
+    embedder = LLMEmbed(
+        model="test-model",
+        source="ollama",
+        batch_size=2,
+        max_estimated_tokens=2,
+        truncate_side="tail",
+    )
+    embedder.embedder = mock
+    long_text = "alpha beta gamma delta"
+
+    result = list(embedder([long_text, "ok"]))
+
+    assert len(result) == 2
+    assert batch_calls[0][0] != long_text
+    assert long_text.endswith(batch_calls[0][0])
+    assert estimate_tokens(batch_calls[0][0]) <= 2
+    assert batch_calls[0][1] == "ok"
+    mock.execute_one.assert_not_called()
+
+
 def test_on_token_overflow_chunk_pool_batch_recovers_middle_item():
     batch_calls = []
 
@@ -197,3 +257,8 @@ def test_on_token_overflow_chunk_pool_batch_recovers_middle_item():
 def test_num_chunks_must_be_at_least_two():
     with pytest.raises(ValueError, match="num_chunks"):
         LLMEmbed(model="test-model", source="ollama", num_chunks=1)
+
+
+def test_max_estimated_tokens_must_be_positive():
+    with pytest.raises(ValueError, match="max_estimated_tokens"):
+        LLMEmbed(model="test-model", source="ollama", max_estimated_tokens=0)

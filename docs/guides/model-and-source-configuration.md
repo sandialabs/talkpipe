@@ -290,6 +290,12 @@ still too long for the model—not a substitute for upstream chunking.
 contiguous parts and mean-pools to one vector per stream item. If a batch embed fails, TalkPipe
 retries **per item** so you can see which chunk failed.
 
+**Estimated pre-truncation:** set `max_estimated_tokens` on `llmEmbed` to truncate input before
+calling the embedding provider. This uses a lightweight estimate, not the provider tokenizer, so
+`on_token_overflow` remains the fallback if the estimate is optimistic. `truncate_side` is shared
+by both truncation paths: estimated pre-truncation before the provider call, and
+`on_token_overflow="truncate"` after the provider reports a token overflow.
+
 **Batching:** set `batch_size` greater than `1` on `llmEmbed` to call the provider with multiple
 texts per request. The stream still has **one input item and one output item per document**;
 batching is internal only. `llmEmbed` does **not** accept list-shaped stream items (flatten or
@@ -306,6 +312,7 @@ INPUT FROM echo[data="Hello world"]
 ```chatterlang
 | llmEmbed[on_token_overflow="truncate", truncate_side="tail"]
 | llmEmbed[on_token_overflow="chunk_pool", num_chunks=4]
+| llmEmbed[max_estimated_tokens=8192, truncate_side="tail"]
 ```
 
 ### RAG and vector pipelines

@@ -1,7 +1,8 @@
 """Module for embedding text using different models"""
 
-from typing import Optional, Annotated, Iterator, Any, List, Literal
 import logging
+import re
+from typing import Optional, Annotated, Iterator, Any, List, Literal
 
 import numpy as np
 
@@ -26,6 +27,13 @@ _MIN_TRUNCATE_CHARS = 1
 _MAX_TRUNCATE_ATTEMPTS = 8
 
 
+def estimate_tokens(text: str) -> int:
+    """Estimate token count without using a provider-specific tokenizer."""
+    chars = len(text)
+    words = len(re.findall(r"\S+", text))
+    return int(max(words * 1.3, chars / 4))
+
+
 class EmbeddingTokenOverflowError(RuntimeError):
     """Raised when embedding fails due to input length and on_token_overflow is error."""
 
@@ -44,6 +52,10 @@ class LLMEmbed(AbstractFieldSegment):
     ``error`` (default), ``truncate`` (shrink and retry), or ``chunk_pool`` (split into
     ``num_chunks`` segments, embed, and mean-pool). Size text before this segment with
     upstream chunking when possible.
+
+    ``max_estimated_tokens`` optionally truncates text before the provider call using
+    a lightweight estimate, not a tokenizer. ``truncate_side`` controls both that
+    proactive truncation and reactive ``on_token_overflow="truncate"`` retry behavior.
     """
 
     def __init__(
@@ -66,6 +78,10 @@ class LLMEmbed(AbstractFieldSegment):
             int,
             "For chunk_pool: number of contiguous segments to split overflow text into",
         ] = 2,
+        max_estimated_tokens: Annotated[
+            Optional[int],
+            "If set, pre-truncate text to this estimated token budget before embedding",
+        ] = None,
     ):
         """Initialize the embedding segment with the specified parameters.
 
@@ -96,18 +112,22 @@ class LLMEmbed(AbstractFieldSegment):
             )
         if num_chunks < 2:
             raise ValueError("num_chunks must be at least 2")
+        if max_estimated_tokens is not None and max_estimated_tokens < 1:
+            raise ValueError("max_estimated_tokens must be a positive integer")
         self.embedder = getEmbeddingAdapter(source)(model=model)
         self.fail_on_error = fail_on_error
         self.batch_size = batch_size
         self.on_token_overflow = on_token_overflow
         self.truncate_side = truncate_side
         self.num_chunks = num_chunks
+        self.max_estimated_tokens = max_estimated_tokens
         self._embedding_source = source
         self._embedding_model = model
 
     def process_value(self, value: Any) -> List[float]:
         """Embed one extracted field value (AbstractFieldSegment hook)."""
-        return self._embed_one_with_overflow_policy(None, str(value))
+        text = self._truncate_to_estimated_token_budget(str(value))
+        return self._embed_one_with_overflow_policy(None, text)
 
     def _input_value(self, item: Any) -> Any:
         """Extract the value to embed (same rule as AbstractFieldSegment)."""
@@ -136,6 +156,23 @@ class LLMEmbed(AbstractFieldSegment):
             start = (len(text) - length) // 2
             return text[start : start + length]
         raise ValueError(f"Unknown truncate_side: {side!r}")
+
+    def _truncate_to_estimated_token_budget(self, text: str) -> str:
+        if self.max_estimated_tokens is None:
+            return text
+        if estimate_tokens(text) <= self.max_estimated_tokens:
+            return text
+
+        low = 0
+        high = len(text)
+        while low < high:
+            mid = (low + high + 1) // 2
+            candidate = self._slice_text(text, mid, self.truncate_side)
+            if estimate_tokens(candidate) <= self.max_estimated_tokens:
+                low = mid
+            else:
+                high = mid - 1
+        return self._slice_text(text, low, self.truncate_side)
 
     @staticmethod
     def _split_num_chunks(text: str, num_chunks: int) -> List[str]:
@@ -302,7 +339,7 @@ class LLMEmbed(AbstractFieldSegment):
 
             self._ensure_scalar_item(item)
             logging.debug(f"Processing input item: {item}")
-            text = str(self._input_value(item))
+            text = self._truncate_to_estimated_token_budget(str(self._input_value(item)))
             logging.debug(f"Embedding text: {text}")
 
             if self.batch_size <= 1:
