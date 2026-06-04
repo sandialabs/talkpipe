@@ -1133,7 +1133,11 @@ def main():
 
     # Expose the workbench's own logo URL so example scripts can fetch it from
     # the running server via $workbench_logo_url.
-    logo_host = "localhost" if args.host in ("0.0.0.0", "::") else args.host
+    logo_host = (
+        "localhost"
+        if args.host in ("0.0.0.0", "::")  # nosec B104 - compare bind host, not binding here
+        else args.host
+    )
     add_config_values(
         {"workbench_logo_url": f"http://{logo_host}:{args.port}/static/talkpipe_logo.png"},
         override=True,

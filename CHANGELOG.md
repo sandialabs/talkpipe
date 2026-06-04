@@ -5,6 +5,11 @@
   `execute` remains as a deprecated alias for `execute_one` (removed in 1.0). `llmEmbed` extends
   `AbstractFieldSegment`, uses `batch_size` for internal provider batching only (one stream item
   in and one out per document), and rejects list-shaped stream items with `TypeError`.
+  When the provider rejects input as too long, `on_token_overflow` controls recovery (default
+  `error`): `truncate` shortens by 20% per retry (`truncate_side`), or `chunk_pool` splits into
+  `num_chunks` segments and mean-pools. Applied reactively after embed failure; size text upstream
+  with `splitText` / `processDocuments` when possible. Batch failures fall back per item so the
+  offending chunk can be identified.
 - Added model2vec embedding support via `Model2VecEmbeddingAdapter` and `llmEmbed`
   source `model2vec`, using in-process static embeddings with offline-ready HF cache
   precaching. Install with `pip install talkpipe[model2vec]` or `talkpipe[all]`. Added

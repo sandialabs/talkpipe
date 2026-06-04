@@ -276,19 +276,36 @@ segment = LLMVisionPrompt(
 | `field` | No | Text field to embed on structured items |
 | `set_as` | No | Field on the item where the vector is stored |
 | `batch_size` | No | Scalar items per provider call (default `1`) |
-| `fail_on_error` | No | Default `true` |
+| `fail_on_error` | No | Default `true`; applies to non-length failures (network, auth, etc.) |
+| `on_token_overflow` | No | Default `error` — when embed fails as too long: `error`, `truncate`, or `chunk_pool` |
+| `truncate_side` | No | For `truncate`: `head`, `tail` (default), or `middle` |
+| `num_chunks` | No | For `chunk_pool`: segments to split into (default `2`, minimum `2`) |
+
+**Sizing text:** Chunk or split documents **before** `llmEmbed` (e.g. `splitText`, `processDocuments`,
+`makevectordatabase --chunk_size`). `on_token_overflow` is **failure recovery** when a chunk is
+still too long for the model—not a substitute for upstream chunking.
+
+**Token overflow:** TalkPipe classifies provider “too long” errors and applies `on_token_overflow`.
+`truncate` retries with 20% shorter character slices per attempt; `chunk_pool` embeds `num_chunks`
+contiguous parts and mean-pools to one vector per stream item. If a batch embed fails, TalkPipe
+retries **per item** so you can see which chunk failed.
 
 **Batching:** set `batch_size` greater than `1` on `llmEmbed` to call the provider with multiple
 texts per request. The stream still has **one input item and one output item per document**;
 batching is internal only. `llmEmbed` does **not** accept list-shaped stream items (flatten or
 emit items individually upstream). `field` and `set_as` follow
-`AbstractFieldSegment` on each scalar item. With `fail_on_error=False`, failed items are skipped
-when a buffered batch falls back to per-item embedding.
+`AbstractFieldSegment` on each scalar item. With `fail_on_error=False`, non-length failures skip
+items when per-item fallback runs after a batch failure.
 
 ```chatterlang
 INPUT FROM echo[data="Hello world"]
 | llmEmbed[model="mxbai-embed-large", source="ollama", set_as="vector"]
 | print
+```
+
+```chatterlang
+| llmEmbed[on_token_overflow="truncate", truncate_side="tail"]
+| llmEmbed[on_token_overflow="chunk_pool", num_chunks=4]
 ```
 
 ### RAG and vector pipelines
