@@ -21,6 +21,29 @@ def test_estimate_tokens_uses_word_and_character_heuristics():
     assert estimate_tokens("x" * 100) == 25
 
 
+def test_estimate_tokens_counts_non_ascii_text_more_densely():
+    text = (
+        "Tässä artikkelissa kerrotaan ersän kielen avoimen puupankin "
+        "ensimmäisistä askeleista. "
+        "Те статиясонть сёрмадтано эрзянь келень од ресурсадо. "
+    ) * 4
+    assert estimate_tokens(text) >= int(len(text) * 1.5)
+
+
+def test_estimate_tokens_counts_cjk_text_as_non_ascii():
+    text = "汽車行駛速度很快" * 10
+    assert estimate_tokens(text) >= int(len(text) * 1.5)
+
+
+def test_estimate_tokens_counts_encoded_ascii_text_more_densely():
+    text = (
+        "5DULW\\RIZRUGVLQDODQJXDJHDQGLQDFRUSXV "
+        "-DURVODYD+ODYiþRYi VLPSOH PHWKRG ZDV SUHVHQWHG "
+        "ODVW \\HDU +ODYiþRYi 5\\FKOê DOORZLQJ WR GLVWLQJXLVK"
+    )
+    assert estimate_tokens(text) >= int(len(text) * 0.75)
+
+
 def _overflow_if_long(max_len: int = 10):
     """Embed succeeds when len(text) <= max_len; otherwise token overflow."""
 

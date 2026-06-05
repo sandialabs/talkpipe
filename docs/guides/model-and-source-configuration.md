@@ -291,9 +291,12 @@ contiguous parts and mean-pools to one vector per stream item. If a batch embed 
 retries **per item** so you can see which chunk failed.
 
 **Estimated pre-truncation:** set `max_estimated_tokens` on `llmEmbed` to truncate input before
-calling the embedding provider. This uses a lightweight estimate, not the provider tokenizer, so
+calling the embedding provider. This uses a lightweight estimate, not the provider tokenizer; it
+combines word count, character count, an intentionally conservative non-ASCII-heavy text estimate,
+and a denser estimate for encoded-looking text such as PDF extraction artifacts.
 `on_token_overflow` remains the fallback if the estimate is optimistic. `truncate_side` is shared
-by both truncation paths: estimated pre-truncation before the provider call, and
+by both truncation paths:
+estimated pre-truncation before the provider call, and
 `on_token_overflow="truncate"` after the provider reports a token overflow.
 
 **Batching:** set `batch_size` greater than `1` on `llmEmbed` to call the provider with multiple

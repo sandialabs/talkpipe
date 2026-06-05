@@ -27,11 +27,42 @@ _MIN_TRUNCATE_CHARS = 1
 _MAX_TRUNCATE_ATTEMPTS = 8
 
 
+def _encoded_ascii_token_floor(text: str) -> float:
+    if len(text) < 80:
+        return 0.0
+
+    letters = [char for char in text if char.isascii() and char.isalpha()]
+    if len(letters) < len(text) * 0.55:
+        return 0.0
+
+    vowels = sum(1 for char in letters if char in "aeiouAEIOU")
+    uppercase = sum(1 for char in letters if char.isupper())
+    vowel_ratio = vowels / len(letters)
+    uppercase_ratio = uppercase / len(letters)
+    suspicious_chars = sum(1 for char in text if char in "\\+^~[]{}|")
+    suspicious_ratio = suspicious_chars / len(text)
+
+    if suspicious_ratio >= 0.01 and uppercase_ratio >= 0.35 and vowel_ratio <= 0.30:
+        return len(text) * 0.75
+    return 0.0
+
+
 def estimate_tokens(text: str) -> int:
     """Estimate token count without using a provider-specific tokenizer."""
     chars = len(text)
     words = len(re.findall(r"\S+", text))
-    return int(max(words * 1.3, chars / 4))
+    non_ascii_chars = sum(1 for char in text if not char.isascii())
+    non_ascii_weighted_chars = non_ascii_chars + ((chars - non_ascii_chars) / 4)
+    non_ascii_ratio = non_ascii_chars / chars if chars else 0
+    non_ascii_floor = chars * 1.5 if non_ascii_ratio >= 0.05 else non_ascii_weighted_chars
+    return int(
+        max(
+            words * 1.3,
+            chars / 4,
+            non_ascii_floor,
+            _encoded_ascii_token_floor(text),
+        )
+    )
 
 
 class EmbeddingTokenOverflowError(RuntimeError):
@@ -314,10 +345,7 @@ class LLMEmbed(AbstractFieldSegment):
             for item, vector in zip(items, vectors):
                 yield from self._yield_results(item, [vector])
         except Exception as e:
-            logger.error(f"Error during batch embedding: {e}")
-            logger.warning(
-                "Batch embedding failed; falling back to per-item embedding"
-            )
+            logger.info(f"Error during batch embedding: {e}")
             yield from self._embed_items_pair(items, texts)
 
     def transform(self, input_iter):

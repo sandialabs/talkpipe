@@ -10,8 +10,10 @@
   `num_chunks` segments and mean-pools. Applied reactively after embed failure; size text upstream
   with `splitText` / `processDocuments` when possible. Batch failures fall back per item so the
   offending chunk can be identified. `max_estimated_tokens` can now pre-truncate inputs with a
-  lightweight estimate before embedding; `truncate_side` controls both estimated pre-truncation and
-  reactive `on_token_overflow="truncate"` retries.
+  lightweight estimate before embedding, including an intentionally conservative estimate for
+  non-ASCII-heavy multilingual text and a denser estimate for encoded-looking PDF extraction artifacts;
+  `truncate_side` controls both estimated pre-truncation and reactive `on_token_overflow="truncate"`
+  retries.
 - Added model2vec embedding support via `Model2VecEmbeddingAdapter` and `llmEmbed`
   source `model2vec`, using in-process static embeddings with offline-ready HF cache
   precaching. Install with `pip install talkpipe[model2vec]` or `talkpipe[all]`. Added
