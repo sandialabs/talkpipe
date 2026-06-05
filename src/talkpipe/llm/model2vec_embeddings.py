@@ -8,7 +8,7 @@ from typing import Sequence
 import numpy as np
 
 # ~7.5M params, 256 dims, ~30 MB. Recommended English default from MinishLab.
-DEFAULT_MODEL = "minishlab/potion-base-32M"
+DEFAULT_MODEL = "minishlab/potion-retrieval-32M"
 
 
 def _require_model2vec():
