@@ -1,6 +1,8 @@
 # Changelog
 
 ## Unreleased
+
+## v0.12.2
 - Added batch embedding support: embedding adapters expose `execute_one` and `execute_batch`;
   `execute` remains as a deprecated alias for `execute_one` (removed in 1.0). `llmEmbed` extends
   `AbstractFieldSegment`, uses `batch_size` for internal provider batching only (one stream item
