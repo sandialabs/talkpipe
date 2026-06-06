@@ -329,8 +329,6 @@ This allows TalkPipe to discover and load components on-demand without importing
 
 ### When to Enable Lazy Loading
 
-### When to Enable Lazy Loading
-
 Enable lazy loading in these scenarios:
 
 #### Best Use Cases

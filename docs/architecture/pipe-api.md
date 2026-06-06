@@ -450,8 +450,7 @@ def text_processing_example():
         read_text_file() |
         filter_non_empty() |
         add_word_count() |
-        filter_long_lines(min_words=3) 
-        #ToList()  # Collect all results into a single list
+        filter_long_lines(min_words=3)
     )
     
     # Execute the pipeline
