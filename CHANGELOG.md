@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Fixed single-turn (`multi_turn=False`) prompt-adapter state handling so `_summary_message`
+  is cleared after each response and does not leak conversation memory between calls.
+
 ## v0.12.2
 - Added batch embedding support: embedding adapters expose `execute_one` and `execute_batch`;
   `execute` remains as a deprecated alias for `execute_one` (removed in 1.0). `llmEmbed` extends
