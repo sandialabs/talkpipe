@@ -103,8 +103,9 @@ class AbstractLLMPromptAdapter(PromptAdapterMemoryMixin, ABC):
             logger.debug("Multi-turn enabled, appending assistant response to chat history")
             self._messages.append({"role": "assistant", "content": response_text})
         else:
-            logger.debug("Single-turn mode, clearing message history")
+            logger.debug("Single-turn mode, clearing message and summary history")
             self._messages = []
+            self._summary_message = None
 
     def _log_message_payload(self, payload_name: str, messages: list) -> None:
         if not self._debug_messages:
