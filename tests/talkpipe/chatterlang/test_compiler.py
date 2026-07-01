@@ -2,6 +2,7 @@ import os
 from unittest.mock import patch
 import time
 import numpy as np
+import pytest
 from talkpipe.chatterlang import parsers, compiler
 from talkpipe.chatterlang import registry
 from talkpipe.pipe import io
@@ -400,6 +401,42 @@ def test_compile_error_in_source():
         assert "Source 'unknownSource' not found" in str(e)
     else:
         assert False, "Expected CompileError was not raised"
+
+
+def test_compile_error_missing_segment_lists_available():
+    """A missing segment lists available components instead of a bare message."""
+    with pytest.raises(compiler.CompileError) as excinfo:
+        compiler.compile("""INPUT FROM "test" | unknownSegment""")
+    msg = str(excinfo.value)
+    assert "Available segments:" in msg
+    # A real registered segment should appear in the list.
+    assert "print" in msg
+
+
+def test_compile_error_missing_segment_suggests_close_match():
+    """A near-miss segment name gets a 'Did you mean' suggestion."""
+    with pytest.raises(compiler.CompileError) as excinfo:
+        compiler.compile("""INPUT FROM "test" | prin""")
+    assert "Did you mean 'print'?" in str(excinfo.value)
+
+
+def test_compile_error_invalid_parameter_lists_valid_params():
+    """An unknown keyword argument reports the segment's valid parameters."""
+    with pytest.raises(compiler.CompileError) as excinfo:
+        compiler.compile('INPUT FROM echo[data="hi"] | cast[type="int"]')
+    msg = str(excinfo.value)
+    assert "invalid parameters" in msg
+    assert "cast_type" in msg  # valid parameter of the Cast segment
+
+
+def test_compile_error_parse_error_is_located():
+    """A syntax error is wrapped in a located CompileError with a caret."""
+    with pytest.raises(compiler.CompileError) as excinfo:
+        compiler.compile('INPUT FROM echo[data="hi" | print')
+    msg = str(excinfo.value)
+    assert "Syntax error in ChatterLang script" in msg
+    assert "line 1" in msg
+    assert "^" in msg
 
 
 def test_array_parameter_with_constants():

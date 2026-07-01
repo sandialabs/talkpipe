@@ -50,7 +50,9 @@ class AnthropicPromptAdapter(AbstractLLMPromptAdapter):
             memory_size,
             debug_messages,
         )
-        self.client = anthropic.Anthropic()
+        self.client = self._build_client(
+            anthropic.Anthropic, "Anthropic", "ANTHROPIC_API_KEY"
+        )
         self._max_tokens = 4096  # Default max tokens for response
 
     def execute(self, prompt: str) -> str:

@@ -93,6 +93,30 @@ class AbstractLLMPromptAdapter(PromptAdapterMemoryMixin, ABC):
                 f"{display_name} is not installed. Please install it with: pip install talkpipe[{extra_name}]"
             ) from exc
 
+    def _build_client(self, factory, display_name: str, api_key_env_var: str):
+        """Instantiate a provider SDK client with friendly credential errors.
+
+        Cloud SDK clients raise a raw, provider-specific exception when no API
+        key is configured (e.g. anthropic's "Could not resolve authentication
+        method"). Wrap construction so a TalkPipe user gets an actionable
+        message pointing at the environment variable the SDK actually reads.
+
+        Args:
+            factory: Zero-argument callable that constructs the SDK client.
+            display_name: Human-readable provider name (e.g. "Anthropic").
+            api_key_env_var: The env var the SDK reads (e.g. "ANTHROPIC_API_KEY").
+        """
+        try:
+            return factory()
+        except Exception as exc:
+            raise RuntimeError(
+                f"Could not initialize the {display_name} client: {exc} "
+                f"This usually means the API key is missing or invalid. Set the "
+                f"{api_key_env_var} environment variable to your API key "
+                f"(the {display_name} SDK reads it directly, not TALKPIPE_* keys). "
+                f"See docs/guides/model-and-source-configuration.md."
+            ) from exc
+
     def _apply_temperature_if_explicit(self, request_params: dict) -> None:
         if self._temperature_explicit:
             request_params["temperature"] = self._temperature

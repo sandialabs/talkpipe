@@ -39,7 +39,9 @@ class OpenAIPromptAdapter(AbstractLLMPromptAdapter):
             memory_size,
             debug_messages,
         )
-        self.client = openai.OpenAI()
+        self.client = self._build_client(
+            openai.OpenAI, "OpenAI", "OPENAI_API_KEY"
+        )
 
     def execute(self, prompt: str) -> str:
         """Execute the chat model.

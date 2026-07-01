@@ -20,7 +20,7 @@ This README is a high-level overview. Use the **[documentation map](#documentati
 
 ## What Can You Do With TalkPipe?
 
-- **Chat with LLMs** - Create multi-turn conversations with OpenAI, Ollama, or Anthropic models in just 2 lines of code
+- **Chat with LLMs** - Create multi-turn conversations with OpenAI, Ollama, or Anthropic models in just a few lines of code
 - **Process Documents** - Extract text from PDFs, analyze research papers, score content relevance
 - **Build RAG Pipelines** - Create end-to-end Retrieval-Augmented Generation workflows with vector databases
 - **Analyze Web Content** - Download web pages (respecting robots.txt), extract readable text, and summarize
@@ -69,7 +69,7 @@ These applications are entry points for different usage scenarios, from interact
 
 ## Quick Start
 
-**Requirements:** Python 3.11 or newer.
+**Requirements:** Python 3.11 or newer. Check your version first with `python3 --version` — it must report 3.11 or higher before installing.
 
 ```bash
 pip install talkpipe
@@ -85,14 +85,18 @@ pip install talkpipe[model2vec] # In-process static embeddings (also in [all])
 # Or: pip install talkpipe[all]
 ```
 
-Configure API keys and provider URLs via environment variables (for example `TALKPIPE_openai_api_key`) or `~/.talkpipe.toml`. If TalkPipe runs on a different machine than your Ollama server, set `TALKPIPE_OLLAMA_SERVER_URL` to that host. See **[Configuration](docs/architecture/configuration.md)** for details and ChatterLang `$var` substitution.
+Configure API keys and provider URLs via environment variables (for example `OPENAI_API_KEY` and `ANTHROPIC_API_KEY`) or `~/.talkpipe.toml`. If TalkPipe runs on a different machine than your Ollama server, set `TALKPIPE_OLLAMA_SERVER_URL` to that host. See **[Configuration](docs/architecture/configuration.md)** for details and ChatterLang `$var` substitution.
 
 Multi-turn chat in a few lines:
+
+> **Prerequisite:** this example uses Ollama, which is a separate application, not just the `talkpipe[ollama]` Python package. Install and start it from https://ollama.com/download, then pull the model with `ollama pull llama3.2`. Cloud users can skip Ollama and substitute `source="openai"` or `source="anthropic"` (see the commented variants below).
 
 ```python
 from talkpipe.chatterlang import compiler
 
 script = '| print | llmPrompt[model="llama3.2", source="ollama", multi_turn=True] | print'
+# Using OpenAI:    model="gpt-4o-mini", source="openai"      (set OPENAI_API_KEY)
+# Using Anthropic: model="claude-haiku-4-5", source="anthropic" (set ANTHROPIC_API_KEY)
 chat = compiler.compile(script).as_function(single_in=True, single_out=True)
 
 response = chat("Hello! My name is Alice.")
@@ -522,7 +526,7 @@ smtp_port = 587
 Environment variables use the `TALKPIPE_` prefix:
 ```bash
 export TALKPIPE_email_password="your-password"
-export TALKPIPE_openai_api_key="sk-..."
+export OPENAI_API_KEY="sk-..."
 ```
 
 ### Performance Optimization
@@ -579,17 +583,17 @@ def multiplyBy(items, factor=2):
     for item in items:
         yield item * factor
 
-# Use it to double the Fibonacci numbers
+# Use it to multiply each value in the range by 3
 pipeline = arange(lower=5, upper=10) | multiplyBy(factor=3) | io.Print()
 result = pipeline.as_function(single_out=False)()
 
 # Output:
-# 0
-# 3
-# 3
-# 6
-# 9
-# Returns: [0, 3, 3, 6, 9]
+# 15
+# 18
+# 21
+# 24
+# 27
+# Returns: [15, 18, 21, 24, 27]
 ```
 
 **Field Segments** provide a convenient way to create 1:1 segments:

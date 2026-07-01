@@ -27,7 +27,8 @@ logger_levels = "root:INFO,talkpipe:DEBUG"
 logger_files = "talkpipe:/tmp/talkpipe.log,root:/tmp/app.log"
 
 # LLM Configuration
-openai_api_key = "your-api-key-here"
+default_model_name = "llama3.2"
+default_model_source = "ollama"
 ollama_base_url = "http://localhost:11434"
 
 # Server Configuration
@@ -57,6 +58,10 @@ The configuration system loads a single TOML file from:
 ### Environment Variable Format
 
 All TalkPipe environment variables use the prefix `TALKPIPE_` followed by the configuration key name in uppercase.
+
+Provider SDK credentials are separate from TalkPipe config keys:
+- OpenAI SDK reads `OPENAI_API_KEY`
+- Anthropic SDK reads `ANTHROPIC_API_KEY`
 
 #### Environment Variable Examples
 
@@ -211,7 +216,8 @@ In the script:
 **Best Practices:**
 ```bash
 # ✅ Use environment variables for secrets
-export TALKPIPE_OPENAI_API_KEY="sk-your-secret-key"
+export OPENAI_API_KEY="sk-your-secret-key"
+export ANTHROPIC_API_KEY="your-anthropic-key"
 
 # ❌ Avoid putting secrets in config files
 # ~/.talkpipe.toml
@@ -281,7 +287,7 @@ config = get_config(reload=True)  # Re-reads from sources
 ```bash
 # Use environment variables for local development
 export TALKPIPE_LOGGER_LEVELS="root:DEBUG,talkpipe:DEBUG"
-export TALKPIPE_OPENAI_API_KEY="sk-dev-key"
+export OPENAI_API_KEY="sk-dev-key"
 export TALKPIPE_DEFAULT_PORT="8080"
 
 # Use local configuration file for persistent settings

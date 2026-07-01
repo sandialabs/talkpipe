@@ -2,6 +2,8 @@ import argparse
 import sys
 import logging
 from talkpipe.util.config import get_config, parse_unknown_args, add_config_values, configure_logger
+from talkpipe.util.constants import TALKPIPE_EMBEDDING_MODEL_NAME, TALKPIPE_EMBEDDING_MODEL_SOURCE
+from talkpipe.llm.config import getEmbeddingSources
 from talkpipe.pipelines.vector_databases import MakeVectorDatabaseSegment, ProcessDocumentsSegment
 
 logger = logging.getLogger(__name__)
@@ -46,11 +48,22 @@ def main():
     if constants:
         add_config_values(constants, override=True)
         
-    if not args.embedding_model:
-        logger.warning("Error: --embedding_model not specified.  Will use default specified in config.")
-        
-    if not args.embedding_source:
-        logger.warning("Error: --embedding_source not specified.  Will use default specified in config.")
+    # Resolve embedding source/model from CLI flags, falling back to config, and
+    # fail fast with an actionable message rather than crashing deep in the
+    # pipeline with "Source 'None' is not supported".
+    embedding_source = args.embedding_source or config.get(TALKPIPE_EMBEDDING_MODEL_SOURCE)
+    embedding_model = args.embedding_model or config.get(TALKPIPE_EMBEDDING_MODEL_NAME)
+    missing = []
+    if not embedding_source:
+        missing.append("--embedding_source (" + "|".join(getEmbeddingSources()) + ")")
+    if not embedding_model:
+        missing.append("--embedding_model <name>")
+    if missing:
+        parser.error(
+            "No embedding configuration found. Provide " + " and ".join(missing)
+            + f", or set {TALKPIPE_EMBEDDING_MODEL_SOURCE} / {TALKPIPE_EMBEDDING_MODEL_NAME}"
+            + " in ~/.talkpipe.toml (or as TALKPIPE_* environment variables)."
+        )
 
     # Build Pipeline
     pipeline = (
@@ -61,8 +74,8 @@ def main():
         )
         | MakeVectorDatabaseSegment(
             embedding_field=args.embedding_field,
-            embedding_model=args.embedding_model,
-            embedding_source=args.embedding_source,
+            embedding_model=embedding_model,
+            embedding_source=embedding_source,
             path=args.path,
             table_name=args.table_name,
             doc_id_field=args.doc_id_field,

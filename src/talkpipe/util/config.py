@@ -9,7 +9,14 @@ import importlib
 import logging
 import os
 import sys
-import tomllib
+try:
+    import tomllib
+except ModuleNotFoundError as exc:  # tomllib is part of the stdlib only on Python 3.11+
+    raise RuntimeError(
+        "TalkPipe requires Python 3.11 or newer (the standard-library 'tomllib' "
+        f"module is unavailable on Python {sys.version.split()[0]}). "
+        "Please upgrade your Python interpreter."
+    ) from exc
 from logging.handlers import TimedRotatingFileHandler
 from typing import Any, Dict
 from pathlib import Path

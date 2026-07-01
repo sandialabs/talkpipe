@@ -7,8 +7,11 @@ other methods are used internally to compile the parsed scripts.
 
 from typing import Callable, Union, Iterator, Any, Dict, List, Optional
 import logging
+import inspect
+import difflib
 from functools import singledispatch
 import networkx as nx
+from parsy import ParseError
 from talkpipe.chatterlang.parsers import script_parser, ParsedScript, ParsedLoop, ParsedPipeline, VariableName, SegmentNode, Identifier, ForkNode
 from talkpipe.chatterlang import registry 
 from talkpipe.pipe.core import Loop, Pipeline, Script, RuntimeComponent, AbstractSource, AbstractSegment
@@ -21,6 +24,73 @@ logger = logging.getLogger(__name__)
 class CompileError(Exception):
     """ Exception raised when a compilation error occurs in chatterlang """
     pass
+
+
+def _valid_param_names(component) -> List[str]:
+    """Best-effort list of accepted keyword parameters for a component class.
+
+    Returns an empty list when the signature can't be introspected or only
+    forwards *args/**kwargs (as function-based segments do), so callers can
+    avoid showing a misleading parameter list.
+    """
+    try:
+        params = inspect.signature(component).parameters.values()
+    except (TypeError, ValueError):
+        return []
+    return [
+        p.name for p in params
+        if p.kind in (p.POSITIONAL_OR_KEYWORD, p.KEYWORD_ONLY)
+    ]
+
+
+def _bad_param_message(kind: str, name: str, component, error: TypeError) -> str:
+    """Build a CompileError message for an invalid parameter on a component."""
+    msg = f"{kind} '{name}' was given invalid parameters: {error}."
+    valid = _valid_param_names(component)
+    if valid:
+        msg += f" Valid parameters: {', '.join(valid)}."
+    return msg
+
+
+def _not_found_message(kind: str, name: str, reg) -> str:
+    """Build a CompileError message for an unknown segment/source name."""
+    try:
+        available = reg.available_names
+    except Exception:  # pragma: no cover - defensive; never block the error path
+        available = []
+    msg = f"{kind} '{name}' not found."
+    suggestions = difflib.get_close_matches(name, available, n=3)
+    if suggestions:
+        msg += " Did you mean " + " or ".join(repr(s) for s in suggestions) + "?"
+    if available:
+        msg += f" Available {kind.lower()}s: {', '.join(available)}."
+    return msg
+
+
+def _format_parse_error(script: str, error: ParseError) -> str:
+    """Turn a raw parsy ParseError into a friendly, located syntax error."""
+    index = getattr(error, "index", None)
+    stream = getattr(error, "stream", script)
+    expected = getattr(error, "expected", None)
+    if index is None or not isinstance(stream, str):
+        return f"Could not parse ChatterLang script: {error}"
+    before = stream[:index]
+    line_start = before.rfind("\n") + 1
+    line_no = before.count("\n") + 1
+    col_no = index - line_start + 1
+    line_end = stream.find("\n", index)
+    if line_end == -1:
+        line_end = len(stream)
+    line_text = stream[line_start:line_end]
+    caret = " " * (col_no - 1) + "^"
+    exp = ""
+    if expected:
+        exp = " Expected one of: " + ", ".join(sorted(str(e) for e in expected)) + "."
+    return (
+        f"Syntax error in ChatterLang script at line {line_no}, column {col_no}.{exp}\n"
+        f"    {line_text}\n"
+        f"    {caret}"
+    )
 
 @singledispatch
 def compile(script: ParsedScript, runtime: RuntimeComponent = None) -> Callable:
@@ -230,11 +300,16 @@ def _(pipeline: ParsedPipeline, runtime: RuntimeComponent) -> Pipeline:
             ans = VariableSource(pipeline.input_node.source.name)
             logger.debug(f"Created variable source with name {pipeline.input_node.source.name}")
         else:
+            source_name = pipeline.input_node.source.name
             try:
-                ans = registry.input_registry.get(pipeline.input_node.source.name)(**_resolve_params(pipeline.input_node.params, runtime=runtime))
+                source_cls = registry.input_registry.get(source_name)
             except KeyError:
-                raise CompileError(f"Source '{pipeline.input_node.source.name}' not found")
-            logger.debug(f"Created registered input {pipeline.input_node.source.name}")
+                raise CompileError(_not_found_message("Source", source_name, registry.input_registry))
+            try:
+                ans = source_cls(**_resolve_params(pipeline.input_node.params, runtime=runtime))
+            except TypeError as e:
+                raise CompileError(_bad_param_message("Source", source_name, source_cls, e)) from e
+            logger.debug(f"Created registered input {source_name}")
         ans.runtime = runtime
 
     logger.debug(f"Processing {len(pipeline.transforms)} transforms")
@@ -243,11 +318,16 @@ def _(pipeline: ParsedPipeline, runtime: RuntimeComponent) -> Pipeline:
             next_transform = VariableSetSegment(transform.name)
             logger.debug(f"Created variable set segment for {transform.name}")
         elif isinstance(transform, SegmentNode):
+            segment_name = transform.operation.name
             try:
-                next_transform = registry.segment_registry.get(transform.operation.name)(**_resolve_params(transform.params, runtime=runtime))
+                segment_cls = registry.segment_registry.get(segment_name)
             except KeyError:
-                raise CompileError(f"Segment '{transform.operation.name}' not found")
-            logger.debug(f"Created segment {transform.operation.name}")
+                raise CompileError(_not_found_message("Segment", segment_name, registry.segment_registry))
+            try:
+                next_transform = segment_cls(**_resolve_params(transform.params, runtime=runtime))
+            except TypeError as e:
+                raise CompileError(_bad_param_message("Segment", segment_name, segment_cls, e)) from e
+            logger.debug(f"Created segment {segment_name}")
         elif isinstance(transform, ForkNode):
             next_transform = compile(transform, runtime)
         else:
@@ -329,7 +409,11 @@ def _(script: str, runtime: RuntimeComponent = None) -> Callable:
         v_store (VariableStore): The variable store to use
     """
     preprocessed_script = remove_comments(script)
-    return compile(script_parser.parse(preprocessed_script), runtime)
+    try:
+        parsed = script_parser.parse(preprocessed_script)
+    except ParseError as e:
+        raise CompileError(_format_parse_error(preprocessed_script, e)) from e
+    return compile(parsed, runtime)
 
 class ArrowForkSegment:
     """A coordinator for named forks using ThreadedQueue.

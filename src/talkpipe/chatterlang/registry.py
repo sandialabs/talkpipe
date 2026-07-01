@@ -325,17 +325,38 @@ class HybridRegistry(Generic[T]):
     def list_entry_points(self) -> Dict[str, str]:
         """
         Get a mapping of entry point names to their module:object strings.
-        
+
         This does NOT trigger imports.
-        
+
         Returns:
             Dictionary mapping names to "module:object" strings
         """
         self._discover_entry_points()
         return {
-            name: ep.value 
+            name: ep.value
             for name, ep in self._entry_points_cache.items()
         }
+
+    @property
+    def available_names(self) -> List[str]:
+        """
+        Sorted names of every component known without importing them.
+
+        Combines decorator-registered names with declared entry point names.
+        Unlike :pyattr:`all`, this does NOT trigger entry point imports, so it
+        is cheap enough to use when building "component not found" error
+        messages.
+
+        Returns:
+            Sorted list of component names
+        """
+        names = set(self._registry.keys())
+        try:
+            names.update(self.list_entry_points().keys())
+        except Exception:
+            # Discovering entry points must never block an error message.
+            pass
+        return sorted(names)
     
     def invalidate_cache(self):
         """

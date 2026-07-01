@@ -6,6 +6,8 @@ This guide explains how to add custom **sources** (pipeline starters) and **segm
 
 You usually implement a segment as a small function and attach two decorators: `@segment()` turns the function into a segment class factory, and `@register_segment("nameInChatterLang")` adds that class to the global registry under one or more ChatterLang names.
 
+> **Import note:** `talkpipe` re-exports `segment`, `register_segment`, `compile`, and friends at the top level as convenience shortcuts. `from talkpipe import segment, register_segment` and `from talkpipe.chatterlang import registry, compiler` (used in the README) are equivalent — pick one style and use it consistently. This guide uses the top-level shortcuts.
+
 ```python
 from typing import Iterator, Any
 
@@ -285,13 +287,19 @@ INPUT FROM apiData(url="https://api.example.com/data")
 
 ### Entry points for distributable components
 
-For code in **this** repository, after adding or renaming `@register_segment` / `@register_source` classes, regenerate `pyproject.toml` entry points with:
+Segments and sources are discovered through the **`talkpipe.segments`** and **`talkpipe.sources`** entry point groups. How you keep those aligned with your decorators depends on whether you are writing a third-party package or contributing to the TalkPipe repository itself.
+
+#### For third-party plugin authors
+
+In your **own** package, declare the same groups in your `pyproject.toml`, pointing each name at `module:ClassName` (the class your decorators attach to). This is all a distributable plugin needs — you do **not** need any TalkPipe repo tooling.
+
+#### For TalkPipe repo contributors (this repository only)
+
+When working inside the TalkPipe source checkout, after adding or renaming `@register_segment` / `@register_source` classes, regenerate `pyproject.toml` entry points with the repo-internal script (not shipped with the installed package):
 
 `python .cursor/skills/update-entry-points/scripts/update_entry_points.py`
 
 (from the project root; see [protocol.md](protocol.md)). That keeps **`talkpipe.segments`** and **`talkpipe.sources`** aligned with decorators so installs and lazy loading resolve the right modules.
-
-In a **separate** package, declare the same groups in your own `pyproject.toml`, pointing each name at `module:ClassName` (the class your decorators attach to).
 
 ### `talkpipe.plugins` (optional)
 

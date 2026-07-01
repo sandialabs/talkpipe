@@ -137,11 +137,11 @@ Open http://localhost:2025/stream to chat with the LLM.
 For a minimal document Q&A workflow without writing scripts:
 
 ```bash
-makevectordatabase "docs/*.md" --path ./mydb
+makevectordatabase "docs/*.md" --path ./mydb --embedding_source ollama --embedding_model nomic-embed-text
 serverag --path ./mydb
 ```
 
-Then open http://localhost:2026/stream. See [makevectordatabase and serverag](guides/makevectordatabase-and-serverag.md) for full options.
+`--embedding_source` and `--embedding_model` are required unless you set defaults in `~/.talkpipe.toml`; the example above needs Ollama running with the embedding model pulled (`ollama pull nomic-embed-text`). Then open http://localhost:2026/stream. See [makevectordatabase and serverag](guides/makevectordatabase-and-serverag.md) for full options.
 
 ## Next Steps
 
