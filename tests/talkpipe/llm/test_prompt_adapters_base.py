@@ -54,6 +54,16 @@ def test_record_assistant_response_respects_multi_turn_setting():
     assert single_turn_adapter._messages == []
 
 
+def test_record_assistant_response_clears_summary_when_single_turn():
+    adapter = DummyPromptAdapter(multi_turn=False)
+    adapter._summary_message = {"role": "system", "content": "old summary"}
+
+    adapter._record_assistant_response("reply")
+
+    assert adapter._messages == []
+    assert adapter._summary_message is None
+
+
 def test_require_dependency_raises_helpful_error_for_missing_package():
     adapter = DummyPromptAdapter()
     module = adapter._require_dependency("json", "JSON", "json")
