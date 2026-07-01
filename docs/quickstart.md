@@ -81,6 +81,26 @@ pipeline = compiler.compile(script).as_function(single_out=False)
 pipeline()  # Skips "hello", prints 1, 2, 3, 4
 ```
 
+## Local Syntax Sandbox (No LLM Backend Needed)
+
+If you do not have Ollama/OpenAI/Anthropic access yet, you can still practice
+TalkPipe and ChatterLang syntax with `source="eliza"`.
+
+`eliza` is **not** an LLM provider. It is a local deterministic adapter meant for
+testing pipeline shape, parameter wiring, and multi-turn flow.
+
+### ChatterLang
+
+```python
+from talkpipe.chatterlang import compiler
+
+script = '| llmPrompt[model="Dr. Eliza", source="eliza", multi_turn=True] | print'
+chat = compiler.compile(script).as_function(single_in=True, single_out=True)
+
+chat("Hello, my name is Alice.")
+chat("What's my name?")
+```
+
 ## Your First Pipeline (With LLM)
 
 Requires `talkpipe[ollama]` and Ollama running with a model (e.g. `ollama pull llama3.2`).

@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Added a local `eliza` prompt-adapter source for `llmPrompt` and guided-generation
+  segments. The adapter is deterministic (no external API keys), uses the configured
+  model name as ELIZA's self-reference, supports multi-turn memory/fact callbacks,
+  and provides generic structured outputs for score/binary/term extraction schemas.
+  Added a matching ChatterLang example to model/source configuration docs.
 - Fixed single-turn (`multi_turn=False`) prompt-adapter state handling so `_summary_message`
   is cleared after each response and does not leak conversation memory between calls.
 - Fixed a CI import failure in `talkpipe.chatterlang.registry` by importing `List`

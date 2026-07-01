@@ -117,7 +117,7 @@ The first piece of the pattern above is the `source` value itself. Sources are r
 
 | Segment | Registered sources |
 |---------|-------------------|
-| **`llmPrompt`** (chat) | `ollama`, `openai`, `anthropic` |
+| **`llmPrompt`** (chat) | `ollama`, `openai`, `anthropic`, `eliza` |
 | **`llmVisionPrompt`** (multimodal chat) | `ollama`, `openai`, `anthropic` |
 | **`llmEmbed`** (embeddings) | `ollama`, `openai`, `model2vec` |
 
@@ -344,7 +344,17 @@ INPUT FROM prompt[data="Hello"]
 | print
 ```
 
-### 2. Global defaults in TOML
+### 2. Local Eliza source (no provider API key)
+
+`eliza` is a local adapter. Set `model` to the name Eliza should use when referring to itself.
+
+```chatterlang
+INPUT FROM prompt[data="I'm feeling stuck on a bug."]
+| llmPrompt[model="Dr. Eliza", source="eliza", multi_turn=True]
+| print
+```
+
+### 3. Global defaults in TOML
 
 With `default_model_name` and `default_model_source` set in `~/.talkpipe.toml`:
 
@@ -354,7 +364,7 @@ INPUT FROM prompt[data="Hello"]
 | print
 ```
 
-### 3. Environment-only defaults (containers / CI)
+### 4. Environment-only defaults (containers / CI)
 
 ```bash
 export TALKPIPE_default_model_name=llama3.2
@@ -385,7 +395,7 @@ ENV TALKPIPE_default_model_name=gpt-4o \
 
 `OPENAI_API_KEY` is intentionally left to the runtime (a Docker secret, Kubernetes secret, or `--env` flag) rather than baked into the image.
 
-### 4. ChatterLang `$key` and CLI overrides
+### 5. ChatterLang `$key` and CLI overrides
 
 ```bash
 chatterlang_script --script 'INPUT FROM prompt[data="Hi"] | llmPrompt[model=$default_model_name, source=$default_model_source] | print' \
@@ -393,7 +403,7 @@ chatterlang_script --script 'INPUT FROM prompt[data="Hi"] | llmPrompt[model=$def
   --default_model_source ollama
 ```
 
-### 5. Pipe API with config fallback
+### 6. Pipe API with config fallback
 
 ```python
 from talkpipe.llm.chat import LLMPrompt
@@ -409,7 +419,7 @@ segment = LLMPrompt(system_prompt="You are helpful.")
 | Symptom | What to check |
 |---------|----------------|
 | `Model name and source must be provided` | Set `model` and `source` on the segment, or add `default_model_name` and `default_model_source` (or embedding equivalents for `llmEmbed`). |
-| `Unknown source` | Chat / vision: use `ollama`, `openai`, or `anthropic`. Embeddings: use `ollama` or `openai` (or register additional adapters). |
+| `Unknown source` | Chat / vision: use `ollama`, `openai`, `anthropic`, or `eliza` (chat only). Embeddings: use `ollama`, `openai`, or `model2vec` (or register additional adapters). |
 | `llmVisionPrompt` errors at the provider with model-not-found / unsupported-input | `llmVisionPrompt` reads `default_model_name` / `default_model_source` (the chat defaults). Set `model` and `source` explicitly on the segment, or change the chat defaults to a vision-capable model. |
 | Ollama connection refused | Run `ollama serve` or set `OLLAMA_SERVER_URL` / `TALKPIPE_OLLAMA_SERVER_URL`. |
 | OpenAI / Anthropic auth errors | Set `OPENAI_API_KEY` or `ANTHROPIC_API_KEY`; these are not read from `TALKPIPE_*` model keys. |

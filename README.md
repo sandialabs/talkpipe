@@ -87,6 +87,20 @@ pip install talkpipe[model2vec] # In-process static embeddings (also in [all])
 
 Configure API keys and provider URLs via environment variables (for example `OPENAI_API_KEY` and `ANTHROPIC_API_KEY`) or `~/.talkpipe.toml`. If TalkPipe runs on a different machine than your Ollama server, set `TALKPIPE_OLLAMA_SERVER_URL` to that host. See **[Configuration](docs/architecture/configuration.md)** for details and ChatterLang `$var` substitution.
 
+Quick local syntax check (no LLM server required):
+
+> **Note:** `source="eliza"` is **not** an LLM provider. It is a local, deterministic adapter intended for experimenting with TalkPipe/ChatterLang syntax and multi-turn flow when you do not yet have Ollama/OpenAI/Anthropic access.
+
+```python
+from talkpipe.chatterlang import compiler
+
+script = '| print | llmPrompt[model="Dr. Eliza", source="eliza", multi_turn=True] | print'
+chat = compiler.compile(script).as_function(single_in=True, single_out=True)
+
+chat("Hello, my name is Alice.")
+chat("What's my name?")
+```
+
 Multi-turn chat in a few lines:
 
 > **Prerequisite:** this example uses Ollama, which is a separate application, not just the `talkpipe[ollama]` Python package. Install and start it from https://ollama.com/download, then pull the model with `ollama pull llama3.2`. Cloud users can skip Ollama and substitute `source="openai"` or `source="anthropic"` (see the commented variants below).
