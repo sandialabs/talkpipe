@@ -15,7 +15,7 @@ This ensures tools like chatterlang_reference_browser can discover all component
 while maintaining fast import times for applications that use lazy mode.
 """
 
-from typing import Dict, Type, TypeVar, Generic, Optional, Set
+from typing import Dict, Type, TypeVar, Generic, Optional, Set, List
 import logging
 
 logger = logging.getLogger(__name__)
