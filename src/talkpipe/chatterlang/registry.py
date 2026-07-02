@@ -353,9 +353,12 @@ class HybridRegistry(Generic[T]):
         names = set(self._registry.keys())
         try:
             names.update(self.list_entry_points().keys())
-        except Exception:
+        except Exception as e:
             # Discovering entry points must never block an error message.
-            pass
+            logger.debug(
+                f"Failed to discover entry points while collecting available names: {e}",
+                exc_info=True,
+            )
         return sorted(names)
     
     def invalidate_cache(self):

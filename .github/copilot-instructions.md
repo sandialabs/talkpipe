@@ -1,6 +1,18 @@
 # TalkPipe AI Coding Instructions
 
-*Cursor users: See [AGENTS.md](../AGENTS.md) and `.cursor/skills/` for additional workflows (TDD, changelog, doc examples, entry points).*
+*Cursor users: See [AGENTS.md](../AGENTS.md) and `.cursor/skills/` for additional workflows.*
+
+## Quick Actions (Prompts)
+
+Use these slash commands in VS Code chat (type `/` to invoke):
+
+| Prompt | When to use |
+|--------|-------------|
+| `/tdd` | Implement a change with write-fail-fix-pass TDD order |
+| `/add-segment` | Add a new segment or source end-to-end (test → impl → entry-point → changelog) |
+| `/changelog` | Update CHANGELOG.md after a feature or fix |
+| `/update-entry-points` | Regenerate pyproject.toml entry points from decorators |
+| `/doc-examples` | Validate and fix documentation code examples |
 
 ## Project Overview
 
