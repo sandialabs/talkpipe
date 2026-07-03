@@ -215,11 +215,20 @@ class Cast(AbstractSegment):
     This lets this segment also be used as a filter to remove data that cannot be cast.
     The cast occurs by calling the type object on the data.  
     """
-    def __init__(self, 
-                 cast_type: Annotated[Union[type, str], "The type to cast the data to."] , 
+    def __init__(self,
+                 cast_type: Annotated[Union[type, str], "The type to cast the data to."] ,
                  fail_silently: Annotated[bool, "Whether to fail silently if the cast fails."] = True):
         super().__init__()
-        self.cast_type = cast_type if isinstance(cast_type, type) else get_type_safely(cast_type)
+        if isinstance(cast_type, type):
+            self.cast_type = cast_type
+        else:
+            resolved = get_type_safely(cast_type)
+            if resolved is None:
+                known = ["int", "float", "str", "bool", "bytes", "list", "tuple", "dict", "set"]
+                candidates = [k for k in known if k.startswith(cast_type[:2])] if len(cast_type) >= 2 else known
+                hint = f"; did you mean '{candidates[0]}'?" if candidates else f"; valid built-in types include: {', '.join(known)}"
+                raise ValueError(f"Invalid cast_type '{cast_type}'{hint}")
+            self.cast_type = resolved
         self.fail_silently = fail_silently
 
     def transform(self, input_iter: Iterable) -> Iterator:

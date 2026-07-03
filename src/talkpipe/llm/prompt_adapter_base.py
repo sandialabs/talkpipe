@@ -88,9 +88,19 @@ class AbstractLLMPromptAdapter(PromptAdapterMemoryMixin, ABC):
     def _require_dependency(self, module_name: str, display_name: str, extra_name: str):
         try:
             return __import__(module_name)
+        except ModuleNotFoundError as exc:
+            if exc.name == module_name:
+                raise ImportError(
+                    f"{display_name} is not installed. Please install it with: pip install talkpipe[{extra_name}]"
+                ) from exc
+            raise ImportError(
+                f"{display_name} is installed but failed to import (package found but failed to load: {exc}). "
+                f"Check your environment for dependency conflicts."
+            ) from exc
         except ImportError as exc:
             raise ImportError(
-                f"{display_name} is not installed. Please install it with: pip install talkpipe[{extra_name}]"
+                f"{display_name} is installed but failed to import ({exc}). "
+                f"Check your environment for dependency conflicts."
             ) from exc
 
     def _build_client(self, factory, display_name: str, api_key_env_var: str):

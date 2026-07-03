@@ -87,9 +87,9 @@ pip install talkpipe[model2vec] # In-process static embeddings (also in [all])
 
 Configure API keys and provider URLs via environment variables (for example `OPENAI_API_KEY` and `ANTHROPIC_API_KEY`) or `~/.talkpipe.toml`. If TalkPipe runs on a different machine than your Ollama server, set `TALKPIPE_OLLAMA_SERVER_URL` to that host. See **[Configuration](docs/architecture/configuration.md)** for details and ChatterLang `$var` substitution.
 
-Quick local syntax check (no LLM server required):
+Hello world (no LLM server required):
 
-> **Note:** `source="eliza"` is **not** an LLM provider. It is a local, deterministic adapter intended for experimenting with TalkPipe/ChatterLang syntax and multi-turn flow when you do not yet have Ollama/OpenAI/Anthropic access.
+> **Note:** `source="eliza"` is **not** an LLM provider. It is a local, deterministic adapter for experimenting with TalkPipe/ChatterLang syntax and multi-turn flow when you do not yet have Ollama/OpenAI/Anthropic access.
 
 ```python
 from talkpipe.chatterlang import compiler
@@ -101,9 +101,11 @@ chat("Hello, my name is Alice.")
 chat("What's my name?")
 ```
 
-Multi-turn chat in a few lines:
+> **Tip:** `from talkpipe.chatterlang import compile` is equivalent to the `compiler.compile(...)` style above — both styles work throughout the docs.
 
-> **Prerequisite:** this example uses Ollama, which is a separate application, not just the `talkpipe[ollama]` Python package. Install and start it from https://ollama.com/download, then pull the model with `ollama pull llama3.2`. Cloud users can skip Ollama and substitute `source="openai"` or `source="anthropic"` (see the commented variants below).
+Multi-turn chat (requires a local model server):
+
+> **Prerequisite:** this example uses Ollama, a separate application (not just the `talkpipe[ollama]` Python package). Install and start it from https://ollama.com/download, then pull the model with `ollama pull llama3.2`. Cloud users can skip Ollama and substitute `source="openai"` or `source="anthropic"` (see the commented variants below).
 
 ```python
 from talkpipe.chatterlang import compiler
@@ -135,6 +137,8 @@ rag = compiler.compile(
 ).as_function(single_in=True)
 rag("What is TalkPipe?")
 ```
+
+> **No Ollama server?** Swap `embedding_source="model2vec"` and `embedding_model="minishlab/potion-base-8M"` for offline embeddings (included in `talkpipe[all]`). Note: the `ragToText` completion step still requires an LLM provider. See the [model2vec guide](docs/guides/model2vec-embeddings.md).
 
 # Core Components
 

@@ -291,7 +291,15 @@ Segments and sources are discovered through the **`talkpipe.segments`** and **`t
 
 #### For third-party plugin authors
 
-In your **own** package, declare the same groups in your `pyproject.toml`, pointing each name at `module:ClassName` (the class your decorators attach to). This is all a distributable plugin needs — you do **not** need any TalkPipe repo tooling.
+In your **own** package, declare the same groups in your `pyproject.toml`, pointing each name at `module:name` — the **class or decorated function** your `@register_segment` / `@register_source` is attached to. For example, if you used the function-based decorator pattern the guide leads with, the target is the decorated function name:
+
+```toml
+[project.entry-points."talkpipe.segments"]
+shout = "mytp.components:shout"          # decorated function
+greetings = "mytp.components:greetings"  # decorated function (source)
+```
+
+If you used the class-based pattern, point at the class name instead. This is all a distributable plugin needs — you do **not** need any TalkPipe repo tooling.
 
 #### For TalkPipe repo contributors (this repository only)
 

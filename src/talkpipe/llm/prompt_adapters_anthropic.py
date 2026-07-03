@@ -144,7 +144,17 @@ class AnthropicPromptAdapter(AbstractLLMPromptAdapter):
         return request_params
 
     def _messages_create(self, **request_params):
-        return self.client.messages.create(**request_params)
+        try:
+            return self.client.messages.create(**request_params)
+        except Exception as exc:
+            msg = str(exc).lower()
+            if any(kw in msg for kw in ("authentication", "api_key", "api key", "auth_token", "credentials", "could not resolve")):
+                raise RuntimeError(
+                    "Could not authenticate with Anthropic. Set the ANTHROPIC_API_KEY environment variable "
+                    "to your API key (see https://console.anthropic.com/). "
+                    "See docs/guides/model-and-source-configuration.md."
+                ) from exc
+            raise
 
     def _extract_anthropic_text(self, response) -> str:
         response_text = ""
