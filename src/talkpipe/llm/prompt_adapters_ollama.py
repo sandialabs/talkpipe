@@ -164,12 +164,15 @@ class OllamaPromptAdapter(AbstractLLMPromptAdapter):
         Returns:
             bool: True if the model is available, False otherwise.
         """
-        ollama = self._require_dependency("ollama", "Ollama", "ollama")
+        self._require_dependency("ollama", "Ollama", "ollama")
 
         try:
-            # Check if the model is available
+            # Route through _chat_completion so this honors self._server_url /
+            # the configured OLLAMA_SERVER_URL, instead of always checking the
+            # default local Ollama regardless of where the adapter is configured
+            # to talk to.
             test_messages = [self._system_message] if self._system_message else [{"role": "user", "content": "test"}]
-            ollama.chat(self._model_name, messages=test_messages, options={"temperature": self._temperature})
+            self._chat_completion(self._model_name, messages=test_messages, options={"temperature": self._temperature})
             return True
         except Exception as e:
             logger.error(f"Model {self._model_name} is not available: {e}")

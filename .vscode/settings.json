@@ -22,7 +22,6 @@
         "talkpipe"
     ],
     "python.testing.pytestArgs": [
-        "tests",
-        "--rootdir", "${workspaceFolder}"
+        "tests"
     ]
 }

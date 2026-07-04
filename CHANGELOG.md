@@ -62,6 +62,16 @@
   `__str__` ("Yes: ..." / "No: ...") instead of printing as a raw Pydantic repr.
 - README: added a concrete example value for `TALKPIPE_OLLAMA_SERVER_URL`, and labeled Example 4's
   sample scored output as illustrative/model-dependent (LLM scores vary by model and run).
+- Fixed `OllamaPromptAdapter.is_available()` checking the wrong server: it called the `ollama`
+  package's module-level `ollama.chat()`, which always targets a `Client` instance created once at
+  `import ollama` time (defaulting to `http://127.0.0.1:11434` unless `OLLAMA_HOST` happened to be
+  set at that moment) and never re-reads any env var afterward. This ignored TalkPipe's own
+  `server_url` / `OLLAMA_SERVER_URL` config entirely, so on machines running a local Ollama without
+  the configured model (but with a working remote Ollama server configured), `is_available()` — and
+  therefore the `requires_ollama` test fixture and any code checking availability — would report the
+  model unavailable even though it was reachable and correctly used everywhere else. It now routes
+  through the same `_chat_completion()` helper `execute()` uses, which builds an `ollama.Client`
+  pointed at the configured server.
 - Added a local `eliza` prompt-adapter source for `llmPrompt` and guided-generation
   segments. The adapter is deterministic (no external API keys), uses the configured
   model name as ELIZA's self-reference, supports multi-turn memory/fact callbacks,

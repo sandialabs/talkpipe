@@ -119,25 +119,35 @@ class TestTalkpipePluginManager:
         assert "Successfully reloaded plugin: test_plugin" in output
         mock_loader.reload_plugin.assert_called_once_with('test_plugin')
     
+    @patch('talkpipe.app.talkpipe_plugin_manager.list_loaded_plugins')
+    @patch('talkpipe.app.talkpipe_plugin_manager.list_failed_plugins')
     @patch('sys.stdout', new_callable=StringIO)
     @patch('sys.argv', ['talkpipe_plugin_manager'])
-    def test_no_arguments(self, mock_stdout):
-        """Test running with no arguments."""
+    def test_no_arguments(self, mock_stdout, mock_list_failed, mock_list_loaded):
+        """Test running with no arguments defaults to --list instead of doing nothing."""
+        mock_list_loaded.return_value = []
+        mock_list_failed.return_value = []
+
         main()
-        
-        # Should run without error but produce no output
+
         output = mock_stdout.getvalue()
-        assert output == ""
-    
+        assert "=== TalkPipe Plugins ===" in output
+        assert "Loaded plugins (0):" in output
+
+    @patch('talkpipe.app.talkpipe_plugin_manager.list_loaded_plugins')
+    @patch('talkpipe.app.talkpipe_plugin_manager.list_failed_plugins')
     @patch('sys.stdout', new_callable=StringIO)
     @patch('sys.argv', ['talkpipe_plugin_manager', '--verbose'])
-    def test_verbose_flag(self, mock_stdout):
-        """Test that verbose flag is parsed but doesn't affect current functionality."""
+    def test_verbose_flag(self, mock_stdout, mock_list_failed, mock_list_loaded):
+        """Test that verbose flag alone still defaults to --list (no --list/--reload given)."""
+        mock_list_loaded.return_value = []
+        mock_list_failed.return_value = []
+
         main()
-        
+
         # Should run without error
         output = mock_stdout.getvalue()
-        assert output == ""
+        assert "=== TalkPipe Plugins ===" in output
     
     @patch('talkpipe.app.talkpipe_plugin_manager.list_loaded_plugins')
     @patch('talkpipe.app.talkpipe_plugin_manager.list_failed_plugins')
