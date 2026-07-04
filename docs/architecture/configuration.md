@@ -57,7 +57,7 @@ The configuration system loads a single TOML file from:
 
 ### Environment Variable Format
 
-All TalkPipe environment variables use the prefix `TALKPIPE_` followed by the configuration key name in uppercase.
+All TalkPipe environment variables use the prefix `TALKPIPE_` followed by the configuration key name. Convention is to write the key in uppercase after the prefix (e.g. `TALKPIPE_DEFAULT_MODEL_NAME`), but key matching against TOML file settings is case-insensitive, so `TALKPIPE_default_model_name` and `TALKPIPE_DEFAULT_MODEL_NAME` both set the same `default_model_name` config value.
 
 Provider SDK credentials are separate from TalkPipe config keys:
 - OpenAI SDK reads `OPENAI_API_KEY`
@@ -81,7 +81,7 @@ export TALKPIPE_WELCOME_SCRIPT='INPUT FROM echo[data="Hello from env!"] | print'
 ### Environment Variable Processing
 
 1. **Prefix Removal**: The `TALKPIPE_` prefix is stripped from the environment variable name
-2. **Key Normalization**: The remaining name becomes the configuration key (case-sensitive)
+2. **Key Normalization**: The remaining name becomes the configuration key (matched case-insensitively against other config sources)
 3. **Type Preservation**: Values remain as strings and are converted by consuming code as needed
 
 ## Command-Line Arguments
@@ -155,12 +155,12 @@ For application settings (logging, server ports, etc.):
 
 See [Model and source configuration](../guides/model-and-source-configuration.md) for a user-focused guide to `model`, `source`, and related config keys.
 
-Several components resolve embedding and chat model defaults from `get_config()`. Two naming patterns appear in configuration:
+Several components resolve embedding and chat model defaults from `get_config()`, all under the same four keys (see `talkpipe.util.constants`): `default_embedding_model_name`, `default_embedding_model_source`, `default_model_name`, and `default_model_source`.
 
-- **Segment defaults** — `LLMEmbed` and `LLMPrompt` fall back to these keys when `model` / `source` arguments are omitted: `default_embedding_model_name`, `default_embedding_model_source`, `default_model_name`, and `default_model_source` (see `talkpipe.util.constants`).
-- **`serverag` defaults** — When you omit `--embedding_model`, `--embedding_source`, `--completion_model`, and `--completion_source`, `serverag` reads `DEFAULT_EMBEDDING_MODEL`, `DEFAULT_EMBEDDING_SOURCE`, `DEFAULT_LLM_MODEL`, and `DEFAULT_LLM_SOURCE` from the merged config. If those keys are unset, `serverag` passes `None` into the RAG pipeline, and the segments above apply their `default_*` fallbacks.
+- **Segment defaults** — `LLMEmbed` and `LLMPrompt` fall back to these keys when `model` / `source` arguments are omitted.
+- **`serverag` / `makevectordatabase` defaults** — When you omit `--embedding_model`, `--embedding_source`, `--completion_model`, and `--completion_source`, these commands read the same four keys from the merged config.
 
-Use **`default_*`** in `~/.talkpipe.toml` for one consistent set of defaults across pipelines. Use **`DEFAULT_*`** when you want values applied at the `serverag` CLI layer (still overridable per invocation). Environment variables use the usual `TALKPIPE_` prefix and map to the exact key name after the prefix (for example, `TALKPIPE_default_model_name` or `TALKPIPE_DEFAULT_LLM_MODEL`).
+Set them once in `~/.talkpipe.toml` (or as `TALKPIPE_*` environment variables) for one consistent set of defaults across every pipeline and CLI. Environment variables use the usual `TALKPIPE_` prefix and map to the key name after the prefix, case-insensitively (for example, `TALKPIPE_default_model_name` or `TALKPIPE_DEFAULT_MODEL_NAME` both work).
 
 ### ChatterLang Script Variable Access
 

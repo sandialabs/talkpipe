@@ -22,7 +22,7 @@ Together they form a minimal path from raw documents to a queryable RAG interfac
 - **TalkPipe** with LLM support: `pip install talkpipe[ollama]` or `pip install talkpipe[all]`
 - **Embedding model**: Ollama with an embedding model (e.g. `ollama pull mxbai-embed-large`), or for offline in-process embeddings see [Model2vec embeddings](model2vec-embeddings.md) (`embedding_source=model2vec`, included in `talkpipe[all]`)
 - **Completion model** (for serverag): Ollama with an LLM (e.g. `ollama pull llama3.2`)
-- **Configuration**: Set `DEFAULT_EMBEDDING_MODEL`, `DEFAULT_EMBEDDING_SOURCE`, `DEFAULT_LLM_MODEL`, and `DEFAULT_LLM_SOURCE` in `~/.talkpipe.toml` or pass them on the command line
+- **Configuration**: Set `default_embedding_model_name`, `default_embedding_model_source`, `default_model_name`, and `default_model_source` in `~/.talkpipe.toml` or pass them on the command line
 
 See [Model and source configuration](model-and-source-configuration.md) for how embedding and completion defaults work. For general config (logging, `$key` syntax), see [Configuration](../architecture/configuration.md).
 
@@ -225,12 +225,21 @@ Both commands use TalkPipe's configuration system. Set defaults in `~/.talkpipe.
 
 ```toml
 # Embedding (used by both makevectordatabase and serverag)
-DEFAULT_EMBEDDING_MODEL = "mxbai-embed-large"
-DEFAULT_EMBEDDING_SOURCE = "ollama"
+default_embedding_model_name = "mxbai-embed-large"
+default_embedding_model_source = "ollama"
 
 # Completion (serverag only)
-DEFAULT_LLM_MODEL = "llama3.2"
-DEFAULT_LLM_SOURCE = "ollama"
+default_model_name = "llama3.2"
+default_model_source = "ollama"
+```
+
+Or as environment variables (either casing works, see [Configuration](../architecture/configuration.md)):
+
+```bash
+export TALKPIPE_default_embedding_model_name="mxbai-embed-large"
+export TALKPIPE_default_embedding_model_source="ollama"
+export TALKPIPE_default_model_name="llama3.2"
+export TALKPIPE_default_model_source="ollama"
 ```
 
 Or pass values on the command line to override.

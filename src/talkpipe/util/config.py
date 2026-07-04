@@ -27,6 +27,41 @@ logger = logging.getLogger(__name__)
 _config = None
 
 
+class _CaseInsensitiveDict(dict):
+    """Dict whose string keys are matched case-insensitively.
+
+    Config keys arrive from two places that disagree on case: TOML files
+    (conventionally lowercase, e.g. ``default_model_name``) and environment
+    variables (conventionally uppercase, e.g. ``TALKPIPE_DEFAULT_MODEL_NAME``).
+    Without this, a value set one way is invisible to a lookup written the
+    other way, even though both refer to the same setting. A later write
+    under a different casing of an existing key overwrites that key in place
+    rather than creating a second entry.
+    """
+
+    def _find_key(self, key):
+        if isinstance(key, str):
+            for existing in dict.keys(self):
+                if isinstance(existing, str) and existing.lower() == key.lower():
+                    return existing
+        return key
+
+    def __setitem__(self, key, value):
+        dict.__setitem__(self, self._find_key(key), value)
+
+    def __getitem__(self, key):
+        return dict.__getitem__(self, self._find_key(key))
+
+    def __contains__(self, key):
+        return dict.__contains__(self, self._find_key(key))
+
+    def get(self, key, default=None):
+        try:
+            return self[key]
+        except KeyError:
+            return default
+
+
 def parse_key_value_str(field_list: str, require_value: bool = False) -> Dict[str, str]:
     """Parse a comma-separated key:value string into a dictionary.
 
@@ -116,11 +151,11 @@ def get_config(reload=False, path="~/.talkpipe.toml", ignore_env=False):
         if os.path.exists(config_path):
             logger.info(f"Reading config from {config_path}")
             with open(config_path, 'rb') as f:
-                _config = tomllib.load(f)
+                _config = _CaseInsensitiveDict(tomllib.load(f))
                 logger.debug(f"Loaded config: {_config}")
         else:
             logger.debug(f"Config file {config_path} not found, using empty config")
-            _config = {}
+            _config = _CaseInsensitiveDict()
 
         if not ignore_env:
             logger.debug("Checking environment variables")

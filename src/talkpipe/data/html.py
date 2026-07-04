@@ -120,6 +120,14 @@ def get_robot_parser(domain, timeout=5):
             # If parsing fails, log the error but return the robot parser anyway
             logger.warning(f"Error parsing robots.txt from {robots_url}: {e}")
             
+    except requests.HTTPError as e:
+        if e.response is not None and e.response.status_code == 404:
+            # No robots.txt means no restrictions, per the robots.txt spec -- this
+            # is the common case, not an error, so it shouldn't look like one.
+            logger.info(f"No robots.txt at {robots_url} (404); treating all URLs on {domain} as allowed.")
+        else:
+            logger.warning(f"Failed to fetch robots.txt from {robots_url}. Assuming allowed. Error: {e}")
+        return None  # Use None to indicate failure to fetch
     except (requests.RequestException, ConnectionError, TimeoutError) as e:
         logger.warning(f"Failed to fetch robots.txt from {robots_url}. Assuming allowed. Error: {e}")
         return None  # Use None to indicate failure to fetch
@@ -143,7 +151,9 @@ def can_fetch(url, user_agent=None):
         return True
 
     if rp is None:
-        logger.warning(f"Cannot check can_fetch for {url}. Assuming allowed.")
+        # get_robot_parser already logged the specific reason (missing robots.txt is
+        # the common case and logs at INFO there; real failures log at WARNING).
+        logger.debug(f"Cannot check can_fetch for {url}. Assuming allowed.")
         return True  # Assume allowed if robots.txt cannot be fetched
     
     try:

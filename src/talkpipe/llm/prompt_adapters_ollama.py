@@ -128,6 +128,15 @@ class OllamaPromptAdapter(AbstractLLMPromptAdapter):
                 "variable (or OLLAMA_SERVER_URL in ~/.talkpipe.toml) to its address. "
                 f"Original error: {exc}"
             ) from exc
+        except ollama.ResponseError as exc:
+            if exc.status_code == 404:
+                raise ollama.ResponseError(
+                    f"Model '{model}' is not available on the Ollama server"
+                    f"{f' at {server_url}' if server_url else ''}. "
+                    f"Run `ollama pull {model}` to download it. Original error: {exc}",
+                    status_code=exc.status_code,
+                ) from exc
+            raise
 
     def complete_text_without_context(
         self,

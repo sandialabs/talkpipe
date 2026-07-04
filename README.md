@@ -85,7 +85,7 @@ pip install talkpipe[model2vec] # In-process static embeddings (also in [all])
 # Or: pip install talkpipe[all]
 ```
 
-Configure API keys and provider URLs via environment variables (for example `OPENAI_API_KEY` and `ANTHROPIC_API_KEY`) or `~/.talkpipe.toml`. If TalkPipe runs on a different machine than your Ollama server, set `TALKPIPE_OLLAMA_SERVER_URL` to that host. See **[Configuration](docs/architecture/configuration.md)** for details and ChatterLang `$var` substitution.
+Configure API keys and provider URLs via environment variables (for example `OPENAI_API_KEY` and `ANTHROPIC_API_KEY`) or `~/.talkpipe.toml`. If TalkPipe runs on a different machine than your Ollama server, set `TALKPIPE_OLLAMA_SERVER_URL` to that host, e.g. `export TALKPIPE_OLLAMA_SERVER_URL="http://192.168.1.50:11434"` (a bare host/IP with no scheme or port, like `"192.168.1.50"`, also works). See **[Configuration](docs/architecture/configuration.md)** for details and ChatterLang `$var` substitution.
 
 Hello world (no LLM server required):
 
@@ -373,7 +373,9 @@ CONST iot_prompt = "Rate 0-10 how relevant this is to IoT researchers. Consider 
 evaluator = compiler.compile(script).as_function(single_in=False, single_out=False)
 results = evaluator(articles)
 
-# Output shows only relevant articles with their scores:
+# Output shows only relevant articles with their scores. Scores are assigned by the
+# LLM, so they (and which rows survive the >6 filter) vary by model and run; with
+# some models only one or two of the four articles may pass. Illustrative example:
 # {'title': 'New LLM Model Released', 'ai_score': 9, 'iot_score': 2, 'max_score': 9}
 # {'title': 'Smart Home IoT Devices', 'ai_score': 3, 'iot_score': 9, 'max_score': 9}
 # {'title': 'RAG Systems in Production', 'ai_score': 8, 'iot_score': 2, 'max_score': 8}

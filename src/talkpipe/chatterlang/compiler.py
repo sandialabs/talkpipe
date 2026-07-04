@@ -58,8 +58,26 @@ def _not_found_message(kind: str, name: str, reg) -> str:
         available = reg.available_names
     except Exception:  # pragma: no cover - defensive; never block the error path
         available = []
+
+    # A name declared by a plugin entry point that failed to import lands here
+    # too (available_names lists it without importing it). Reporting it as
+    # merely "not found" — and then suggesting the same name as a typo fix —
+    # is self-contradictory and hides the real (import) error from the user.
+    load_error = None
+    try:
+        load_error = reg.load_error(name)
+    except AttributeError:
+        pass
+
+    if load_error is not None:
+        msg = f"{kind} '{name}' was declared by a plugin but failed to load: {load_error}"
+        other_available = [a for a in available if a != name]
+        if other_available:
+            msg += f" Other available {kind.lower()}s: {', '.join(other_available)}."
+        return msg
+
     msg = f"{kind} '{name}' not found."
-    suggestions = difflib.get_close_matches(name, available, n=3)
+    suggestions = [s for s in difflib.get_close_matches(name, available, n=3) if s != name]
     if suggestions:
         msg += " Did you mean " + " or ".join(repr(s) for s in suggestions) + "?"
     if available:

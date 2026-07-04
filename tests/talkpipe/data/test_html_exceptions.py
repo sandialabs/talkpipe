@@ -129,18 +129,19 @@ class TestHtmlModuleExceptions:
         assert result == [None]  # Should yield None on error with fail_on_error=False
     
     @patch('talkpipe.data.html.get_robot_parser')
-    @patch('talkpipe.data.html.logger.warning')
+    @patch('talkpipe.data.html.logger.debug')
     def test_can_fetch_without_robots_txt(self, mock_logger, mock_get_robot_parser):
         """Test can_fetch when robots.txt doesn't exist."""
-        
+
         # Patch get_robot_parser to return None (no robots.txt)
         mock_get_robot_parser.return_value = None
-        
+
         # This should return True (assume allowed) when no robots.txt
         result = html.can_fetch("https://example.com")
         assert result is True
-        
-        # Verify warning was logged
+
+        # A missing robots.txt is the common case, not an error, so it should
+        # log at DEBUG rather than WARNING (see get_robot_parser for the 404 case).
         mock_logger.assert_called_once()
         assert "Cannot check can_fetch" in mock_logger.call_args[0][0]
     

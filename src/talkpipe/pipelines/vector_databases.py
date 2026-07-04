@@ -30,7 +30,7 @@ class ProcessDocumentsSegment(AbstractSegment):
             | Print()
             | ReadFile()
             | splitText(field='content', set_as='content', criteria=self.chunk_size)
-            | ShingleText(field='content', set_as='shingle_text', shingle_size=self.shingle_size, overlap=self.overlap, size_mode='count', delimiter=' ')
+            | ShingleText(field='content', set_as='shingle_text', key='source', shingle_size=self.shingle_size, overlap=self.overlap, size_mode='count', delimiter=' ')
             | ToDict(field_list="content,source,id,title,shingle_text")
             | setAs(field_list="shingle_text:content")
             | progressTicks(tick=".", tick_count=1, eol_count=50)

@@ -18,6 +18,11 @@ def main():
 
     args = parser.parse_args()
 
+    # A bare invocation with no flags should show something useful rather than
+    # silently doing nothing, so default to --list.
+    if not (args.list or args.reload):
+        args.list = True
+
     if args.list:
         loaded = list_loaded_plugins()
         failed = list_failed_plugins()

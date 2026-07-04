@@ -31,6 +31,37 @@
     registry, so newcomers aren't shown two spellings with no indication which is canonical.
   - Documented that `embedding_source="model2vec"` downloads the model from Hugging Face on
     first use (cached after that); README tip and the model2vec guide now call this out.
+- Fixed a data-corruption bug in `makevectordatabase`'s document pipeline: `ProcessDocumentsSegment`
+  shingled chunks across file boundaries (no per-document grouping), so two small input files could
+  be merged into a single indexed row with the content of both but the source/title of only the last
+  one, and RAG citations would then point at the wrong file. `ShingleText` is now grouped by `source`
+  so shingles never cross a file boundary.
+- Fixed config key lookups being case-sensitive despite mixed casing conventions across the codebase
+  (`OLLAMA_SERVER_URL` vs. `default_model_name`, etc.): `TALKPIPE_*` environment variables now match
+  TOML config keys case-insensitively, so `TALKPIPE_default_model_name` and
+  `TALKPIPE_DEFAULT_MODEL_NAME` both work. Corrected config key names that had drifted from the
+  code in `configuration.md`, `model-and-source-configuration.md` (removed a fictional `DEFAULT_*`
+  key layer for `serverag`/`makevectordatabase` that doesn't exist), and
+  `makevectordatabase-and-serverag.md`.
+- Fixed a self-contradictory compiler error: a segment/source declared via a `talkpipe.segments` /
+  `talkpipe.sources` entry point that failed to import was reported as simply "not found," with a
+  "did you mean" suggestion pointing at the very name that just failed. `HybridRegistry` now
+  captures the underlying import error and the compiler reports it directly (e.g. "was declared by
+  a plugin but failed to load: `<error>`") instead of suggesting the broken name as its own fix.
+  Also invalidate import caches before entry-point discovery to reduce staleness right after an
+  editable install.
+- `chatterlang_script` now catches `CompileError` and prints just the error message instead of a
+  full Python traceback; pass `--verbose` to see the traceback for debugging.
+- Ollama "model not found" (404) responses are now wrapped with an actionable message suggesting
+  `ollama pull <model>`, matching the existing treatment of connection errors.
+- `talkpipe_plugins` with no arguments now defaults to `--list` instead of silently printing
+  nothing.
+- Missing `robots.txt` (404) now logs at debug/info instead of warning, since it's a normal,
+  expected condition, not an error.
+- `LlmBinaryAnswer.Answer` (used by `ragToBinaryAnswer` / `llmBinaryAnswer`) now has a friendly
+  `__str__` ("Yes: ..." / "No: ...") instead of printing as a raw Pydantic repr.
+- README: added a concrete example value for `TALKPIPE_OLLAMA_SERVER_URL`, and labeled Example 4's
+  sample scored output as illustrative/model-dependent (LLM scores vary by model and run).
 - Added a local `eliza` prompt-adapter source for `llmPrompt` and guided-generation
   segments. The adapter is deterministic (no external API keys), uses the configured
   model name as ELIZA's self-reference, supports multi-turn memory/fact callbacks,

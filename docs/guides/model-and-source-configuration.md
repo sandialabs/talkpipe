@@ -204,20 +204,9 @@ default_embedding_model_source = "ollama"
 OLLAMA_SERVER_URL = "http://localhost:11434"
 ```
 
-### RAG CLI defaults (`DEFAULT_*`)
+### RAG CLI defaults
 
-`makevectordatabase` and `serverag` read these when you omit `--embedding_model`, `--embedding_source`, `--completion_model`, and `--completion_source`:
-
-| Purpose | TOML / config key | Environment variable |
-|---------|-------------------|----------------------|
-| Embedding model | `DEFAULT_EMBEDDING_MODEL` | `TALKPIPE_DEFAULT_EMBEDDING_MODEL` |
-| Embedding source | `DEFAULT_EMBEDDING_SOURCE` | `TALKPIPE_DEFAULT_EMBEDDING_SOURCE` |
-| Completion model | `DEFAULT_LLM_MODEL` | `TALKPIPE_DEFAULT_LLM_MODEL` |
-| Completion source | `DEFAULT_LLM_SOURCE` | `TALKPIPE_DEFAULT_LLM_SOURCE` |
-
-If a CLI flag is omitted and the matching `DEFAULT_*` key is unset, the value passed into the RAG pipeline may be `None`, and inner `llmEmbed` / `llmPrompt` segments fall back to the `default_*` keys above.
-
-**Recommendation:** set `default_*` once for most workflows. Add `DEFAULT_*` only when you want different defaults specifically for the RAG commands. See [makevectordatabase and serverag](makevectordatabase-and-serverag.md).
+`makevectordatabase` and `serverag` read the same `default_*` keys above when you omit `--embedding_model`, `--embedding_source`, `--completion_model`, and `--completion_source` — there is no separate `DEFAULT_*` key for these commands. See [makevectordatabase and serverag](makevectordatabase-and-serverag.md).
 
 ---
 

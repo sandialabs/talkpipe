@@ -77,6 +77,7 @@ class HybridRegistry(Generic[T]):
         self._entry_points_cache: Optional[Dict] = None
         self._attempted_loads: Set[str] = set()
         self._loaded_modules: Set[str] = set()
+        self._load_errors: Dict[str, str] = {}
 
         # Determine if we should do lazy imports
         if lazy_import is not None:
@@ -162,6 +163,14 @@ class HybridRegistry(Generic[T]):
         if not self._entry_point_group:
             self._entry_points_cache = {}
             return
+
+        # A package installed (e.g. via `pip install -e .`) earlier in this same
+        # process can leave stale negative lookups in the import machinery's path
+        # caches, which makes freshly-declared entry points intermittently
+        # invisible until some later cache-busting import happens. Invalidating
+        # here is cheap and ensures discovery sees on-disk metadata as it is now.
+        import importlib
+        importlib.invalidate_caches()
 
         try:
             # Try Python 3.10+ API first
@@ -309,7 +318,18 @@ class HybridRegistry(Generic[T]):
                 exc_info=True
             )
             self._attempted_loads.add(name)
+            self._load_errors[name] = f"{ep.value}: {e}"
             return False
+
+    def load_error(self, name: str) -> Optional[str]:
+        """
+        Get the captured error for a name whose entry point failed to load.
+
+        Returns:
+            The "module:object: exception" string from the failed load attempt,
+            or None if no load was attempted or it succeeded.
+        """
+        return self._load_errors.get(name)
     
     @property
     def all(self) -> Dict[str, Type[T]]:

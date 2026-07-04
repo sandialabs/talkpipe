@@ -368,6 +368,9 @@ class LlmBinaryAnswer(AbstractLLMGuidedGeneration):
         explanation: str
         answer: bool
 
+        def __str__(self) -> str:
+            return f"{'Yes' if self.answer else 'No'}: {self.explanation}"
+
     @staticmethod
     def get_output_format() -> BaseModel:
         return LlmBinaryAnswer.Answer
