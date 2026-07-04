@@ -2,6 +2,35 @@
 
 ## Unreleased
 
+- Fixed several doc-accuracy and rough-edge issues found during usability testing:
+  - `docs/architecture/configuration.md`'s example TOML named a dead `ollama_base_url` key;
+    it now shows the real `OLLAMA_SERVER_URL` key used by the README and code.
+  - `OllamaPromptAdapter` now catches connection failures and re-raises with the server URL
+    it tried and a pointer to `TALKPIPE_OLLAMA_SERVER_URL`, instead of a generic SDK error.
+  - `serverag` resolved `--embedding_*`/`--completion_*` defaults from the wrong config keys
+    (silently always falling through) and only validated provider config on the first query.
+    It now resolves the correct keys and builds the pipeline once at startup so a bad or
+    missing embedding/completion model or source fails immediately with an actionable error;
+    `quickstart.md`'s RAG example now includes the required completion flags.
+  - `extending-talkpipe.md`'s third-party plugin snippet registered a source under the
+    `talkpipe.segments` entry-point group instead of `talkpipe.sources`; fixed, and added a
+    complete end-to-end plugin example (package layout, `components.py`, `pyproject.toml`,
+    usage).
+  - `talkpipe_plugins --list` only reported the `talkpipe.plugins` entry-point group, so
+    components registered via `talkpipe.segments` / `talkpipe.sources` (the pattern most
+    third-party plugins use) were invisible even when working correctly. It now lists those
+    too.
+  - `makevectordatabase` now prints a completion summary (chunk count, output path, table,
+    embedding model/source) instead of exiting silently.
+  - `SearchResult.prompt_worthy_string` no longer surfaces internal underscore-prefixed
+    fields (e.g. the auto-generated `_doc_id`) to the LLM, so RAG answers over string-indexed
+    documents (no `title`/`source` field) don't cite a bare UUID.
+  - The misspelled segment aliases `addToLancDB` / `searchLancDB` remain functional for
+    backward compatibility but are now hidden from `available_names` (compiler error
+    suggestions) and `talkpipe_plugins --list` via a new `DEPRECATED_ALIASES` set in the
+    registry, so newcomers aren't shown two spellings with no indication which is canonical.
+  - Documented that `embedding_source="model2vec"` downloads the model from Hugging Face on
+    first use (cached after that); README tip and the model2vec guide now call this out.
 - Added a local `eliza` prompt-adapter source for `llmPrompt` and guided-generation
   segments. The adapter is deterministic (no external API keys), uses the configured
   model name as ELIZA's self-reference, supports multi-turn memory/fact callbacks,

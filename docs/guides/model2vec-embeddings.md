@@ -1,8 +1,11 @@
 # Model2vec embeddings
 
 Run lightweight static embedding models **inside your Python process** with no API calls and
-no Ollama server. Models are cached on disk via the Hugging Face Hub; after precaching, you
-can run fully offline with `HF_HUB_OFFLINE=1`.
+no Ollama server. The first use of a given model downloads it from the Hugging Face Hub (a
+few files, tens of MB) and caches it on disk; every use after that loads from the local cache
+with no network access. If you need offline behavior from the very first run (air-gapped
+environments, CI), see [Precache for offline use](#precache-for-offline-use) below and set
+`HF_HUB_OFFLINE=1`.
 
 Model2vec distills sentence-transformers into fixed token lookup tables. The result is much
 smaller and faster than full transformer inference, with competitive quality for many retrieval

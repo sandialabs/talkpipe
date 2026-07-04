@@ -119,7 +119,15 @@ class OllamaPromptAdapter(AbstractLLMPromptAdapter):
         if not server_url:
             server_url = get_config().get(OLLAMA_SERVER_URL, None)
         client = ollama.Client(server_url) if server_url else ollama
-        return client.chat(model, messages=messages, format=format_schema, options=options)
+        try:
+            return client.chat(model, messages=messages, format=format_schema, options=options)
+        except ConnectionError as exc:
+            raise ConnectionError(
+                f"Failed to connect to Ollama at '{server_url or 'http://localhost:11434'}'. "
+                "If your Ollama server is remote, set the TALKPIPE_OLLAMA_SERVER_URL environment "
+                "variable (or OLLAMA_SERVER_URL in ~/.talkpipe.toml) to its address. "
+                f"Original error: {exc}"
+            ) from exc
 
     def complete_text_without_context(
         self,

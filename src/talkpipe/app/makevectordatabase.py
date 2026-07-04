@@ -87,11 +87,16 @@ def main():
 
     # Execute pipeline
     logger.info("Initializing vector database pipeline...")
+    chunk_count = 0
     for item in pipeline.transform([args.data_source]):
         # We process the iterator to pull items through the pipeline
-        pass
-    
+        chunk_count += 1
+
     logger.info("Database creation complete.")
+    print(
+        f"\nIndexed {chunk_count} chunk(s) into '{args.path}' (table '{args.table_name}') "
+        f"using {embedding_source}/{embedding_model}."
+    )
 
 if __name__ == "__main__":
     main()

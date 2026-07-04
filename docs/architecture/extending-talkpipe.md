@@ -296,10 +296,74 @@ In your **own** package, declare the same groups in your `pyproject.toml`, point
 ```toml
 [project.entry-points."talkpipe.segments"]
 shout = "mytp.components:shout"          # decorated function
+
+[project.entry-points."talkpipe.sources"]
 greetings = "mytp.components:greetings"  # decorated function (source)
 ```
 
 If you used the class-based pattern, point at the class name instead. This is all a distributable plugin needs — you do **not** need any TalkPipe repo tooling.
+
+**Complete example.** A minimal installable plugin package, `mytp`, providing one segment and one source:
+
+```
+mytp/
+├── pyproject.toml
+└── src/
+    └── mytp/
+        ├── __init__.py
+        └── components.py
+```
+
+`src/mytp/components.py`:
+
+```python
+from typing import Iterator, Any
+
+from talkpipe import register_segment, register_source, segment, source
+
+
+@register_segment("shout")
+@segment()
+def shout(items: Iterator[Any]) -> Iterator[str]:
+    """Uppercase each item and append '!'."""
+    for item in items:
+        yield f"{str(item).upper()}!"
+
+
+@register_source("greetings")
+@source()
+def greetings(count: int = 3) -> Iterator[str]:
+    """Yield `count` greeting strings."""
+    for i in range(count):
+        yield f"HELLO {i}"
+```
+
+`pyproject.toml`:
+
+```toml
+[project]
+name = "mytp"
+version = "0.1.0"
+dependencies = ["talkpipe"]
+
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project.entry-points."talkpipe.segments"]
+shout = "mytp.components:shout"
+
+[project.entry-points."talkpipe.sources"]
+greetings = "mytp.components:greetings"
+```
+
+After `pip install -e .` from the `mytp` directory, both names resolve in a **fresh** process (no explicit import needed — the hybrid registry loads the entry point on first use):
+
+```bash
+chatterlang_script --script 'INPUT FROM greetings[count=2] | shout | print'
+# HELLO 0!
+# HELLO 1!
+```
 
 #### For TalkPipe repo contributors (this repository only)
 

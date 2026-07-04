@@ -70,3 +70,26 @@ def test_ollama_chat_completion_uses_configured_server_url(monkeypatch):
 
     adapter._chat_completion("llama3.2", [{"role": "user", "content": "hello"}])
     assert captured["host"] == "http://custom"
+
+
+def test_ollama_chat_completion_connection_error_names_url_and_env_var(monkeypatch):
+    adapter = OllamaPromptAdapter("llama3.2", server_url="http://custom:11434")
+
+    class DummyClient:
+        def __init__(self, _host):
+            pass
+
+        def chat(self, *_args, **_kwargs):
+            raise ConnectionError("Failed to connect to Ollama.")
+
+    class DummyOllamaModule:
+        Client = DummyClient
+
+    monkeypatch.setattr(OllamaPromptAdapter, "_require_dependency", lambda *_args, **_kwargs: DummyOllamaModule)
+
+    try:
+        adapter._chat_completion("llama3.2", [{"role": "user", "content": "hello"}])
+        assert False, "expected ConnectionError"
+    except ConnectionError as exc:
+        assert "http://custom:11434" in str(exc)
+        assert "TALKPIPE_OLLAMA_SERVER_URL" in str(exc)

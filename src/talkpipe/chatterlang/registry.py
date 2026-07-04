@@ -20,6 +20,12 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+# Misspelled legacy names kept registered as functional aliases (so existing scripts
+# that use them keep working) but excluded from discovery listings — error-message
+# suggestions and `talkpipe_plugins --list` — since showing both spellings with no
+# indication of which is canonical only confuses newcomers.
+DEPRECATED_ALIASES = {"addToLancDB", "searchLancDB"}
+
 # Check for lazy import mode from configuration
 def _get_lazy_import_setting() -> bool:
     """Get the LAZY_IMPORT setting from configuration.
@@ -359,6 +365,7 @@ class HybridRegistry(Generic[T]):
                 f"Failed to discover entry points while collecting available names: {e}",
                 exc_info=True,
             )
+        names -= DEPRECATED_ALIASES
         return sorted(names)
     
     def invalidate_cache(self):

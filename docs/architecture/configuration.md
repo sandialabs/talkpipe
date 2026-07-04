@@ -29,7 +29,7 @@ logger_files = "talkpipe:/tmp/talkpipe.log,root:/tmp/app.log"
 # LLM Configuration
 default_model_name = "llama3.2"
 default_model_source = "ollama"
-ollama_base_url = "http://localhost:11434"
+OLLAMA_SERVER_URL = "http://localhost:11434"
 
 # Server Configuration
 default_port = 8080

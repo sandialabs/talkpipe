@@ -158,10 +158,10 @@ For a minimal document Q&A workflow without writing scripts:
 
 ```bash
 makevectordatabase "docs/*.md" --path ./mydb --embedding_source ollama --embedding_model nomic-embed-text
-serverag --path ./mydb
+serverag --path ./mydb --embedding_source ollama --embedding_model nomic-embed-text --completion_source ollama --completion_model llama3.2
 ```
 
-`--embedding_source` and `--embedding_model` are required unless you set defaults in `~/.talkpipe.toml`; the example above needs Ollama running with the embedding model pulled (`ollama pull nomic-embed-text`). Then open http://localhost:2026/stream. See [makevectordatabase and serverag](guides/makevectordatabase-and-serverag.md) for full options.
+`serverag` needs both the embedding flags (to search the database) and the completion flags (to generate the answer) — these are required unless you set defaults in `~/.talkpipe.toml`. `serverag` validates this configuration at startup and exits with an actionable error if a model/source is missing or unsupported. The example above needs Ollama running with both models pulled (`ollama pull nomic-embed-text` and `ollama pull llama3.2`). Then open http://localhost:2026/stream. See [makevectordatabase and serverag](guides/makevectordatabase-and-serverag.md) for full options.
 
 ## Next Steps
 

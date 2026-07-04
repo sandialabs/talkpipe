@@ -4,6 +4,12 @@ import logging
 from typing import Dict, Any
 
 from talkpipe.util.config import get_config, parse_unknown_args, add_config_values, configure_logger
+from talkpipe.util.constants import (
+    TALKPIPE_EMBEDDING_MODEL_NAME,
+    TALKPIPE_EMBEDDING_MODEL_SOURCE,
+    TALKPIPE_MODEL_NAME,
+    TALKPIPE_SOURCE,
+)
 from talkpipe.pipelines.basic_rag import RAGToText
 from talkpipe.app.chatterlang_serve import ChatterlangServer, FormConfig, FormField
 from talkpipe.pipe.io import Prompt
@@ -76,10 +82,10 @@ def main():
         rag_kwargs = {
             "path": args.path,
             "content_field": "prompt",  # We'll map the UI 'prompt' field to this
-            "embedding_model": args.embedding_model or config.get("DEFAULT_EMBEDDING_MODEL"),
-            "embedding_source": args.embedding_source or config.get("DEFAULT_EMBEDDING_SOURCE"),
-            "completion_model": args.completion_model or config.get("DEFAULT_LLM_MODEL"),
-            "completion_source": args.completion_source or config.get("DEFAULT_LLM_SOURCE"),
+            "embedding_model": args.embedding_model or config.get(TALKPIPE_EMBEDDING_MODEL_NAME),
+            "embedding_source": args.embedding_source or config.get(TALKPIPE_EMBEDDING_MODEL_SOURCE),
+            "completion_model": args.completion_model or config.get(TALKPIPE_MODEL_NAME),
+            "completion_source": args.completion_source or config.get(TALKPIPE_SOURCE),
             "limit": args.limit,
             "table_name": args.table_name,
             "prompt_directive": args.prompt_directive,
@@ -92,8 +98,16 @@ def main():
         if args.system_prompt is not None:
             rag_kwargs["system_prompt"] = args.system_prompt
         rag_pipeline = RAGToText(**rag_kwargs)
+        # RAGToText builds its embedding/completion segments lazily on first query, so
+        # build (and discard) one here to fail fast on a bad provider config at startup
+        # instead of on the first request.
+        rag_pipeline.make_pipeline()
     except Exception as e:
-        logger.error(f"Failed to initialize RAG pipeline: {e}")
+        logger.error(
+            f"Failed to initialize RAG pipeline: {e}. Check --embedding_model/--embedding_source "
+            "and --completion_model/--completion_source (or the corresponding default_embedding_* "
+            "/ default_model_* config values)."
+        )
         sys.exit(1)
 
     if args.interactive:

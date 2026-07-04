@@ -33,7 +33,17 @@ Loaded plugins (2):
 
 Failed plugins (1):
   ✗ broken-plugin
+
+Segments registered via 'talkpipe.segments' entry points (98):
+  addToLanceDB -> talkpipe.search.lancedb:add_to_lancedb
+  ...
+
+Sources registered via 'talkpipe.sources' entry points (9):
+  greetings -> mytp.components:greetings
+  ...
 ```
+
+"Loaded plugins" only covers the whole-module `talkpipe.plugins` entry point group (see [Plugin Discovery](#plugin-discovery) below). If you registered components directly via the `talkpipe.segments` / `talkpipe.sources` entry point groups instead (the pattern most third-party plugins use — see [Extending TalkPipe](../architecture/extending-talkpipe.md#entry-points-for-distributable-components)), they show up here rather than under "Loaded plugins". This is the way to confirm your installed component is discoverable without having to run a pipeline that uses it.
 
 ### Reload a Plugin
 

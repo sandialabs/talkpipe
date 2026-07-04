@@ -138,7 +138,7 @@ rag = compiler.compile(
 rag("What is TalkPipe?")
 ```
 
-> **No Ollama server?** Swap `embedding_source="model2vec"` and `embedding_model="minishlab/potion-base-8M"` for offline embeddings (included in `talkpipe[all]`). Note: the `ragToText` completion step still requires an LLM provider. See the [model2vec guide](docs/guides/model2vec-embeddings.md).
+> **No Ollama server?** Swap `embedding_source="model2vec"` and `embedding_model="minishlab/potion-base-8M"` for offline embeddings (included in `talkpipe[all]`). The first run downloads the model from Hugging Face (a few files, ~30 MB); after that it's cached and needs no network — see [Precache for offline use](docs/guides/model2vec-embeddings.md#precache-for-offline-use) to pre-download for air-gapped environments. Note: the `ragToText` completion step still requires an LLM provider. See the [model2vec guide](docs/guides/model2vec-embeddings.md).
 
 # Core Components
 
