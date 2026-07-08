@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.12.3
+
 - Fixed several doc-accuracy and rough-edge issues found during usability testing:
   - `docs/architecture/configuration.md`'s example TOML named a dead `ollama_base_url` key;
     it now shows the real `OLLAMA_SERVER_URL` key used by the README and code.
