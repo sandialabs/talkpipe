@@ -2,6 +2,37 @@
 
 ## Unreleased
 
+- Fixed friction points found during a Tutorial 3-focused newcomer-simulation
+  usability pass:
+  - `chatterlang_serve` now compiles the `--script` at startup and exits with the
+    compile error instead of starting a healthy-looking server whose first request
+    fails. Previously a script referencing an unregistered segment (e.g. when
+    `--load-module` was forgotten) surfaced only as an opaque
+    `Internal Server Error` on first submission, with the useful
+    "Segment ... not found" message hidden in the server console.
+  - A missing `--load-module` file is now a fatal startup error (previously a
+    log warning the server sailed past), and a missing `--form-config` file
+    prints a clean one-line error instead of a traceback; both explain that
+    relative paths resolve against the current directory.
+  - If a script compile error does slip through to request time, the HTTP
+    response now carries the compile message in its `detail` field instead of a
+    bare 500.
+  - Tutorial 3 gained the "Using a Different LLM Provider" section Tutorial 2
+    already had, additionally covering the `source`/`model` parameters on the
+    tutorial's custom LLM-calling segments and the need to rebuild the Tutorial 2
+    vector index if the embedding model changes.
+  - Tutorial 3 README: the Quick Start now says to stop the previous step's
+    server before starting the next (the steps share the default port, matching
+    Tutorial 2's wording); the troubleshooting table gained rows for remote
+    Ollama servers and for the actual wrong-directory symptoms
+    (`Custom module file not found` / `Configuration file not found`); and the executive
+    summary's 500–750-word figure is now described as approximate, since output
+    length varies with the model.
+  - Renamed Tutorial 3's `step3_extras.py` to `step_3_extras.py` to match the
+    `step_1_extras.py`/`step_2_extras.py` pattern (and Tutorial 2's
+    `step_3_extras.py`), and file_structure.md now lists the Windows `.bat`
+    launchers it previously omitted.
+
 - Fixed friction points found during a second Tutorial 2-focused newcomer-simulation
   usability pass:
   - `chatterlang_serve` pages now use the form config's `title` in the browser-tab

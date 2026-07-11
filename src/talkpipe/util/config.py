@@ -286,6 +286,10 @@ def load_module_file(fname: str, fail_on_missing: bool = False) -> Optional[Any]
             # Remove the config directory from sys.path
             sys.path.remove(config_dir)
 
+    except FileNotFoundError:
+        # Part of the documented contract when fail_on_missing is True;
+        # don't wrap it as an ImportError.
+        raise
     except Exception as e:
         # Log or handle specific exceptions as needed
         raise ImportError(f"Error loading module file: {str(e)}") from e

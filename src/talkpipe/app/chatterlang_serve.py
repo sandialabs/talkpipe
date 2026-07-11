@@ -28,6 +28,7 @@ import uuid
 from talkpipe.pipe.core import AbstractSource, RuntimeComponent
 from talkpipe.chatterlang import register_source
 from talkpipe.chatterlang import compile
+from talkpipe.chatterlang.compiler import CompileError
 from talkpipe.util.config import get_config, load_script
 from talkpipe.util.config import load_module_file, parse_unknown_args, add_config_values
 from talkpipe.util.data_manipulation import extract_property
@@ -197,36 +198,43 @@ class ChatterlangServer:
         # Start session cleanup task
         self._start_cleanup_task()
     
+    def _create_session(self, session_id: str) -> UserSession:
+        """Create a session, reporting script compile errors to the client rather
+        than letting them surface as an opaque 500 with no detail."""
+        try:
+            return UserSession(
+                session_id=session_id,
+                script_content=self.script_content,
+                history_length=self.history_length
+            )
+        except CompileError as exc:
+            raise HTTPException(
+                status_code=500,
+                detail=f"ChatterLang script failed to compile: {exc}"
+            ) from exc
+
     def get_or_create_session(self, request: Request, response: Response) -> UserSession:
         """Get existing session or create new one based on session cookie"""
         session_id = request.cookies.get("talkpipe_session_id")
-        
+
         with self.session_lock:
             if session_id and session_id in self.sessions:
                 # Update activity for existing session
                 session = self.sessions[session_id]
                 session.update_activity()
                 return session
-            
-            # If session_id exists but not in memory (after restart), 
+
+            # If session_id exists but not in memory (after restart),
             # recreate the session with the same ID
             if session_id:
-                session = UserSession(
-                    session_id=session_id,  # Keep the same ID
-                    script_content=self.script_content,
-                    history_length=self.history_length
-                )
+                session = self._create_session(session_id)  # Keep the same ID
                 self.sessions[session_id] = session
                 logger.info(f"Recreated session after restart: {session_id}")
                 return session
-            
+
             # Create new session
             session_id = str(uuid.uuid4())
-            session = UserSession(
-                session_id=session_id,
-                script_content=self.script_content,
-                history_length=self.history_length
-            )
+            session = self._create_session(session_id)
             self.sessions[session_id] = session
             
             # Set session cookie (expires in 24 hours) with security attributes
@@ -1958,7 +1966,13 @@ def go():
 
     if args.load_module:
         for module_file in args.load_module:
-            load_module_file(fname=module_file, fail_on_missing=False)
+            try:
+                load_module_file(fname=module_file, fail_on_missing=True)
+            except FileNotFoundError as exc:
+                print(f"ERROR: {exc}. Relative paths are resolved against the current "
+                      f"directory; run the command from the directory containing the "
+                      f"module or pass an absolute path.", file=sys.stderr)
+                sys.exit(1)
 
     # Get API key from command line, or fall back to configuration (which checks environment variable)
     api_key = args.api_key
@@ -1968,21 +1982,35 @@ def go():
     script_content = None
     if args.script:
         script_content = load_script(args.script)
-    
+        # Fail at startup on an uncompilable script instead of surfacing the
+        # error only when the first request arrives.
+        try:
+            compile(script_content)
+        except CompileError as exc:
+            print(f"ERROR: Cannot start ChatterLang server: the script failed to "
+                  f"compile.\n{exc}", file=sys.stderr)
+            sys.exit(1)
+
     # Load form configuration if provided
     form_config = None
     if args.form_config:
-        if args.form_config.startswith('$'):
-            # Try to load from config variable
-            config_data = get_config()[args.form_config[1:]]
-            if config_data:
-                form_config = json.loads(config_data) if isinstance(config_data, str) else config_data
+        try:
+            if args.form_config.startswith('$'):
+                # Try to load from config variable
+                config_data = get_config()[args.form_config[1:]]
+                if config_data:
+                    form_config = json.loads(config_data) if isinstance(config_data, str) else config_data
+                else:
+                    # Try loading as file path
+                    form_config = load_form_config(args.form_config[1:])
             else:
-                # Try loading as file path
-                form_config = load_form_config(args.form_config[1:])
-        else:
-            # Load from file
-            form_config = load_form_config(args.form_config)
+                # Load from file
+                form_config = load_form_config(args.form_config)
+        except FileNotFoundError as exc:
+            print(f"ERROR: {exc}. Relative paths are resolved against the current "
+                  f"directory; run the command from the directory containing the "
+                  f"form config or pass an absolute path.", file=sys.stderr)
+            sys.exit(1)
 
     # Explicit --title wins; otherwise fall back to the form config's title so
     # the browser tab matches the page, and finally to the historical default.

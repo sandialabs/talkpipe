@@ -210,3 +210,19 @@ line3"""
         result = load_script(script_input)
         # Should treat as inline since file doesn't exist
         assert result == script_input
+
+class TestLoadModuleFile:
+    """Test load_module_file error contract."""
+
+    def test_missing_file_raises_file_not_found(self):
+        """fail_on_missing=True raises FileNotFoundError, not a wrapped ImportError."""
+        from talkpipe.util.config import load_module_file
+
+        with pytest.raises(FileNotFoundError, match="no_such_module.py"):
+            load_module_file(fname="no_such_module.py", fail_on_missing=True)
+
+    def test_missing_file_returns_none_by_default(self):
+        """fail_on_missing=False returns None for a missing file."""
+        from talkpipe.util.config import load_module_file
+
+        assert load_module_file(fname="no_such_module.py", fail_on_missing=False) is None

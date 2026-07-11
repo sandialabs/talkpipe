@@ -318,6 +318,24 @@ class TestChatterlangServer:
         assert session.session_id == session_id
         mock_response.set_cookie.assert_not_called()
     
+    def test_get_or_create_session_compile_error(self):
+        """A script that fails to compile surfaces as an HTTP error with detail."""
+        from fastapi import HTTPException
+
+        server = ChatterlangServer()
+        server.script_content = "| notARealSegment"
+
+        mock_request = Mock()
+        mock_request.cookies.get.return_value = None
+        mock_response = Mock()
+
+        with pytest.raises(HTTPException) as exc_info:
+            server.get_or_create_session(mock_request, mock_response)
+
+        assert exc_info.value.status_code == 500
+        assert "failed to compile" in exc_info.value.detail
+        assert "notARealSegment" in exc_info.value.detail
+
     def test_cleanup_expired_sessions(self):
         """Test cleaning up expired sessions."""
         server = ChatterlangServer()
@@ -895,20 +913,39 @@ class TestMainFunction:
     @patch('sys.argv', ['script.py', '--script', 'test_script.cl'])
     def test_go_with_script(self, mock_load_script, mock_server_class):
         """Test go function with script loading."""
-        mock_load_script.return_value = "test script content"
+        mock_load_script.return_value = "| print"
         mock_server = Mock()
         mock_server_class.return_value = mock_server
-        
+
         with patch('talkpipe.app.chatterlang_serve.parse_unknown_args', return_value={}), \
              patch('talkpipe.app.chatterlang_serve.add_config_values'):
-            
+
             go()
-            
+
             mock_load_script.assert_called_once_with('test_script.cl')
-            
+
             # Verify script content was passed to server
             call_args = mock_server_class.call_args[1]
-            assert call_args["script_content"] == "test script content"
+            assert call_args["script_content"] == "| print"
+
+    @patch('talkpipe.app.chatterlang_serve.ChatterlangServer')
+    @patch('talkpipe.app.chatterlang_serve.load_script')
+    @patch('sys.argv', ['script.py', '--script', 'test_script.cl'])
+    def test_go_with_uncompilable_script_exits(self, mock_load_script, mock_server_class, capsys):
+        """An uncompilable script stops the server at startup with a clean error."""
+        mock_load_script.return_value = "| notARealSegment"
+
+        with patch('talkpipe.app.chatterlang_serve.parse_unknown_args', return_value={}), \
+             patch('talkpipe.app.chatterlang_serve.add_config_values'):
+
+            with pytest.raises(SystemExit) as exc_info:
+                go()
+
+        assert exc_info.value.code == 1
+        captured = capsys.readouterr()
+        assert "failed to compile" in captured.err
+        assert "notARealSegment" in captured.err
+        mock_server_class.assert_not_called()
     
     @patch('talkpipe.app.chatterlang_serve.ChatterlangServer')
     @patch('talkpipe.app.chatterlang_serve.load_form_config')
@@ -945,11 +982,43 @@ class TestMainFunction:
              patch('talkpipe.app.chatterlang_serve.load_script', return_value=None):
             
             go()
-            
+
             # Verify modules were loaded
             assert mock_load_module.call_count == 2
-            mock_load_module.assert_any_call(fname='module1.py', fail_on_missing=False)
-            mock_load_module.assert_any_call(fname='module2.py', fail_on_missing=False)
+            mock_load_module.assert_any_call(fname='module1.py', fail_on_missing=True)
+            mock_load_module.assert_any_call(fname='module2.py', fail_on_missing=True)
+
+    @patch('talkpipe.app.chatterlang_serve.ChatterlangServer')
+    @patch('sys.argv', ['script.py', '--load-module', 'no_such_module.py'])
+    def test_go_with_missing_module_exits(self, mock_server_class, capsys):
+        """A missing --load-module file stops the server at startup with a clean error."""
+        with patch('talkpipe.app.chatterlang_serve.parse_unknown_args', return_value={}), \
+             patch('talkpipe.app.chatterlang_serve.add_config_values'):
+
+            with pytest.raises(SystemExit) as exc_info:
+                go()
+
+        assert exc_info.value.code == 1
+        captured = capsys.readouterr()
+        assert "no_such_module.py" in captured.err
+        assert "current directory" in captured.err
+        mock_server_class.assert_not_called()
+
+    @patch('talkpipe.app.chatterlang_serve.ChatterlangServer')
+    @patch('sys.argv', ['script.py', '--form-config', 'no_such_config.yaml'])
+    def test_go_with_missing_form_config_exits(self, mock_server_class, capsys):
+        """A missing form config stops the server with a clean error, not a traceback."""
+        with patch('talkpipe.app.chatterlang_serve.parse_unknown_args', return_value={}), \
+             patch('talkpipe.app.chatterlang_serve.add_config_values'), \
+             patch('talkpipe.app.chatterlang_serve.load_script', return_value=None):
+
+            with pytest.raises(SystemExit) as exc_info:
+                go()
+
+        assert exc_info.value.code == 1
+        captured = capsys.readouterr()
+        assert "Configuration file not found: no_such_config.yaml" in captured.err
+        mock_server_class.assert_not_called()
     
     @patch('talkpipe.app.chatterlang_serve.ChatterlangServer')
     @patch('sys.argv', ['script.py', '--CUSTOM_VAR', 'custom_value', '--ANOTHER_VAR', '123'])
