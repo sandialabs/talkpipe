@@ -85,6 +85,8 @@ pip install talkpipe[model2vec] # In-process static embeddings (also in [all])
 # Or: pip install talkpipe[all]
 ```
 
+> **Any provider works in any example.** The examples in this README mostly show `source="ollama"`, but that is just a per-segment parameter: swap in `source="openai"` or `source="anthropic"` (with a matching `model`) on any LLM segment — the RAG helpers take the same choice as `embedding_source`/`completion_source`. Different segments in one pipeline can even use different providers. Installing `talkpipe[all]` includes all provider integrations, so switching or mixing needs no further installs.
+
 Configure API keys and provider URLs via environment variables (for example `OPENAI_API_KEY` and `ANTHROPIC_API_KEY`) or `~/.talkpipe.toml`. If TalkPipe runs on a different machine than your Ollama server, set `TALKPIPE_OLLAMA_SERVER_URL` to that host, e.g. `export TALKPIPE_OLLAMA_SERVER_URL="http://<ollama host ip>:11434"` (a bare host/IP with no scheme or port, like `"myollamahost"`, also works). Note that the model must already be pulled **on that server** — run `ollama pull llama3.2` there, or `OLLAMA_HOST=http://<ollama host ip>:11434 ollama pull llama3.2` from your machine. See **[Configuration](docs/architecture/configuration.md)** for details and ChatterLang `$var` substitution.
 
 Hello world (no LLM server required):
@@ -239,6 +241,8 @@ TalkPipe components work seamlessly in Jupyter notebooks for interactive data an
 # Detailed Examples
 
 ## Example 1: Multi-Agent Debate
+
+> **Reminder:** Examples 1–5 show `source="ollama"`, but any installed provider works in every one of them — swap the `source`/`model` parameters as described in the [Quick Start](#quick-start).
 
 **Problem:** Run two LLM personas on one seed topic for several rounds. **Result:** Printed turns accumulated in `@conversation`.
 

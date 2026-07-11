@@ -28,7 +28,11 @@
     install lines) now also spell out that `pip install talkpipe[all]` includes
     every provider integration (Ollama, OpenAI, Anthropic), and that each LLM
     segment takes its own `source`/`model`, so providers can be switched — or
-    mixed within one pipeline — without further installs.
+    mixed within one pipeline — without further installs. The main README makes
+    the same point where its examples start: a note in the Quick Start (after
+    the provider install block) states that any provider works in any example
+    via the `source`/`model` (or `embedding_source`/`completion_source`)
+    parameters, and Examples 1–5 carry a one-line reminder linking back to it.
   - Tutorial 3 README: the Quick Start now says to stop the previous step's
     server before starting the next (the steps share the default port, matching
     Tutorial 2's wording); the troubleshooting table gained rows for remote
