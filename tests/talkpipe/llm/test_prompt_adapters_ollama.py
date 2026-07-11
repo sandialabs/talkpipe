@@ -121,3 +121,7 @@ def test_ollama_chat_completion_connection_error_names_url_and_env_var(monkeypat
     except ConnectionError as exc:
         assert "http://custom:11434" in str(exc)
         assert "TALKPIPE_OLLAMA_SERVER_URL" in str(exc)
+        # The example must stay paste-safe: an angle-bracket placeholder like
+        # <host> is parsed as a shell redirection when copied into a terminal.
+        assert "http://your-ollama-host:11434" in str(exc)
+        assert "<host>" not in str(exc)

@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+- Fixed friction points found during a third Tutorial 1-focused newcomer-simulation
+  usability pass:
+  - The remote-Ollama examples in the Tutorial 1 README, the quickstart, and the Ollama
+    connection error no longer use an `http://<host>:11434` placeholder — pasted verbatim,
+    the angle brackets are parsed as a shell redirection and fail with a baffling
+    `bash: host: No such file or directory`. They now use the paste-safe
+    `http://your-ollama-host:11434` (docs additionally say to substitute the server's
+    address), so a literal paste produces a comprehensible connection error instead.
+  - Tutorial 1's Troubleshooting table gained a row for the
+    `Error: Ollama is not installed` failure, pointing at
+    `pip install "talkpipe[ollama]"`, so the fix is findable before the first failed run.
+
 - Fixed friction points found during a second Tutorial 1-focused newcomer-simulation
   usability pass (F-003, F-004):
   - The Ollama model-not-found error no longer prints `(status code: 404)` twice — the

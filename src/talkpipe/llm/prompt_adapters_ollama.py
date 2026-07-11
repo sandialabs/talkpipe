@@ -125,7 +125,7 @@ class OllamaPromptAdapter(AbstractLLMPromptAdapter):
             raise ConnectionError(
                 f"Failed to connect to Ollama at '{server_url or 'http://localhost:11434'}'. "
                 "If your Ollama server is remote, set the TALKPIPE_OLLAMA_SERVER_URL environment "
-                "variable (e.g. `export TALKPIPE_OLLAMA_SERVER_URL=http://<host>:11434`) "
+                "variable (e.g. `export TALKPIPE_OLLAMA_SERVER_URL=http://your-ollama-host:11434`) "
                 "or OLLAMA_SERVER_URL in ~/.talkpipe.toml. "
                 f"Original error: {exc}"
             ) from exc

@@ -103,7 +103,7 @@ chat("What's my name?")
 
 ## Your First Pipeline (With LLM)
 
-Requires `talkpipe[ollama]` and Ollama running with a model (e.g. `ollama pull llama3.2`). If you point TalkPipe at a remote Ollama server via `TALKPIPE_OLLAMA_SERVER_URL`, the model must already be pulled on that server (run `ollama pull llama3.2` there, or `OLLAMA_HOST=http://<host>:11434 ollama pull llama3.2` from your machine).
+Requires `talkpipe[ollama]` and Ollama running with a model (e.g. `ollama pull llama3.2`). If you point TalkPipe at a remote Ollama server via `TALKPIPE_OLLAMA_SERVER_URL`, the model must already be pulled on that server (run `ollama pull llama3.2` there, or `OLLAMA_HOST=http://your-ollama-host:11434 ollama pull llama3.2` from your machine, substituting your server's address).
 
 ### ChatterLang
 

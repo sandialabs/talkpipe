@@ -29,7 +29,7 @@ TalkPipe lets you prototype searchable document systems without external databas
 
 - **Tutorial files**: The tutorials ship with the repository, not the pip package. Clone it first: `git clone https://github.com/sandialabs/talkpipe.git && cd talkpipe`
 - **TalkPipe** installed: See [Getting Started](../../quickstart.md) for installation. For this tutorial: `pip install "talkpipe[ollama]"` or `pip install "talkpipe[all]"`
-- **Step 1 only**: Ollama with the `llama3.2` model, either installed locally or on a remote server you point TalkPipe at with `export TALKPIPE_OLLAMA_SERVER_URL=http://<host>:11434` (the model must be pulled on that server)
+- **Step 1 only**: Ollama with the `llama3.2` model, either installed locally or on a remote server you point TalkPipe at with `export TALKPIPE_OLLAMA_SERVER_URL=http://your-ollama-host:11434` — substitute your server's address, e.g. `http://192.168.1.42:11434` (the model must be pulled on that server)
 
 > **Tip:** If you skip Step 1, you can use the included `stories.json` and go straight to Step 2. Running Step 1 overwrites the included `stories.json` with your generated stories.
 
@@ -192,7 +192,8 @@ curl -X POST http://localhost:2025/process \
 | Issue | Cause | Fix |
 |-------|-------|-----|
 | Connection refused / Ollama error | Ollama not running | Start Ollama: `ollama serve` (or launch the Ollama app) |
-| Connection refused with a remote Ollama server | TalkPipe defaults to `localhost:11434` | `export TALKPIPE_OLLAMA_SERVER_URL=http://<host>:11434` before running Step 1 |
+| Connection refused with a remote Ollama server | TalkPipe defaults to `localhost:11434` | `export TALKPIPE_OLLAMA_SERVER_URL=http://your-ollama-host:11434` (substitute your server's address) before running Step 1 |
+| `Error: Ollama is not installed` | Base package installed without the Ollama extra | `pip install "talkpipe[ollama]"` |
 | Model not found | `llama3.2` not installed | Run `ollama pull llama3.2` (on the remote server, if using one) |
 | File not found / path errors | Wrong working directory | Run all commands from `docs/tutorials/Tutorial_1-Document_Indexing` |
 | Port already in use | Another process on 2025 | Use `--port 2026` (or another port) with `chatterlang_serve` |
