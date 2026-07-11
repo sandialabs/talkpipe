@@ -2,6 +2,28 @@
 
 ## Unreleased
 
+- Fixed friction points found during a Tutorial 2-focused newcomer-simulation
+  usability pass:
+  - The Ollama *embedding* connection error now names the server URL it tried and includes
+    a copy-pastable `export TALKPIPE_OLLAMA_SERVER_URL=http://your-ollama-host:11434`
+    example, matching the chat adapter's existing behavior. Previously Tutorial 2's Step 1
+    failed with only the upstream client's "check that Ollama is downloaded, running and
+    accessible" message, which misdirects users whose Ollama runs on another machine.
+  - Tutorial 2 README: prerequisites and troubleshooting now cover remote Ollama servers
+    via `TALKPIPE_OLLAMA_SERVER_URL`, mirroring Tutorial 1; the Quick Start no longer says
+    to POST to the base URL for the API (that returns 405) — it points at `/process` with
+    a curl example showing the expected `{"example": ...}` body; and it now says to stop
+    the previous step's server before starting the next, since Steps 2 and 3 share the
+    default port.
+  - Tutorial 2 gained a "Using a Different LLM Provider" section: the scripts hardcode
+    `source="ollama"`, but switching providers is a `source`/`model` parameter change plus
+    an API key — including the caveat that changing the embedding model requires
+    re-running Step 1 so index and query vectors match. The tutorials index no longer
+    implies swapping LLM providers requires custom segments or plugins.
+  - Tutorial 2's prerequisites no longer claim Tutorial 1 must be completed first — the
+    pre-generated `stories.json` shipping with the repository is enough to start there.
+  - Added the missing trailing newline to Tutorial 2's `Step_2_SearchByExample.sh`.
+
 - Fixed friction points found during a third Tutorial 1-focused newcomer-simulation
   usability pass:
   - The remote-Ollama examples in the Tutorial 1 README, the quickstart, and the Ollama

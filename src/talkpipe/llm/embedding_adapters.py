@@ -99,6 +99,12 @@ class OllamaEmbedderAdapter(AbstractEmbeddingAdapter):
         super().__init__(model, "ollama")
         self._server_url = server_url
 
+    def _resolve_server_url(self):
+        server_url = self._server_url
+        if not server_url:
+            server_url = get_config().get(OLLAMA_SERVER_URL, None)
+        return server_url
+
     def _client(self):
         try:
             import ollama
@@ -106,16 +112,24 @@ class OllamaEmbedderAdapter(AbstractEmbeddingAdapter):
             raise ImportError(
                 "Ollama is not installed. Please install it with: pip install talkpipe[ollama]"
             )
-        server_url = self._server_url
-        if not server_url:
-            server_url = get_config().get(OLLAMA_SERVER_URL, None)
+        server_url = self._resolve_server_url()
         return ollama.Client(server_url) if server_url else ollama
 
     def execute_batch(self, texts: Sequence[str]) -> List[List[float]]:
         if not texts:
             return []
         client = self._client()
-        response = client.embed(model=self.model_name, input=list(texts))
+        try:
+            response = client.embed(model=self.model_name, input=list(texts))
+        except ConnectionError as exc:
+            server_url = self._resolve_server_url()
+            raise ConnectionError(
+                f"Failed to connect to Ollama at '{server_url or 'http://localhost:11434'}'. "
+                "If your Ollama server is remote, set the TALKPIPE_OLLAMA_SERVER_URL environment "
+                "variable (e.g. `export TALKPIPE_OLLAMA_SERVER_URL=http://your-ollama-host:11434`) "
+                "or OLLAMA_SERVER_URL in ~/.talkpipe.toml. "
+                f"Original error: {exc}"
+            ) from exc
         return _vectors_to_lists(response["embeddings"])
 
     def execute_one(self, text: str) -> List[float]:

@@ -27,9 +27,9 @@ Keyword search breaks when users ask "find documents similar to this" or "show m
 
 ## Prerequisites
 
-- **Tutorial 1 completed**: `stories.json` must exist at `../Tutorial_1-Document_Indexing/stories.json`
+- **Stories from Tutorial 1**: `stories.json` must exist at `../Tutorial_1-Document_Indexing/stories.json`. A pre-generated copy ships with the repository, so you can start here without running Tutorial 1.
 - **TalkPipe** installed: See [Getting Started](../../quickstart.md). For this tutorial: `pip install talkpipe[ollama]` or `pip install talkpipe[all]`. Model and source defaults are explained in [Model and source configuration](../../guides/model-and-source-configuration.md).
-- **Ollama** with these models:
+- **Ollama** with these models, either installed locally or on a remote server you point TalkPipe at with `export TALKPIPE_OLLAMA_SERVER_URL=http://your-ollama-host:11434` — substitute your server's address (the models must be pulled on that server):
   - `mxbai-embed-large` (embeddings): `ollama pull mxbai-embed-large`
   - `llama3.2` (Step 3 only): `ollama pull llama3.2`
 
@@ -49,7 +49,13 @@ cd docs/tutorials/Tutorial_2-Search_by_Example_and_RAG
 | 2 | `./Step_2_SearchByExample.sh` or `chatterlang_serve --form-config story_by_example_ui.yml --display-property example --script Step_2_SearchByExample.script` | Starts server |
 | 3 | `./Step_3_SpecializedRag.sh` or `chatterlang_serve --form-config story_by_example_ui.yml --load-module step_3_extras.py --display-property example --script Step_3_SpecializedRag.script` | Starts server |
 
-Steps 2 and 3 start web servers. Open the URL shown—append `/stream` for the form, or POST to the base URL for the API.
+Steps 2 and 3 start web servers on the same default port—stop the previous server (Ctrl+C) before starting the next step. Open the URL shown—append `/stream` for the form, or POST JSON matching the form fields to `/process` for the API:
+
+```bash
+curl -X POST http://localhost:2025/process \
+  -H "Content-Type: application/json" \
+  -d '{"example": "A story about space exploration"}'
+```
 
 ---
 
@@ -201,12 +207,24 @@ The `--load-module step_3_extras.py` flag registers this segment so the script c
 
 ---
 
+## Using a Different LLM Provider
+
+The scripts in this tutorial specify `source="ollama"`, but the pipelines are not tied to Ollama—any supported provider works, and switching is a parameter change on the LLM segments, not a rewrite. For example, to use OpenAI instead (`pip install talkpipe[openai]` and set `OPENAI_API_KEY` in your environment), edit the `.script` files:
+
+- `llmEmbed[..., source="openai", model="text-embedding-3-small", ...]` (Steps 1 and 2)
+- `llmPrompt[source="openai", model="gpt-4o"]` (Step 3)
+
+If you change the embedding `source` or `model`, re-run Step 1 before searching: the vectors stored in the index must come from the same embedding model used for queries. See [Model and source configuration](../../guides/model-and-source-configuration.md) for the full list of supported sources and how to set defaults so scripts can omit `model`/`source` entirely.
+
+---
+
 ## Troubleshooting
 
 | Issue | Cause | Fix |
 |-------|-------|-----|
-| Connection refused / Ollama error | Ollama not running | Start Ollama: `ollama serve` |
-| Model not found | Embedding or LLM model not installed | Run `ollama pull mxbai-embed-large` and `ollama pull llama3.2` |
+| Connection refused / Ollama error | Ollama not running | Start Ollama: `ollama serve` (or launch the Ollama app) |
+| Connection refused with a remote Ollama server | TalkPipe defaults to `localhost:11434` | `export TALKPIPE_OLLAMA_SERVER_URL=http://your-ollama-host:11434` (substitute your server's address) before running Step 1 |
+| Model not found | Embedding or LLM model not installed | Run `ollama pull mxbai-embed-large` and `ollama pull llama3.2` (on the remote server, if using one) |
 | stories.json not found | Tutorial 1 not completed or wrong path | Complete Tutorial 1 first; run from `docs/tutorials/Tutorial_2-Search_by_Example_and_RAG` |
 | Port already in use | Another process on default port | Use `--port 2026` with `chatterlang_serve` |
 
@@ -225,7 +243,7 @@ The `--load-module step_3_extras.py` flag registers this segment so the script c
 
 - **Next: [Tutorial 3: Report Generation](../Tutorial_3_Report_Writing/)** — Use this vector index for report generation and summaries
 - **Simpler alternative**: [makevectordatabase and serverag](../../guides/makevectordatabase-and-serverag.md) — Two commands for document Q&A without writing scripts
-- **Customize**: Swap embedding models, adjust the RAG prompt, or add filters
+- **Customize**: Swap embedding models or providers (see [Using a Different LLM Provider](#using-a-different-llm-provider)), adjust the RAG prompt, or add filters
 
 **Previous:** [Tutorial 1: Document Indexing](../Tutorial_1-Document_Indexing/) | **Next:** [Tutorial 3: Report Generation](../Tutorial_3_Report_Writing/)
 

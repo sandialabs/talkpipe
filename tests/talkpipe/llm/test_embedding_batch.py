@@ -102,6 +102,37 @@ def test_ollama_execute_batch_mocked(monkeypatch):
     assert embed_calls[0][1] == ["Hello", "World"]
 
 
+def test_ollama_embed_connection_error_names_url_and_env_var(monkeypatch):
+    class DummyClient:
+        def embed(self, *, model, input):
+            raise ConnectionError("Failed to connect to Ollama.")
+
+    model = OllamaEmbedderAdapter("test-model", server_url="http://custom:11434")
+    monkeypatch.setattr(model, "_client", lambda: DummyClient())
+    with pytest.raises(ConnectionError) as excinfo:
+        model.execute_batch(["Hello"])
+    message = str(excinfo.value)
+    assert "http://custom:11434" in message
+    assert "TALKPIPE_OLLAMA_SERVER_URL" in message
+    # The example must stay paste-safe: an angle-bracket placeholder like
+    # <host> is parsed as a shell redirection when copied into a terminal.
+    assert "http://your-ollama-host:11434" in message
+    assert "<host>" not in message
+
+
+def test_ollama_embed_connection_error_defaults_to_localhost_url(monkeypatch):
+    class DummyClient:
+        def embed(self, *, model, input):
+            raise ConnectionError("Failed to connect to Ollama.")
+
+    model = OllamaEmbedderAdapter("test-model")
+    monkeypatch.setattr(model, "_client", lambda: DummyClient())
+    monkeypatch.setattr(model, "_resolve_server_url", lambda: None)
+    with pytest.raises(ConnectionError) as excinfo:
+        model.execute_batch(["Hello"])
+    assert "http://localhost:11434" in str(excinfo.value)
+
+
 def test_ollama_execute_one_returns_list_not_ndarray(monkeypatch):
     class DummyClient:
         def embed(self, *, model, input):

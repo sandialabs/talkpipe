@@ -44,7 +44,7 @@ The 5-minute path skips Step 1 by using the pre-generated `stories.json` include
 ## Key Concepts
 
 - **Composability**: Each tutorial reuses the previous one's output. Tutorial 1's index → Tutorial 2's corpus → Tutorial 3's report source.
-- **Segment isolation**: Built-in segments (Whoosh, LanceDB, Ollama) can be replaced with custom segments or plugins (e.g. Elasticsearch, cloud vector DBs, OpenAI) when you scale—pipeline logic stays the same.
+- **Segment isolation**: Built-in segments (Whoosh, LanceDB) can be replaced with custom segments or plugins (e.g. Elasticsearch, cloud vector DBs) when you scale—pipeline logic stays the same. Switching LLM providers needs no custom code at all: `source`/`model` are segment parameters (e.g. `source="openai"` instead of `source="ollama"`); see [Model and source configuration](../guides/model-and-source-configuration.md).
 - **Streaming**: Process large files, see results as they generate, chain without intermediate storage.
 - **Configuration over code**: YAML defines UIs; pipeline logic stays separate.
 
