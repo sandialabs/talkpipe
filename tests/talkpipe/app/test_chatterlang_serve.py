@@ -248,7 +248,23 @@ class TestChatterlangServer:
         assert server.title == server_config["title"]
         assert server.form_config.title == form_config["title"]
         assert len(server.form_config.fields) == 2
-    
+
+    def test_title_falls_back_to_form_config_title(self, form_config):
+        """Without an explicit title, the form config's title is used."""
+        server = ChatterlangServer(form_config=form_config)
+
+        assert server.title == form_config["title"]
+
+        client = TestClient(server.app)
+        assert "<title>Test Form</title>" in client.get("/").text
+        assert "<title>Test Form - Stream</title>" in client.get("/stream").text
+
+    def test_explicit_title_overrides_form_config_title(self, form_config):
+        """An explicit title wins over the form config's title."""
+        server = ChatterlangServer(title="Explicit Title", form_config=form_config)
+
+        assert server.title == "Explicit Title"
+
     def test_init_with_processor_func(self):
         """Test server initialization with custom processor function."""
         def custom_processor(data, session):

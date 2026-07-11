@@ -29,7 +29,7 @@ TalkPipe lets you prototype searchable document systems without external databas
 
 - **Tutorial files**: The tutorials ship with the repository, not the pip package. Clone it first: `git clone https://github.com/sandialabs/talkpipe.git && cd talkpipe`
 - **TalkPipe** installed: See [Getting Started](../../quickstart.md) for installation. For this tutorial: `pip install "talkpipe[ollama]"` or `pip install "talkpipe[all]"`
-- **Step 1 only**: Ollama with the `llama3.2` model, either installed locally or on a remote server you point TalkPipe at with `export TALKPIPE_OLLAMA_SERVER_URL=http://your-ollama-host:11434` — substitute your server's address, e.g. `http://192.168.1.42:11434` (the model must be pulled on that server)
+- **Step 1 only**: [Ollama](https://ollama.com/download) with the `llama3.2` model, either installed locally or on a remote server you point TalkPipe at with `export TALKPIPE_OLLAMA_SERVER_URL=http://your-ollama-host:11434` — substitute your server's address, e.g. `http://192.168.1.42:11434` (the model must be pulled on that server)
 
 > **Tip:** If you skip Step 1, you can use the included `stories.json` and go straight to Step 2. Running Step 1 overwrites the included `stories.json` with your generated stories.
 

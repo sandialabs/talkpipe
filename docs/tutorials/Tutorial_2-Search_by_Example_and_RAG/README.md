@@ -29,7 +29,7 @@ Keyword search breaks when users ask "find documents similar to this" or "show m
 
 - **Stories from Tutorial 1**: `stories.json` must exist at `../Tutorial_1-Document_Indexing/stories.json`. A pre-generated copy ships with the repository, so you can start here without running Tutorial 1.
 - **TalkPipe** installed: See [Getting Started](../../quickstart.md). For this tutorial: `pip install talkpipe[ollama]` or `pip install talkpipe[all]`. Model and source defaults are explained in [Model and source configuration](../../guides/model-and-source-configuration.md).
-- **Ollama** with these models, either installed locally or on a remote server you point TalkPipe at with `export TALKPIPE_OLLAMA_SERVER_URL=http://your-ollama-host:11434` — substitute your server's address (the models must be pulled on that server):
+- **[Ollama](https://ollama.com/download)** with these models, either installed locally or on a remote server you point TalkPipe at with `export TALKPIPE_OLLAMA_SERVER_URL=http://your-ollama-host:11434` — substitute your server's address (the models must be pulled on that server):
   - `mxbai-embed-large` (embeddings): `ollama pull mxbai-embed-large`
   - `llama3.2` (Step 3 only): `ollama pull llama3.2`
 

@@ -128,7 +128,7 @@ class ChatterlangServer:
         api_key: str = "your-secret-key-here",
         require_auth: bool = False,
         processor_func: Callable[[Dict[str, Any]], Any] = None,
-        title: str = "ChatterLang Server",
+        title: Optional[str] = None,
         history_length: int = 1000,
         form_config: Optional[Dict[str, Any]] = None,
         display_property: Optional[str] = None,
@@ -138,6 +138,13 @@ class ChatterlangServer:
         self.port = port
         self.api_key = api_key
         self.require_auth = require_auth
+        if title is None:
+            # No explicit title: use the form config's title so the browser tab
+            # matches what the page shows, rather than a generic default.
+            if form_config and form_config.get("title"):
+                title = form_config["title"]
+            else:
+                title = "ChatterLang Server"
         self.title = title
         self.history_length = history_length
         self.display_property = display_property
@@ -1926,8 +1933,10 @@ def go():
     parser.add_argument('--api-key', help='Set API key for authentication')
     parser.add_argument('--require-auth', action='store_true',
                         help='Require API key authentication')
-    parser.add_argument('--title', default='JSON Data Receiver',
-                        help='Title for the FastAPI application')
+    parser.add_argument('--title', default=None,
+                        help='Title for the web pages and FastAPI application '
+                             '(default: the form config title if it sets one, '
+                             "else 'JSON Data Receiver')")
     parser.add_argument('--script', default=None,
                         help='Chatterlang script to run on received data: file path, configuration key, or inline script content')
     parser.add_argument('--form-config', default=None,
@@ -1975,12 +1984,18 @@ def go():
             # Load from file
             form_config = load_form_config(args.form_config)
 
+    # Explicit --title wins; otherwise fall back to the form config's title so
+    # the browser tab matches the page, and finally to the historical default.
+    title = args.title
+    if title is None:
+        title = (form_config or {}).get('title') or 'JSON Data Receiver'
+
     receiver = ChatterlangServer(
         host=args.host,
         port=args.port,
         api_key=api_key,
         require_auth=args.require_auth,
-        title=args.title,
+        title=title,
         form_config=form_config,
         display_property=args.display_property,
         script_content=script_content

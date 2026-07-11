@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+- Fixed friction points found during a second Tutorial 2-focused newcomer-simulation
+  usability pass:
+  - `chatterlang_serve` pages now use the form config's `title` in the browser-tab
+    `<title>` (and page heading) when `--title` isn't given, so Tutorial 2's
+    "Story Search by Example" shows up in the tab instead of the generic
+    "JSON Data Receiver". An explicit `--title` still wins, and the old default
+    remains when neither is set.
+  - The tutorial prerequisites now link to the Ollama download page — previously a
+    newcomer with no Ollama anywhere was told to `ollama pull` with no pointer to
+    where Ollama itself comes from. Tutorial 3's Ollama prerequisite also gained the
+    remote-server `TALKPIPE_OLLAMA_SERVER_URL` note that Tutorials 1 and 2 already had.
+
 - Fixed friction points found during a Tutorial 2-focused newcomer-simulation
   usability pass:
   - The Ollama *embedding* connection error now names the server URL it tried and includes

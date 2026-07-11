@@ -29,7 +29,7 @@ Tutorial 2 showed how to answer questions with RAG. This tutorial goes further: 
 
 - **Tutorials 1 and 2 completed**: Vector index must exist at `../Tutorial_2-Search_by_Example_and_RAG/vector_index`
 - **TalkPipe** installed: See [Getting Started](../../quickstart.md). For this tutorial: `pip install talkpipe[ollama]` or `pip install talkpipe[all]`
-- **Ollama** with these models:
+- **[Ollama](https://ollama.com/download)** with these models, either installed locally or on a remote server you point TalkPipe at with `export TALKPIPE_OLLAMA_SERVER_URL=http://your-ollama-host:11434` — substitute your server's address (the models must be pulled on that server):
   - `mxbai-embed-large` (embeddings): `ollama pull mxbai-embed-large`
   - `llama3.2` (generation): `ollama pull llama3.2`
 
