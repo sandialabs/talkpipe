@@ -28,7 +28,7 @@ Tutorial 2 showed how to answer questions with RAG. This tutorial goes further: 
 ## Prerequisites
 
 - **Tutorials 1 and 2 completed**: Vector index must exist at `../Tutorial_2-Search_by_Example_and_RAG/vector_index`
-- **TalkPipe** installed: See [Getting Started](../../quickstart.md). For this tutorial: `pip install talkpipe[ollama]` or `pip install talkpipe[all]`
+- **TalkPipe** installed: See [Getting Started](../../quickstart.md). For this tutorial: `pip install talkpipe[ollama]`, or `pip install talkpipe[all]` to include every LLM provider integration (see [Using a Different LLM Provider](#using-a-different-llm-provider) below)
 - **[Ollama](https://ollama.com/download)** with these models, either installed locally or on a remote server you point TalkPipe at with `export TALKPIPE_OLLAMA_SERVER_URL=http://your-ollama-host:11434` — substitute your server's address (the models must be pulled on that server):
   - `mxbai-embed-large` (embeddings): `ollama pull mxbai-embed-large`
   - `llama3.2` (generation): `ollama pull llama3.2`
@@ -37,7 +37,7 @@ Tutorial 2 showed how to answer questions with RAG. This tutorial goes further: 
 
 ## Using a Different LLM Provider
 
-The scripts in this tutorial specify `source="ollama"`, but the pipelines are not tied to Ollama—any supported provider works, and switching is a parameter change on the LLM segments, not a rewrite. For example, to use OpenAI instead (`pip install talkpipe[openai]` and set `OPENAI_API_KEY` in your environment), edit the `.script` files:
+The scripts in this tutorial specify `source="ollama"`, but the pipelines are not tied to Ollama—any supported provider works, and switching is a parameter change on the LLM segments, not a rewrite. Each LLM segment takes its own `source`/`model` parameters, so different parts of a pipeline can even use different providers (e.g. Ollama for embeddings and OpenAI for generation). Installing with `pip install talkpipe[all]` includes every provider integration (Ollama, OpenAI, Anthropic) up front, so you can switch or mix providers without installing anything else; otherwise install the provider's own extra. For example, to use OpenAI (`pip install talkpipe[openai]` and set `OPENAI_API_KEY` in your environment), edit the `.script` files:
 
 - `llmEmbed[..., source="openai", model="text-embedding-3-small", ...]` (all steps)
 - `llmPrompt[source="openai", model="gpt-4o"]` (Step 1)

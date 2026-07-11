@@ -28,7 +28,7 @@ TalkPipe lets you prototype searchable document systems without external databas
 ## Prerequisites
 
 - **Tutorial files**: The tutorials ship with the repository, not the pip package. Clone it first: `git clone https://github.com/sandialabs/talkpipe.git && cd talkpipe`
-- **TalkPipe** installed: See [Getting Started](../../quickstart.md) for installation. For this tutorial: `pip install "talkpipe[ollama]"` or `pip install "talkpipe[all]"`
+- **TalkPipe** installed: See [Getting Started](../../quickstart.md) for installation. For this tutorial: `pip install "talkpipe[ollama]"`, or `pip install "talkpipe[all]"` to include every LLM provider integration (see [Using a Different LLM Provider](#using-a-different-llm-provider) below)
 - **Step 1 only**: [Ollama](https://ollama.com/download) with the `llama3.2` model, either installed locally or on a remote server you point TalkPipe at with `export TALKPIPE_OLLAMA_SERVER_URL=http://your-ollama-host:11434` — substitute your server's address, e.g. `http://192.168.1.42:11434` (the model must be pulled on that server)
 
 > **Tip:** If you skip Step 1, you can use the included `stories.json` and go straight to Step 2. Running Step 1 overwrites the included `stories.json` with your generated stories.
@@ -37,7 +37,7 @@ TalkPipe lets you prototype searchable document systems without external databas
 
 ## Using a Different LLM Provider
 
-Step 1's script specifies `source="ollama"`, but the pipeline is not tied to Ollama—any supported provider works, and switching is a parameter change on the LLM segments, not a rewrite. For example, to use OpenAI instead (`pip install talkpipe[openai]` and set `OPENAI_API_KEY` in your environment), edit `Step_1_CreateSyntheticData.script` and change both `llmPrompt` segments to `source="openai", model="gpt-4o"`. Steps 2 and 3 are keyword indexing and search and make no LLM calls, so they need no provider at all. See [Model and source configuration](../../guides/model-and-source-configuration.md) for the full list of supported sources and how to set defaults so scripts can omit `model`/`source` entirely.
+Step 1's script specifies `source="ollama"`, but the pipeline is not tied to Ollama—any supported provider works, and switching is a parameter change on the LLM segments, not a rewrite. Each LLM segment takes its own `source`/`model` parameters, so different segments can even use different providers. Installing with `pip install "talkpipe[all]"` includes every provider integration (Ollama, OpenAI, Anthropic) up front, so you can switch or mix providers without installing anything else; otherwise install the provider's own extra. For example, to use OpenAI (`pip install "talkpipe[openai]"` and set `OPENAI_API_KEY` in your environment), edit `Step_1_CreateSyntheticData.script` and change both `llmPrompt` segments to `source="openai", model="gpt-4o"`. Steps 2 and 3 are keyword indexing and search and make no LLM calls, so they need no provider at all. See [Model and source configuration](../../guides/model-and-source-configuration.md) for the full list of supported sources and how to set defaults so scripts can omit `model`/`source` entirely.
 
 ---
 

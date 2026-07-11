@@ -24,7 +24,11 @@
     the section directly after Prerequisites, where a reader picking a backend
     sees it before running anything — Tutorial 1 gained one (for Step 1's
     `llmPrompt` segments; its other steps make no LLM calls) and Tutorial 2's
-    moved up from the end of the page.
+    moved up from the end of the page. The sections (and the prerequisites'
+    install lines) now also spell out that `pip install talkpipe[all]` includes
+    every provider integration (Ollama, OpenAI, Anthropic), and that each LLM
+    segment takes its own `source`/`model`, so providers can be switched — or
+    mixed within one pipeline — without further installs.
   - Tutorial 3 README: the Quick Start now says to stop the previous step's
     server before starting the next (the steps share the default port, matching
     Tutorial 2's wording); the troubleshooting table gained rows for remote
