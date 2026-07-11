@@ -35,6 +35,17 @@ Keyword search breaks when users ask "find documents similar to this" or "show m
 
 ---
 
+## Using a Different LLM Provider
+
+The scripts in this tutorial specify `source="ollama"`, but the pipelines are not tied to Ollama—any supported provider works, and switching is a parameter change on the LLM segments, not a rewrite. For example, to use OpenAI instead (`pip install talkpipe[openai]` and set `OPENAI_API_KEY` in your environment), edit the `.script` files:
+
+- `llmEmbed[..., source="openai", model="text-embedding-3-small", ...]` (Steps 1 and 2)
+- `llmPrompt[source="openai", model="gpt-4o"]` (Step 3)
+
+If you change the embedding `source` or `model`, re-run Step 1 before searching: the vectors stored in the index must come from the same embedding model used for queries. See [Model and source configuration](../../guides/model-and-source-configuration.md) for the full list of supported sources and how to set defaults so scripts can omit `model`/`source` entirely.
+
+---
+
 ## Quick Start
 
 All commands must be run from the tutorial directory:
@@ -204,17 +215,6 @@ def rag_prompt_segment(item):
 ```
 
 The `--load-module step_3_extras.py` flag registers this segment so the script can use it.
-
----
-
-## Using a Different LLM Provider
-
-The scripts in this tutorial specify `source="ollama"`, but the pipelines are not tied to Ollama—any supported provider works, and switching is a parameter change on the LLM segments, not a rewrite. For example, to use OpenAI instead (`pip install talkpipe[openai]` and set `OPENAI_API_KEY` in your environment), edit the `.script` files:
-
-- `llmEmbed[..., source="openai", model="text-embedding-3-small", ...]` (Steps 1 and 2)
-- `llmPrompt[source="openai", model="gpt-4o"]` (Step 3)
-
-If you change the embedding `source` or `model`, re-run Step 1 before searching: the vectors stored in the index must come from the same embedding model used for queries. See [Model and source configuration](../../guides/model-and-source-configuration.md) for the full list of supported sources and how to set defaults so scripts can omit `model`/`source` entirely.
 
 ---
 

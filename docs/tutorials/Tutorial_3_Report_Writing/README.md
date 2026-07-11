@@ -35,6 +35,19 @@ Tutorial 2 showed how to answer questions with RAG. This tutorial goes further: 
 
 ---
 
+## Using a Different LLM Provider
+
+The scripts in this tutorial specify `source="ollama"`, but the pipelines are not tied to Ollama—any supported provider works, and switching is a parameter change on the LLM segments, not a rewrite. For example, to use OpenAI instead (`pip install talkpipe[openai]` and set `OPENAI_API_KEY` in your environment), edit the `.script` files:
+
+- `llmEmbed[..., source="openai", model="text-embedding-3-small", ...]` (all steps)
+- `llmPrompt[source="openai", model="gpt-4o"]` (Step 1)
+- `generateDetailedReport[source="openai", model="gpt-4o"]` (Step 2)
+- `generateMultiFormatReport[source="openai", model="gpt-4o"]` (Step 3)
+
+The custom segments that call an LLM (`generateDetailedReport`, `generateMultiFormatReport`) accept the same `source` and `model` parameters as the built-in LLM segments and pass them through to the underlying LLM, so they switch providers the same way; the prompt-building segments (`executiveSummaryPrompt`, `generateReportSectionPrompts`) make no LLM calls and need no changes. If you change the embedding `source` or `model`, rebuild the Tutorial 2 vector index with the same embedding model: the vectors stored in the index must come from the same model used for queries. See [Model and source configuration](../../guides/model-and-source-configuration.md) for the full list of supported sources and how to set defaults so scripts can omit `model`/`source` entirely.
+
+---
+
 ## Quick Start
 
 All commands must be run from the tutorial directory:
@@ -191,19 +204,6 @@ Each step uses custom segments defined in Python:
 | `step_3_extras.py` | `generateMultiFormatReport` | Applies format-specific prompts and generates output |
 
 The `--load-module` flag registers these so the scripts can use them.
-
----
-
-## Using a Different LLM Provider
-
-The scripts in this tutorial specify `source="ollama"`, but the pipelines are not tied to Ollama—any supported provider works, and switching is a parameter change on the LLM segments, not a rewrite. For example, to use OpenAI instead (`pip install talkpipe[openai]` and set `OPENAI_API_KEY` in your environment), edit the `.script` files:
-
-- `llmEmbed[..., source="openai", model="text-embedding-3-small", ...]` (all steps)
-- `llmPrompt[source="openai", model="gpt-4o"]` (Step 1)
-- `generateDetailedReport[source="openai", model="gpt-4o"]` (Step 2)
-- `generateMultiFormatReport[source="openai", model="gpt-4o"]` (Step 3)
-
-The custom segments that call an LLM (`generateDetailedReport`, `generateMultiFormatReport`) accept the same `source` and `model` parameters as the built-in LLM segments and pass them through to the underlying LLM, so they switch providers the same way; the prompt-building segments (`executiveSummaryPrompt`, `generateReportSectionPrompts`) make no LLM calls and need no changes. If you change the embedding `source` or `model`, rebuild the Tutorial 2 vector index with the same embedding model: the vectors stored in the index must come from the same model used for queries. See [Model and source configuration](../../guides/model-and-source-configuration.md) for the full list of supported sources and how to set defaults so scripts can omit `model`/`source` entirely.
 
 ---
 

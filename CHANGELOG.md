@@ -20,7 +20,11 @@
   - Tutorial 3 gained the "Using a Different LLM Provider" section Tutorial 2
     already had, additionally covering the `source`/`model` parameters on the
     tutorial's custom LLM-calling segments and the need to rebuild the Tutorial 2
-    vector index if the embedding model changes.
+    vector index if the embedding model changes. All three tutorials now place
+    the section directly after Prerequisites, where a reader picking a backend
+    sees it before running anything — Tutorial 1 gained one (for Step 1's
+    `llmPrompt` segments; its other steps make no LLM calls) and Tutorial 2's
+    moved up from the end of the page.
   - Tutorial 3 README: the Quick Start now says to stop the previous step's
     server before starting the next (the steps share the default port, matching
     Tutorial 2's wording); the troubleshooting table gained rows for remote

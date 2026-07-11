@@ -35,6 +35,12 @@ TalkPipe lets you prototype searchable document systems without external databas
 
 ---
 
+## Using a Different LLM Provider
+
+Step 1's script specifies `source="ollama"`, but the pipeline is not tied to Ollama—any supported provider works, and switching is a parameter change on the LLM segments, not a rewrite. For example, to use OpenAI instead (`pip install talkpipe[openai]` and set `OPENAI_API_KEY` in your environment), edit `Step_1_CreateSyntheticData.script` and change both `llmPrompt` segments to `source="openai", model="gpt-4o"`. Steps 2 and 3 are keyword indexing and search and make no LLM calls, so they need no provider at all. See [Model and source configuration](../../guides/model-and-source-configuration.md) for the full list of supported sources and how to set defaults so scripts can omit `model`/`source` entirely.
+
+---
+
 ## Quick Start
 
 All commands must be run from the tutorial directory:
