@@ -38,7 +38,7 @@ def main():
     parser.add_argument("--load-module", action='append', default=[], type=str, help="Path to a custom module file to import before running the script.")
     parser.add_argument("--logger_levels", type=str, help="Logger levels in format 'logger:level,logger:level,...'")
     parser.add_argument("--logger_files", type=str, help="Logger files in format 'logger:file,logger:file,...'")
-    parser.add_argument("--verbose", action='store_true', help="Show the full Python traceback on script compile errors (for debugging), instead of just the error message.")
+    parser.add_argument("--verbose", action='store_true', help="Show the full Python traceback on script compile and runtime errors (for debugging), instead of just the error message.")
 
     # Parse known arguments and capture unknown ones as potential constants
     args, unknown_args = parser.parse_known_args()
@@ -68,7 +68,14 @@ def main():
             raise
         print(f"Error: {e}", file=sys.stderr)
         sys.exit(1)
-    compiled()
+
+    try:
+        compiled()
+    except Exception as e:
+        if args.verbose:
+            raise
+        print(f"Error: {e}", file=sys.stderr)
+        sys.exit(1)
 
 
 if __name__ == '__main__':

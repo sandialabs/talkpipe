@@ -152,7 +152,7 @@ class AnthropicPromptAdapter(AbstractLLMPromptAdapter):
                 raise RuntimeError(
                     "Could not authenticate with Anthropic. Set the ANTHROPIC_API_KEY environment variable "
                     "to your API key (see https://console.anthropic.com/). "
-                    "See docs/guides/model-and-source-configuration.md."
+                    "See https://github.com/sandialabs/talkpipe/blob/main/docs/guides/model-and-source-configuration.md."
                 ) from exc
             raise
 

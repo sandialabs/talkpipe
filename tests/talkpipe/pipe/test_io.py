@@ -373,6 +373,49 @@ def test_writeString_single_item(tmpdir):
         content = file.read()
     assert content == "single_item\n"
 
+def test_writeString_upstream_failure_preserves_existing_file(tmpdir):
+    """A failure upstream of writeString must not truncate a pre-existing file.
+
+    Regression test: writeString used to open (and truncate) its output file
+    before pulling the first item, so a pipeline that failed upstream (e.g. an
+    unreachable LLM in Tutorial 1's Step 1) destroyed the existing file.
+    """
+    temp_file_path = tmpdir.join("precious.txt")
+    temp_file_path.write("do not clobber\n")
+
+    def failing_source():
+        raise RuntimeError("upstream failure before the first item")
+        yield  # makes this a generator
+
+    f = io.writeString(fname=str(temp_file_path))
+    try:
+        list(f(failing_source()))
+        assert False, "Expected the upstream RuntimeError to propagate"
+    except RuntimeError:
+        pass
+
+    assert temp_file_path.read() == "do not clobber\n"
+
+def test_writePickle_upstream_failure_preserves_existing_file(tmpdir):
+    """A failure upstream of writePickle must not truncate a pre-existing file."""
+    temp_file_path = tmpdir.join("precious.pickle")
+    with open(str(temp_file_path), 'wb') as file:
+        pickle.dump({"keep": "me"}, file)
+
+    def failing_source():
+        raise RuntimeError("upstream failure before the first item")
+        yield  # makes this a generator
+
+    f = io.writePickle(fname=str(temp_file_path))
+    try:
+        list(f(failing_source()))
+        assert False, "Expected the upstream RuntimeError to propagate"
+    except RuntimeError:
+        pass
+
+    with open(str(temp_file_path), 'rb') as file:
+        assert pickle.load(file) == {"keep": "me"}
+
 def test_prompt_error_handling_continues_after_exception(capsys):
     """Test that Prompt with error-resilient pipeline catches downstream exceptions and continues prompting."""
     # Mock the PromptSession to return specific values

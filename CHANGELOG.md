@@ -2,6 +2,92 @@
 
 ## Unreleased
 
+- Fixed friction points found during a second Tutorial 1-focused newcomer-simulation
+  usability pass (F-003, F-004):
+  - The Ollama model-not-found error no longer prints `(status code: 404)` twice — the
+    re-raised `ResponseError` now embeds the original error text without its status-code
+    suffix, which `ResponseError.__str__` appends again. (F-003)
+  - Tutorial 1's `Step_3_SearchStories.script` header no longer describes a command-line
+    interface that doesn't exist; it now correctly names the two real interfaces, the
+    REST API at `/process` and the web search form at `/stream`. (F-004)
+
+- Fixed friction points found during a Tutorial 1-focused newcomer-simulation usability pass
+  (F-002, F-003, F-005, F-006, F-007, F-008, F-009, F-011, F-012, F-013):
+  - `writeString` and `writePickle` no longer open (and truncate) their output file before
+    the first item arrives, so an upstream failure — e.g. Tutorial 1's Step 1 with Ollama
+    unreachable — leaves a pre-existing file (like the tutorial's shipped `stories.json`)
+    intact. An input stream that completes empty still produces an empty file. (F-013)
+  - `chatterlang_script` now prints a one-line `Error: <message>` (exit 1) for runtime
+    pipeline failures, matching its existing compile-error behavior; `--verbose` restores
+    the full traceback. Previously an unreachable LLM produced a ~40-frame traceback of
+    generator internals. (F-003)
+  - The Ollama connection error now includes a copy-pastable
+    `export TALKPIPE_OLLAMA_SERVER_URL=http://<host>:11434` example. (F-012)
+  - Tutorial 1 README: prerequisites and troubleshooting now cover remote Ollama servers
+    via `TALKPIPE_OLLAMA_SERVER_URL` (F-002); the Quick Start no longer claims the REST
+    API is at the base URL — it is at `/process`, POSTing to the base URL returns 405
+    (F-005); the skip-Step-1 tip notes that running Step 1 overwrites the included
+    `stories.json` (F-006); the extras install commands are quoted for zsh compatibility
+    (F-007); and prerequisites tell readers to clone the repository, since the tutorial
+    files are not in the pip package (F-011).
+  - Tutorials index: added the same clone step (F-011) and clarified that the 5-minute
+    path uses the included `stories.json`, resolving the contradiction between the
+    "Get Started in 5 Minutes" heading and the ~5-10 minute Step 1 (F-009).
+  - Removed a generated `stories.json` accidentally committed at the repository root
+    (it made running tutorial scripts from the wrong directory appear to succeed against
+    the wrong data) and gitignored the tutorials' generated `full_text_index/`
+    directories. (F-008)
+
+- Fixed friction points found during a follow-up newcomer-simulation usability pass (F-003,
+  F-007, F-008, F-009, F-011):
+  - `docs/api-reference/talkpipe-ref.md` described a `chatterlang_reference_generator`
+    CLI that no longer exists: a `[root_or_package]` first argument (rejected by the
+    actual command), "Analyze Custom Package" / "Analyze Directory" examples, wrong
+    default output filenames (`talkpipe_ref.*` vs the actual `chatterlang_ref.*`), and
+    file-based browser auto-discovery (`talkpipe_ref.txt` / `unit-docs.txt`) that the
+    registry-introspecting browser never does. The page now documents the real
+    registry-based behavior of both tools. (F-007)
+  - `chatterlang_reference_generator` treated any two arguments as output filenames, so
+    a guessed flag like `--output_dir ./refdocs` silently wrote an HTML file literally
+    named `--output_dir`. The CLI now uses argparse: unknown options are rejected,
+    `-h/--help` works, and a lone output path errors out ("provide both html_out and
+    text_out, or neither"). (F-007, F-008)
+  - ChatterLang `CompileError`s raised from the Python API no longer chain the internal
+    `KeyError`/`TypeError`/`ParseError` (`raise ... from None`), since the message
+    already embeds the cause; tracebacks shrink to a single chain with the "Did you
+    mean" text at the bottom. (F-003)
+  - The `print` segment now flushes stdout per item, so pipeline output keeps its order
+    relative to `progressTicks`' stderr output when redirected to a file or pipe. (F-009)
+  - README now links `chatterlang_reference_browser` to `docs/api-reference/talkpipe-ref.md`
+    in the Key Applications list, Command-Line Tools list, and Quick Reference table,
+    which previously had no doc link for it. (F-011)
+
+- Fixed friction points found during a newcomer-simulation usability pass:
+  - `chatterlang_serve` printed its "ChatterLang Server Started" banner even when uvicorn
+    failed to bind the port, leaving a success banner next to dead URLs. The server now
+    pre-checks the host/port and fails fast with a clear TalkPipe-level error (exit 1 from
+    the CLI) when the port is taken, blocked, or the host cannot be resolved.
+  - `makevectordatabase` silently exited 0 after indexing nothing when the input pattern
+    matched no files. It now exits 1 with `error: '<pattern>' matched no files`, and also
+    exits 1 with a warning if the matched paths yielded zero indexed chunks.
+  - ChatterLang syntax errors caused by unquoted string parameter values (e.g.
+    `model=llama3.2`) now include a hint that string values must be quoted, instead of
+    only parser-grammar jargon ("Expected one of: ,, \s+, ].").
+  - An unknown segment/source name with a close-match suggestion ("Did you mean ...?") no
+    longer also dumps the full ~100-name registry list; the full list is shown only when
+    there is no suggestion to offer.
+  - Runtime credential errors in the OpenAI/Anthropic prompt adapters cited the
+    repo-relative path `docs/guides/model-and-source-configuration.md`, which doesn't
+    exist for pip-installed users; they now link the full GitHub URL.
+  - README/quickstart: the remote-Ollama instructions now say the model must already be
+    pulled on the remote server (with the `OLLAMA_HOST=... ollama pull` variant), the
+    README's first bare ChatterLang snippet now says how to run it
+    (`chatterlang_script --script` or `compiler.compile`), and quickstart's
+    `pip install talkpipe-some-plugin` placeholder is now clearly marked as
+    `<plugin-package-name>`.
+  - `extending-talkpipe.md`'s "Example script shape" block used parenthesis call syntax
+    (`apiData(url=...)`), which ChatterLang does not parse; changed to bracket syntax.
+
 ## 0.12.3
 
 - Fixed several doc-accuracy and rough-edge issues found during usability testing:

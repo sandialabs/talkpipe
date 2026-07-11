@@ -11,15 +11,17 @@ The TalkPipe reference tools provide comprehensive documentation generation and 
 
 ## ChatterLang Reference Generator
 
-**`chatterlang_reference_generator`** - Automated tool that scans TalkPipe source code to generate comprehensive HTML and text documentation for all registered components.
+**`chatterlang_reference_generator`** - Automated tool that documents every source and segment registered with TalkPipe — built-ins and installed plugins alike — as HTML and text.
 
 ### Usage
 
 #### Command Line Interface
 
 ```bash
-chatterlang_reference_generator [root_or_package] [html_output] [text_output]
+chatterlang_reference_generator [html_output text_output]
 ```
+
+Provide both output paths or neither. Components are discovered through the TalkPipe registry (including `talkpipe.segments` / `talkpipe.sources` entry points), so components from any installed plugin package appear automatically — there is no argument for selecting a package or directory.
 
 #### Default Behavior
 
@@ -28,25 +30,22 @@ When run without arguments, uses sensible defaults:
 ```bash
 chatterlang_reference_generator
 # Equivalent to:
-# chatterlang_reference_generator talkpipe ./talkpipe_ref.html ./talkpipe_ref.txt
+# chatterlang_reference_generator ./chatterlang_ref.html ./chatterlang_ref.txt
 ```
 
 #### Custom Output
 
 ```bash
-chatterlang_reference_generator talkpipe ./docs/reference.html ./docs/reference.txt
+chatterlang_reference_generator ./docs/reference.html ./docs/reference.txt
 ```
 
-#### Analyze Custom Package
+#### Include Your Own Components
+
+Install the package that registers them (see [Extending TalkPipe](../architecture/extending-talkpipe.md)), then rerun the generator; its components are picked up through their entry points:
 
 ```bash
-chatterlang_reference_generator my_custom_package ./custom_ref.html ./custom_ref.txt
-```
-
-#### Analyze Directory
-
-```bash
-chatterlang_reference_generator ./src/my_talkpipe_extensions ./extensions.html ./extensions.txt
+pip install my-talkpipe-plugin
+chatterlang_reference_generator ./custom_ref.html ./custom_ref.txt
 ```
 
 ### Features
@@ -83,7 +82,7 @@ For each discovered component, extracts:
 
 #### Output Formats
 
-**HTML Output (`talkpipe_ref.html`)**:
+**HTML Output (`chatterlang_ref.html` by default)**:
 - Styled, responsive web interface
 - Table of contents with quick navigation
 - Searchable content (browser search)
@@ -91,7 +90,7 @@ For each discovered component, extracts:
 - Parameter lists with type annotations
 - Preserved HTML formatting in docstrings
 
-**Text Output (`talkpipe_ref.txt`)**:
+**Text Output (`chatterlang_ref.txt` by default)**:
 - Plain text format for terminal viewing
 - Package-organized structure
 - Complete parameter documentation
@@ -110,13 +109,12 @@ The generator intelligently processes function parameters:
 - **Default value extraction**: Documents parameter defaults
 - **Complex type handling**: Safely unparsers complex AST nodes
 
-#### AST-Based Analysis
+#### Registry-Based Analysis
 
-Uses Python's Abstract Syntax Tree (AST) parsing for:
-- **Accurate code analysis** without importing modules
-- **Safe processing** of potentially problematic code
-- **Cross-version compatibility** with Python 3.9+ unparse support
-- **Decorator pattern recognition** across different syntax styles
+Components are discovered by introspecting the live TalkPipe registry:
+- **Always in sync** with what ChatterLang can actually resolve
+- **Entry-point aware** — `talkpipe.segments` / `talkpipe.sources` groups are loaded first, so plugin components are included
+- **Grouped aliases** — a component registered under several ChatterLang names appears once with all its names
 
 ## ChatterLang Reference Browser
 
@@ -127,28 +125,10 @@ Uses Python's Abstract Syntax Tree (AST) parsing for:
 #### Command Line Interface
 
 ```bash
-chatterlang_reference_browser [doc_path]
-```
-
-#### Auto-Discovery Mode
-
-```bash
-# Automatically finds or generates documentation
 chatterlang_reference_browser
 ```
 
-**Discovery Process**:
-1. Looks for `talkpipe_ref.txt` in current directory
-2. Falls back to `unit-docs.txt` in installation directory static folder
-3. Attempts to run `chatterlang_reference_generator` to create files
-4. Displays error if documentation cannot be found or generated
-
-#### Explicit Path Mode
-
-```bash
-# Use documentation from specific directory
-chatterlang_reference_browser /path/to/docs/
-```
+The browser takes no arguments. On startup it loads component information live from the TalkPipe registry (including installed plugins), the same way the reference generator does — no documentation files are read or required.
 
 ### Interactive Commands
 
@@ -158,21 +138,21 @@ Once launched, the browser provides a command-line interface:
 🔧 TalkPipe Documentation Browser
 ==================================================
 Commands:
-  list                - List all packages
-  list <package>      - List components in package  
+  list                - List all modules
+  list <module>       - List components in module
   show <component>    - Show detailed component info
   search <term>       - Search components and descriptions
   help                - Show this help
   quit                - Exit browser
 ```
 
-#### Package Exploration
+#### Module Exploration
 
-**List all packages**:
+**List all modules** (output illustrative):
 ```
 talkpipe> list
 
-Available Packages (15):
+Available Modules (15):
 ------------------------------
 📦 talkpipe.data.email        (3 components)
 📦 talkpipe.data.html         (4 components)  
@@ -181,7 +161,7 @@ Available Packages (15):
 📦 talkpipe.pipe.basic        (12 components)
 ```
 
-**List package contents**:
+**List module contents** (partial module names match if unambiguous):
 ```
 talkpipe> list talkpipe.data.email
 
@@ -202,8 +182,8 @@ talkpipe> show readEmail
 📋 readEmail
 ============================================================
 Class/Function: EmailReader
-Type:           Source Class
-Package:        talkpipe.data.email
+Type:           Source
+Module:         talkpipe.data.email
 Base Classes:   io.AbstractSource
 
 Description:
@@ -268,50 +248,9 @@ Component 'email' not found. Did you mean:
 
 - **🔌 Sources** - Data input components (e.g., `readEmail`, `mongoConnect`)
 - **⚙️ Segments** - Data transformation components (e.g., `filterEmails`, `scale`)
+- **🔧 Field Segments** - Per-field transformation components
 
-#### Smart Navigation
-
-**Tab completion support** (where available):
-- Package names in `list` commands
-- Component names in `show` commands
-- Common search terms
-
-**Command shortcuts**:
-- `q` or `quit` or `exit` - Exit browser
-- `h` or `help` - Show help
-- `l` - Shorthand for `list`  
-- `s` - Shorthand for `search`
-
-### File Format Compatibility
-
-#### Supported Documentation Formats
-
-**Primary Format** (`talkpipe_ref.txt`):
-```text
-PACKAGE: package.name
----------------------
-
-Source Class: ComponentName
-  ChatterLang Name: chatterlangName
-  Docstring:
-    Component description...
-  Parameters:
-    param1: str = "default"
-    param2: int
-```
-
-**Installation Format** (`unit-docs.txt`):
-- Same structure as `talkpipe_ref.txt`  
-- Typically found in TalkPipe installation directory
-- Used when local documentation not available
-
-#### Parsing Capabilities
-
-The browser handles:
-- **Multi-line docstrings** with proper formatting
-- **Complex parameter signatures** with type annotations
-- **Nested package structures** with hierarchical organization
-- **Mixed component types** (classes, functions, field segments)
+Exit with `quit` or `exit` (or Ctrl-D / Ctrl-C).
 
 ### Advanced Usage
 
@@ -319,9 +258,10 @@ The browser handles:
 
 **Local Development**:
 ```bash
-# In your TalkPipe extension project
-chatterlang_reference_generator ./src/ ./ref.html ./ref.txt
-chatterlang_reference_browser ./
+# In your TalkPipe extension project (install it so its entry points register)
+pip install -e .
+chatterlang_reference_generator ./ref.html ./ref.txt
+chatterlang_reference_browser
 ```
 
 **Component Discovery**:
@@ -348,42 +288,29 @@ chatterlang_reference_browser
 
 ### Reference Generator Issues
 
-**Package/Directory Not Found**:
+**Wrong number of output paths** (provide both or neither):
 ```bash
-$ chatterlang_reference_generator nonexistent_package
-Error: Cannot find package or directory 'nonexistent_package'
+$ chatterlang_reference_generator only.html
+chatterlang_reference_generator: error: provide both html_out and text_out, or neither
 ```
 
-**AST Parsing Errors**:
-- Invalid Python syntax in source files
-- Incompatible Python version for AST features
-- File encoding issues
-
-**Solutions**:
-- Verify package installation: `python -c "import package_name"`
-- Check Python version: `python --version` (3.11+ recommended)
-- Validate file encoding: ensure UTF-8 encoding
+**Unrecognized options** are rejected rather than treated as filenames:
+```bash
+$ chatterlang_reference_generator --output_dir ./refdocs
+chatterlang_reference_generator: error: unrecognized arguments: --output_dir
+```
 
 ### Reference Browser Issues
 
-**Documentation Files Not Found**:
+**No components found**:
 ```bash
 $ chatterlang_reference_browser
-Error: Could not find talkpipe_ref.txt or unit-docs.txt in /current/directory
-```
-
-**Auto-Generation Failure**:
-```bash
-Reference files not found in current directory or installation directory.
-Attempting to run 'chatterlang_reference_generator' command to generate them...
-Error running talkpipe_ref command: [Errno 2] No such file or directory
+No TalkPipe components found. Make sure plugins are properly installed.
 ```
 
 **Solutions**:
 - Ensure TalkPipe is properly installed: `pip install talkpipe`
-- Verify PATH includes TalkPipe commands: `which chatterlang_reference_generator`
-- Manually generate documentation: `chatterlang_reference_generator`
-- Check current directory permissions for file creation
+- If a plugin's components are missing, reinstall the plugin package so its `talkpipe.segments` / `talkpipe.sources` entry points register
 
 ## Best Practices
 
@@ -440,4 +367,4 @@ def my_segment(item: str, multiplier: int = 1,
 *For ChatterLang script development, see [ChatterLang Script](chatterlang-script.md). For interactive script development, see [ChatterLang Workbench](chatterlang-workbench.md).*
 
 ---
-Last Reviewed: 20250814
+Last Reviewed: 20260710

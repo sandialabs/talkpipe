@@ -56,7 +56,7 @@ For the full story, see **[Architecture](docs/architecture/)**. Define a pipelin
 - **[Container images](docs/guides/container-images.md)**
   Pull release images from GitHub Container Registry (multi-platform on each GitHub release).
 
-- **chatterlang_reference_browser**
+- **[chatterlang_reference_browser](docs/api-reference/talkpipe-ref.md)**
   An interactive command line application for searching and browsing installed ChatterLang sources and segments.
 
 - **[chatterlang_reference_generator](docs/api-reference/talkpipe-ref.md)**
@@ -85,7 +85,7 @@ pip install talkpipe[model2vec] # In-process static embeddings (also in [all])
 # Or: pip install talkpipe[all]
 ```
 
-Configure API keys and provider URLs via environment variables (for example `OPENAI_API_KEY` and `ANTHROPIC_API_KEY`) or `~/.talkpipe.toml`. If TalkPipe runs on a different machine than your Ollama server, set `TALKPIPE_OLLAMA_SERVER_URL` to that host, e.g. `export TALKPIPE_OLLAMA_SERVER_URL="http://192.168.1.50:11434"` (a bare host/IP with no scheme or port, like `"192.168.1.50"`, also works). See **[Configuration](docs/architecture/configuration.md)** for details and ChatterLang `$var` substitution.
+Configure API keys and provider URLs via environment variables (for example `OPENAI_API_KEY` and `ANTHROPIC_API_KEY`) or `~/.talkpipe.toml`. If TalkPipe runs on a different machine than your Ollama server, set `TALKPIPE_OLLAMA_SERVER_URL` to that host, e.g. `export TALKPIPE_OLLAMA_SERVER_URL="http://<ollama host ip>:11434"` (a bare host/IP with no scheme or port, like `"myollamahost"`, also works). Note that the model must already be pulled **on that server** — run `ollama pull llama3.2` there, or `OLLAMA_HOST=http://<ollama host ip>:11434 ollama pull llama3.2` from your machine. See **[Configuration](docs/architecture/configuration.md)** for details and ChatterLang `$var` substitution.
 
 Hello world (no LLM server required):
 
@@ -182,7 +182,7 @@ print(result)
 
 ## 2. ChatterLang (External DSL)
 
-ChatterLang provides a Unix-like syntax for building pipelines, perfect for rapid prototyping and experimentation:
+ChatterLang provides a Unix-like syntax for building pipelines, perfect for rapid prototyping and experimentation. Run a script from the command line with `chatterlang_script --script '<script>'`, or compile it in Python with `compiler.compile('<script>')` as shown in the examples below:
 
 ```
 INPUT FROM echo[data="1,2,hello,3"] | cast[cast_type="int"] | print
@@ -229,7 +229,7 @@ The `@registry.register_segment()` decorator makes your component discoverable b
 - [`chatterlang_workbench`](docs/api-reference/chatterlang-workbench.md) - Start the interactive web interface for experimenting with ChatterLang
 - [`chatterlang_script`](docs/api-reference/chatterlang-script.md) - Run ChatterLang scripts from files or command line
 - [`chatterlang_reference_generator`](docs/api-reference/talkpipe-ref.md) - Generate documentation for all available sources and segments
-- `chatterlang_reference_browser` - Interactive command-line browser for sources and segments
+- [`chatterlang_reference_browser`](docs/api-reference/talkpipe-ref.md) - Interactive command-line browser for sources and segments
 - [`chatterlang_serve`](docs/api-reference/chatterlang-server.md) - Create a customizable user-accessible web interface and REST API from ChatterLang scripts
 - [`talkpipe_plugins`](docs/api-reference/talkpipe-plugin-manager.md) - View and manage TalkPipe plugins
 
@@ -494,7 +494,7 @@ For comprehensive documentation and examples, see the **[docs/](docs/)** directo
 | `chatterlang_workbench` | Interactive web interface | [📄](docs/api-reference/chatterlang-workbench.md) |
 | `chatterlang_script` | Run scripts from command line | [📄](docs/api-reference/chatterlang-script.md) |
 | `chatterlang_reference_generator` | Generate documentation | [📄](docs/api-reference/talkpipe-ref.md) |
-| `chatterlang_reference_browser` | Browse sources/segments interactively | - |
+| `chatterlang_reference_browser` | Browse sources/segments interactively | [📄](docs/api-reference/talkpipe-ref.md) |
 | `talkpipe_plugins` | Manage TalkPipe plugins | [📄](docs/api-reference/talkpipe-plugin-manager.md) |
 
 # Architecture & Development

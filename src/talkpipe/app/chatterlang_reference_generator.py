@@ -1,3 +1,4 @@
+import argparse
 import sys
 import html
 from typing import Optional, List
@@ -442,19 +443,26 @@ def main(html_file: str, text_file: str) -> None:
     print(f"Text documentation generated at {text_file}")
 
 def go():
-    if len(sys.argv) not in {1, 3}:
-        print("Error: You must provide either 0 or 2 arguments.")
-        print("Usage: python chatterlang_reference_generator.py [html_out text_out]")
-        sys.exit(1)
-    elif len(sys.argv) == 1:
-        print("No arguments provided. Using default arguments: ./chatterlang_ref.html ./chatterlang_ref.txt")
-        html_out = "./chatterlang_ref.html"
-        text_out = "./chatterlang_ref.txt"
-    else:
-        html_out = sys.argv[1]
-        text_out = sys.argv[2]
+    parser = argparse.ArgumentParser(
+        prog="chatterlang_reference_generator",
+        description=(
+            "Generate HTML and text reference documentation for every registered "
+            "TalkPipe source and segment, including components from installed plugins."
+        ),
+    )
+    parser.add_argument(
+        "html_out", nargs="?",
+        help="path for the HTML output (default: ./chatterlang_ref.html)",
+    )
+    parser.add_argument(
+        "text_out", nargs="?",
+        help="path for the text output (default: ./chatterlang_ref.txt)",
+    )
+    args = parser.parse_args()
+    if (args.html_out is None) != (args.text_out is None):
+        parser.error("provide both html_out and text_out, or neither")
 
-    main(html_out, text_out)
+    main(args.html_out or "./chatterlang_ref.html", args.text_out or "./chatterlang_ref.txt")
 
 if __name__ == "__main__":
     go()

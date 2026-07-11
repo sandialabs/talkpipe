@@ -72,6 +72,34 @@ def test_ollama_chat_completion_uses_configured_server_url(monkeypatch):
     assert captured["host"] == "http://custom"
 
 
+def test_ollama_chat_completion_missing_model_reports_status_code_once(monkeypatch):
+    import ollama
+
+    adapter = OllamaPromptAdapter("llama9.99", server_url="http://custom:11434")
+
+    class DummyClient:
+        def __init__(self, _host):
+            pass
+
+        def chat(self, *_args, **_kwargs):
+            raise ollama.ResponseError("model 'llama9.99' not found", status_code=404)
+
+    class DummyOllamaModule:
+        Client = DummyClient
+        ResponseError = ollama.ResponseError
+
+    monkeypatch.setattr(OllamaPromptAdapter, "_require_dependency", lambda *_args, **_kwargs: DummyOllamaModule)
+
+    try:
+        adapter._chat_completion("llama9.99", [{"role": "user", "content": "hello"}])
+        assert False, "expected ResponseError"
+    except ollama.ResponseError as exc:
+        message = str(exc)
+        assert "Model 'llama9.99' is not available on the Ollama server at http://custom:11434" in message
+        assert "ollama pull llama9.99" in message
+        assert message.count("(status code: 404)") == 1
+
+
 def test_ollama_chat_completion_connection_error_names_url_and_env_var(monkeypatch):
     adapter = OllamaPromptAdapter("llama3.2", server_url="http://custom:11434")
 

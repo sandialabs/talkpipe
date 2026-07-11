@@ -125,7 +125,8 @@ class OllamaPromptAdapter(AbstractLLMPromptAdapter):
             raise ConnectionError(
                 f"Failed to connect to Ollama at '{server_url or 'http://localhost:11434'}'. "
                 "If your Ollama server is remote, set the TALKPIPE_OLLAMA_SERVER_URL environment "
-                "variable (or OLLAMA_SERVER_URL in ~/.talkpipe.toml) to its address. "
+                "variable (e.g. `export TALKPIPE_OLLAMA_SERVER_URL=http://<host>:11434`) "
+                "or OLLAMA_SERVER_URL in ~/.talkpipe.toml. "
                 f"Original error: {exc}"
             ) from exc
         except ollama.ResponseError as exc:
@@ -133,7 +134,7 @@ class OllamaPromptAdapter(AbstractLLMPromptAdapter):
                 raise ollama.ResponseError(
                     f"Model '{model}' is not available on the Ollama server"
                     f"{f' at {server_url}' if server_url else ''}. "
-                    f"Run `ollama pull {model}` to download it. Original error: {exc}",
+                    f"Run `ollama pull {model}` to download it. Original error: {exc.error}",
                     status_code=exc.status_code,
                 ) from exc
             raise

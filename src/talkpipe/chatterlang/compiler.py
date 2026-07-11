@@ -9,6 +9,7 @@ from typing import Callable, Union, Iterator, Any, Dict, List, Optional
 import logging
 import inspect
 import difflib
+import re
 from functools import singledispatch
 import networkx as nx
 from parsy import ParseError
@@ -79,8 +80,10 @@ def _not_found_message(kind: str, name: str, reg) -> str:
     msg = f"{kind} '{name}' not found."
     suggestions = [s for s in difflib.get_close_matches(name, available, n=3) if s != name]
     if suggestions:
+        # Close matches make the full registry dump (90+ names) noise; only
+        # fall back to the complete list when we have no better guess.
         msg += " Did you mean " + " or ".join(repr(s) for s in suggestions) + "?"
-    if available:
+    elif available:
         msg += f" Available {kind.lower()}s: {', '.join(available)}."
     return msg
 
@@ -104,10 +107,16 @@ def _format_parse_error(script: str, error: ParseError) -> str:
     exp = ""
     if expected:
         exp = " Expected one of: " + ", ".join(sorted(str(e) for e in expected)) + "."
+    hint = ""
+    # Failing right after `param=<bareword>` is almost always an unquoted
+    # string value (e.g. model=llama3.2); the grammar jargon alone won't
+    # tell a newcomer that.
+    if re.search(r'\w+\s*=\s*[A-Za-z_][\w]*$', before):
+        hint = '\n    Hint: string parameter values must be quoted, e.g. model="llama3.2".'
     return (
         f"Syntax error in ChatterLang script at line {line_no}, column {col_no}.{exp}\n"
         f"    {line_text}\n"
-        f"    {caret}"
+        f"    {caret}{hint}"
     )
 
 @singledispatch
@@ -322,11 +331,11 @@ def _(pipeline: ParsedPipeline, runtime: RuntimeComponent) -> Pipeline:
             try:
                 source_cls = registry.input_registry.get(source_name)
             except KeyError:
-                raise CompileError(_not_found_message("Source", source_name, registry.input_registry))
+                raise CompileError(_not_found_message("Source", source_name, registry.input_registry)) from None
             try:
                 ans = source_cls(**_resolve_params(pipeline.input_node.params, runtime=runtime))
             except TypeError as e:
-                raise CompileError(_bad_param_message("Source", source_name, source_cls, e)) from e
+                raise CompileError(_bad_param_message("Source", source_name, source_cls, e)) from None
             logger.debug(f"Created registered input {source_name}")
         ans.runtime = runtime
 
@@ -340,11 +349,11 @@ def _(pipeline: ParsedPipeline, runtime: RuntimeComponent) -> Pipeline:
             try:
                 segment_cls = registry.segment_registry.get(segment_name)
             except KeyError:
-                raise CompileError(_not_found_message("Segment", segment_name, registry.segment_registry))
+                raise CompileError(_not_found_message("Segment", segment_name, registry.segment_registry)) from None
             try:
                 next_transform = segment_cls(**_resolve_params(transform.params, runtime=runtime))
             except TypeError as e:
-                raise CompileError(_bad_param_message("Segment", segment_name, segment_cls, e)) from e
+                raise CompileError(_bad_param_message("Segment", segment_name, segment_cls, e)) from None
             logger.debug(f"Created segment {segment_name}")
         elif isinstance(transform, ForkNode):
             next_transform = compile(transform, runtime)
@@ -430,7 +439,7 @@ def _(script: str, runtime: RuntimeComponent = None) -> Callable:
     try:
         parsed = script_parser.parse(preprocessed_script)
     except ParseError as e:
-        raise CompileError(_format_parse_error(preprocessed_script, e)) from e
+        raise CompileError(_format_parse_error(preprocessed_script, e)) from None
     return compile(parsed, runtime)
 
 class ArrowForkSegment:

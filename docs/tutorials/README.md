@@ -16,12 +16,15 @@ Each tutorial builds on the previous. Tutorial 1's index feeds Tutorial 2; Tutor
 
 ## Get Started in 5 Minutes
 
-1. **Install**: See [Getting Started](../quickstart.md) for installation. For tutorials: `pip install "talkpipe[ollama]"` or `pip install "talkpipe[all]"`
-2. **Run Tutorial 1** (from `docs/tutorials/Tutorial_1-Document_Indexing`):
-   - `./Step_1_CreateSyntheticData.sh` — creates `stories.json` (~5–10 min)
+The 5-minute path skips Step 1 by using the pre-generated `stories.json` included with Tutorial 1; generating your own data in Step 1 adds ~5–10 minutes.
+
+1. **Get the tutorial files**: The tutorials ship with the repository, not the pip package: `git clone https://github.com/sandialabs/talkpipe.git && cd talkpipe`
+2. **Install**: See [Getting Started](../quickstart.md) for installation. For tutorials: `pip install "talkpipe[ollama]"` or `pip install "talkpipe[all]"`
+3. **Run Tutorial 1** (from `docs/tutorials/Tutorial_1-Document_Indexing`):
+   - `./Step_1_CreateSyntheticData.sh` — creates `stories.json` (~5–10 min; optional, a pre-generated `stories.json` is included)
    - `./Step_2_IndexStories.sh` — builds search index (~5 sec)
    - `./Step_3_SearchStories.sh` — starts the search web UI and API
-3. **See results**: Open the URL printed by Step 3; append `/stream` for the search form
+4. **See results**: Open the URL printed by Step 3; append `/stream` for the search form
 
 ## Tutorial Overview
 

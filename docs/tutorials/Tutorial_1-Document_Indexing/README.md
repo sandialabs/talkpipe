@@ -27,10 +27,11 @@ TalkPipe lets you prototype searchable document systems without external databas
 
 ## Prerequisites
 
-- **TalkPipe** installed: See [Getting Started](../../quickstart.md) for installation. For this tutorial: `pip install talkpipe[ollama]` or `pip install talkpipe[all]`
-- **Step 1 only**: Ollama installed locally with the `llama3.2` model (or adjust the script to use another model)
+- **Tutorial files**: The tutorials ship with the repository, not the pip package. Clone it first: `git clone https://github.com/sandialabs/talkpipe.git && cd talkpipe`
+- **TalkPipe** installed: See [Getting Started](../../quickstart.md) for installation. For this tutorial: `pip install "talkpipe[ollama]"` or `pip install "talkpipe[all]"`
+- **Step 1 only**: Ollama with the `llama3.2` model, either installed locally or on a remote server you point TalkPipe at with `export TALKPIPE_OLLAMA_SERVER_URL=http://<host>:11434` (the model must be pulled on that server)
 
-> **Tip:** If you skip Step 1, you can use the included `stories.json` and go straight to Step 2.
+> **Tip:** If you skip Step 1, you can use the included `stories.json` and go straight to Step 2. Running Step 1 overwrites the included `stories.json` with your generated stories.
 
 ---
 
@@ -48,7 +49,7 @@ cd docs/tutorials/Tutorial_1-Document_Indexing
 | 2 | `./Step_2_IndexStories.sh` or `chatterlang_script --script Step_2_IndexStories.script` | ~5 sec |
 | 3 | `./Step_3_SearchStories.sh` or `chatterlang_serve --form-config story_search_ui.yml --title "Story Search" --display-property query --script Step_3_SearchStories.script` | Starts server |
 
-Step 3 starts a web server. Use the URL printed in the terminal—append `/stream` for the search form, or POST to the base URL for the REST API.
+Step 3 starts a web server. Use the URL printed in the terminal—append `/stream` for the search form, or POST to `{base_url}/process` for the REST API.
 
 ---
 
@@ -191,7 +192,8 @@ curl -X POST http://localhost:2025/process \
 | Issue | Cause | Fix |
 |-------|-------|-----|
 | Connection refused / Ollama error | Ollama not running | Start Ollama: `ollama serve` (or launch the Ollama app) |
-| Model not found | `llama3.2` not installed | Run `ollama pull llama3.2` |
+| Connection refused with a remote Ollama server | TalkPipe defaults to `localhost:11434` | `export TALKPIPE_OLLAMA_SERVER_URL=http://<host>:11434` before running Step 1 |
+| Model not found | `llama3.2` not installed | Run `ollama pull llama3.2` (on the remote server, if using one) |
 | File not found / path errors | Wrong working directory | Run all commands from `docs/tutorials/Tutorial_1-Document_Indexing` |
 | Port already in use | Another process on 2025 | Use `--port 2026` (or another port) with `chatterlang_serve` |
 

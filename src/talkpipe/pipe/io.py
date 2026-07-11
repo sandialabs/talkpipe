@@ -84,7 +84,9 @@ class Print(AbstractSegment):
             to_print = x
             if self.field_list is not None:
                 to_print = data_manipulation.toDict(x, self.field_list)
-            print(pformat(to_print) if self.pprint else to_print)
+            # flush so output stays in order with unbuffered/stderr progress
+            # output when stdout is redirected to a file or pipe
+            print(pformat(to_print) if self.pprint else to_print, flush=True)
             yield x
 
 @registry.register_segment(name="log")
@@ -245,16 +247,30 @@ def writePickle(data,
     All input items are yielded, regardless of first_only setting. When first_only
     is True, only the first item is written to the file, but all items are still
     yielded for downstream processing.
+
+    The output file is not opened (and any existing file is not truncated) until
+    there is something to write, so an upstream failure leaves a pre-existing
+    file intact. An input stream that completes without items still produces an
+    empty file.
     """
     first = True
-    with open(os.path.expanduser(fname), 'wb') as f:
+    f = None
+    path = os.path.expanduser(fname)
+    try:
         for item in data:
             if not first_only or first:
                 if field is not None:
                     item = data_manipulation.extract_property(item, field, fail_on_missing=True)
+                if f is None:
+                    f = open(path, 'wb')
                 pickle.dump(item, f)
                 first = False
             yield item
+        if f is None:
+            f = open(path, 'wb')
+    finally:
+        if f is not None:
+            f.close()
 
 @register_segment('writeString')
 @segment()
@@ -274,18 +290,32 @@ def writeString(data,
     All input items are yielded, regardless of first_only setting. When first_only
     is True, only the first item is written to the file, but all items are still
     yielded for downstream processing.
+
+    The output file is not opened (and any existing file is not truncated) until
+    there is something to write, so an upstream failure leaves a pre-existing
+    file intact. An input stream that completes without items still produces an
+    empty file.
     """
     first = True
-    with open(os.path.expanduser(fname), 'w') as f:
+    f = None
+    path = os.path.expanduser(fname)
+    try:
         for item in data:
             if not first_only or first:
                 if field is not None:
                     item = data_manipulation.extract_property(item, field, fail_on_missing=True)
+                if f is None:
+                    f = open(path, 'w')
                 f.write(str(item))
                 if new_line:
                     f.write('\n')
                 first = False
             yield item
+        if f is None:
+            f = open(path, 'w')
+    finally:
+        if f is not None:
+            f.close()
 
 
 @register_segment("fileExistsFilter")

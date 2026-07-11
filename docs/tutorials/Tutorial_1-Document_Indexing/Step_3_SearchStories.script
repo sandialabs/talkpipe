@@ -1,9 +1,10 @@
 ###################################################################################
 # Step 3: Search Stories
 # This script allows users to search for indexed stories using the Whoosh library.
-# It opens two interface.  The first is an API endpoint that accepts search queries
-# and returns matching stories. The second is a command-line interface that allows
-# users to enter search terms interactively.
+# It opens two interfaces.  The first is a REST API endpoint (POST /process) that
+# accepts search queries and returns matching stories. The second is a web search
+# form (at /stream, configured by story_search_ui.yml) where users enter search
+# terms interactively.
 #
 # It accomplishes this by using the chatterlang_serve to serve a pipeline that
 # reads queries in the form of JSON objects, processes them, and returns results.

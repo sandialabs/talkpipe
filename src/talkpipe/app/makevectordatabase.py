@@ -1,4 +1,5 @@
 import argparse
+import glob
 import sys
 import logging
 from talkpipe.util.config import get_config, parse_unknown_args, add_config_values, configure_logger
@@ -65,6 +66,16 @@ def main():
             + " in ~/.talkpipe.toml (or as TALKPIPE_* environment variables)."
         )
 
+    # A pattern matching zero files is almost always a typo or wrong working
+    # directory; fail loudly instead of "successfully" indexing nothing.
+    if not glob.glob(args.data_source, recursive=True):
+        print(
+            f"error: '{args.data_source}' matched no files. Check the path or "
+            f"glob pattern (quote it so your shell does not expand it).",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+
     # Build Pipeline
     pipeline = (
         ProcessDocumentsSegment(
@@ -97,6 +108,13 @@ def main():
         f"\nIndexed {chunk_count} chunk(s) into '{args.path}' (table '{args.table_name}') "
         f"using {embedding_source}/{embedding_model}."
     )
+    if chunk_count == 0:
+        print(
+            f"warning: no chunks were indexed from '{args.data_source}' — "
+            f"the matched paths contained no readable document content.",
+            file=sys.stderr,
+        )
+        sys.exit(1)
 
 if __name__ == "__main__":
     main()

@@ -124,7 +124,7 @@ class AbstractLLMPromptAdapter(PromptAdapterMemoryMixin, ABC):
                 f"This usually means the API key is missing or invalid. Set the "
                 f"{api_key_env_var} environment variable to your API key "
                 f"(the {display_name} SDK reads it directly, not TALKPIPE_* keys). "
-                f"See docs/guides/model-and-source-configuration.md."
+                f"See https://github.com/sandialabs/talkpipe/blob/main/docs/guides/model-and-source-configuration.md."
             ) from exc
 
     def _apply_temperature_if_explicit(self, request_params: dict) -> None:

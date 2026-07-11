@@ -19,6 +19,8 @@ from typing import Optional, List, Any, Dict, Callable
 from datetime import datetime, timedelta
 import uvicorn
 import json
+import socket
+import sys
 from pathlib import Path
 import threading
 from queue import Queue, Empty
@@ -1759,8 +1761,36 @@ class ChatterlangServer:
         self.processor_function = func
         logger.info(f"Port {self.port}: Processor function set to: {func.__name__}")
     
+    def _check_port_available(self):
+        """Verify the host/port can be bound before announcing the server.
+
+        uvicorn reports a failed bind as a logged ERROR and returns, which
+        previously left our success banner on screen next to dead URLs. A
+        pre-flight bind turns that into a clear fatal error instead. (There
+        is a small window between this check and uvicorn's own bind, but a
+        port grabbed in that window still surfaces as uvicorn's ERROR.)
+        """
+        try:
+            infos = socket.getaddrinfo(self.host, self.port, type=socket.SOCK_STREAM)
+        except socket.gaierror as exc:
+            raise RuntimeError(
+                f"Cannot resolve host '{self.host}': {exc}"
+            ) from exc
+        family, socktype, proto, _, sockaddr = infos[0]
+        with socket.socket(family, socktype, proto) as sock:
+            sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            try:
+                sock.bind(sockaddr)
+            except OSError as exc:
+                raise RuntimeError(
+                    f"Cannot start ChatterLang server: failed to bind "
+                    f"http://{self.host}:{self.port} ({exc}). Is the port "
+                    f"already in use, or blocked? Try a different port."
+                ) from exc
+
     def start(self, background: bool = False):
         """Start the FastAPI server"""
+        self._check_port_available()
         print(f"\n{'='*60}")
         print(f"ChatterLang Server Started")
         print(f"{'='*60}")
@@ -1957,7 +1987,11 @@ def go():
     )
 
     # Start the server
-    receiver.start(background=False)
+    try:
+        receiver.start(background=False)
+    except RuntimeError as exc:
+        print(f"ERROR: {exc}", file=sys.stderr)
+        sys.exit(1)
 
 if __name__ == "__main__":
     go()

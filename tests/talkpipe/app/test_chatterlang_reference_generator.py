@@ -289,3 +289,19 @@ class TestMainFunctions:
         with patch('builtins.print'):
             with pytest.raises(SystemExit):
                 go()
+
+    @patch('sys.argv', ['script.py', '--output_dir', './refdocs'])
+    @patch('talkpipe.app.chatterlang_reference_generator.main')
+    def test_go_rejects_option_like_args(self, mock_main):
+        """Regression (F-008): option-like arguments must error out, not become output filenames."""
+        with pytest.raises(SystemExit):
+            go()
+        mock_main.assert_not_called()
+
+    @patch('sys.argv', ['script.py', 'only.html'])
+    @patch('talkpipe.app.chatterlang_reference_generator.main')
+    def test_go_rejects_single_output_path(self, mock_main):
+        """Regression (F-007): a lone output path is ambiguous and must be rejected."""
+        with pytest.raises(SystemExit):
+            go()
+        mock_main.assert_not_called()

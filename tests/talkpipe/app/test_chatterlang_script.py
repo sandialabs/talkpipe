@@ -1,8 +1,18 @@
 import pytest
 import logging
 from unittest.mock import patch
-from talkpipe.util import config  
+from talkpipe.util import config
 from talkpipe.app.chatterlang_script import main
+
+
+def _mock_namespace(script, verbose=False):
+    ns = type('MockNamespace', (), {})()
+    ns.script = script
+    ns.load_module = []
+    ns.logger_levels = None
+    ns.logger_files = None
+    ns.verbose = verbose
+    return ns
 
 
 extra_module = """
@@ -98,5 +108,37 @@ def test_warning_messages_should_not_include_full_script_content(caplog):
             f"Warning message should not include full script content. "
             f"Found script in warning: {warning_msg}"
         )
+
+
+def test_runtime_error_prints_concise_message(capsys):
+    """A runtime pipeline failure prints 'Error: <message>' and exits 1, no traceback.
+
+    Regression test: chatterlang_script summarized compile errors but let
+    runtime errors (e.g. an unreachable LLM or a missing input file) escape as
+    full multi-frame tracebacks.
+    """
+    test_script = 'INPUT FROM "this_file_does_not_exist_12345.jsonl" | readJsonl | print'
+
+    with patch('argparse.ArgumentParser.parse_known_args') as mock_args:
+        mock_args.return_value = (_mock_namespace(test_script), [])
+
+        with pytest.raises(SystemExit) as excinfo:
+            main()
+
+    assert excinfo.value.code == 1
+    captured = capsys.readouterr()
+    assert captured.err.startswith("Error: ")
+    assert "Traceback" not in captured.err
+
+
+def test_runtime_error_verbose_raises(capsys):
+    """With --verbose, runtime errors propagate for full-traceback debugging."""
+    test_script = 'INPUT FROM "this_file_does_not_exist_12345.jsonl" | readJsonl | print'
+
+    with patch('argparse.ArgumentParser.parse_known_args') as mock_args:
+        mock_args.return_value = (_mock_namespace(test_script, verbose=True), [])
+
+        with pytest.raises(FileNotFoundError):
+            main()
 
 

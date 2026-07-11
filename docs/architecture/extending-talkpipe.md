@@ -280,8 +280,8 @@ class APIDataSource(AbstractSource):
 ChatterLang uses the names you pass to the decorators (multiple names are allowed in one decorator). Example script shape:
 
 ```chatterlang
-INPUT FROM apiData(url="https://api.example.com/data")
-| customParser(format="json")
+INPUT FROM apiData[url="https://api.example.com/data"]
+| customParser[format="json"]
 | print
 ```
 

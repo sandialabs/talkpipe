@@ -420,6 +420,20 @@ def test_compile_error_missing_segment_suggests_close_match():
     assert "Did you mean 'print'?" in str(excinfo.value)
 
 
+def test_compile_error_close_match_omits_full_dump():
+    """When a close match exists, the full registry dump is omitted."""
+    with pytest.raises(compiler.CompileError) as excinfo:
+        compiler.compile("""INPUT FROM "test" | prin""")
+    assert "Available segments:" not in str(excinfo.value)
+
+
+def test_parse_error_hints_unquoted_string_value():
+    """A parse failure right after param=<bareword> suggests quoting the value."""
+    with pytest.raises(compiler.CompileError) as excinfo:
+        compiler.compile('| llmPrompt[model=llama3.2, source=ollama]')
+    assert 'Hint: string parameter values must be quoted' in str(excinfo.value)
+
+
 def test_compile_error_invalid_parameter_lists_valid_params():
     """An unknown keyword argument reports the segment's valid parameters."""
     with pytest.raises(compiler.CompileError) as excinfo:
@@ -427,6 +441,21 @@ def test_compile_error_invalid_parameter_lists_valid_params():
     msg = str(excinfo.value)
     assert "invalid parameters" in msg
     assert "cast_type" in msg  # valid parameter of the Cast segment
+
+
+def test_compile_error_does_not_chain_internal_exceptions():
+    """CompileError already embeds the underlying cause in its message, so the
+    internal KeyError/TypeError/ParseError must not be chained (F-003)."""
+    cases = [
+        'INPUT FROM "test" | unknownSegment',            # missing name (KeyError)
+        'INPUT FROM echo[data="hi"] | cast[type="int"]',  # bad parameter (TypeError)
+        'INPUT FROM echo[data="hi" | print',              # syntax error (ParseError)
+    ]
+    for script in cases:
+        with pytest.raises(compiler.CompileError) as excinfo:
+            compiler.compile(script)
+        assert excinfo.value.__cause__ is None, script
+        assert excinfo.value.__suppress_context__, script
 
 
 def test_compile_error_parse_error_is_located():
