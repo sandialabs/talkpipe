@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+## 0.12.4
+
+- Improvements to documentation to emphasize non-reliance on different providers.
 - Fixed friction points found during a Tutorial 3-focused newcomer-simulation
   usability pass:
   - `chatterlang_serve` now compiles the `--script` at startup and exits with the
