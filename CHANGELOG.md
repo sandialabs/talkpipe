@@ -9,6 +9,9 @@
   still get processed. This mirrors the existing `skip_unsupported` behavior for
   unsupported extensions. Pass `skip_errors=False` to restore the previous
   behavior of raising the extractor's error.
+- Updated model2vec to work with locally downloaded models.  If the "model" is
+  an existing path, it treats that as the directory containing the model2vec
+  compatible model.
 
 ## 0.12.4
 

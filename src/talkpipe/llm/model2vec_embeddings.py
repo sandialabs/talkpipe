@@ -21,6 +21,20 @@ def _require_model2vec():
     return StaticModel
 
 
+def _resolve_local_path(model_name: str) -> str | None:
+    """Return an absolute path if ``model_name`` refers to a local model directory.
+
+    Expands ``~`` and resolves relative paths against the current working
+    directory. Returns the resolved path string if it points at an existing
+    directory, otherwise ``None`` (in which case ``model_name`` is treated as a
+    Hugging Face repo id).
+    """
+    expanded = Path(model_name).expanduser()
+    if expanded.is_dir():
+        return str(expanded.resolve())
+    return None
+
+
 def _resolve_snapshot(
     model_name: str,
     revision: str | None,
@@ -55,7 +69,12 @@ class Model2VecEmbedder:
         self.model_name = model_name
         self.revision = revision
         StaticModel = _require_model2vec()
-        if revision is not None or cache_folder is not None:
+        local_path = _resolve_local_path(model_name)
+        if local_path is not None:
+            # A previously downloaded model on disk: load it directly and skip
+            # any Hugging Face Hub resolution.
+            path = local_path
+        elif revision is not None or cache_folder is not None:
             path = _resolve_snapshot(model_name, revision, cache_folder)
         else:
             path = model_name

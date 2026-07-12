@@ -168,6 +168,69 @@ def test_embedder_with_revision_resolves_via_snapshot_download(monkeypatch):
     assert captured["kwargs"] == {}
 
 
+def test_embedder_with_local_dir_loads_from_path(monkeypatch, tmp_path):
+    """When model points at an existing local directory, it is loaded directly
+    (resolved to an absolute path) without any snapshot_download."""
+    captured = {}
+
+    class DummyModel:
+        dim = 3
+        normalize = True
+
+        @classmethod
+        def from_pretrained(cls, path, **kwargs):
+            captured["path"] = path
+            return cls()
+
+        def encode(self, text, **_):
+            return np.array([0.1, 0.2, 0.3])
+
+    def fail_snapshot_download(**kwargs):
+        raise AssertionError("snapshot_download should not be called for a local path")
+
+    monkeypatch.setattr(
+        "talkpipe.llm.model2vec_embeddings._require_model2vec",
+        lambda: DummyModel,
+    )
+    monkeypatch.setattr("huggingface_hub.snapshot_download", fail_snapshot_download)
+
+    model_dir = tmp_path / "my-model"
+    model_dir.mkdir()
+
+    # Even with revision/cache_folder set, a local dir takes precedence.
+    Model2VecEmbedder(str(model_dir), revision="abc123", cache_folder="/tmp/cache")
+    assert captured["path"] == str(model_dir.resolve())
+
+
+def test_embedder_expands_user_home_local_path(monkeypatch, tmp_path):
+    """A ``~``-prefixed path to a downloaded model is expanded and loaded directly."""
+    captured = {}
+
+    class DummyModel:
+        dim = 3
+        normalize = True
+
+        @classmethod
+        def from_pretrained(cls, path, **kwargs):
+            captured["path"] = path
+            return cls()
+
+        def encode(self, text, **_):
+            return np.array([0.1, 0.2, 0.3])
+
+    monkeypatch.setattr(
+        "talkpipe.llm.model2vec_embeddings._require_model2vec",
+        lambda: DummyModel,
+    )
+    monkeypatch.setenv("HOME", str(tmp_path))
+
+    model_dir = tmp_path / "my-model"
+    model_dir.mkdir()
+
+    Model2VecEmbedder("~/my-model")
+    assert captured["path"] == str(model_dir.resolve())
+
+
 def test_precache_model_smoke(monkeypatch):
     download_calls = []
 
