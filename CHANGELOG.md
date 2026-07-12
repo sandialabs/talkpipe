@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+- `ReadFile` no longer aborts a batch when a single file with a supported
+  extension fails to be read (for example a truncated or corrupt PDF, which
+  pypdf surfaces as `Stream has ended unexpectedly`). Such a file is now logged
+  at WARNING with its path and the error, then skipped so the remaining files
+  still get processed. This mirrors the existing `skip_unsupported` behavior for
+  unsupported extensions. Pass `skip_errors=False` to restore the previous
+  behavior of raising the extractor's error.
+
 ## 0.12.4
 
 - Improvements to documentation to emphasize non-reliance on different providers.

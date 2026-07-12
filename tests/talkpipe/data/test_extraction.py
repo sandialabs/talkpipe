@@ -1,3 +1,4 @@
+import logging
 import pytest
 from pathlib import Path
 from unittest.mock import patch
@@ -95,6 +96,36 @@ def test_FileExtractor(tmp_path):
     fe_strict = ReadFile(skip_unsupported=False)
     with pytest.raises(Exception):
         next(fe_strict([tmp_path / "test.doc"]))
+
+def test_readfile_skips_unreadable_files(tmp_path, caplog):
+    """A supported file whose extractor raises (e.g. a corrupt PDF) is skipped
+    by default so it does not abort a batch, and re-raises when skip_errors=False."""
+
+    def boom_extractor(file_path):
+        raise ValueError("truncated file")
+        yield  # pragma: no cover - makes this a generator function
+
+    registry = ExtractorRegistry()
+    registry.register("boom", boom_extractor)
+    registry.register("txt", extract_text)
+
+    bad = tmp_path / "bad.boom"
+    bad.write_text("whatever")
+    good = tmp_path / "good.txt"
+    good.write_text("Hello World")
+
+    # Default (skip_errors=True): the bad file is logged and skipped, and a
+    # good file later in the same batch is still read.
+    rf = ReadFile(registry=registry)
+    with caplog.at_level(logging.WARNING):
+        results = list(rf([bad, good]))
+    assert [r.content for r in results] == ["Hello World"]
+    assert any("bad.boom" in rec.message for rec in caplog.records)
+
+    # skip_errors=False: the extractor error propagates.
+    rf_strict = ReadFile(skip_errors=False, registry=registry)
+    with pytest.raises(ValueError, match="truncated file"):
+        list(rf_strict([bad]))
 
 def test_listFiles(tmp_path):
     # Create test files

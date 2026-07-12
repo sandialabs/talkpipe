@@ -704,18 +704,24 @@ class ReadFile(AbstractFieldSegment):
     or a single item.
 
     By default, uses the global_extractor_registry which has txt, md, and docx extractors
-    registered by defualt, and skips unsupported files. Plugins or applications can register 
+    registered by defualt, and skips unsupported files. Plugins or applications can register
     additional extractors.
-    
-    To raise an error on unsupported 
+
+    To raise an error on unsupported
     files instead of skipping, pass skip_unsupported=False.
+
+    A file with a supported extension can still fail to be read (for example a
+    truncated or corrupt PDF). By default such a file is logged and skipped so a
+    single bad file does not abort a large batch. To raise the extraction error
+    instead of skipping, pass skip_errors=False.
 
     """
     _registry: ExtractorRegistry
     _skip_unsupported: bool
+    _skip_errors: bool
 
     def __init__(self, field: str = None, set_as: str = None, skip_unsupported: bool = True,
-                 registry: ExtractorRegistry = None):
+                 skip_errors: bool = True, registry: ExtractorRegistry = None):
         """
         Initialize ReadFile with an optional custom registry.
 
@@ -724,11 +730,15 @@ class ReadFile(AbstractFieldSegment):
             set_as: Field name to set the result as.
             skip_unsupported: If True, skip files with unsupported extensions.
                              If False, raise an error for unsupported files.
+            skip_errors: If True, log and skip files whose extractor raises an
+                         error (e.g. a corrupt PDF) and continue with the next
+                         file. If False, re-raise the error.
             registry: Optional custom ExtractorRegistry. If None, uses global_extractor_registry.
         """
         super().__init__(field=field, set_as=set_as, multi_emit=True)
         logger.debug("Initializing ReadFile")
         self._skip_unsupported = skip_unsupported
+        self._skip_errors = skip_errors
 
         if registry is not None:
             self._registry = registry
@@ -757,6 +767,7 @@ class ReadFile(AbstractFieldSegment):
 
         Raises:
             Exception: If the file extension is not supported and skip_unsupported is False.
+            Exception: If the extractor fails to read the file and skip_errors is False.
         """
         path = Path(file_path) if isinstance(file_path, str) else file_path
         extension = path.suffix[1:].lower() if path.suffix else ""
@@ -775,5 +786,13 @@ class ReadFile(AbstractFieldSegment):
             extractor = self._registry.get_extractor(file_path)
 
         logger.debug(f"Extracting content from file: {file_path}")
-        yield from extractor(file_path)
+        try:
+            yield from extractor(file_path)
+        except Exception as exc:
+            if not self._skip_errors:
+                raise
+            logger.warning(
+                f"Skipping file that could not be read: {file_path} "
+                f"({type(exc).__name__}: {exc})"
+            )
 
