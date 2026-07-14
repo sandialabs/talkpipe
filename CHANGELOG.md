@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.12.5
+
 - Fixed `indexWhoosh` degrading quadratically when committing frequently
   (small `commit_seconds`, e.g. the commit-per-document watch configuration):
   60k docs took 988s with 5-second commits vs 42s for a single commit; now
