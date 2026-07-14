@@ -133,6 +133,7 @@ def add_to_lancedb(items: Annotated[object, "Items with the vectors and document
                    batch_size: Annotated[int, "Maximum batch size for adding vectors"]=1,
                    optimize_on_batch: Annotated[bool, "If true, optimize the table after each batch.  Otherwise optimize after last batch."]=False,
                    optimize_every: Annotated[int, "Optimize the table after at least this many rows have been added since the last optimization. 0 disables periodic optimization."]=5000,
+                   skip_zero_vectors: Annotated[bool, "If true, skip items whose vector has zero magnitude instead of indexing them"]=True,
                    ):
     """Add vectors and documents to a LanceDB vector database.
     
@@ -157,6 +158,13 @@ def add_to_lancedb(items: Annotated[object, "Items with the vectors and document
     optimize_on_batch, and once more at the end of the stream. Without periodic
     optimization, a long ingest accumulates one table version and fragment per
     batch, which steadily increases memory use and slows every subsequent write.
+
+    When skip_zero_vectors is true (the default), items whose vector has zero
+    magnitude are passed through without being added to the database. A zero
+    vector usually means the embedded text contained nothing the embedding model
+    recognizes (e.g. base64 or binary content), and under L2 distance against
+    normalized embeddings it sits closer to every query than unrelated real
+    documents, polluting all search results if indexed.
     
     Useful for:
     - Creating semantic search indexes from embeddings
@@ -215,6 +223,16 @@ def add_to_lancedb(items: Annotated[object, "Items with the vectors and document
         vector = extract_property(item, vector_field, fail_on_missing=True)
         if not isinstance(vector, (list, tuple, np.ndarray)):
             raise ValueError(f"Vector field '{vector_field}' must be a list, tuple, or numpy array")
+
+        if skip_zero_vectors and not np.any(np.asarray(vector, dtype=np.float64)):
+            ident = extract_property(item, doc_id_field, fail_on_missing=False) if doc_id_field else None
+            logger.warning(
+                f"Skipping zero-magnitude vector (doc id: {ident}): the embedded text "
+                "likely contained nothing the embedding model recognizes (e.g. base64 data), "
+                "and indexing it would make it a near-match for every query."
+            )
+            yield item
+            continue
 
         if doc_id_field:
             doc_id = extract_property(item, doc_id_field, fail_on_missing=False)

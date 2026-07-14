@@ -1,4 +1,5 @@
 import pytest
+import base64
 import tempfile
 import os
 import threading
@@ -41,6 +42,34 @@ def test_process_documents_segment_shingles_with_defaults(tmp_path):
         f"{chunks[0]} {chunks[1]} {chunks[2]}",
         f"{chunks[2]} {chunks[3]}",
     ]
+
+
+def test_process_documents_segment_strips_base64(tmp_path):
+    """Embedded base64 payloads should never reach the chunker or embedder."""
+    blob = base64.b64encode(b"z" * 900).decode()
+    document_path = tmp_path / "receipt.md"
+    document_path.write_text(
+        f"Receipt for payment. ![img](data:image/png;base64,{blob}) Total due: 250 dollars."
+    )
+
+    results = list(ProcessDocumentsSegment().transform([str(document_path)]))
+
+    joined = " ".join(item["shingle_text"] for item in results)
+    assert blob[:64] not in joined
+    assert "Receipt for payment." in joined
+    assert "Total due: 250 dollars." in joined
+
+
+def test_process_documents_segment_strip_base64_disabled(tmp_path):
+    """With strip_base64=False the raw payload is chunked as before."""
+    blob = base64.b64encode(b"z" * 900).decode()
+    document_path = tmp_path / "receipt.md"
+    document_path.write_text(f"Receipt for payment. {blob}")
+
+    results = list(ProcessDocumentsSegment(strip_base64=False).transform([str(document_path)]))
+
+    joined = " ".join(item["shingle_text"] for item in results)
+    assert blob[:64] in joined
 
 
 def test_make_vector_database_indexes_default_shingles_as_content(tmp_path, monkeypatch):

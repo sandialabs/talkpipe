@@ -208,6 +208,42 @@ class TestAddToLanceDB:
         mock_db.drop_table.assert_called_once_with("test_table")
 
     @mock.patch('talkpipe.search.lancedb.LanceDBDocumentStore')
+    def test_add_to_lancedb_skips_zero_vectors(self, mock_doc_store_class, temp_db_path):
+        mock_doc_store = mock.Mock()
+        mock_doc_store_class.return_value = mock_doc_store
+
+        items = [
+            {"vector": [0.0, 0.0, 0.0], "text": "all-unknown-token content (e.g. base64)"},
+            {"vector": [1.0, 2.0, 3.0], "text": "real content"},
+        ]
+        seg = add_to_lancedb(path=temp_db_path, table_name="test_table", vector_field="vector")
+        results = list(seg(items))
+
+        # Both items pass through the pipeline, but only the nonzero vector is indexed
+        assert len(results) == 2
+        assert "_doc_id" not in results[0]
+        assert results[1]["_doc_id"] is not None
+
+        added_rows = [row for call in mock_doc_store.add_vectors.call_args_list for row in call.args[0]]
+        assert len(added_rows) == 1
+        assert added_rows[0][0] == [1.0, 2.0, 3.0]
+
+    @mock.patch('talkpipe.search.lancedb.LanceDBDocumentStore')
+    def test_add_to_lancedb_keeps_zero_vectors_when_disabled(self, mock_doc_store_class, temp_db_path):
+        mock_doc_store = mock.Mock()
+        mock_doc_store_class.return_value = mock_doc_store
+
+        items = [{"vector": [0.0, 0.0, 0.0], "text": "zero vector"}]
+        seg = add_to_lancedb(path=temp_db_path, table_name="test_table",
+                             vector_field="vector", skip_zero_vectors=False)
+        results = list(seg(items))
+
+        assert len(results) == 1
+        assert results[0]["_doc_id"] is not None
+        added_rows = [row for call in mock_doc_store.add_vectors.call_args_list for row in call.args[0]]
+        assert len(added_rows) == 1
+
+    @mock.patch('talkpipe.search.lancedb.LanceDBDocumentStore')
     @mock.patch('talkpipe.search.lancedb.extract_property')
     def test_add_to_lancedb_yields_original_items(self, mock_extract_property, mock_doc_store_class, sample_items, temp_db_path):
         mock_doc_store = mock.Mock()

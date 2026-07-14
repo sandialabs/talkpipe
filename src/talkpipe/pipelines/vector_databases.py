@@ -6,6 +6,7 @@ from talkpipe.data.extraction import listFiles, ReadFile
 from talkpipe.pipe.io import Print
 from talkpipe.pipe.basic import progressTicks, setAs, ToDict
 from talkpipe.data.text.chunking_units import ShingleText, splitText
+from talkpipe.data.text.cleaning import stripBase64
 
 
 @register_segment("processDocuments")
@@ -16,19 +17,28 @@ class ProcessDocumentsSegment(AbstractSegment):
                  chunk_size: Annotated[int, "Size threshold for text chunking"] = 300,
                  shingle_size: Annotated[int, "Size threshold for text chunking shingles"] = 3,
                  overlap: Annotated[int, "Overlap threshold for text chunking shingles"] = 1,
+                 strip_base64: Annotated[bool, "If true, strip base64 payloads (e.g. embedded images) from content before chunking"] = True,
                  ):
         super().__init__()
         self.chunk_size = chunk_size
         self.shingle_size = shingle_size
         self.overlap = overlap
+        self.strip_base64 = strip_base64
 
         # listFiles is a segment expecting an iterable of patterns or values, so its input must be the patterns.
         # Store the shingled text as content so retrieved documents contain the same
         # text that was embedded, not just the final split chunk in the shingle.
-        self.pipeline = (
+        # Base64 payloads are stripped before chunking: they embed to degenerate
+        # vectors that outrank real content for every query.
+        source = (
             listFiles(full_path=True, files_only=True)
             | Print()
             | ReadFile()
+        )
+        if self.strip_base64:
+            source = source | stripBase64(field='content', set_as='content')
+        self.pipeline = (
+            source
             | splitText(field='content', set_as='content', criteria=self.chunk_size)
             | ShingleText(field='content', set_as='shingle_text', key='source', shingle_size=self.shingle_size, overlap=self.overlap, size_mode='count', delimiter=' ')
             | ToDict(field_list="content,source,id,title,shingle_text")
