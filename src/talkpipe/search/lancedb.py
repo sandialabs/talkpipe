@@ -132,6 +132,7 @@ def add_to_lancedb(items: Annotated[object, "Items with the vectors and document
                    vector_dim: Annotated[Optional[int], "Expected dimension of vectors"]=None,
                    batch_size: Annotated[int, "Maximum batch size for adding vectors"]=1,
                    optimize_on_batch: Annotated[bool, "If true, optimize the table after each batch.  Otherwise optimize after last batch."]=False,
+                   optimize_every: Annotated[int, "Optimize the table after at least this many rows have been added since the last optimization. 0 disables periodic optimization."]=5000,
                    ):
     """Add vectors and documents to a LanceDB vector database.
     
@@ -146,9 +147,16 @@ def add_to_lancedb(items: Annotated[object, "Items with the vectors and document
     - "/path/to/db": Persistent file-based database
     - "tmp://name": Process-scoped temporary database (shared by name, auto-cleanup on exit)
     
-    By default uses upsert behavior: if a document with the same ID already exists,
-    it will be updated with the new vector and metadata. Set upsert=False to raise
-    an error on duplicate IDs instead.
+    When doc_id_field is provided, uses upsert behavior: if a document with the same
+    ID already exists, it is updated with the new vector and metadata. When
+    doc_id_field is omitted, IDs are freshly generated and rows are appended, which
+    is significantly faster for long-running ingests.
+
+    The table is optimized (small fragments compacted, indices updated, old table
+    versions pruned) periodically as controlled by optimize_every and
+    optimize_on_batch, and once more at the end of the stream. Without periodic
+    optimization, a long ingest accumulates one table version and fragment per
+    batch, which steadily increases memory use and slows every subsequent write.
     
     Useful for:
     - Creating semantic search indexes from embeddings
@@ -181,21 +189,25 @@ def add_to_lancedb(items: Annotated[object, "Items with the vectors and document
             # If there's any issue with dropping, continue
             logger.warning(f"Could not drop table '{table_name}' for overwrite. Continuing without dropping.")
 
+    # Without a doc_id_field every ID is a fresh UUID that can never match an
+    # existing row, so append instead of paying merge_insert's scan of the table.
+    upsert = doc_id_field is not None
     max_batch_size = max(1, batch_size)
     buffer = AdaptiveBuffer(max_size=max_batch_size)
-    optimized_since_last_add = False  # Track if optimization has occurred since last add
-    
+    rows_since_optimize = 0  # Rows written since the table was last optimized
+
     for item in items:
         # Check if this is a Flush event
         if is_metadata(item) and isinstance(item, Flush):
             # Flush the buffer and add any partial items
             flush_batch = buffer.flush()
             if flush_batch is not None:
-                doc_store.add_vectors(flush_batch)
-                # Optimize if it hasn't been optimized since the last add
-                if not optimized_since_last_add:
-                    doc_store._get_table()[0].optimize()
-                    optimized_since_last_add = True
+                doc_store.add_vectors(flush_batch, upsert=upsert)
+                rows_since_optimize += len(flush_batch)
+            # Optimize if anything has been written since the last optimization
+            if rows_since_optimize > 0:
+                doc_store.optimize()
+                rows_since_optimize = 0
             # Don't yield Flush events - consume them
             continue
         
@@ -225,21 +237,21 @@ def add_to_lancedb(items: Annotated[object, "Items with the vectors and document
 
         batch = buffer.append((vector, document, doc_id))
         if batch is not None:
-            doc_store.add_vectors(batch)
-            optimized_since_last_add = False  # Mark that optimization hasn't occurred since last add
-            if optimize_on_batch:
-                doc_store._get_table()[0].optimize()
-                optimized_since_last_add = True
+            doc_store.add_vectors(batch, upsert=upsert)
+            rows_since_optimize += len(batch)
+            if optimize_on_batch or (optimize_every > 0 and rows_since_optimize >= optimize_every):
+                doc_store.optimize()
+                rows_since_optimize = 0
 
         yield item
-        
+
     final_batch = buffer.flush()
     if final_batch is not None:
-        doc_store.add_vectors(final_batch)
-        # Optimize at the end: if optimize_on_batch is False, only optimize if we haven't optimized since last add
-        # If optimize_on_batch is True, optimize at the end (existing behavior)
-        if optimize_on_batch or not optimized_since_last_add:
-            doc_store._get_table()[0].optimize() 
+        doc_store.add_vectors(final_batch, upsert=upsert)
+        rows_since_optimize += len(final_batch)
+    # Final optimization if anything has been written since the last one
+    if rows_since_optimize > 0:
+        doc_store.optimize()
 
 
 class LanceDBDocumentStore(DocumentStore, VectorAddable, VectorSearchable):
@@ -262,6 +274,7 @@ class LanceDBDocumentStore(DocumentStore, VectorAddable, VectorSearchable):
         self.vector_dim = vector_dim
         self._db = None
         self._table = None
+        self._id_index_ensured = False
         self.read_consistency_interval = read_consistency_interval
 
     def _get_db(self):
@@ -290,6 +303,48 @@ class LanceDBDocumentStore(DocumentStore, VectorAddable, VectorSearchable):
                 else:
                     raise ValueError(f"Table '{self.table_name}' not found and no schema provided. Please provide a LanceDB compatible schema.")
         return self._table, created_and_updated
+
+    def _ensure_id_index(self):
+        """Ensure a BTree scalar index exists on the 'id' column.
+
+        merge_insert has to scan every row not covered by an index on its join key,
+        so without this index each upsert batch costs O(table size) and long ingests
+        slow down quadratically while memory climbs.
+        """
+        if self._id_index_ensured:
+            return
+        table, _ = self._get_table()
+        try:
+            has_index = any("id" in getattr(idx, "columns", []) for idx in table.list_indices())
+            if not has_index:
+                try:
+                    from lancedb.index import BTree
+                    table.create_index("id", config=BTree())
+                except (ImportError, TypeError):
+                    # Older lancedb versions without the unified create_index API
+                    table.create_scalar_index("id")
+        except Exception as e:
+            logger.warning(f"Could not create scalar index on 'id' for table '{self.table_name}': {e}. Upserts may be slow on large tables.")
+        self._id_index_ensured = True
+
+    def optimize(self, cleanup_older_than_seconds: Optional[float] = 120.0):
+        """Compact small fragments, update indices, and prune old table versions.
+
+        Every write commits a new table version and fragment. During a long ingest
+        these accumulate by the thousands, steadily increasing memory use and
+        slowing each subsequent write and search, so this should be called
+        periodically while ingesting and once more when done.
+
+        Args:
+            cleanup_older_than_seconds: Prune table versions older than this many
+                seconds. The default of 120 seconds is comfortably longer than the
+                read_consistency_interval used by concurrent readers. Pass None to
+                keep LanceDB's default retention (about a week), which leaves all
+                versions from a long ingest on disk.
+        """
+        table, _ = self._get_table()
+        cleanup = timedelta(seconds=cleanup_older_than_seconds) if cleanup_older_than_seconds is not None else None
+        table.optimize(cleanup_older_than=cleanup)
 
     def _validate_vector(self, vector: VectorLike) -> List[float]:
         """Validate vector and return as list of floats."""
@@ -336,15 +391,18 @@ class LanceDBDocumentStore(DocumentStore, VectorAddable, VectorSearchable):
     def add_vector(self, vector: VectorLike, document: Document, doc_id: Optional[DocID] = None) -> DocID:
         return self.add_vectors([(vector, document, doc_id)])[0]
 
-    def add_vectors(self, documents: List[tuple]) -> List[DocID]:
+    def add_vectors(self, documents: List[tuple], upsert: bool = True) -> List[DocID]:
         """Add multiple vectors to the store in a batch operation.
-        
+
         Args:
             documents: List of tuples in format (vector, document, doc_id) where:
                       - vector: VectorLike - the vector data
                       - document: Document - the document metadata
                       - doc_id: Optional[DocID] - document ID (generated if None)
-        
+            upsert: If True, rows whose ID already exists are updated in place.
+                    If False, rows are appended without checking for existing IDs,
+                    which is much faster when IDs are known to be new.
+
         Returns:
             List of document IDs for the added vectors
         """
@@ -369,11 +427,16 @@ class LanceDBDocumentStore(DocumentStore, VectorAddable, VectorSearchable):
             })
         
         table, created_and_updated = self._get_table(schema_if_missing=schema_data)
-        
+
         if not created_and_updated:
-            # Table exists, use merge_insert for upsert behavior
-            table.merge_insert('id').when_matched_update_all().when_not_matched_insert_all().execute(schema_data)
-        
+            if upsert:
+                # Keep 'id' indexed so merge_insert doesn't scan the whole table per batch
+                self._ensure_id_index()
+                table.merge_insert('id').when_matched_update_all().when_not_matched_insert_all().execute(schema_data)
+            else:
+                # Fresh IDs can never match an existing row; append directly
+                table.add(schema_data)
+
         return doc_ids
 
     # VectorSearchable protocol implementation

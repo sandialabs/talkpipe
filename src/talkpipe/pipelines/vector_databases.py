@@ -63,6 +63,7 @@ class MakeVectorDatabaseSegment(AbstractSegment):
                  fail_on_error: Annotated[bool, "If true, fail on error instead of logging"] = True,
                  batch_size: Annotated[int, "Batch size for committing in the vector database"] = 100,
                  optimize_on_batch: Annotated[bool, "If true, optimize the table after each batch.  Otherwise optimize after last batch."]=False,
+                 optimize_every: Annotated[int, "Optimize the table after at least this many rows have been added since the last optimization. 0 disables periodic optimization."]=5000,
                  ):
         super().__init__()
         self.embedding_model = embedding_model
@@ -85,6 +86,7 @@ class MakeVectorDatabaseSegment(AbstractSegment):
                                        overwrite=self.overwrite,
                                        batch_size=batch_size,
                                        optimize_on_batch=optimize_on_batch,
+                                       optimize_every=optimize_every,
                                        )
 
     def transform(self, input_iter):

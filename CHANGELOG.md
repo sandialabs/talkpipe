@@ -2,6 +2,22 @@
 
 ## Unreleased
 
+- Fixed `addToLanceDB` slowing down and steadily consuming memory during long
+  ingests. Three compounding causes: every batch used `merge_insert` (an
+  upsert), which without a scalar index on `id` scans the whole table per
+  batch — O(n²) over an ingest — even when `doc_id_field` was unset and the
+  freshly generated UUIDs could never match an existing row; every batch also
+  committed a new table version whose fragments and manifests accumulated by
+  the thousands because optimization only ran at the very end; and
+  `optimize()` never pruned versions newer than LanceDB's week-long default
+  retention. Now rows are appended directly when `doc_id_field` is unset,
+  upserts keep a BTree index on `id`, the table is optimized periodically
+  during ingest (new `optimize_every` parameter, default every 5000 rows; also
+  exposed on `makeVectorDatabase`), and optimization prunes table versions
+  older than two minutes. On a 50k-row ingest this cut wall time from 87s to
+  8s and peak memory from 1.4GB to 0.8GB, with per-batch cost now flat instead
+  of growing.
+
 - `ReadFile` no longer aborts a batch when a single file with a supported
   extension fails to be read (for example a truncated or corrupt PDF, which
   pypdf surfaces as `Stream has ended unexpectedly`). Such a file is now logged

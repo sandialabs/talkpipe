@@ -322,7 +322,7 @@ class TestAddToLanceDB:
         assert mock_doc_store.add_vectors.call_count >= 2
 
         # Should have optimized once (on flush, since optimize_on_batch=False)
-        assert mock_table.optimize.call_count >= 1
+        assert mock_doc_store.optimize.call_count >= 1
 
     @mock.patch('talkpipe.search.lancedb.LanceDBDocumentStore')
     @mock.patch('talkpipe.search.lancedb.extract_property')
@@ -372,7 +372,7 @@ class TestAddToLanceDB:
         assert mock_doc_store.add_vectors.call_count == 1
 
         # Should have optimized once (on flush, since vectors were added)
-        assert mock_table.optimize.call_count == 1
+        assert mock_doc_store.optimize.call_count == 1
 
 
 def test_add_and_search_integration(temp_db_path, sample_items_direction_relevant):
@@ -568,3 +568,108 @@ def test_add_vectors_with_existing_documents(temp_db_path):
     new_doc = store.get_document("doc2")
     assert new_doc["text"] == "new doc"
     assert new_doc["version"] == "1"
+
+
+def test_add_vectors_append_mode(temp_db_path):
+    """Test add_vectors with upsert=False appends rows without matching existing IDs."""
+    store = LanceDBDocumentStore(temp_db_path, "test_table")
+
+    doc_ids = store.add_vectors([([1.0, 2.0], {"text": "a"}, None), ([3.0, 4.0], {"text": "b"}, None)], upsert=False)
+    assert len(doc_ids) == 2
+    assert store.count() == 2
+
+    # Appending more rows (fresh IDs) should not touch existing ones
+    store.add_vectors([([5.0, 6.0], {"text": "c"}, None)], upsert=False)
+    assert store.count() == 3
+    assert store.get_document(doc_ids[0]) == {"text": "a"}
+
+
+def test_upsert_creates_id_index(temp_db_path):
+    """Test that upserts create a scalar index on 'id' so merge_insert avoids full scans."""
+    store = LanceDBDocumentStore(temp_db_path, "test_table")
+    # First call creates the table; second exercises the merge_insert/upsert path
+    store.add_vectors([([1.0, 2.0], {"text": "a"}, "doc1")])
+    store.add_vectors([([3.0, 4.0], {"text": "b"}, "doc2")])
+
+    table, _ = store._get_table()
+    index_columns = [col for idx in table.list_indices() for col in idx.columns]
+    assert "id" in index_columns
+
+
+def test_store_optimize_prunes_old_versions(temp_db_path):
+    """Test that LanceDBDocumentStore.optimize prunes old table versions."""
+    store = LanceDBDocumentStore(temp_db_path, "test_table")
+    for i in range(5):
+        store.add_vectors([([float(i), 0.0], {"text": f"doc {i}"}, None)], upsert=False)
+
+    table, _ = store._get_table()
+    versions_before = len(table.list_versions())
+    assert versions_before >= 5
+
+    store.optimize(cleanup_older_than_seconds=0)
+    versions_after = len(table.list_versions())
+    assert versions_after < versions_before
+    assert store.count() == 5
+
+
+@mock.patch('talkpipe.search.lancedb.LanceDBDocumentStore')
+@mock.patch('talkpipe.search.lancedb.extract_property')
+def test_add_to_lancedb_appends_without_doc_id_field(mock_extract_property, mock_doc_store_class, sample_items, temp_db_path):
+    """Without doc_id_field, IDs are generated so rows should be appended (upsert=False)."""
+    mock_doc_store = mock.Mock()
+    mock_doc_store_class.return_value = mock_doc_store
+    mock_extract_property.return_value = [1.0, 2.0, 3.0]
+
+    seg = add_to_lancedb(path=temp_db_path, table_name="test_table", vector_field="vector")
+    list(seg([sample_items[0]]))
+
+    assert mock_doc_store.add_vectors.call_args.kwargs["upsert"] is False
+
+
+@mock.patch('talkpipe.search.lancedb.LanceDBDocumentStore')
+@mock.patch('talkpipe.search.lancedb.extract_property')
+def test_add_to_lancedb_upserts_with_doc_id_field(mock_extract_property, mock_doc_store_class, temp_db_path):
+    """With doc_id_field, the same ID may reappear so rows should be upserted."""
+    mock_doc_store = mock.Mock()
+    mock_doc_store_class.return_value = mock_doc_store
+    mock_extract_property.side_effect = lambda item, field, **kwargs: item[field]
+
+    items = [{"vector": [1.0, 2.0, 3.0], "doc_id": "doc1"}]
+    seg = add_to_lancedb(path=temp_db_path, table_name="test_table",
+                         vector_field="vector", doc_id_field="doc_id")
+    list(seg(items))
+
+    assert mock_doc_store.add_vectors.call_args.kwargs["upsert"] is True
+
+
+@mock.patch('talkpipe.search.lancedb.LanceDBDocumentStore')
+@mock.patch('talkpipe.search.lancedb.extract_property')
+def test_add_to_lancedb_periodic_optimize(mock_extract_property, mock_doc_store_class, temp_db_path):
+    """The table should be optimized every optimize_every rows during a long ingest."""
+    mock_doc_store = mock.Mock()
+    mock_doc_store_class.return_value = mock_doc_store
+    mock_extract_property.return_value = [1.0, 2.0, 3.0]
+
+    items = [{"vector": [1.0, 2.0, 3.0], "text": f"item {i}"} for i in range(10)]
+    seg = add_to_lancedb(path=temp_db_path, table_name="test_table",
+                         vector_field="vector", batch_size=2, optimize_every=4)
+    list(seg(items))
+
+    # 10 rows with optimize_every=4: optimizations mid-stream plus the final one
+    assert mock_doc_store.optimize.call_count >= 2
+
+
+@mock.patch('talkpipe.search.lancedb.LanceDBDocumentStore')
+@mock.patch('talkpipe.search.lancedb.extract_property')
+def test_add_to_lancedb_periodic_optimize_disabled(mock_extract_property, mock_doc_store_class, temp_db_path):
+    """With optimize_every=0 and optimize_on_batch=False, only the final optimize runs."""
+    mock_doc_store = mock.Mock()
+    mock_doc_store_class.return_value = mock_doc_store
+    mock_extract_property.return_value = [1.0, 2.0, 3.0]
+
+    items = [{"vector": [1.0, 2.0, 3.0], "text": f"item {i}"} for i in range(10)]
+    seg = add_to_lancedb(path=temp_db_path, table_name="test_table",
+                         vector_field="vector", batch_size=2, optimize_every=0)
+    list(seg(items))
+
+    assert mock_doc_store.optimize.call_count == 1
