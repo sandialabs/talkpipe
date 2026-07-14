@@ -2,6 +2,26 @@
 
 ## Unreleased
 
+- Fixed `indexWhoosh` degrading quadratically when committing frequently
+  (small `commit_seconds`, e.g. the commit-per-document watch configuration):
+  60k docs took 988s with 5-second commits vs 42s for a single commit; now
+  38s. Two compounding causes: every document went through Whoosh's
+  `update_document`, which searches all committed segments for the unique
+  doc_id — even though `indexWhoosh` generates fresh UUIDs that can never
+  match when no doc_id is supplied — and every commit re-merged the
+  accumulated segments. Documents without a caller-supplied doc_id are now
+  appended with `add_document` (no per-document search), and append-only
+  intermediate commits skip merging, with every 20th commit merging to keep
+  the segment count bounded. Commits covering genuine upserts still merge
+  every time, since `update_document`'s per-document search is only cheap
+  when the segment count stays low. Memory was never at risk on this path —
+  Whoosh's writer spills postings to disk at `limitmb` (128MB).
+- Fixed mapping a field to `doc_id` in `indexWhoosh`'s `field_list` (e.g.
+  `"id:doc_id"`) crashing with `Schema() got multiple values for keyword
+  argument 'doc_id'`. The documented upsert behavior was therefore
+  unreachable; it now works — items whose doc_id already exists replace the
+  earlier document.
+
 - Fixed `addToLanceDB` slowing down and steadily consuming memory during long
   ingests. Three compounding causes: every batch used `merge_insert` (an
   upsert), which without a scalar index on `id` scans the whole table per

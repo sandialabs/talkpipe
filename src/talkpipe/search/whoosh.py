@@ -179,31 +179,54 @@ def WhooshWriter(index_path: str, fields: list[str] = None, overwrite: bool = Fa
     writer = idx.ix.writer()
     
     class WriterWrapper:
+        # Merge segments on only every Nth intermediate commit of append-only
+        # streams. Merging on every commit rewrites the accumulated index each
+        # time, so frequent commits (e.g. commit_seconds=0) degrade
+        # quadratically over a long ingest. Streams that upsert are excluded:
+        # update_document searches every committed segment for its unique
+        # doc_id, so letting segments accumulate makes upserts far slower than
+        # the merging it avoids.
+        MERGE_EVERY = 20
+
         def __init__(self, idx, writer, commit_seconds):
             self.idx = idx
             self.writer = writer
             self.commit_seconds = commit_seconds
             self.last_commit = time.time()
-        
-        def add_document(self, doc, doc_id=None):
+            self._commits_since_merge = 0
+            self._upserted_since_merge = False
+
+        def add_document(self, doc, doc_id=None, upsert=True):
             # Check if we need to commit
             if self.commit_seconds >= 0 and (time.time() - self.last_commit) > self.commit_seconds:
                 self.commit()
-            
+
             # Add document using the writer directly
             if doc_id is None:
                 doc_id = str(uuid.uuid4())
             doc_fields = {field: str(doc.get(field, "")) for field in self.idx.fields if field in doc}
-            self.writer.update_document(doc_id=doc_id, **doc_fields)
+            if upsert:
+                # Searches all committed segments for an existing doc_id
+                self.writer.update_document(doc_id=doc_id, **doc_fields)
+                self._upserted_since_merge = True
+            else:
+                # Caller guarantees doc_id is new; skip the per-document search
+                self.writer.add_document(doc_id=doc_id, **doc_fields)
             return doc_id
-        
+
         def commit(self):
             """Commit the current writer and create a new one."""
-            self.writer.commit()
+            self._commits_since_merge += 1
+            if self._upserted_since_merge or self._commits_since_merge >= self.MERGE_EVERY:
+                self.writer.commit()
+                self._commits_since_merge = 0
+                self._upserted_since_merge = False
+            else:
+                self.writer.commit(merge=False)
             self.writer = self.idx.ix.writer()
             self.last_commit = time.time()
             logger.debug("Index commit performed")
-        
+
         def __getattr__(self, name):
             # Delegate other attributes to the index
             return getattr(self.idx, name)
@@ -271,6 +294,12 @@ def indexWhoosh(items: Annotated[object, "Iterator of items to index"], index_pa
     Creates a searchable full-text index from items. Each item is indexed with specified
     fields, allowing fast text search using searchWhoosh. Indexes are persistent and can
     be updated incrementally by calling indexWhoosh again on new items.
+
+    Mapping a field to the reserved name doc_id in field_list (e.g. "id:doc_id")
+    supplies each document's unique ID and enables upsert behavior: indexing an
+    item whose doc_id already exists replaces the earlier document. Without a
+    doc_id mapping, IDs are generated and documents are always appended, which
+    is significantly faster.
     
     The Whoosh index is optimized for searching and supports complex query syntax including
     boolean operators (AND, OR, NOT), field-specific searches, and phrase queries.
@@ -284,10 +313,13 @@ def indexWhoosh(items: Annotated[object, "Iterator of items to index"], index_pa
         Indexed documents (if yield_doc=True) or original items otherwise.
     """
     field_list_dict = parse_key_value_str(field_list)
+    # doc_id is reserved: the schema always gets a unique doc_id ID field, so a
+    # doc_id entry in field_list supplies document IDs rather than a text field
+    index_fields = [f for f in field_list_dict.values() if f != 'doc_id']
     indexed_count = 0
     error_count = 0
-    
-    with WhooshWriter(index_path, list(field_list_dict.values()), overwrite=overwrite, commit_seconds=commit_seconds) as idx:
+
+    with WhooshWriter(index_path, index_fields, overwrite=overwrite, commit_seconds=commit_seconds) as idx:
         for item in items:
             # Check if this is a Flush event
             if is_metadata(item) and isinstance(item, Flush):
@@ -298,12 +330,15 @@ def indexWhoosh(items: Annotated[object, "Iterator of items to index"], index_pa
             
             try:
                 d = toDict(item, field_list, fail_on_missing=False)
+                # A freshly generated ID can never match an existing document,
+                # so only items carrying their own doc_id need upsert handling
+                upsert = 'doc_id' in d
                 doc_id = str(d.get('doc_id', uuid.uuid4()))
-                
+
                 # Convert to Document format
                 document = {k: str(v) for k, v in d.items() if k != 'doc_id'}
-                
-                result_doc_id = idx.add_document(document, doc_id)
+
+                result_doc_id = idx.add_document(document, doc_id, upsert=upsert)
                 indexed_count += 1
                 yield d if yield_doc else item
                     

@@ -775,3 +775,101 @@ def test_indexWhoosh_flush_commit_visibility(temp_index_dir):
     
     assert len(final_before) == 1
     assert len(final_after) == 1
+
+
+def test_writer_wrapper_append_commits_skip_merging(temp_index_dir):
+    """Intermediate commits of append-only streams should not merge every time.
+
+    Merging on every commit rewrites the accumulated index each time, so
+    frequent commits (commit_seconds=0) degrade quadratically over a long
+    ingest. Only every MERGE_EVERY-th commit should merge.
+    """
+    merge_args = []
+    with WhooshWriter(temp_index_dir, ["title", "content"], commit_seconds=0) as idx:
+        def track_writer(wrapper):
+            real_commit = wrapper.writer.commit
+            def tracked(*args, **kwargs):
+                merge_args.append(kwargs.get("merge", True))
+                return real_commit(*args, **kwargs)
+            wrapper.writer.commit = tracked
+
+        track_writer(idx)
+        for i in range(10):
+            idx.add_document({"title": f"Doc {i}", "content": f"content {i}"}, upsert=False)
+            track_writer(idx)  # new writer after each commit
+
+    # Intermediate commits happened (commit_seconds=0) and none of the first
+    # MERGE_EVERY-1 merged
+    intermediate = merge_args[:-1]
+    assert len(intermediate) >= 5
+    assert all(m is False for m in intermediate)
+
+
+def test_writer_wrapper_upsert_commits_merge(temp_index_dir):
+    """Commits covering upserts must merge so update_document's per-document
+    search over committed segments stays cheap."""
+    merge_args = []
+    with WhooshWriter(temp_index_dir, ["title", "content"], commit_seconds=0) as idx:
+        def track_writer(wrapper):
+            real_commit = wrapper.writer.commit
+            def tracked(*args, **kwargs):
+                merge_args.append(kwargs.get("merge", True))
+                return real_commit(*args, **kwargs)
+            wrapper.writer.commit = tracked
+
+        track_writer(idx)
+        for i in range(5):
+            idx.add_document({"title": f"Doc {i}", "content": f"content {i}"}, doc_id=f"doc-{i}")
+            track_writer(idx)
+
+    assert len(merge_args) >= 3
+    # The first commit may fire before any document was added (empty writer,
+    # nothing upserted yet) and may skip merging; every commit after an upsert
+    # must merge.
+    assert all(m is True for m in merge_args[1:])
+
+
+def test_indexWhoosh_frequent_commits_index_is_searchable(temp_index_dir):
+    """An index built with commit-per-document must remain fully searchable."""
+    items = [{"title": f"Doc {i}", "content": f"unique{i} shared"} for i in range(30)]
+    seg = indexWhoosh(index_path=temp_index_dir,
+                      field_list="title:title,content:content",
+                      commit_seconds=0)
+    results = list(seg(items))
+    assert len(results) == 30
+
+    searcher = WhooshFullTextIndex(temp_index_dir, ["title", "content"])
+    assert len(searcher.text_search("unique7")) == 1
+    assert len(searcher.text_search("shared", limit=50)) == 30
+
+
+def test_indexWhoosh_frequent_commits_preserve_upserts(temp_index_dir):
+    """Items carrying doc_id must still replace earlier versions under
+    frequent commits."""
+    items = (
+        [{"doc_id": f"doc-{i}", "title": f"Doc {i}", "content": "original"} for i in range(5)]
+        + [{"doc_id": f"doc-{i}", "title": f"Doc {i}", "content": "replaced"} for i in range(5)]
+    )
+    seg = indexWhoosh(index_path=temp_index_dir,
+                      field_list="doc_id:doc_id,title:title,content:content",
+                      commit_seconds=0)
+    results = list(seg(items))
+    assert len(results) == 10
+
+    searcher = WhooshFullTextIndex(temp_index_dir, ["doc_id", "title", "content"])
+    assert len(searcher.text_search("replaced", limit=50)) == 5
+    assert len(searcher.text_search("original", limit=50)) == 0
+
+
+def test_writer_wrapper_merges_periodically(temp_index_dir):
+    """Append-only streams must merge on the MERGE_EVERY-th commit and keep
+    every document."""
+    with WhooshWriter(temp_index_dir, ["title", "content"], commit_seconds=0) as idx:
+        merge_every = idx.MERGE_EVERY
+        for i in range(merge_every + 5):
+            idx.add_document({"title": f"Doc {i}", "content": f"content {i}"}, upsert=False)
+
+    # After the run, the index must contain every document exactly once
+    searcher = WhooshFullTextIndex(temp_index_dir, ["title", "content"])
+    results = searcher.text_search("content", limit=100)
+    assert len(results) == merge_every + 5
