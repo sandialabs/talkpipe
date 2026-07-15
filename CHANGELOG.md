@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+- Fixed process memory climbing steadily when extracting many PDFs (e.g. a
+  long vault ingest over a PDF-heavy corpus). pypdf's reader object graph is
+  full of reference cycles, and parsing a large file promotes it to GC
+  generation 2, where dead readers accumulate between Python's rare full
+  collections; by the time one runs, the heap is fragmented and the memory is
+  never returned to the OS, so RSS ratchets up permanently. `extract_pdf` now
+  drops the reader and runs a full garbage collection after each file
+  (~25ms), which keeps RSS flat: extracting 150 large PDFs previously grew
+  RSS by 72MB and climbing, now under 2MB total. A cheaper generation-1
+  collection was measured and does not help, since the reader graph reaches
+  generation 2 during its own file's parse.
+
 ## 0.12.5
 
 - Fixed `indexWhoosh` degrading quadratically when committing frequently

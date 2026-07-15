@@ -989,3 +989,25 @@ def test_default_registry_has_all_extensions():
     expected = {"txt", "md", "rst", "html", "htm", "docx", "pdf", "csv", "tsv", "json", "jsonl"}
     actual = set(registry.registered_extensions)
     assert expected.issubset(actual), f"Missing extensions: {expected - actual}"
+
+
+def test_extract_pdf_releases_reader(tmp_path):
+    """No PdfReader may outlive extraction.
+
+    pypdf's reader graph is full of reference cycles, so without an explicit
+    collection dead readers accumulate until a rare full GC pass and RSS
+    climbs for the whole ingest.
+    """
+    pytest.importorskip("pypdf")
+    import gc
+    from pypdf import PdfReader
+
+    for i in range(3):
+        pdf_path = tmp_path / f"leak_test_{i}.pdf"
+        _create_pdf_with_text(pdf_path, f"Leak test {i}")
+        results = list(extract_pdf(pdf_path))
+        assert len(results) == 1
+        # extract_pdf must have collected its own reader; none alive without
+        # any further gc.collect() here
+        alive = [o for o in gc.get_objects() if isinstance(o, PdfReader)]
+        assert alive == []

@@ -2,6 +2,7 @@
 
 from typing import Union, Iterable, Annotated, Callable, Optional, Iterator
 from functools import partial
+import gc
 import logging
 import csv
 import json
@@ -440,15 +441,23 @@ def extract_pdf(file_path: Union[str, Path]) -> Iterator[ExtractionResult]:
         logger.error(f"Unsupported path type: {file_path}")
         raise FileNotFoundError(f"Unsupported path type: {file_path}")
 
+    def read_all_pages(path):
+        reader = PdfReader(path)
+        text_parts = []
+        for page in reader.pages:
+            page_text = page.extract_text()
+            if page_text:
+                text_parts.append(page_text)
+        return "\n\n".join(text_parts) if text_parts else ""
+
     logger.info(f"Reading PDF file: {p}")
     source_str = str(p.resolve())
-    reader = PdfReader(p)
-    text_parts = []
-    for page in reader.pages:
-        page_text = page.extract_text()
-        if page_text:
-            text_parts.append(page_text)
-    content = "\n\n".join(text_parts) if text_parts else ""
+    content = read_all_pages(p)
+    # pypdf's reader graph is full of reference cycles, and parsing a large
+    # file promotes it to GC generation 2, where dead readers pile up between
+    # rare full collections and fragment the heap so RSS never comes back
+    # down over a long ingest. Collect now that the reader is out of scope.
+    gc.collect()
     yield ExtractionResult(
         content=content,
         source=source_str,
