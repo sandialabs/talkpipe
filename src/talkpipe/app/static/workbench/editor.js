@@ -333,7 +333,7 @@ const chatterlangHover = hoverTooltip((view, pos) => {
   return {
     pos: line.from + start,
     end: line.from + end,
-    above: true,
+    above: false,
     create() {
       return { dom: buildHoverDom(comp) };
     },
