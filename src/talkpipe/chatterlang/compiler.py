@@ -23,8 +23,21 @@ from talkpipe.operations.thread_ops import ThreadedQueue
 logger = logging.getLogger(__name__)
 
 class CompileError(Exception):
-    """ Exception raised when a compilation error occurs in chatterlang """
-    pass
+    """ Exception raised when a compilation error occurs in chatterlang
+
+    Besides the formatted message, instances may carry optional structured
+    location/context attributes (all default to None) so tooling such as the
+    workbench lint endpoint can consume errors without re-parsing the text:
+    ``line``/``column`` (1-indexed), ``kind`` ("syntax" | "unknown_name" |
+    "bad_param"), and ``bad_name`` (the offending segment/source name).
+    """
+
+    def __init__(self, message="", *, line=None, column=None, kind=None, bad_name=None):
+        super().__init__(message)
+        self.line = line
+        self.column = column
+        self.kind = kind
+        self.bad_name = bad_name
 
 
 def _valid_param_names(component) -> List[str]:
@@ -88,6 +101,20 @@ def _not_found_message(kind: str, name: str, reg) -> str:
     return msg
 
 
+def parse_error_location(script: str, error: ParseError):
+    """Return the 1-indexed (line, column) of a parsy ParseError.
+
+    Returns (None, None) when the error carries no usable position.
+    """
+    index = getattr(error, "index", None)
+    stream = getattr(error, "stream", script)
+    if index is None or not isinstance(stream, str):
+        return None, None
+    before = stream[:index]
+    line_start = before.rfind("\n") + 1
+    return before.count("\n") + 1, index - line_start + 1
+
+
 def _format_parse_error(script: str, error: ParseError) -> str:
     """Turn a raw parsy ParseError into a friendly, located syntax error."""
     index = getattr(error, "index", None)
@@ -97,8 +124,7 @@ def _format_parse_error(script: str, error: ParseError) -> str:
         return f"Could not parse ChatterLang script: {error}"
     before = stream[:index]
     line_start = before.rfind("\n") + 1
-    line_no = before.count("\n") + 1
-    col_no = index - line_start + 1
+    line_no, col_no = parse_error_location(script, error)
     line_end = stream.find("\n", index)
     if line_end == -1:
         line_end = len(stream)
@@ -331,11 +357,17 @@ def _(pipeline: ParsedPipeline, runtime: RuntimeComponent) -> Pipeline:
             try:
                 source_cls = registry.input_registry.get(source_name)
             except KeyError:
-                raise CompileError(_not_found_message("Source", source_name, registry.input_registry)) from None
+                raise CompileError(
+                    _not_found_message("Source", source_name, registry.input_registry),
+                    kind="unknown_name", bad_name=source_name,
+                ) from None
             try:
                 ans = source_cls(**_resolve_params(pipeline.input_node.params, runtime=runtime))
             except TypeError as e:
-                raise CompileError(_bad_param_message("Source", source_name, source_cls, e)) from None
+                raise CompileError(
+                    _bad_param_message("Source", source_name, source_cls, e),
+                    kind="bad_param", bad_name=source_name,
+                ) from None
             logger.debug(f"Created registered input {source_name}")
         ans.runtime = runtime
 
@@ -349,11 +381,17 @@ def _(pipeline: ParsedPipeline, runtime: RuntimeComponent) -> Pipeline:
             try:
                 segment_cls = registry.segment_registry.get(segment_name)
             except KeyError:
-                raise CompileError(_not_found_message("Segment", segment_name, registry.segment_registry)) from None
+                raise CompileError(
+                    _not_found_message("Segment", segment_name, registry.segment_registry),
+                    kind="unknown_name", bad_name=segment_name,
+                ) from None
             try:
                 next_transform = segment_cls(**_resolve_params(transform.params, runtime=runtime))
             except TypeError as e:
-                raise CompileError(_bad_param_message("Segment", segment_name, segment_cls, e)) from None
+                raise CompileError(
+                    _bad_param_message("Segment", segment_name, segment_cls, e),
+                    kind="bad_param", bad_name=segment_name,
+                ) from None
             logger.debug(f"Created segment {segment_name}")
         elif isinstance(transform, ForkNode):
             next_transform = compile(transform, runtime)
@@ -439,7 +477,11 @@ def _(script: str, runtime: RuntimeComponent = None) -> Callable:
     try:
         parsed = script_parser.parse(preprocessed_script)
     except ParseError as e:
-        raise CompileError(_format_parse_error(preprocessed_script, e)) from None
+        line, column = parse_error_location(preprocessed_script, e)
+        raise CompileError(
+            _format_parse_error(preprocessed_script, e),
+            line=line, column=column, kind="syntax",
+        ) from None
     return compile(parsed, runtime)
 
 class ArrowForkSegment:

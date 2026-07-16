@@ -1,0 +1,23 @@
+{
+  "name": "talkpipe-workbench-frontend",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Build tooling for the vendored CodeMirror bundle used by chatterlang_workbench. End users never need Node; the built bundle is committed to src/talkpipe/app/static/workbench/vendor/.",
+  "type": "module",
+  "scripts": {
+    "build": "node build.mjs"
+  },
+  "dependencies": {
+    "@codemirror/autocomplete": "6.18.6",
+    "@codemirror/commands": "6.8.1",
+    "@codemirror/language": "6.11.0",
+    "@codemirror/lint": "6.8.5",
+    "@codemirror/search": "6.5.10",
+    "@codemirror/state": "6.5.2",
+    "@codemirror/view": "6.36.8",
+    "@lezer/highlight": "1.2.1"
+  },
+  "devDependencies": {
+    "esbuild": "0.25.4"
+  }
+}

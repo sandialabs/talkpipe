@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>TalkPipe Workbench</title>
+  <link rel="icon" type="image/ico" href="/static/favicon.ico">
+  <link rel="stylesheet" href="/static/workbench/styles.css">
+</head>
+<body>
+  <div id="container">
+    <header>
+      <div class="header-title">
+        <h1>Talk<span class="accent">Pipe</span> <span class="header-sub">Workbench</span></h1>
+        <div class="subtitle">Develop and test ChatterLang pipelines</div>
+      </div>
+      <span class="header-links">
+        Docs: <a href="/docs/html" target="_blank">html</a> <a href="/docs/text" target="_blank">text</a>
+      </span>
+    </header>
+
+    <div id="toolbar">
+      <button id="runButton" title="Compile and run the script (Ctrl-Enter)">&#9654; Run</button>
+      <button id="checkButton" title="Full compile check (instantiates components, does not run them)" hidden>Check</button>
+      <span class="toolbar-sep"></span>
+      <button id="saveButton" title="Save pipeline (Ctrl-S)" hidden>Save</button>
+      <button id="saveAsButton" hidden>Save As&hellip;</button>
+      <span class="toolbar-sep"></span>
+      <div class="dropdown">
+        <button id="examplesButton">Examples &#9662;</button>
+        <div id="examplesMenu" class="dropdown-menu hidden"></div>
+      </div>
+      <button id="logButton">Logs</button>
+      <span id="pipelineName" class="pipeline-name" title="Current pipeline"></span>
+      <span id="statusIndicator" class="loading hidden">Working&hellip;</span>
+      <span class="toolbar-spacer"></span>
+      <button id="settingsButton" title="Suggestion settings" hidden>&#9881;</button>
+    </div>
+
+    <div class="workspace-container">
+      <div id="pipelines-panel" class="side-panel hidden">
+        <div class="panel-header">
+          Pipelines
+          <button id="refreshPipelines" class="icon-button" title="Refresh">&#8635;</button>
+        </div>
+        <div id="pipelineList" class="panel-body"></div>
+      </div>
+
+      <div class="main-panel">
+        <div id="editor"></div>
+        <div id="cursorPosition">Line: 1, Column: 1</div>
+      </div>
+
+      <div id="suggest-panel" class="side-panel hidden">
+        <div class="panel-header">
+          Suggestions
+          <button id="suggestButton" class="icon-button" title="Ask the LLM for suggestions">&#10024;</button>
+        </div>
+        <div class="panel-body">
+          <div id="llmSuggestSection">
+            <div class="suggest-section-title">AI suggestions</div>
+            <div id="llmSuggestList" class="suggest-list"></div>
+            <div id="llmSuggestStatus" class="suggest-status"></div>
+          </div>
+          <div id="heuristicSection">
+            <div class="suggest-section-title">Likely next</div>
+            <div id="heuristicList" class="suggest-list"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="bottom-section">
+      <div id="bottom-tabs">
+        <button class="tab active" data-tab="output">Output</button>
+        <button class="tab" data-tab="logs">Logs</button>
+        <button id="clearOutput" class="icon-button" title="Clear">&#128465;</button>
+      </div>
+      <div id="output" class="tab-pane"></div>
+      <div id="log-content" class="tab-pane hidden"></div>
+      <div id="interactive-section" class="hidden">
+        <input type="text" id="interactiveInput" placeholder="Enter your input here...">
+        <button id="goButton">Send</button>
+        <span id="loadingIndicator" class="loading hidden">Processing&hellip;</span>
+      </div>
+    </div>
+  </div>
+
+  <dialog id="saveDialog">
+    <form method="dialog">
+      <h3 id="saveDialogTitle">Save pipeline</h3>
+      <label>Name <input type="text" id="saveName" required autocomplete="off"></label>
+      <label>Description <input type="text" id="saveDescription" autocomplete="off"></label>
+      <div class="dialog-buttons">
+        <button value="cancel" formnovalidate>Cancel</button>
+        <button value="save" id="saveDialogConfirm">Save</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="settingsDialog">
+    <form method="dialog">
+      <h3>Suggestion settings</h3>
+      <label>LLM source
+        <select id="settingSource"><option value="">(default)</option></select>
+      </label>
+      <label>Model <input type="text" id="settingModel" placeholder="(default)" autocomplete="off"></label>
+      <label class="checkbox-label">
+        <input type="checkbox" id="settingAutoSuggest"> Suggest automatically while typing
+      </label>
+      <div id="settingsResolved" class="settings-resolved"></div>
+      <div class="dialog-buttons">
+        <button value="cancel" formnovalidate>Cancel</button>
+        <button value="save" id="settingsConfirm">Save</button>
+      </div>
+    </form>
+  </dialog>
+
+  <script type="module" src="/static/workbench/app.js"></script>
+</body>
+</html>
