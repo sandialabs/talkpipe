@@ -182,43 +182,48 @@ async function saveCurrent() {
   notifySaved();
 }
 
+function adoptSaved(p) {
+  currentId = p.id;
+  currentName = p.name;
+  currentDescription = p.description || "";
+  dirty = false;
+  updateNameLabel();
+  refreshList();
+  notifySaved();
+}
+
 async function saveAs() {
-  const meta = await showSaveDialog("Save pipeline as", currentName, currentDescription);
-  if (!meta || !meta.name) return;
-  try {
-    const p = await api("/api/pipelines", {
-      method: "POST",
-      body: JSON.stringify({ ...meta, script: editor.getValue() }),
-    });
-    currentId = p.id;
-    currentName = p.name;
-    currentDescription = p.description || "";
-    dirty = false;
-    updateNameLabel();
-    refreshList();
-    notifySaved();
-  } catch (e) {
-    if (e.status === 409) {
-      const overwrite = await confirmDialog(
-        `"${meta.name}" already exists. Overwrite it?`,
-        { title: "Pipeline exists", okLabel: "Overwrite" }
-      );
-      if (!overwrite) return;
-      const p = await api("/api/pipelines", {
+  let name = currentName;
+  let description = currentDescription;
+  // Loop so declining an overwrite returns to the Save-As dialog with the
+  // typed name/description intact instead of throwing the input away.
+  for (;;) {
+    const meta = await showSaveDialog("Save pipeline as", name, description);
+    if (!meta || !meta.name) return;
+    ({ name, description } = meta);
+    try {
+      adoptSaved(await api("/api/pipelines", {
         method: "POST",
-        body: JSON.stringify({ ...meta, script: editor.getValue(), overwrite: true }),
-      });
-      currentId = p.id;
-      currentName = p.name;
-      currentDescription = p.description || "";
-      dirty = false;
-      updateNameLabel();
-      refreshList();
-      notifySaved();
-    } else {
+        body: JSON.stringify({ ...meta, script: editor.getValue() }),
+      }));
+      return;
+    } catch (e) {
+      if (e.status === 409) {
+        const overwrite = await confirmDialog(
+          `"${meta.name}" already exists. Overwrite it?`,
+          { title: "Pipeline exists", okLabel: "Overwrite" }
+        );
+        if (!overwrite) continue;
+        adoptSaved(await api("/api/pipelines", {
+          method: "POST",
+          body: JSON.stringify({ ...meta, script: editor.getValue(), overwrite: true }),
+        }));
+        return;
+      }
       await confirmDialog("Save failed: " + e.message, {
         title: "Save failed", okOnly: true,
       });
+      return;
     }
   }
 }

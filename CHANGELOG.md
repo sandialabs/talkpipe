@@ -2,6 +2,33 @@
 
 ## Unreleased
 
+- Fixed friction points found during a second workbench-focused
+  newcomer-simulation usability pass:
+  - ChatterLang compile errors now recognize a source name used in segment
+    position (and vice versa): a script like `echo` reports "Segment 'echo'
+    not found, but a source named 'echo' exists. Sources start a pipeline:
+    INPUT FROM echo | ..." instead of dumping all ~96 segment names without
+    ever mentioning that `echo` exists.
+  - Workbench lint (and the Check button) now validates parameter names on
+    function-based components such as `echo` by reading the wrapped function's
+    real signature, with a close-match hint (e.g. `delimeter=` gets
+    "Did you mean 'delimiter'?"). Previously misspelled parameters on most
+    components passed lint and Check silently and only failed at run time,
+    although the docs claimed lint caught them.
+  - `POST /api/suggest` now reports why LLM suggestions are unavailable in its
+    `error` field (e.g. "no model configured", "LLM suggestions disabled
+    (--no-llm-suggestions)") instead of returning `error: null`.
+  - Declining the "Pipeline exists — overwrite?" confirmation returns to the
+    Save-As dialog with the typed name and description intact, instead of
+    silently discarding them.
+  - Typing `[` after a component name immediately opens the parameter
+    autocomplete list (previously it required another keystroke or
+    Ctrl-Space).
+  - The startup banner says "Starting ChatterLang Workbench at ..." and the
+    browser tab is titled "ChatterLang Workbench", matching the documentation.
+  - The workbench doc's HTTP API table now lists the request payloads
+    (notably `/go` expects `{"id", "user_input"}`).
+
 - Fixed friction points found during a workbench-focused newcomer-simulation
   usability pass:
   - `chatterlang_workbench --load-module` now works together with `--reload`:

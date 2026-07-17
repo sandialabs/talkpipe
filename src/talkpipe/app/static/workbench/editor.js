@@ -223,7 +223,13 @@ function chatterlangCompletions(context) {
   if (!ref) return null;
 
   const word = context.matchBefore(/[@\w]*/);
-  if (word.from === word.to && !context.explicit) return null;
+  // Opening a parameter list is a natural "what goes here?" pause, so a fresh
+  // "[" pops the parameter list without requiring a keystroke or Ctrl-Space.
+  const charBefore =
+    word.from > 0 ? context.state.sliceDoc(word.from - 1, word.from) : "";
+  if (word.from === word.to && !context.explicit && charBefore !== "[") {
+    return null;
+  }
 
   const stmt = structuralText(statementBefore(context.state, word.from));
 

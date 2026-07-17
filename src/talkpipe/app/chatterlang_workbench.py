@@ -425,7 +425,7 @@ def main():
             override=True,
         )
 
-    print(f"Starting TalkPipe server at http://{args.host}:{args.port}")
+    print(f"Starting ChatterLang Workbench at http://{args.host}:{args.port}")
     uvicorn.run(
         "talkpipe.app.chatterlang_workbench:app",
         host=args.host,

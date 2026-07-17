@@ -15,7 +15,7 @@ def test_root_serves_workbench_html():
     assert response.status_code == 200
     assert response.headers["content-type"].startswith("text/html")
     assert "/static/workbench/app.js" in response.text
-    assert "TalkPipe" in response.text
+    assert "ChatterLang Workbench" in response.text
 
 
 def test_workbench_static_assets_served():

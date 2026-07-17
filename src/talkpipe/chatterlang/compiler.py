@@ -90,6 +90,21 @@ def _not_found_message(kind: str, name: str, reg) -> str:
             msg += f" Other available {kind.lower()}s: {', '.join(other_available)}."
         return msg
 
+    # A source name used where a segment belongs (or vice versa) is a common
+    # newcomer mistake — e.g. a script that is just `echo`. Saying the name
+    # exists as the other kind (and how to use it) beats a 90-name dump that
+    # never mentions the component the user clearly meant.
+    if kind == "Segment" and name in registry.input_registry.available_names:
+        return (
+            f"Segment '{name}' not found, but a source named '{name}' exists. "
+            f"Sources start a pipeline: INPUT FROM {name} | ..."
+        )
+    if kind == "Source" and name in registry.segment_registry.available_names:
+        return (
+            f"Source '{name}' not found, but a segment named '{name}' exists. "
+            f"Segments belong after a pipe: ... | {name}"
+        )
+
     msg = f"{kind} '{name}' not found."
     suggestions = [s for s in difflib.get_close_matches(name, available, n=3) if s != name]
     if suggestions:

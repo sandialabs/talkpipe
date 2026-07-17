@@ -87,6 +87,8 @@ def test_suggest_unavailable_without_model(client, monkeypatch):
     data = response.json()
     assert data["available"] is False
     assert data["suggestions"] == []
+    # The response says why, so API consumers aren't left guessing.
+    assert data["error"] == "no model configured"
     reset_config()
 
 
@@ -143,6 +145,7 @@ def test_no_llm_suggestions_kill_switch(with_fake_llm, monkeypatch):
     reset_config()
     data = with_fake_llm.post("/api/suggest", json={"script": "| x"}).json()
     assert data["available"] is False
+    assert data["error"] == "LLM suggestions disabled (--no-llm-suggestions)"
     reset_config()
 
 

@@ -114,10 +114,39 @@ def test_lint_bad_param_name(client):
     assert "nonsense_param" in d["message"]
 
 
-def test_lint_skips_param_check_for_uninspectable_components(client):
-    # Function-based components forward **kwargs; no false positives allowed.
+def test_lint_valid_params_on_function_component_pass(client):
+    # Function-based components hide their signature behind a *args/**kwargs
+    # wrapper; the param check sees through it via _original_func, so valid
+    # parameters must produce no false positives.
     response = client.post("/api/lint", json={"script": 'INPUT FROM echo[data="x", delimiter=","] | print'})
     assert response.json()["diagnostics"] == []
+
+
+def test_lint_bad_param_on_function_source_did_you_mean(client):
+    # echo is function-based; a misspelled parameter must be caught with a
+    # close-match hint (previously only a runtime error surfaced this).
+    response = client.post(
+        "/api/lint",
+        json={"script": 'INPUT FROM echo[data="hi", delimeter=","] | print'},
+    )
+    diagnostics = response.json()["diagnostics"]
+    assert len(diagnostics) == 1
+    d = diagnostics[0]
+    assert d["kind"] == "bad_param"
+    assert d["severity"] == "warning"
+    assert "delimeter" in d["message"]
+    assert "Did you mean 'delimiter'?" in d["message"]
+
+
+def test_lint_function_segment_stream_arg_is_not_a_param(client):
+    # firstN is a function segment: firstN(items, n=1). 'n' is configuration;
+    # 'items' is the input stream and must not be accepted as a parameter.
+    ok = client.post("/api/lint", json={"script": "| firstN[n=2]"})
+    assert ok.json()["diagnostics"] == []
+    bad = client.post("/api/lint", json={"script": '| firstN[items="x"]'})
+    diagnostics = bad.json()["diagnostics"]
+    assert len(diagnostics) == 1
+    assert diagnostics[0]["kind"] == "bad_param"
 
 
 def test_lint_checks_inside_loops(client):
@@ -150,6 +179,20 @@ def test_lint_full_mode_clean(client):
         json={"script": 'INPUT FROM echo[data="hi"] | print', "mode": "full"},
     )
     assert response.json()["diagnostics"] == []
+
+
+def test_lint_full_mode_catches_bad_param_on_function_component(client):
+    # The compiler alone can't see these (function components bind kwargs at
+    # run time), so the Check button's full mode must include the static
+    # parameter-name check.
+    response = client.post(
+        "/api/lint",
+        json={"script": 'INPUT FROM echo[data="hi", delimeter=","] | print',
+              "mode": "full"},
+    )
+    diagnostics = response.json()["diagnostics"]
+    assert any(d["kind"] == "bad_param" and "delimeter" in d["message"]
+               for d in diagnostics)
 
 
 # --- CompileError backward compatibility ---------------------------------------

@@ -210,10 +210,10 @@ def suggest(script: str, cursor_offset: int, reference: dict,
             saved: List[dict], settings: Optional[dict] = None,
             max_suggestions: int = 4) -> dict:
     """Produce the /api/suggest response payload."""
-    resolved = resolve_llm(settings)
+    resolved, reason = resolve_llm_status(settings)
     if not resolved:
         return {"available": False, "source": None, "model": None,
-                "suggestions": [], "error": None}
+                "suggestions": [], "error": reason}
     source, model = resolved
     if not check_availability(source, model):
         return {"available": False, "source": source, "model": model,

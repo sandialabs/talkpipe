@@ -12,6 +12,7 @@ compiler, which instantiates component constructors (these may open files,
 network connections, etc.) — it is only triggered by an explicit user action.
 """
 
+import difflib
 import inspect
 import logging
 import re
@@ -160,6 +161,35 @@ def _param_names(params) -> List[str]:
     return [k.name if hasattr(k, "name") else str(k) for k in params]
 
 
+def _component_params(cls, kind: str):
+    """Best-effort ``(param_names, accepts_kwargs)`` for a component.
+
+    Class-based components expose their parameters on ``__init__``. Function
+    -based components hide theirs behind a ``*args/**kwargs`` wrapper, but the
+    wrapper keeps the original function on ``_original_func`` — the same
+    signature that powers autocomplete and the generated docs. For segments
+    the original function's first parameter is the input stream/item, not a
+    configuration parameter.
+    """
+    def introspect(target, drop_first=False):
+        params = list(inspect.signature(target).parameters.values())
+        names = [
+            p.name for p in params
+            if p.kind in (p.POSITIONAL_OR_KEYWORD, p.KEYWORD_ONLY)
+        ]
+        if drop_first and names:
+            names = names[1:]
+        var_kw = any(p.kind == p.VAR_KEYWORD for p in params)
+        return names, var_kw
+
+    names, var_kw = introspect(cls)
+    if not names or var_kw:
+        original = getattr(cls, "_original_func", None)
+        if original is not None:
+            names, var_kw = introspect(original, drop_first=(kind == "segment"))
+    return names, var_kw
+
+
 def _iter_component_uses(parsed):
     """Yield (kind, name, param_names) for every component in the AST."""
     def walk_pipeline(pipeline):
@@ -238,29 +268,30 @@ def _parse_mode_diagnostics(script: str) -> List[dict]:
             continue
 
         # Param-name check: imports the class (no instantiation). Skip when
-        # the signature can't be introspected or forwards **kwargs.
+        # the signature can't be introspected or genuinely forwards **kwargs
+        # (function-based components are seen through their wrapper — see
+        # _component_params).
         try:
             cls = reg.get(name)
-            valid = chatterlang_compiler._valid_param_names(cls)
-            accepts_kwargs = any(
-                p.kind == p.VAR_KEYWORD
-                for p in inspect.signature(cls).parameters.values()
-            )
+            valid, accepts_kwargs = _component_params(cls, kind)
         except Exception:
             continue
         if not valid or accepts_kwargs:
             continue
-        # Field segments accept field/set_as/append_as via their wrapper.
-        allowed = set(valid) | {"field", "set_as", "append_as"}
+        # Field segments accept field/set_as/append_as via their wrapper, and
+        # every function-based component accepts process_metadata.
+        allowed = set(valid) | {"field", "set_as", "append_as", "process_metadata"}
         for param in param_names:
             if param not in allowed:
                 line, column = _locate(script, param, used_offsets)
+                close = difflib.get_close_matches(param, sorted(allowed), n=1)
+                hint = f" Did you mean '{close[0]}'?" if close else ""
                 diagnostics.append({
                     "line": line,
                     "column": column,
                     "severity": "warning",
-                    "message": f"'{param}' is not a parameter of {kind} '{name}'. "
-                               f"Valid parameters: {', '.join(valid)}.",
+                    "message": f"'{param}' is not a parameter of {kind} '{name}'."
+                               f"{hint} Valid parameters: {', '.join(valid)}.",
                     "kind": "bad_param",
                 })
     return diagnostics
@@ -270,17 +301,7 @@ def _full_mode_diagnostics(script: str) -> List[dict]:
     try:
         chatterlang_compiler.compile(script)
     except CompileError as e:
-        used = set()
-        line, column = e.line, e.column
-        if line is None and e.bad_name:
-            line, column = _locate(script, e.bad_name, used)
-        return [{
-            "line": line or 1,
-            "column": column or 1,
-            "severity": "error",
-            "message": str(e),
-            "kind": e.kind or "compile",
-        }]
+        return _compile_error_diagnostics(script, e)
     except Exception as e:
         return [{
             "line": 1,
@@ -289,7 +310,24 @@ def _full_mode_diagnostics(script: str) -> List[dict]:
             "message": f"Compilation failed: {e}",
             "kind": "compile",
         }]
-    return []
+    # The compiler can't see bad parameter names on function-based components
+    # (their kwargs bind lazily at run time), so a clean compile still gets
+    # the static parameter-name check.
+    return _parse_mode_diagnostics(script)
+
+
+def _compile_error_diagnostics(script: str, e: CompileError) -> List[dict]:
+    used = set()
+    line, column = e.line, e.column
+    if line is None and e.bad_name:
+        line, column = _locate(script, e.bad_name, used)
+    return [{
+        "line": line or 1,
+        "column": column or 1,
+        "severity": "error",
+        "message": str(e),
+        "kind": e.kind or "compile",
+    }]
 
 
 @router.post("/lint")
