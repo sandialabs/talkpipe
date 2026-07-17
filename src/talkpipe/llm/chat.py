@@ -41,10 +41,13 @@ class LLMPrompt(AbstractSegment):
     and TALKPIPE_default_model_source) or the configuration file (~/.talkpipe.toml).
     If none of those are set, an error will be raised.
 
-    Currently supported sources are "ollama," "openai," and "anthropic."  If 
-    you specify "ollama," you can optionally set the OLLAMA_SERVER_URL environment
-    variable or configuration value to point to a different server.  By default,
-    ollama assumes localhost.
+    Sources are pluggable.  The "ollama," "openai," and "anthropic" adapters
+    ship with TalkPipe, and additional sources can be registered at runtime
+    via talkpipe.llm.config.registerPromptAdapter.  (An "eliza" source also
+    exists, intended for testing only.)  If you specify "ollama," you can
+    optionally set the OLLAMA_SERVER_URL environment variable or configuration
+    value to point to a different server.  By default, ollama assumes
+    localhost.
 
     Memory controls:
     - context_token_trigger controls when compaction triggers.
@@ -62,7 +65,7 @@ class LLMPrompt(AbstractSegment):
     def __init__(
             self,
             model: Annotated[Optional[str], "The name of the model to chat with"] = None,
-            source: Annotated[Optional[str], "The source of the model (openai or ollama)"] = None,
+            source: Annotated[Optional[str], "The source of the model (e.g. ollama, openai, or anthropic; pluggable via registerPromptAdapter)"] = None,
             system_prompt: Annotated[Optional[str], "The system prompt for the model"] = "You are a helpful assistant.",
             multi_turn: Annotated[bool, "Whether the chat is multi-turn"] = True,
             pass_prompts: Annotated[bool, "Whether to pass the prompts through to the output"] = False,
@@ -195,7 +198,7 @@ class AbstractLLMGuidedGeneration(LLMPrompt):
             self,
             system_prompt: Annotated[str, "The system prompt for the LLM"],
             model: Annotated[Optional[str], "The name of the model to chat with"] = None,
-            source: Annotated[Optional[str], "The source of the model (openai or ollama)"] = None,
+            source: Annotated[Optional[str], "The source of the model (e.g. ollama, openai, or anthropic; pluggable via registerPromptAdapter)"] = None,
             multi_turn: Annotated[bool, "Whether the chat is multi-turn"] = False,
             pass_prompts: Annotated[bool, "Whether to pass the prompts through to the output"] = False,
             field: Annotated[Optional[str], "The field in the input item containing the prompt"] = None,

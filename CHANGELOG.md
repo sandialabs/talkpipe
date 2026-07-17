@@ -66,6 +66,98 @@
 ## 0.12.4
 
 - Improvements to documentation to emphasize non-reliance on different providers.
+- Improved workbench suggestion quality on fresh workspaces (cold start):
+  - The LLM prompt's few-shot slot falls back to the built-in examples and
+    tutorial seed scripts when the user's saved pipelines yield fewer than
+    three similar matches, so the model always sees complete, well-formed
+    ChatterLang; user pipelines still rank first as the workspace grows.
+  - Suggestions are now grammar-aware: the server classifies the cursor
+    position (statement start, after INPUT FROM, pipe stage, after a stage,
+    inside `[...]`), tells the model what is valid there, and drops returned
+    suggestions that are invalid at that position (e.g. a source
+    mid-pipeline). Each suggestion carries ready-to-insert text — clicking
+    `echo` on an empty script inserts `INPUT FROM echo[...]`, not a bare name.
+  - The sidebar's heuristic "Likely next" list applies the same rules: it
+    filters candidates by positional validity, shows the insertable form,
+    re-ranks when the cursor moves, and inside `[...]` lists the enclosing
+    component's parameters instead of unrelated components.
+  - The prompt now includes full parameter signatures (name, type, default,
+    description) for the most plausible candidates at the cursor and requires
+    double-quoted string values, so params_hint suggestions use real
+    parameter names and valid syntax.
+- Documented `llmPrompt`'s model sources as a plugin architecture: `ollama`,
+  `openai`, and `anthropic` ship built-in, additional sources can be
+  registered at runtime via `registerPromptAdapter`, and `eliza` is intended
+  for testing only. The source parameter descriptions no longer imply a
+  closed two-source list.
+- Fixed friction points found during a second workbench-focused
+  newcomer-simulation usability pass:
+  - ChatterLang compile errors now recognize a source name used in segment
+    position (and vice versa): a script like `echo` reports "Segment 'echo'
+    not found, but a source named 'echo' exists. Sources start a pipeline:
+    INPUT FROM echo | ..." instead of dumping all ~96 segment names without
+    ever mentioning that `echo` exists.
+  - Workbench lint (and the Check button) now validates parameter names on
+    function-based components such as `echo` by reading the wrapped function's
+    real signature, with a close-match hint (e.g. `delimeter=` gets
+    "Did you mean 'delimiter'?"). Previously misspelled parameters on most
+    components passed lint and Check silently and only failed at run time,
+    although the docs claimed lint caught them.
+  - `POST /api/suggest` now reports why LLM suggestions are unavailable in its
+    `error` field (e.g. "no model configured", "LLM suggestions disabled
+    (--no-llm-suggestions)") instead of returning `error: null`.
+  - Declining the "Pipeline exists — overwrite?" confirmation returns to the
+    Save-As dialog with the typed name and description intact, instead of
+    silently discarding them.
+  - Typing `[` after a component name immediately opens the parameter
+    autocomplete list (previously it required another keystroke or
+    Ctrl-Space).
+  - The startup banner says "Starting ChatterLang Workbench at ..." and the
+    browser tab is titled "ChatterLang Workbench", matching the documentation.
+  - The workbench doc's HTTP API table now lists the request payloads
+    (notably `/go` expects `{"id", "user_input"}`).
+
+- Fixed friction points found during a workbench-focused newcomer-simulation
+  usability pass:
+  - `chatterlang_workbench --load-module` now works together with `--reload`:
+    custom module paths are recorded in the environment and imported at app
+    startup, so the auto-reloader's subprocess loads them too. Previously the
+    reload child silently lost all custom components ("Segment ... not found").
+  - The workbench suggestion sidebar and settings dialog now report *why* no
+    LLM is available instead of always saying "No LLM configured": a
+    configured-but-unreachable Ollama model names the server URL that was
+    probed and points at `TALKPIPE_OLLAMA_SERVER_URL`, suggestions disabled
+    via `--no-llm-suggestions` say so, and a stale `settings.json` naming an
+    unknown source is called out. `PUT /api/settings` now rejects unknown
+    LLM sources with a 422 instead of silently storing them.
+  - Loading an example from the Examples menu now detaches the editor from the
+    currently open pipeline (scratch buffer), so a reflexive Save can no longer
+    overwrite a saved pipeline with example code; unsaved scratch work is now
+    also protected by the discard-changes confirmation, which previously only
+    guarded edits to saved pipelines.
+  - The workbench UI no longer uses native `prompt()`/`confirm()`/`alert()`
+    dialogs: rename uses the same styled dialog as Save As (and can edit the
+    description), and delete/overwrite/discard confirmations use a styled
+    confirm dialog.
+  - The bottom Logs tab now fetches and polls logs when opened; previously it
+    stayed empty until the toolbar Logs button was clicked.
+  - Heuristic "Likely next" suggestions no longer offer sources (invalid after
+    a `|`) when falling back to pipeline-start statistics mid-pipeline, and
+    clicking a suggestion no longer inserts a double space after "| ".
+  - The editor takes keyboard focus on page load, and the `--help` text
+    describes the workbench (instead of a generic "Run the Talkpipe server")
+    and documents that Settings-dialog values take precedence over the
+    `--suggest-source`/`--suggest-model` flags.
+  - The workbench doc page (`docs/api-reference/chatterlang-workbench.md`) was
+    rewritten for the current app: it now covers `--workspace`,
+    `--suggest-source`, `--suggest-model`, and `--no-llm-suggestions`, the
+    editor features (autocomplete, hover help, lint, Check), the pipeline
+    workspace and `.script` file format, the suggestions sidebar and its LLM
+    resolution order, the remote-Ollama `TALKPIPE_OLLAMA_SERVER_URL` note, the
+    HTTP API, and new troubleshooting entries — and consistently calls the app
+    the ChatterLang Workbench rather than "the ChatterLang Server".
+
+>>>>>>> chore/usability-testing
 - Fixed friction points found during a Tutorial 3-focused newcomer-simulation
   usability pass:
   - `chatterlang_serve` now compiles the `--script` at startup and exits with the

@@ -17,8 +17,10 @@ Create web APIs and interactive forms for processing JSON data through ChatterLa
 - Authentication support
 
 ### [ChatterLang Workbench](chatterlang-workbench.md)
-Interactive web interface for writing, testing, and running ChatterLang scripts.
+Browser-based IDE for writing, testing, and running ChatterLang scripts.
+- Editor with autocomplete, hover help, and live error checking
 - Real-time script execution
+- Pipeline save/load workspace and next-component suggestions
 - Built-in documentation
 - Logging and debugging tools
 

@@ -106,6 +106,12 @@ where = ["src"]
 [tool.setuptools.package-data]
 "*" = ["*.ico"]
 "talkpipe.app.static" = ["*.html", "*.txt"]
+"talkpipe.app" = [
+    "static/*.html", "static/*.txt", "static/*.png", "static/*.ico",
+    "static/workbench/*.html", "static/workbench/*.css", "static/workbench/*.js",
+    "static/workbench/vendor/*.js", "static/workbench/vendor/*.txt",
+    "workbench_data/seed_scripts/*.script",
+]
 
 [tool.setuptools_scm]
 #use defaults

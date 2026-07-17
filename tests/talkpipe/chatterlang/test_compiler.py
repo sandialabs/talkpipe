@@ -427,6 +427,33 @@ def test_compile_error_close_match_omits_full_dump():
     assert "Available segments:" not in str(excinfo.value)
 
 
+def test_compile_error_source_used_as_segment_gets_hint():
+    """A source name in segment position points at INPUT FROM, not a name dump."""
+    with pytest.raises(compiler.CompileError) as excinfo:
+        compiler.compile("""INPUT FROM "test" | echo""")
+    msg = str(excinfo.value)
+    assert "a source named 'echo' exists" in msg
+    assert "INPUT FROM echo" in msg
+    assert "Available segments:" not in msg
+
+
+def test_compile_error_bare_source_script_gets_hint():
+    """A script that is just a source name (the classic newcomer stumble)."""
+    with pytest.raises(compiler.CompileError) as excinfo:
+        compiler.compile("echo")
+    assert "a source named 'echo' exists" in str(excinfo.value)
+
+
+def test_compile_error_segment_used_as_source_gets_hint():
+    """A segment name after INPUT FROM points at pipe usage."""
+    with pytest.raises(compiler.CompileError) as excinfo:
+        compiler.compile("INPUT FROM print")
+    msg = str(excinfo.value)
+    assert "a segment named 'print' exists" in msg
+    assert "| print" in msg
+    assert "Available sources:" not in msg
+
+
 def test_parse_error_hints_unquoted_string_value():
     """A parse failure right after param=<bareword> suggests quoting the value."""
     with pytest.raises(compiler.CompileError) as excinfo:
