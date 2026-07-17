@@ -277,6 +277,31 @@ function chatterlangCompletions(context) {
   return null;
 }
 
+// Grammatical position of the cursor, mirroring the server's classify_cursor.
+// Used by the suggestions sidebar to filter candidates and build insert text.
+export function cursorContext(view) {
+  const pos = view.state.selection.main.head;
+  let stmt = structuralText(statementBefore(view.state, pos));
+  stmt = stmt.replace(/[@\w]*$/, ""); // drop any partial word being typed
+
+  const bracketIdx = unclosedBracketIndex(stmt);
+  if (bracketIdx >= 0) {
+    const m = stmt.slice(0, bracketIdx).match(/([A-Za-z_]\w*)\s*$/);
+    return { context: "brackets", enclosing: m ? m[1] : null, prev: null };
+  }
+  if (/(?:INPUT\s+FROM|NEW(?:\s+FROM)?)\s*$/i.test(stmt)) {
+    return { context: "source_position", enclosing: null, prev: null };
+  }
+  if (/\|\s*$/.test(stmt)) {
+    return { context: "pipe_stage", enclosing: null, prev: previousComponent(stmt + "x") };
+  }
+  if (stmt.trim()) {
+    const m = stmt.replace(/\[[^\]]*\]?/g, "").match(/([A-Za-z_]\w*)\s*$/);
+    return { context: "after_stage", enclosing: null, prev: m ? m[1] : null };
+  }
+  return { context: "statement_start", enclosing: null, prev: null };
+}
+
 // ---------------------------------------------------------------------------
 // Hover help
 

@@ -2,7 +2,7 @@
 // /api/suggest/stats) plus LLM suggestions (/api/suggest) with settings.
 // The whole panel stays hidden if neither API is available.
 
-import { setHeuristicStats, getReference } from "./editor.js";
+import { setHeuristicStats, getReference, cursorContext } from "./editor.js";
 
 const $ = (id) => document.getElementById(id);
 
@@ -27,32 +27,64 @@ async function refreshStats() {
   }
 }
 
-// The last component name in the script, used as heuristic context.
-function lastComponent(script) {
-  const noComments = script
-    .split("\n")
-    .map((line) => {
-      const hash = line.indexOf("#");
-      return hash >= 0 ? line.slice(0, hash) : line;
-    })
-    .join("\n");
-  const noBrackets = noComments.replace(/\[[^\]]*\]?/g, "");
-  const matches = [...noBrackets.matchAll(/([A-Za-z_]\w*)/g)]
-    .map((m) => m[1])
-    .filter((w) => !/^(INPUT|FROM|NEW|CONST|SET|LOOP|TIMES|True|False)$/.test(w));
-  return matches.length ? matches[matches.length - 1] : null;
+function componentType(name) {
+  const ref = getReference();
+  const comp = ref && ref.byName.get(name);
+  if (!comp) return null;
+  return comp.type === "source" ? "source" : "segment";
 }
 
-// In mid-pipeline context, only segments are valid continuations; when the
-// stats fall back to the pipeline-start table (which is source-heavy), drop
-// anything the reference identifies as a source.
-function filterToSegments(ranked) {
-  const ref = getReference();
-  if (!ref) return ranked;
+// Rank candidates from the stats tables, keeping only the types that are
+// grammatically valid at the cursor.
+function rankedCandidates(ctx) {
+  const validTypes =
+    ctx.context === "source_position" ? ["source"]
+    : ctx.context === "pipe_stage" || ctx.context === "after_stage" ? ["segment"]
+    : ["source", "segment"];
+
+  let ranked = [];
+  if (ctx.prev && stats.bigrams && stats.bigrams[ctx.prev]) {
+    ranked = Object.entries(stats.bigrams[ctx.prev]).sort((a, b) => b[1] - a[1]);
+  } else if (stats.starts) {
+    ranked = Object.entries(stats.starts).sort((a, b) => b[1] - a[1]);
+  }
   return ranked.filter(([name]) => {
-    const comp = ref.byName.get(name);
-    return !comp || comp.type !== "source";
+    const type = componentType(name);
+    return type && validTypes.includes(type);
   });
+}
+
+// The exact text a suggestion click should insert, given the cursor context.
+// Mirrors the server's insert_text_for.
+function insertTextFor(ctx, name, paramsHint) {
+  const params = paramsHint ? `[${paramsHint}]` : "";
+  if (ctx.context === "brackets") return paramsHint || "";
+  if (ctx.context === "source_position") return `${name}${params}`;
+  if (ctx.context === "after_stage") return ` | ${name}${params}`;
+  if (ctx.context === "statement_start") {
+    return componentType(name) === "source"
+      ? `INPUT FROM ${name}${params}`
+      : `| ${name}${params}`;
+  }
+  return `${name}${params}`; // pipe_stage
+}
+
+function addSuggestionItem({ label, detail, tooltip, insert }) {
+  const item = document.createElement("div");
+  item.className = "suggest-item";
+  if (detail) {
+    const badge = document.createElement("span");
+    badge.className = "seg-count";
+    badge.textContent = detail;
+    if (tooltip) badge.title = tooltip;
+    item.appendChild(badge);
+  }
+  const nameSpan = document.createElement("span");
+  nameSpan.className = "seg-name";
+  nameSpan.textContent = label;
+  item.appendChild(nameSpan);
+  item.addEventListener("click", () => editor.insertAtCursor(insert));
+  return item;
 }
 
 function renderHeuristics() {
@@ -60,53 +92,45 @@ function renderHeuristics() {
   list.textContent = "";
   if (!stats) return;
 
-  const script = editor.getValue();
-  const prev = lastComponent(script);
-  let ranked = [];
-  if (prev && stats.bigrams && stats.bigrams[prev]) {
-    ranked = Object.entries(stats.bigrams[prev]).sort((a, b) => b[1] - a[1]);
-  } else if (stats.starts) {
-    ranked = Object.entries(stats.starts).sort((a, b) => b[1] - a[1]);
-    if (prev) ranked = filterToSegments(ranked); // mid-pipeline fallback
+  const ctx = cursorContext(editor.view);
+
+  // Inside [...]: the useful "likely next" items are the unused parameters
+  // of the enclosing component, not other components.
+  if (ctx.context === "brackets") {
+    const ref = getReference();
+    const comp = ref && ref.byName.get(ctx.enclosing || "");
+    if (!comp) return;
+    for (const p of comp.params.slice(0, 8)) {
+      list.appendChild(addSuggestionItem({
+        label: `${p.name}=`,
+        detail: p.type || "",
+        tooltip: p.description || "",
+        insert: `${p.name}=`,
+      }));
+    }
+    return;
   }
 
+  const ranked = rankedCandidates(ctx);
   if (ranked.length === 0) {
     const empty = document.createElement("div");
     empty.className = "suggest-status";
-    empty.textContent = prev
-      ? `No history for what follows "${prev}" yet.`
+    empty.textContent = ctx.prev
+      ? `No history for what follows "${ctx.prev}" yet.`
       : "Save some pipelines to build up suggestions.";
     list.appendChild(empty);
     return;
   }
 
   for (const [name, count] of ranked.slice(0, 8)) {
-    const item = document.createElement("div");
-    item.className = "suggest-item";
-    const badge = document.createElement("span");
-    badge.className = "seg-count";
-    badge.textContent = `×${count}`;
-    badge.title = "How often this follows in saved pipelines and examples";
-    const nameSpan = document.createElement("span");
-    nameSpan.className = "seg-name";
-    nameSpan.textContent = name;
-    item.append(badge, nameSpan);
-    item.addEventListener("click", () => insertSuggestion(name));
-    list.appendChild(item);
+    const insert = insertTextFor(ctx, name, "");
+    list.appendChild(addSuggestionItem({
+      label: insert.trim() || name,
+      detail: `×${count}`,
+      tooltip: "How often this appears here in saved pipelines and examples",
+      insert,
+    }));
   }
-}
-
-function insertSuggestion(name, paramsHint) {
-  const script = editor.getValue();
-  const cursorOffset = editor.getCursorOffset();
-  const before = script.slice(0, cursorOffset);
-  const needsPipe = /[^|\s]\s*$/.test(before);
-  const endsWithSpace = /\s$/.test(before) || !before;
-  let prefix = "";
-  if (needsPipe) prefix = endsWithSpace ? "| " : " | ";
-  else if (before.trim() && !endsWithSpace) prefix = " ";
-  const text = prefix + name + (paramsHint ? `[${paramsHint}]` : "");
-  editor.insertAtCursor(text);
 }
 
 // --- LLM suggestions ---------------------------------------------------------
@@ -183,7 +207,15 @@ function renderLlmSuggestions(data) {
     rationale.className = "seg-rationale";
     rationale.textContent = s.rationale || "";
     item.append(nameSpan, rationale);
-    item.addEventListener("click", () => insertSuggestion(s.segment, s.params_hint));
+    item.addEventListener("click", () => {
+      // Recompute the insert text at click time — the cursor may have moved
+      // since the suggestion was requested. The server-computed s.insert is
+      // the fallback when the reference hasn't loaded yet.
+      const insert = getReference()
+        ? insertTextFor(cursorContext(editor.view), s.segment, s.params_hint)
+        : (s.insert || s.segment);
+      editor.insertAtCursor(insert);
+    });
     list.appendChild(item);
   }
 }
@@ -260,6 +292,12 @@ export function notifyScriptChanged() {
     clearTimeout(autoTimer);
     autoTimer = setTimeout(requestSuggestions, 2000);
   }
+}
+
+// Cursor moves change what is grammatically valid, so the heuristic list
+// re-ranks — but they never trigger LLM calls.
+export function notifyCursorMoved() {
+  if (stats) renderHeuristics();
 }
 
 // --- Init ------------------------------------------------------------------------

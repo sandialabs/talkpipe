@@ -2,6 +2,30 @@
 
 ## Unreleased
 
+- Improved workbench suggestion quality on fresh workspaces (cold start):
+  - The LLM prompt's few-shot slot falls back to the built-in examples and
+    tutorial seed scripts when the user's saved pipelines yield fewer than
+    three similar matches, so the model always sees complete, well-formed
+    ChatterLang; user pipelines still rank first as the workspace grows.
+  - Suggestions are now grammar-aware: the server classifies the cursor
+    position (statement start, after INPUT FROM, pipe stage, after a stage,
+    inside `[...]`), tells the model what is valid there, and drops returned
+    suggestions that are invalid at that position (e.g. a source
+    mid-pipeline). Each suggestion carries ready-to-insert text — clicking
+    `echo` on an empty script inserts `INPUT FROM echo[...]`, not a bare name.
+  - The sidebar's heuristic "Likely next" list applies the same rules: it
+    filters candidates by positional validity, shows the insertable form,
+    re-ranks when the cursor moves, and inside `[...]` lists the enclosing
+    component's parameters instead of unrelated components.
+  - The prompt now includes full parameter signatures (name, type, default,
+    description) for the most plausible candidates at the cursor and requires
+    double-quoted string values, so params_hint suggestions use real
+    parameter names and valid syntax.
+- Documented `llmPrompt`'s model sources as a plugin architecture: `ollama`,
+  `openai`, and `anthropic` ship built-in, additional sources can be
+  registered at runtime via `registerPromptAdapter`, and `eliza` is intended
+  for testing only. The source parameter descriptions no longer imply a
+  closed two-source list.
 - Fixed friction points found during a second workbench-focused
   newcomer-simulation usability pass:
   - ChatterLang compile errors now recognize a source name used in segment

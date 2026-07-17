@@ -3,7 +3,7 @@
 
 import { createEditor, runFullCheck } from "./editor.js";
 import { initWorkspace, markDirty, loadIntoScratch } from "./workspace.js";
-import { initSuggestions, notifyScriptChanged } from "./suggest.js";
+import { initSuggestions, notifyScriptChanged, notifyCursorMoved } from "./suggest.js";
 
 let scriptId = null;
 let isProcessing = false;
@@ -15,6 +15,7 @@ const $ = (id) => document.getElementById(id);
 export const editor = createEditor($("editor"), {
   onCursor(line, column) {
     $("cursorPosition").textContent = `Line: ${line}, Column: ${column}`;
+    notifyCursorMoved();
   },
   onChange() {
     markDirty();

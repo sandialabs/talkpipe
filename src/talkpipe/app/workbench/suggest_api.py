@@ -154,4 +154,5 @@ def api_suggest(request: SuggestRequest):
         saved,
         settings=settings,
         max_suggestions=max(1, min(request.max_suggestions, 10)),
+        stats=get_stats(),
     )
