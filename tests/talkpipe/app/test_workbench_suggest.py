@@ -1,6 +1,7 @@
 """Tests for /api/suggest, /api/suggest/stats and /api/settings."""
 
 import json
+import os
 
 import pytest
 from fastapi.testclient import TestClient
@@ -30,6 +31,13 @@ class FakeAdapter:
 
 @pytest.fixture
 def client(tmp_path, monkeypatch):
+    # Isolate from the developer's machine: a real ~/.talkpipe.toml or stray
+    # TALKPIPE_* env vars can configure a default model and flip availability.
+    monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.setenv("USERPROFILE", str(tmp_path))
+    for var in [v for v in os.environ if v.startswith("TALKPIPE_")]:
+        monkeypatch.delenv(var, raising=False)
+    reset_config()
     workspace.set_workspace_dir(tmp_path)
     suggest_api.invalidate_stats_cache()
     suggest.invalidate_availability_cache()
@@ -42,6 +50,7 @@ def client(tmp_path, monkeypatch):
     workspace.set_workspace_dir(None)
     suggest_api.invalidate_stats_cache()
     suggest.invalidate_availability_cache()
+    reset_config()
 
 
 @pytest.fixture
@@ -78,10 +87,8 @@ def test_stats_reflect_saved_pipelines(client):
 
 # --- /api/suggest -----------------------------------------------------------
 
-def test_suggest_unavailable_without_model(client, monkeypatch):
-    monkeypatch.delenv("TALKPIPE_default_model_source", raising=False)
-    monkeypatch.delenv("TALKPIPE_default_model_name", raising=False)
-    reset_config()
+def test_suggest_unavailable_without_model(client):
+    # The client fixture guarantees no config file or env var supplies a model.
     response = client.post("/api/suggest", json={"script": "| print"})
     assert response.status_code == 200
     data = response.json()
@@ -89,7 +96,6 @@ def test_suggest_unavailable_without_model(client, monkeypatch):
     assert data["suggestions"] == []
     # The response says why, so API consumers aren't left guessing.
     assert data["error"] == "no model configured"
-    reset_config()
 
 
 def test_suggest_happy_path(with_fake_llm):
