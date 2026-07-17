@@ -1,11 +1,14 @@
 """REST endpoints for the pipeline workspace (/api/pipelines)."""
 
+import logging
 from typing import Optional
 
 from fastapi import APIRouter, HTTPException, Response
 from pydantic import BaseModel
 
 from talkpipe.app.workbench.workspace import WorkspaceError, get_store
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api")
 
@@ -21,8 +24,8 @@ def _notify_change():
     for callback in _change_listeners:
         try:
             callback()
-        except Exception:  # pragma: no cover - listeners must not break saves
-            pass
+        except Exception as e:  # pragma: no cover - listeners must not break saves
+            logger.warning(f"Workspace change listener failed: {e}")
 
 
 class PipelineCreate(BaseModel):

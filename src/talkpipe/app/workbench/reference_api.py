@@ -274,7 +274,8 @@ def _parse_mode_diagnostics(script: str) -> List[dict]:
         try:
             cls = reg.get(name)
             valid, accepts_kwargs = _component_params(cls, kind)
-        except Exception:
+        except Exception as e:
+            logger.debug(f"Skipping param check for {kind} '{name}': {e}")
             continue
         if not valid or accepts_kwargs:
             continue
