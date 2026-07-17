@@ -2,70 +2,6 @@
 
 ## Unreleased
 
-- Fixed process memory climbing steadily when extracting many PDFs (e.g. a
-  long vault ingest over a PDF-heavy corpus). pypdf's reader object graph is
-  full of reference cycles, and parsing a large file promotes it to GC
-  generation 2, where dead readers accumulate between Python's rare full
-  collections; by the time one runs, the heap is fragmented and the memory is
-  never returned to the OS, so RSS ratchets up permanently. `extract_pdf` now
-  drops the reader and runs a full garbage collection after each file
-  (~25ms), which keeps RSS flat: extracting 150 large PDFs previously grew
-  RSS by 72MB and climbing, now under 2MB total. A cheaper generation-1
-  collection was measured and does not help, since the reader graph reaches
-  generation 2 during its own file's parse.
-
-## 0.12.5
-
-- Fixed `indexWhoosh` degrading quadratically when committing frequently
-  (small `commit_seconds`, e.g. the commit-per-document watch configuration):
-  60k docs took 988s with 5-second commits vs 42s for a single commit; now
-  38s. Two compounding causes: every document went through Whoosh's
-  `update_document`, which searches all committed segments for the unique
-  doc_id — even though `indexWhoosh` generates fresh UUIDs that can never
-  match when no doc_id is supplied — and every commit re-merged the
-  accumulated segments. Documents without a caller-supplied doc_id are now
-  appended with `add_document` (no per-document search), and append-only
-  intermediate commits skip merging, with every 20th commit merging to keep
-  the segment count bounded. Commits covering genuine upserts still merge
-  every time, since `update_document`'s per-document search is only cheap
-  when the segment count stays low. Memory was never at risk on this path —
-  Whoosh's writer spills postings to disk at `limitmb` (128MB).
-- Fixed mapping a field to `doc_id` in `indexWhoosh`'s `field_list` (e.g.
-  `"id:doc_id"`) crashing with `Schema() got multiple values for keyword
-  argument 'doc_id'`. The documented upsert behavior was therefore
-  unreachable; it now works — items whose doc_id already exists replace the
-  earlier document.
-
-- Fixed `addToLanceDB` slowing down and steadily consuming memory during long
-  ingests. Three compounding causes: every batch used `merge_insert` (an
-  upsert), which without a scalar index on `id` scans the whole table per
-  batch — O(n²) over an ingest — even when `doc_id_field` was unset and the
-  freshly generated UUIDs could never match an existing row; every batch also
-  committed a new table version whose fragments and manifests accumulated by
-  the thousands because optimization only ran at the very end; and
-  `optimize()` never pruned versions newer than LanceDB's week-long default
-  retention. Now rows are appended directly when `doc_id_field` is unset,
-  upserts keep a BTree index on `id`, the table is optimized periodically
-  during ingest (new `optimize_every` parameter, default every 5000 rows; also
-  exposed on `makeVectorDatabase`), and optimization prunes table versions
-  older than two minutes. On a 50k-row ingest this cut wall time from 87s to
-  8s and peak memory from 1.4GB to 0.8GB, with per-batch cost now flat instead
-  of growing.
-
-- `ReadFile` no longer aborts a batch when a single file with a supported
-  extension fails to be read (for example a truncated or corrupt PDF, which
-  pypdf surfaces as `Stream has ended unexpectedly`). Such a file is now logged
-  at WARNING with its path and the error, then skipped so the remaining files
-  still get processed. This mirrors the existing `skip_unsupported` behavior for
-  unsupported extensions. Pass `skip_errors=False` to restore the previous
-  behavior of raising the extractor's error.
-- Updated model2vec to work with locally downloaded models.  If the "model" is
-  an existing path, it treats that as the directory containing the model2vec
-  compatible model.
-
-## 0.12.4
-
-- Improvements to documentation to emphasize non-reliance on different providers.
 - Improved workbench suggestion quality on fresh workspaces (cold start):
   - The LLM prompt's few-shot slot falls back to the built-in examples and
     tutorial seed scripts when the user's saved pipelines yield fewer than
@@ -156,8 +92,108 @@
     resolution order, the remote-Ollama `TALKPIPE_OLLAMA_SERVER_URL` note, the
     HTTP API, and new troubleshooting entries — and consistently calls the app
     the ChatterLang Workbench rather than "the ChatterLang Server".
+- Rewrote the ChatterLang Workbench into a full pipeline development
+  environment. The editor is now CodeMirror 6 (vendored into the package —
+  no CDN or network access at runtime) with ChatterLang syntax highlighting,
+  context-aware autocomplete (sources after INPUT FROM/NEW, segments after
+  `|`, parameter names inside `[...]`), hover documentation for components
+  and parameters, and live syntax checking with did-you-mean hints plus an
+  explicit full-compile Check button. Pipelines can be saved, loaded,
+  renamed, and deleted in a workspace of plain `.script` files (default
+  `~/.talkpipe/workbench`, `--workspace` to override) that remain directly
+  runnable by `chatterlang_script`. A suggestions sidebar proposes likely
+  next segments two ways: instant rankings mined from the built-in examples,
+  shipped tutorial scripts, and the user's own saved pipelines, and
+  LLM-generated suggestions with rationales (model resolved through the
+  standard TalkPipe configuration, overridable via `--suggest-source` /
+  `--suggest-model` or the in-app settings dialog; degrades gracefully to
+  heuristics-only when no model is available, and `--no-llm-suggestions`
+  disables the LLM layer entirely). New endpoints back these features:
+  `/api/reference` (component reference as JSON), `/api/lint`,
+  `/api/pipelines` CRUD, `/api/suggest`, `/api/suggest/stats`, and
+  `/api/settings`.
 
->>>>>>> chore/usability-testing
+## 0.12.7
+
+- Fixed process memory climbing steadily when extracting many PDFs (e.g. a
+  long vault ingest over a PDF-heavy corpus). pypdf's reader object graph is
+  full of reference cycles, and parsing a large file promotes it to GC
+  generation 2, where dead readers accumulate between Python's rare full
+  collections; by the time one runs, the heap is fragmented and the memory is
+  never returned to the OS, so RSS ratchets up permanently. `extract_pdf` now
+  drops the reader and runs a full garbage collection after each file
+  (~25ms), which keeps RSS flat: extracting 150 large PDFs previously grew
+  RSS by 72MB and climbing, now under 2MB total. A cheaper generation-1
+  collection was measured and does not help, since the reader graph reaches
+  generation 2 during its own file's parse.
+
+## 0.12.6
+
+- Fixed embedded base64 payloads (e.g. images pasted into Markdown or HTML)
+  poisoning vector search. A base64 blob tokenizes to nothing the embedding
+  model recognizes, so its chunk embeds to a zero or degenerate vector — and
+  under L2 distance against normalized embeddings, a zero vector is closer to
+  every query than any unrelated real document, so one pasted image could
+  outrank real content across all searches. Two layers of defense: the new
+  `stripBase64` segment (`talkpipe.data.text.cleaning.strip_base64_blobs`)
+  removes data URIs and long base64 runs from text while preserving the
+  surrounding prose, and is applied by default in the vector-database
+  indexing pipeline (`strip_base64=False` to opt out); and `addToLanceDB`
+  now skips items whose vector has zero magnitude with a warning naming the
+  document id (`skip_zero_vectors=False` restores the old behavior).
+
+## 0.12.5
+
+- Fixed `indexWhoosh` degrading quadratically when committing frequently
+  (small `commit_seconds`, e.g. the commit-per-document watch configuration):
+  60k docs took 988s with 5-second commits vs 42s for a single commit; now
+  38s. Two compounding causes: every document went through Whoosh's
+  `update_document`, which searches all committed segments for the unique
+  doc_id — even though `indexWhoosh` generates fresh UUIDs that can never
+  match when no doc_id is supplied — and every commit re-merged the
+  accumulated segments. Documents without a caller-supplied doc_id are now
+  appended with `add_document` (no per-document search), and append-only
+  intermediate commits skip merging, with every 20th commit merging to keep
+  the segment count bounded. Commits covering genuine upserts still merge
+  every time, since `update_document`'s per-document search is only cheap
+  when the segment count stays low. Memory was never at risk on this path —
+  Whoosh's writer spills postings to disk at `limitmb` (128MB).
+- Fixed mapping a field to `doc_id` in `indexWhoosh`'s `field_list` (e.g.
+  `"id:doc_id"`) crashing with `Schema() got multiple values for keyword
+  argument 'doc_id'`. The documented upsert behavior was therefore
+  unreachable; it now works — items whose doc_id already exists replace the
+  earlier document.
+
+- Fixed `addToLanceDB` slowing down and steadily consuming memory during long
+  ingests. Three compounding causes: every batch used `merge_insert` (an
+  upsert), which without a scalar index on `id` scans the whole table per
+  batch — O(n²) over an ingest — even when `doc_id_field` was unset and the
+  freshly generated UUIDs could never match an existing row; every batch also
+  committed a new table version whose fragments and manifests accumulated by
+  the thousands because optimization only ran at the very end; and
+  `optimize()` never pruned versions newer than LanceDB's week-long default
+  retention. Now rows are appended directly when `doc_id_field` is unset,
+  upserts keep a BTree index on `id`, the table is optimized periodically
+  during ingest (new `optimize_every` parameter, default every 5000 rows; also
+  exposed on `makeVectorDatabase`), and optimization prunes table versions
+  older than two minutes. On a 50k-row ingest this cut wall time from 87s to
+  8s and peak memory from 1.4GB to 0.8GB, with per-batch cost now flat instead
+  of growing.
+
+- `ReadFile` no longer aborts a batch when a single file with a supported
+  extension fails to be read (for example a truncated or corrupt PDF, which
+  pypdf surfaces as `Stream has ended unexpectedly`). Such a file is now logged
+  at WARNING with its path and the error, then skipped so the remaining files
+  still get processed. This mirrors the existing `skip_unsupported` behavior for
+  unsupported extensions. Pass `skip_errors=False` to restore the previous
+  behavior of raising the extractor's error.
+- Updated model2vec to work with locally downloaded models.  If the "model" is
+  an existing path, it treats that as the directory containing the model2vec
+  compatible model.
+
+## 0.12.4
+
+- Improvements to documentation to emphasize non-reliance on different providers.
 - Fixed friction points found during a Tutorial 3-focused newcomer-simulation
   usability pass:
   - `chatterlang_serve` now compiles the `--script` at startup and exits with the
@@ -652,7 +688,6 @@
 - Added diagPrint segments among each step in the pipelines package with output set to
   None by default.
 
-
 ### Improvements
 - Significant, API breaking refactor to `extraction.py` and how file extraction is done.
   Added `ExtractorRegistry` class for managing file text extractors.
@@ -945,7 +980,6 @@ Note that this release introduces significant API-breaking changes compared with
  - Updated **progressTicks** so it writes to stderr rather than stdout.
  - Updated **searchWhoosh** so the user can specify fields to use as the query and whether to attach results or pass them all along.
 
-
 ## 0.7.0
 ### New Segments and Sources
  - **progressTicks** – Prints out a tick for every n items seen and a new line for every m ticks.  
@@ -996,7 +1030,6 @@ Note that this release introduces significant API-breaking changes compared with
  - Added the ability for chatterlang_serve and chatterlang_workbench to load custom modules.
  - Removed **call_func**. This is superseded by the more flexible lambda.
 
-
 ## 0.5.0
 ### New Segments and Sources
  - lambda expression integration
@@ -1037,8 +1070,6 @@ error when being disposed as python was exiting.
 ### Bug Fixes
  - Fixed error in rss.py causing a crash if the URL was specified in the configuration file or environment variable
  - Handled code where robots.txt response is returned compressed.  It now decompresses it rather than erroring out.
-
-
 
 ## 0.4.1
 - Updated syntax so that pipelines in forks can contain more than one segment.  This was an oversight in the original design.
