@@ -14,12 +14,11 @@ import logging
 import threading
 from typing import Optional
 
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 from talkpipe.app.workbench import corpus, reference_api, suggest, workspace_api
 from talkpipe.app.workbench.workspace import get_store, resolve_workspace_dir
-from talkpipe.llm.config import getPromptSources
 
 logger = logging.getLogger(__name__)
 
@@ -83,14 +82,14 @@ def save_settings(settings: dict):
 
 
 def _resolved_status(settings: dict) -> dict:
-    resolved = suggest.resolve_llm(settings)
+    resolved, reason = suggest.resolve_llm_status(settings)
     if not resolved:
         return {"available": False, "source": None, "model": None,
-                "reason": "no model configured"}
+                "reason": reason}
     source, model = resolved
     available = suggest.check_availability(source, model)
     return {"available": available, "source": source, "model": model,
-            "reason": None if available else "model not reachable"}
+            "reason": None if available else suggest.unreachable_reason(source, model)}
 
 
 class SettingsUpdate(BaseModel):
@@ -102,7 +101,7 @@ class SettingsUpdate(BaseModel):
 def _settings_response(settings: dict) -> dict:
     return {
         **settings,
-        "known_sources": getPromptSources(),
+        "known_sources": suggest.getPromptSources(),
         "resolved": _resolved_status(settings),
     }
 
@@ -116,6 +115,13 @@ def api_get_settings():
 def api_put_settings(request: SettingsUpdate):
     settings = load_settings()
     update = request.model_dump(exclude_unset=True)
+    known_sources = suggest.getPromptSources()
+    if update.get("suggest_source") and update["suggest_source"] not in known_sources:
+        raise HTTPException(
+            status_code=422,
+            detail=(f"Unknown LLM source '{update['suggest_source']}'. "
+                    f"Known sources: {', '.join(known_sources)}"),
+        )
     for key in SETTINGS_KEYS:
         if key in update:
             settings[key] = update[key]

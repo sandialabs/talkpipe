@@ -11,9 +11,29 @@ let dirty = false;
 let available = false;
 
 export function markDirty() {
-  if (!available || dirty || !currentId) return;
+  if (!available || dirty) return;
   dirty = true;
   updateNameLabel();
+}
+
+// Styled stand-in for window.confirm()/alert(): resolves true when the user
+// accepts. Native dialogs are avoided so the UI stays consistent (and
+// automatable). Pass okOnly for alert-style messages.
+function confirmDialog(message, { title = "Confirm", okLabel = "OK", okOnly = false } = {}) {
+  return new Promise((resolve) => {
+    const dialog = $("confirmDialog");
+    $("confirmDialogTitle").textContent = title;
+    $("confirmDialogMessage").textContent = message;
+    $("confirmDialogOk").textContent = okLabel;
+    $("confirmDialogCancel").hidden = okOnly;
+    dialog.returnValue = "cancel";
+    dialog.addEventListener(
+      "close",
+      () => resolve(dialog.returnValue === "ok"),
+      { once: true }
+    );
+    dialog.showModal();
+  });
 }
 
 function updateNameLabel() {
@@ -88,10 +108,16 @@ async function refreshList() {
   }
 }
 
+async function confirmDiscardIfDirty() {
+  if (!dirty || !editor.getValue().trim()) return true;
+  const what = currentId ? "the current pipeline" : "the editor";
+  return confirmDialog(`Discard unsaved changes to ${what}?`, {
+    title: "Unsaved changes", okLabel: "Discard",
+  });
+}
+
 async function openPipeline(id) {
-  if (dirty && currentId && !confirm("Discard unsaved changes to the current pipeline?")) {
-    return;
-  }
+  if (!(await confirmDiscardIfDirty())) return;
   const p = await api(`/api/pipelines/${id}`);
   editor.setValue(p.script);
   currentId = p.id;
@@ -100,6 +126,22 @@ async function openPipeline(id) {
   dirty = false;
   updateNameLabel();
   refreshList();
+}
+
+// Replace the editor content without attaching it to any saved pipeline
+// (used by the Examples menu). Asks before discarding unsaved work.
+export async function loadIntoScratch(code) {
+  if (available && !(await confirmDiscardIfDirty())) return false;
+  editor.setValue(code);
+  if (available) {
+    currentId = null;
+    currentName = "";
+    currentDescription = "";
+    dirty = false;
+    updateNameLabel();
+    refreshList();
+  }
+  return true;
 }
 
 function showSaveDialog(title, name, description) {
@@ -156,7 +198,12 @@ async function saveAs() {
     refreshList();
     notifySaved();
   } catch (e) {
-    if (e.status === 409 && confirm(`"${meta.name}" already exists. Overwrite it?`)) {
+    if (e.status === 409) {
+      const overwrite = await confirmDialog(
+        `"${meta.name}" already exists. Overwrite it?`,
+        { title: "Pipeline exists", okLabel: "Overwrite" }
+      );
+      if (!overwrite) return;
       const p = await api("/api/pipelines", {
         method: "POST",
         body: JSON.stringify({ ...meta, script: editor.getValue(), overwrite: true }),
@@ -168,29 +215,51 @@ async function saveAs() {
       updateNameLabel();
       refreshList();
       notifySaved();
-    } else if (e.status !== 409) {
-      alert("Save failed: " + e.message);
+    } else {
+      await confirmDialog("Save failed: " + e.message, {
+        title: "Save failed", okOnly: true,
+      });
     }
   }
 }
 
 async function renamePipeline(p) {
-  const newName = prompt("New name:", p.name);
-  if (!newName || newName === p.name) return;
-  const updated = await api(`/api/pipelines/${p.id}/rename`, {
-    method: "POST",
-    body: JSON.stringify({ new_name: newName }),
-  });
+  const meta = await showSaveDialog("Rename pipeline", p.name, p.description || "");
+  if (!meta || !meta.name) return;
+  let updated = p;
+  try {
+    if (meta.name !== p.name) {
+      updated = await api(`/api/pipelines/${p.id}/rename`, {
+        method: "POST",
+        body: JSON.stringify({ new_name: meta.name }),
+      });
+    }
+    if ((meta.description || "") !== (p.description || "")) {
+      updated = await api(`/api/pipelines/${updated.id}`, {
+        method: "PUT",
+        body: JSON.stringify({ description: meta.description }),
+      });
+    }
+  } catch (e) {
+    await confirmDialog("Rename failed: " + e.message, {
+      title: "Rename failed", okOnly: true,
+    });
+    return;
+  }
   if (currentId === p.id) {
     currentId = updated.id;
     currentName = updated.name;
+    currentDescription = updated.description || "";
     updateNameLabel();
   }
   refreshList();
 }
 
 async function deletePipeline(p) {
-  if (!confirm(`Delete pipeline "${p.name}"?`)) return;
+  const proceed = await confirmDialog(`Delete pipeline "${p.name}"?`, {
+    title: "Delete pipeline", okLabel: "Delete",
+  });
+  if (!proceed) return;
   await api(`/api/pipelines/${p.id}`, { method: "DELETE" });
   notifySaved();
   if (currentId === p.id) {

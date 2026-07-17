@@ -175,6 +175,54 @@ def test_settings_roundtrip(with_fake_llm, tmp_path):
     assert data["model"] == "other-model"
 
 
+def test_settings_put_unknown_source_rejected(with_fake_llm):
+    response = with_fake_llm.put("/api/settings", json={
+        "suggest_source": "notaprovider", "suggest_model": "x",
+    })
+    assert response.status_code == 422
+    assert "notaprovider" in response.json()["detail"]
+    # nothing was persisted
+    data = with_fake_llm.get("/api/settings").json()
+    assert data["suggest_source"] is None
+
+
+def test_resolved_reason_distinguishes_kill_switch(with_fake_llm, monkeypatch):
+    monkeypatch.setenv("TALKPIPE_workbench_llm_suggestions", "false")
+    reset_config()
+    data = with_fake_llm.get("/api/settings").json()
+    assert data["resolved"]["available"] is False
+    assert "disabled" in data["resolved"]["reason"]
+    reset_config()
+
+
+def test_resolved_reason_unreachable_ollama_mentions_server_url(with_fake_llm):
+    FakeAdapter.available = False
+    data = with_fake_llm.get("/api/settings").json()
+    resolved = data["resolved"]
+    assert resolved["available"] is False
+    assert "not reachable" in resolved["reason"]
+    assert "TALKPIPE_OLLAMA_SERVER_URL" in resolved["reason"]
+    assert "test-model" in resolved["reason"]
+
+
+def test_resolved_reason_unknown_stored_source(with_fake_llm, tmp_path):
+    # A stale settings.json can hold a source the install no longer knows.
+    (tmp_path / "settings.json").write_text(json.dumps({
+        "suggest_source": "notaprovider", "suggest_model": "x",
+    }))
+    data = with_fake_llm.get("/api/settings").json()
+    resolved = data["resolved"]
+    assert resolved["available"] is False
+    assert "unknown LLM source 'notaprovider'" in resolved["reason"]
+
+
+def test_suggest_unreachable_error_has_hint(with_fake_llm):
+    FakeAdapter.available = False
+    data = with_fake_llm.post("/api/suggest", json={"script": "| x"}).json()
+    assert data["available"] is False
+    assert "not reachable" in data["error"]
+
+
 def test_settings_precedence(with_fake_llm, monkeypatch):
     monkeypatch.setenv("TALKPIPE_workbench_suggest_model", "cli-model")
     reset_config()

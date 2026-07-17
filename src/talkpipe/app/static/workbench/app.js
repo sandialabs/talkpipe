@@ -2,7 +2,7 @@
 // flows, logs, examples menu, and bottom output/log tabs.
 
 import { createEditor, runFullCheck } from "./editor.js";
-import { initWorkspace, markDirty } from "./workspace.js";
+import { initWorkspace, markDirty, loadIntoScratch } from "./workspace.js";
 import { initSuggestions, notifyScriptChanged } from "./suggest.js";
 
 let scriptId = null;
@@ -28,7 +28,12 @@ export const editor = createEditor($("editor"), {
 const tabPanes = { output: $("output"), logs: $("log-content") };
 
 for (const tab of document.querySelectorAll("#bottom-tabs .tab")) {
-  tab.addEventListener("click", () => selectTab(tab.dataset.tab));
+  tab.addEventListener("click", () => {
+    selectTab(tab.dataset.tab);
+    // The Logs pane is fetched on demand; opening the tab should populate it
+    // rather than showing an empty pane until the toolbar button is used.
+    if (tab.dataset.tab === "logs") startLogPolling();
+  });
 }
 
 function selectTab(name) {
@@ -217,9 +222,11 @@ async function loadExamples() {
         description.className = "item-description";
         description.textContent = example.description;
         item.append(name, description);
-        item.addEventListener("click", () => {
-          editor.setValue(example.code);
+        item.addEventListener("click", async () => {
           menu.classList.add("hidden");
+          // Examples load into a scratch buffer so an accidental Save can't
+          // overwrite the currently open pipeline.
+          if (!(await loadIntoScratch(example.code))) return;
           editor.focus();
         });
         menu.appendChild(item);
@@ -269,13 +276,20 @@ async function fetchLogs() {
   }
 }
 
-$("logButton").addEventListener("click", () => {
-  selectTab("logs");
+function startLogPolling() {
   fetchLogs();
   if (!logInterval) logInterval = setInterval(fetchLogs, 2000);
+}
+
+$("logButton").addEventListener("click", () => {
+  selectTab("logs");
+  startLogPolling();
 });
 
 // --- Optional feature modules (each hides its UI if the API is absent) ----
 
 initWorkspace(editor);
 initSuggestions(editor);
+
+// Put the caret in the editor so typing works immediately after load.
+editor.focus();

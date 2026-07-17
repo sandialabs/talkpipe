@@ -40,12 +40,16 @@ def _truthy(value, default=True) -> bool:
     return str(value).strip().lower() not in ("false", "0", "no", "off", "")
 
 
-def resolve_llm(settings: Optional[dict] = None):
-    """Resolve (source, model) for suggestions, or None if unavailable."""
+def resolve_llm_status(settings: Optional[dict] = None):
+    """Resolve the suggestion LLM.
+
+    Returns ``((source, model), None)`` on success, or ``(None, reason)``
+    with a human-readable reason when no usable LLM is configured.
+    """
     settings = settings or {}
     cfg = get_config()
     if not _truthy(cfg.get("workbench_llm_suggestions"), default=True):
-        return None
+        return None, "LLM suggestions disabled (--no-llm-suggestions)"
     source = (
         settings.get("suggest_source")
         or cfg.get("workbench_suggest_source")
@@ -57,11 +61,31 @@ def resolve_llm(settings: Optional[dict] = None):
         or cfg.get(TALKPIPE_MODEL_NAME)
     )
     if not source or not model:
-        return None
+        return None, "no model configured"
     if source not in getPromptSources():
         logger.warning(f"Unknown suggestion LLM source: {source}")
-        return None
-    return source, model
+        known = ", ".join(getPromptSources())
+        return None, f"unknown LLM source '{source}' (known sources: {known})"
+    return (source, model), None
+
+
+def resolve_llm(settings: Optional[dict] = None):
+    """Resolve (source, model) for suggestions, or None if unavailable."""
+    resolved, _ = resolve_llm_status(settings)
+    return resolved
+
+
+def unreachable_reason(source: str, model: str) -> str:
+    """An actionable message for a configured-but-unreachable model."""
+    if source == "ollama":
+        from talkpipe.util.constants import OLLAMA_SERVER_URL
+        url = get_config().get(OLLAMA_SERVER_URL) or "http://localhost:11434"
+        return (
+            f"model '{model}' not reachable at {url} — if your Ollama server "
+            "runs on another host, set TALKPIPE_OLLAMA_SERVER_URL and restart "
+            "the workbench"
+        )
+    return f"model '{model}' not reachable via {source} (check credentials and connectivity)"
 
 
 _availability_cache = {}
@@ -193,7 +217,7 @@ def suggest(script: str, cursor_offset: int, reference: dict,
     source, model = resolved
     if not check_availability(source, model):
         return {"available": False, "source": source, "model": model,
-                "suggestions": [], "error": "model not reachable"}
+                "suggestions": [], "error": unreachable_reason(source, model)}
 
     prompt = build_prompt(script, cursor_offset, reference, saved, max_suggestions)
     try:

@@ -21,8 +21,28 @@ logger = logging.getLogger(__name__)
 from contextlib import asynccontextmanager
 
 
+def _load_configured_modules():
+    """Import custom module files listed in the workbench configuration.
+
+    ``main()`` records ``--load-module`` paths in the
+    ``TALKPIPE_workbench_load_modules`` environment variable rather than
+    importing them directly: with ``--reload``, uvicorn re-imports the app
+    in a subprocess where only the environment survives, so importing here
+    (at app startup) makes custom modules work in both modes.
+    """
+    from talkpipe.util.config import get_config
+    configured = get_config().get("workbench_load_modules")
+    if not configured:
+        return
+    import os
+    for module_file in configured.split(os.pathsep):
+        if module_file:
+            load_module_file(fname=module_file, fail_on_missing=False)
+
+
 @asynccontextmanager
 async def _lifespan(app):
+    _load_configured_modules()
     # Building the component reference imports every registered component
     # (seconds); do it in the background so the first browser fetch is fast.
     reference_api.warm_reference_cache_async()
@@ -67,7 +87,7 @@ EXAMPLE_SCRIPTS = {
     "Basic Examples": [
         {
             "name": "Hello World",
-            "description": "Simple example to print a message",
+            "description": "Print a message (echo splits comma-separated data into items)",
             "code": 'INPUT FROM echo[data="Hello, ChatterLang World!"] | print'
         },
         {
@@ -317,7 +337,8 @@ def get_ui():
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Run the Talkpipe server with uvicorn"
+        description="Start the ChatterLang Workbench, a browser-based IDE "
+                    "for developing and testing ChatterLang pipelines."
     )
     parser.add_argument(
         "--host", type=str, default="127.0.0.1", help="Server host (default: 127.0.0.1)"
@@ -337,11 +358,15 @@ def main():
     )
     parser.add_argument(
         "--suggest-source", type=str, default=None,
-        help="LLM source for the suggestions sidebar (e.g. ollama); defaults to the standard TalkPipe model configuration"
+        help="LLM source for the suggestions sidebar (e.g. ollama); defaults to the standard "
+             "TalkPipe model configuration. A source saved in the workbench Settings dialog "
+             "takes precedence over this flag."
     )
     parser.add_argument(
         "--suggest-model", type=str, default=None,
-        help="LLM model name for the suggestions sidebar; defaults to the standard TalkPipe model configuration"
+        help="LLM model name for the suggestions sidebar; defaults to the standard "
+             "TalkPipe model configuration. A model saved in the workbench Settings dialog "
+             "takes precedence over this flag."
     )
     parser.add_argument(
         "--no-llm-suggestions", action="store_true",
@@ -391,8 +416,14 @@ def main():
         add_config_values(workbench_settings, override=True)
 
     if args.load_module:
-        for module_file in args.load_module:
-            load_module_file(fname=module_file, fail_on_missing=False)
+        # Recorded in the environment and imported at app startup (see
+        # _load_configured_modules) so custom modules survive --reload.
+        import os
+        os.environ["TALKPIPE_workbench_load_modules"] = os.pathsep.join(args.load_module)
+        add_config_values(
+            {"workbench_load_modules": os.pathsep.join(args.load_module)},
+            override=True,
+        )
 
     print(f"Starting TalkPipe server at http://{args.host}:{args.port}")
     uvicorn.run(

@@ -2,7 +2,7 @@
 // /api/suggest/stats) plus LLM suggestions (/api/suggest) with settings.
 // The whole panel stays hidden if neither API is available.
 
-import { setHeuristicStats } from "./editor.js";
+import { setHeuristicStats, getReference } from "./editor.js";
 
 const $ = (id) => document.getElementById(id);
 
@@ -43,17 +43,31 @@ function lastComponent(script) {
   return matches.length ? matches[matches.length - 1] : null;
 }
 
+// In mid-pipeline context, only segments are valid continuations; when the
+// stats fall back to the pipeline-start table (which is source-heavy), drop
+// anything the reference identifies as a source.
+function filterToSegments(ranked) {
+  const ref = getReference();
+  if (!ref) return ranked;
+  return ranked.filter(([name]) => {
+    const comp = ref.byName.get(name);
+    return !comp || comp.type !== "source";
+  });
+}
+
 function renderHeuristics() {
   const list = $("heuristicList");
   list.textContent = "";
   if (!stats) return;
 
-  const prev = lastComponent(editor.getValue());
+  const script = editor.getValue();
+  const prev = lastComponent(script);
   let ranked = [];
   if (prev && stats.bigrams && stats.bigrams[prev]) {
     ranked = Object.entries(stats.bigrams[prev]).sort((a, b) => b[1] - a[1]);
   } else if (stats.starts) {
     ranked = Object.entries(stats.starts).sort((a, b) => b[1] - a[1]);
+    if (prev) ranked = filterToSegments(ranked); // mid-pipeline fallback
   }
 
   if (ranked.length === 0) {
@@ -87,7 +101,11 @@ function insertSuggestion(name, paramsHint) {
   const cursorOffset = editor.getCursorOffset();
   const before = script.slice(0, cursorOffset);
   const needsPipe = /[^|\s]\s*$/.test(before);
-  const text = (needsPipe ? " | " : before.trim() ? " " : "") + name + (paramsHint ? `[${paramsHint}]` : "");
+  const endsWithSpace = /\s$/.test(before) || !before;
+  let prefix = "";
+  if (needsPipe) prefix = endsWithSpace ? "| " : " | ";
+  else if (before.trim() && !endsWithSpace) prefix = " ";
+  const text = prefix + name + (paramsHint ? `[${paramsHint}]` : "");
   editor.insertAtCursor(text);
 }
 
@@ -127,7 +145,9 @@ async function requestSuggestions() {
     if (!response.ok) throw new Error(`status ${response.status}`);
     const data = await response.json();
     if (!data.available) {
-      setLlmStatusText("No LLM configured — set one in Settings (⚙).");
+      setLlmStatusText(data.error
+        ? `LLM unavailable: ${data.error}`
+        : "No LLM configured — set one in Settings (⚙).");
       return;
     }
     if (data.error) {
@@ -222,10 +242,12 @@ async function openSettings() {
 function applySettings(settings) {
   autoSuggest = !!settings.auto_suggest;
   llmStatus = settings.resolved || { available: false };
-  if (!llmStatus.available) {
-    setLlmStatusText("No LLM configured — set one in Settings (⚙).");
-  } else {
+  if (llmStatus.available) {
     setLlmStatusText(`Ready: ${llmStatus.source} / ${llmStatus.model}`);
+  } else if (llmStatus.reason && llmStatus.reason !== "no model configured") {
+    setLlmStatusText(`LLM unavailable: ${llmStatus.reason}`);
+  } else {
+    setLlmStatusText("No LLM configured — set one in Settings (⚙).");
   }
 }
 

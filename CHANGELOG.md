@@ -2,6 +2,46 @@
 
 ## Unreleased
 
+- Fixed friction points found during a workbench-focused newcomer-simulation
+  usability pass:
+  - `chatterlang_workbench --load-module` now works together with `--reload`:
+    custom module paths are recorded in the environment and imported at app
+    startup, so the auto-reloader's subprocess loads them too. Previously the
+    reload child silently lost all custom components ("Segment ... not found").
+  - The workbench suggestion sidebar and settings dialog now report *why* no
+    LLM is available instead of always saying "No LLM configured": a
+    configured-but-unreachable Ollama model names the server URL that was
+    probed and points at `TALKPIPE_OLLAMA_SERVER_URL`, suggestions disabled
+    via `--no-llm-suggestions` say so, and a stale `settings.json` naming an
+    unknown source is called out. `PUT /api/settings` now rejects unknown
+    LLM sources with a 422 instead of silently storing them.
+  - Loading an example from the Examples menu now detaches the editor from the
+    currently open pipeline (scratch buffer), so a reflexive Save can no longer
+    overwrite a saved pipeline with example code; unsaved scratch work is now
+    also protected by the discard-changes confirmation, which previously only
+    guarded edits to saved pipelines.
+  - The workbench UI no longer uses native `prompt()`/`confirm()`/`alert()`
+    dialogs: rename uses the same styled dialog as Save As (and can edit the
+    description), and delete/overwrite/discard confirmations use a styled
+    confirm dialog.
+  - The bottom Logs tab now fetches and polls logs when opened; previously it
+    stayed empty until the toolbar Logs button was clicked.
+  - Heuristic "Likely next" suggestions no longer offer sources (invalid after
+    a `|`) when falling back to pipeline-start statistics mid-pipeline, and
+    clicking a suggestion no longer inserts a double space after "| ".
+  - The editor takes keyboard focus on page load, and the `--help` text
+    describes the workbench (instead of a generic "Run the Talkpipe server")
+    and documents that Settings-dialog values take precedence over the
+    `--suggest-source`/`--suggest-model` flags.
+  - The workbench doc page (`docs/api-reference/chatterlang-workbench.md`) was
+    rewritten for the current app: it now covers `--workspace`,
+    `--suggest-source`, `--suggest-model`, and `--no-llm-suggestions`, the
+    editor features (autocomplete, hover help, lint, Check), the pipeline
+    workspace and `.script` file format, the suggestions sidebar and its LLM
+    resolution order, the remote-Ollama `TALKPIPE_OLLAMA_SERVER_URL` note, the
+    HTTP API, and new troubleshooting entries — and consistently calls the app
+    the ChatterLang Workbench rather than "the ChatterLang Server".
+
 - Fixed friction points found during a Tutorial 3-focused newcomer-simulation
   usability pass:
   - `chatterlang_serve` now compiles the `--script` at startup and exits with the

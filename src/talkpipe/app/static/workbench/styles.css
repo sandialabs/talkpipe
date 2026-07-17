@@ -384,6 +384,7 @@ dialog input[type="text"], dialog select {
 dialog .checkbox-label { font-weight: 400; }
 dialog .checkbox-label input { margin-right: 6px; }
 .dialog-buttons { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }
+.dialog-message { font-size: 13px; color: #333; max-width: 360px; }
 .settings-resolved { font-size: 12px; color: #666; margin-top: 4px; }
 
 /* Misc */
