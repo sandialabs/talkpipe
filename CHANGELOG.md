@@ -2,6 +2,28 @@
 
 ## Unreleased
 
+- Added `build_rag_database()` (talkpipe.pipelines.vector_databases), a
+  unified RAG-ingestion driver shared by the `makevectordatabase` CLI and
+  downstream applications such as talkpipe-vault. Internally it is a
+  standard `|` pipeline — `ProcessDocumentsSegment | (tally) | LLMEmbed |
+  add_to_lancedb | (tally)`, using two private tally segments that share a
+  counter object to infer embedding drops. Compared with composing
+  `ProcessDocumentsSegment | MakeVectorDatabaseSegment` by hand it adds a
+  robustness contract: a preflight test embedding fails fast
+  (`EmbedderPreflightError`) when the embedder is unreachable or
+  misconfigured, an optional expected-dimension check fails fast
+  (`EmbeddingDimensionMismatchError`) instead of erroring on the first
+  LanceDB write, over-long chunks are truncated by default instead of
+  aborting the run, chunks whose embedding fails are counted and returned
+  (`RagIngestResult.chunks_skipped`) instead of dropped silently, and
+  "chunks extracted but none embedded" raises `RagIngestError` so a dead
+  embedder cannot masquerade as empty documents. The CLI now reports
+  files/skipped counts, gained `--on_token_overflow`
+  (error|truncate|chunk_pool, default truncate — a behavior change: an
+  over-long chunk previously aborted the run), and exits non-zero with a
+  clear message on ingest errors. `MakeVectorDatabaseSegment` gained an
+  `on_token_overflow` passthrough (default `error`, unchanged).
+
 - Improved workbench suggestion quality on fresh workspaces (cold start):
   - The LLM prompt's few-shot slot falls back to the built-in examples and
     tutorial seed scripts when the user's saved pipelines yield fewer than

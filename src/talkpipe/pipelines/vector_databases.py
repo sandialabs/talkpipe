@@ -1,5 +1,7 @@
-from typing import Optional, Annotated
-from talkpipe import AbstractSegment, register_segment
+import logging
+from dataclasses import dataclass, field
+from typing import Optional, Annotated, Callable
+from talkpipe import AbstractSegment, register_segment, segment
 from talkpipe.search.lancedb import add_to_lancedb, search_lancedb
 from talkpipe.llm.embedding import LLMEmbed
 from talkpipe.data.extraction import listFiles, ReadFile
@@ -7,6 +9,10 @@ from talkpipe.pipe.io import Print
 from talkpipe.pipe.basic import progressTicks, setAs, ToDict
 from talkpipe.data.text.chunking_units import ShingleText, splitText
 from talkpipe.data.text.cleaning import stripBase64
+from talkpipe.util.config import get_config
+from talkpipe.util.constants import TALKPIPE_EMBEDDING_MODEL_NAME, TALKPIPE_EMBEDDING_MODEL_SOURCE
+
+logger = logging.getLogger(__name__)
 
 
 @register_segment("processDocuments")
@@ -74,6 +80,7 @@ class MakeVectorDatabaseSegment(AbstractSegment):
                  batch_size: Annotated[int, "Batch size for committing in the vector database"] = 100,
                  optimize_on_batch: Annotated[bool, "If true, optimize the table after each batch.  Otherwise optimize after last batch."]=False,
                  optimize_every: Annotated[int, "Optimize the table after at least this many rows have been added since the last optimization. 0 disables periodic optimization."]=5000,
+                 on_token_overflow: Annotated[str, "When embedding fails as too long: error, truncate (shrink and retry), or chunk_pool"]="error",
                  ):
         super().__init__()
         self.embedding_model = embedding_model
@@ -89,7 +96,8 @@ class MakeVectorDatabaseSegment(AbstractSegment):
                                 source=self.embedding_source,
                                 field=self.embedding_field,
                                 set_as="vector",
-                                fail_on_error=self.fail_on_error) | \
+                                fail_on_error=self.fail_on_error,
+                                on_token_overflow=on_token_overflow) | \
                         add_to_lancedb(path=self.path,
                                        table_name=self.table_name,
                                        doc_id_field=self.doc_id_field,
@@ -183,3 +191,213 @@ class SearchVectorDatabaseSegment(AbstractSegment):
 
     def transform(self, input_iter):
         yield from self.pipeline.transform(input_iter)
+
+class RagIngestError(RuntimeError):
+    """A RAG database build failed for a reason the caller should surface."""
+
+
+class EmbedderPreflightError(RagIngestError):
+    """The embedder failed a test embedding before any documents were read."""
+
+
+class EmbeddingDimensionMismatchError(RagIngestError):
+    """The embedder's vector dimension does not match the existing database.
+
+    Carries the expected (existing database) and actual (current embedder)
+    dimensions so callers can build their own guidance messages.
+    """
+
+    def __init__(self, message: str, *, expected: int, actual: int):
+        super().__init__(message)
+        self.expected = expected
+        self.actual = actual
+
+
+@dataclass
+class RagIngestResult:
+    """Outcome of one build_rag_database run.
+
+    chunks_skipped counts chunks that were extracted from documents but
+    dropped because their embedding failed; dimension is the embedding
+    vector length observed during preflight (None when preflight is off).
+    """
+
+    chunks_indexed: int
+    chunks_skipped: int
+    files_indexed: int
+    embedding_source: str
+    embedding_model: str
+    dimension: Optional[int]
+
+
+@dataclass
+class _IngestTally:
+    """Counters shared by the tally segments across one build_rag_database run.
+
+    chunks_extracted counts chunks entering the embedder. LLMEmbed with
+    fail_on_error false silently drops chunks whose embedding fails, so each
+    stored chunk infers the drops since the previous one by comparing
+    chunks_extracted against extracted_at_last_store.
+    """
+
+    chunks_extracted: int = 0
+    chunks_indexed: int = 0
+    chunks_skipped: int = 0
+    extracted_at_last_store: int = 0
+    seen_sources: set = field(default_factory=set)
+
+
+@segment()
+def _tally_extracted_chunks(items, tally: _IngestTally):
+    """Pass chunks through unchanged, counting them as they enter the embedder."""
+    for item in items:
+        tally.chunks_extracted += 1
+        yield item
+
+
+@segment()
+def _tally_stored_chunks(items, tally: _IngestTally, progress=None):
+    """Pass stored chunks through, tracking skips, files, and progress.
+
+    Expects the dict items produced by ProcessDocumentsSegment (a "source"
+    field identifies the originating file) after they have been stored.
+    The optional progress callback receives (chunks_done, files_done,
+    current_source_path) per stored chunk.
+    """
+    for item in items:
+        tally.chunks_indexed += 1
+        # Chunks consumed since the last stored one, minus this one, failed
+        # to embed and were dropped by LLMEmbed when fail_on_error is false.
+        tally.chunks_skipped += tally.chunks_extracted - tally.extracted_at_last_store - 1
+        tally.extracted_at_last_store = tally.chunks_extracted
+        source = str(item.get("source") or "") if isinstance(item, dict) else ""
+        if source:
+            tally.seen_sources.add(source)
+        if progress is not None:
+            progress(tally.chunks_indexed, len(tally.seen_sources), source)
+        yield item
+
+
+def build_rag_database(
+    source_pattern,
+    path: str,
+    embedding_model: Optional[str] = None,
+    embedding_source: Optional[str] = None,
+    *,
+    table_name: str = "docs",
+    embedding_field: str = "shingle_text",
+    chunk_size: int = 300,
+    shingle_size: int = 3,
+    overlap: int = 1,
+    doc_id_field: Optional[str] = None,
+    overwrite: bool = False,
+    batch_size: int = 100,
+    fail_on_error: bool = False,
+    on_token_overflow: str = "truncate",
+    expected_dimension: Optional[int] = None,
+    preflight: bool = True,
+    progress: Optional[Callable[[int, int, str], None]] = None,
+) -> RagIngestResult:
+    """Build a RAG vector database from documents matching a glob pattern.
+
+    The single shared ingestion driver behind the makevectordatabase CLI and
+    downstream applications (e.g. talkpipe-vault): documents are read,
+    chunked, and shingled by ProcessDocumentsSegment, embedded by LLMEmbed,
+    and stored in LanceDB by add_to_lancedb.
+
+    Robustness contract, in contrast to composing the segments by hand:
+
+    - Preflight: a test string is embedded before any documents are read, so
+      an unreachable or misconfigured embedder fails immediately
+      (EmbedderPreflightError) instead of paying a provider timeout per chunk
+      and finishing with an empty database. When expected_dimension is given
+      (e.g. read from metadata recorded at first build), a differing probe
+      vector length raises EmbeddingDimensionMismatchError up front instead
+      of failing on the first LanceDB write.
+    - Over-long chunks are truncated and indexed by default rather than
+      aborting the run (LLMEmbed's on_token_overflow="error" default raises
+      even when fail_on_error is false).
+    - Chunks whose embedding fails are counted and reported via
+      RagIngestResult.chunks_skipped rather than dropped silently; if chunks
+      were extracted but none embedded, RagIngestError is raised so callers
+      cannot mistake a dead embedder for empty documents.
+
+    The optional progress callback receives (chunks_done, files_done,
+    current_source_path) as chunks are stored.
+    """
+    config = get_config()
+    embedding_model = embedding_model or config.get(TALKPIPE_EMBEDDING_MODEL_NAME)
+    embedding_source = embedding_source or config.get(TALKPIPE_EMBEDDING_MODEL_SOURCE)
+
+    embed_segment = LLMEmbed(
+        model=embedding_model,
+        source=embedding_source,
+        field=embedding_field,
+        set_as="vector",
+        fail_on_error=fail_on_error,
+        on_token_overflow=on_token_overflow,
+    )
+
+    dimension: Optional[int] = None
+    if preflight:
+        try:
+            vector = embed_segment.embedder.execute_one("talkpipe embedder preflight")
+        except Exception as exc:
+            raise EmbedderPreflightError(
+                f"a test embedding with {embedding_source}/{embedding_model} "
+                f"failed before any documents were read; check that the "
+                f"embedding model is configured correctly and that the "
+                f"provider is reachable. Provider error: {exc}"
+            ) from exc
+        dimension = len(vector) if vector is not None else None
+        if expected_dimension and dimension and dimension != expected_dimension:
+            raise EmbeddingDimensionMismatchError(
+                f"the existing database at '{path}' holds "
+                f"{expected_dimension}-dimensional vectors, but "
+                f"{embedding_source}/{embedding_model} produces "
+                f"{dimension}-dimensional vectors; adding to it would fail. "
+                f"Rebuild with overwrite, or restore the original embedder.",
+                expected=expected_dimension,
+                actual=dimension,
+            )
+
+    tally = _IngestTally()
+    pipeline = (
+        ProcessDocumentsSegment(
+            chunk_size=chunk_size,
+            shingle_size=shingle_size,
+            overlap=overlap,
+        )
+        | _tally_extracted_chunks(tally=tally)
+        | embed_segment
+        | add_to_lancedb(
+            path=path,
+            table_name=table_name,
+            doc_id_field=doc_id_field,
+            overwrite=overwrite,
+            batch_size=batch_size,
+        )
+        | _tally_stored_chunks(tally=tally, progress=progress)
+    )
+
+    patterns = [source_pattern] if isinstance(source_pattern, str) else list(source_pattern)
+    for _ in pipeline.transform(patterns):
+        pass
+    # Chunks consumed after the last stored one also failed to embed.
+    tally.chunks_skipped += tally.chunks_extracted - tally.extracted_at_last_store
+
+    if tally.chunks_indexed == 0 and tally.chunks_extracted > 0:
+        raise RagIngestError(
+            f"{tally.chunks_extracted} chunk(s) were extracted from the matched "
+            f"documents, but none could be embedded with "
+            f"{embedding_source}/{embedding_model}; check the log for the "
+            f"embedding errors."
+        )
+    return RagIngestResult(
+        chunks_indexed=tally.chunks_indexed,
+        chunks_skipped=tally.chunks_skipped,
+        files_indexed=len(tally.seen_sources),
+        embedding_source=embedding_source,
+        embedding_model=embedding_model,
+        dimension=dimension,
+    )

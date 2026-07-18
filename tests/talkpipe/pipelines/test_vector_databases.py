@@ -75,7 +75,7 @@ def test_process_documents_segment_strip_base64_disabled(tmp_path):
 def test_make_vector_database_indexes_default_shingles_as_content(tmp_path, monkeypatch):
     """Indexed documents should store the shingled text as the content chunk."""
     class FakeLLMEmbed(AbstractSegment):
-        def __init__(self, model=None, source=None, field=None, set_as=None, fail_on_error=True):
+        def __init__(self, model=None, source=None, field=None, set_as=None, fail_on_error=True, **kwargs):
             super().__init__()
             self.field = field
             self.set_as = set_as
@@ -695,3 +695,192 @@ def test_concurrent_write_and_read(requires_ollama, temp_db_path):
     found_ids = {result.doc_id for result in final_search[0]}
     assert "doc1" in found_ids or "doc2" in found_ids or "doc3" in found_ids, \
         "Should find at least one of the added documents"
+
+
+# --- build_rag_database (unified RAG ingestion driver) ---
+
+
+class _FakeEmbedAdapter:
+    """Stands in for a provider embedding adapter during preflight."""
+
+    def __init__(self, model=None, vector=(1.0, 2.0, 3.0), error=None):
+        self.vector = list(vector)
+        self.error = error
+
+    def execute_one(self, text):
+        if self.error is not None:
+            raise self.error
+        return list(self.vector)
+
+
+def _fake_llm_embed(drop_indices=()):
+    """Build a FakeLLMEmbed class that drops the given item indices.
+
+    Mirrors LLMEmbed(fail_on_error=False), which silently skips items whose
+    embedding fails. Instances expose .embedder so preflight works.
+    """
+
+    class FakeLLMEmbed(AbstractSegment):
+        def __init__(self, model=None, source=None, field=None, set_as=None, **kwargs):
+            super().__init__()
+            self.field = field
+            self.set_as = set_as
+            self.embedder = _FakeEmbedAdapter(model=model)
+
+        def transform(self, input_iter):
+            for i, item in enumerate(input_iter):
+                if i in drop_indices:
+                    continue
+                item[self.set_as] = [1.0, 2.0, 3.0]
+                yield item
+
+    return FakeLLMEmbed
+
+
+@pytest.fixture
+def rag_corpus(tmp_path):
+    """Two small text files that each produce exactly one shingle."""
+    docs = tmp_path / "docs"
+    docs.mkdir()
+    (docs / "a.txt").write_text("alpha " * 40)
+    (docs / "b.txt").write_text("bravo " * 40)
+    return str(docs / "*.txt")
+
+
+def test_build_rag_database_indexes_and_reports_counts(tmp_path, rag_corpus, monkeypatch):
+    from talkpipe.pipelines import vector_databases as vdb
+
+    monkeypatch.setattr(vdb, "LLMEmbed", _fake_llm_embed())
+    db_path = str(tmp_path / "db")
+
+    result = vdb.build_rag_database(
+        rag_corpus,
+        path=db_path,
+        embedding_model="fake-model",
+        embedding_source="fake-source",
+        overwrite=True,
+    )
+
+    assert result.chunks_indexed == 2
+    assert result.chunks_skipped == 0
+    assert result.files_indexed == 2
+    assert result.embedding_source == "fake-source"
+    assert result.embedding_model == "fake-model"
+    assert result.dimension == 3
+    store = LanceDBDocumentStore(path=db_path, table_name="docs", vector_dim=3)
+    assert store.count() == 2
+
+
+def test_build_rag_database_counts_skipped_chunks(tmp_path, rag_corpus, monkeypatch):
+    from talkpipe.pipelines import vector_databases as vdb
+
+    monkeypatch.setattr(vdb, "LLMEmbed", _fake_llm_embed(drop_indices=(0,)))
+
+    result = vdb.build_rag_database(
+        rag_corpus,
+        path=str(tmp_path / "db"),
+        embedding_model="fake-model",
+        embedding_source="fake-source",
+        overwrite=True,
+    )
+
+    assert result.chunks_indexed == 1
+    assert result.chunks_skipped == 1
+
+
+def test_build_rag_database_reports_progress(tmp_path, rag_corpus, monkeypatch):
+    from talkpipe.pipelines import vector_databases as vdb
+
+    monkeypatch.setattr(vdb, "LLMEmbed", _fake_llm_embed())
+    calls = []
+
+    vdb.build_rag_database(
+        rag_corpus,
+        path=str(tmp_path / "db"),
+        embedding_model="fake-model",
+        embedding_source="fake-source",
+        overwrite=True,
+        progress=lambda chunks, files, source: calls.append((chunks, files, source)),
+    )
+
+    assert [c[:2] for c in calls] == [(1, 1), (2, 2)]
+    assert all(c[2].endswith(".txt") for c in calls)
+
+
+def test_build_rag_database_preflight_failure_reads_no_documents(
+    tmp_path, rag_corpus, monkeypatch
+):
+    from talkpipe.pipelines import vector_databases as vdb
+
+    class BrokenEmbed(_fake_llm_embed()):
+        def __init__(self, **kwargs):
+            super().__init__(**kwargs)
+            self.embedder = _FakeEmbedAdapter(error=ConnectionError("server unreachable"))
+
+        def transform(self, input_iter):  # pragma: no cover - must never run
+            raise AssertionError("pipeline ran despite failed preflight")
+
+    monkeypatch.setattr(vdb, "LLMEmbed", BrokenEmbed)
+
+    with pytest.raises(vdb.EmbedderPreflightError, match="server unreachable"):
+        vdb.build_rag_database(
+            rag_corpus,
+            path=str(tmp_path / "db"),
+            embedding_model="fake-model",
+            embedding_source="fake-source",
+        )
+
+
+def test_build_rag_database_dimension_mismatch(tmp_path, rag_corpus, monkeypatch):
+    from talkpipe.pipelines import vector_databases as vdb
+
+    monkeypatch.setattr(vdb, "LLMEmbed", _fake_llm_embed())
+
+    with pytest.raises(vdb.EmbeddingDimensionMismatchError) as excinfo:
+        vdb.build_rag_database(
+            rag_corpus,
+            path=str(tmp_path / "db"),
+            embedding_model="fake-model",
+            embedding_source="fake-source",
+            expected_dimension=768,
+        )
+
+    assert excinfo.value.expected == 768
+    assert excinfo.value.actual == 3
+
+
+def test_build_rag_database_raises_when_nothing_embeds(tmp_path, rag_corpus, monkeypatch):
+    from talkpipe.pipelines import vector_databases as vdb
+
+    monkeypatch.setattr(vdb, "LLMEmbed", _fake_llm_embed(drop_indices=(0, 1)))
+
+    with pytest.raises(vdb.RagIngestError, match="none could be embedded"):
+        vdb.build_rag_database(
+            rag_corpus,
+            path=str(tmp_path / "db"),
+            embedding_model="fake-model",
+            embedding_source="fake-source",
+        )
+
+
+def test_make_vector_database_passes_on_token_overflow(monkeypatch, tmp_path):
+    from talkpipe.pipelines import vector_databases as vdb
+
+    captured = {}
+
+    class CapturingFake(_fake_llm_embed()):
+        def __init__(self, **kwargs):
+            captured.update(kwargs)
+            super().__init__(**kwargs)
+
+    monkeypatch.setattr(vdb, "LLMEmbed", CapturingFake)
+
+    MakeVectorDatabaseSegment(
+        embedding_field="text",
+        embedding_model="fake-model",
+        embedding_source="fake-source",
+        path=str(tmp_path / "db"),
+        on_token_overflow="truncate",
+    )
+
+    assert captured["on_token_overflow"] == "truncate"
