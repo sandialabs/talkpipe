@@ -173,7 +173,15 @@ class OllamaPromptAdapter(AbstractLLMPromptAdapter):
             # default local Ollama regardless of where the adapter is configured
             # to talk to.
             test_messages = [self._system_message] if self._system_message else [{"role": "user", "content": "test"}]
-            self._chat_completion(self._model_name, messages=test_messages, options={"temperature": self._temperature})
+            # num_predict=1 keeps this a reachability probe: without a cap the
+            # test request runs a full generation, which on a thinking model
+            # can take minutes and stalls callers such as the workbench
+            # settings endpoint.
+            self._chat_completion(
+                self._model_name,
+                messages=test_messages,
+                options={"temperature": self._temperature, "num_predict": 1},
+            )
             return True
         except Exception as e:
             logger.error(f"Model {self._model_name} is not available: {e}")

@@ -470,7 +470,12 @@ export function createEditor(parent, { onCursor, onChange, onRun } = {}) {
       // Inside the editor pane they get clipped at the pane edge on Firefox,
       // which falls back to absolute positioning within the pane's
       // overflow:hidden subtree, hiding any part that overlaps a side panel.
-      tooltips({ parent: document.body }),
+      // position "absolute" (not the default "fixed") because Firefox fails
+      // CodeMirror's fixed-positioning probe on every measure cycle, making
+      // each update position the tooltip as fixed and then rewrite it as
+      // absolute — a per-keystroke double paint that shows as jitter. The
+      // page never scrolls, so absolute and fixed coordinates agree.
+      tooltips({ parent: document.body, position: "absolute" }),
       chatterlangHover,
       chatterlangLinter,
       lintGutter(),

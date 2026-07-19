@@ -132,7 +132,10 @@ class OpenAIPromptAdapter(AbstractLLMPromptAdapter):
         """
         try:
             test_messages = [self._system_message] if self._system_message else [{"role": "user", "content": "test"}]
-            request_params = {"model": self._model_name, "messages": test_messages}
+            # Cap the probe: this only checks reachability, so don't pay for
+            # (or wait on) a full uncapped generation.
+            request_params = {"model": self._model_name, "messages": test_messages,
+                              "max_completion_tokens": 1}
 
             self._apply_temperature_if_explicit(request_params)
 

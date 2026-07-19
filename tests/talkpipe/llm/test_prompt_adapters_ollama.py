@@ -45,6 +45,30 @@ def test_ollama_shared_live_contract(request):
     run_shared_live_contract_checks(OLLAMA_SPEC, request)
 
 
+def test_ollama_availability_probe_caps_generation(monkeypatch):
+    # is_available() is called from latency-sensitive paths (the workbench
+    # settings endpoint probes it before responding); the test completion must
+    # not run an uncapped generation, which on a thinking model takes minutes.
+    _patch_ollama_constructor(monkeypatch)
+    adapter = OllamaPromptAdapter(model="llama3.2")
+    seen = {}
+
+    def fake_chat_completion(_model, messages=None, options=None, **_kwargs):
+        seen["options"] = options or {}
+
+        class DummyMessage:
+            content = "ok"
+
+        class DummyResponse:
+            message = DummyMessage()
+
+        return DummyResponse()
+
+    monkeypatch.setattr(adapter, "_chat_completion", fake_chat_completion)
+    assert adapter.is_available() is True
+    assert seen["options"].get("num_predict") == 1
+
+
 def test_ollama_chat_completion_uses_configured_server_url(monkeypatch):
     _patch_ollama_constructor(monkeypatch)
     adapter = OllamaPromptAdapter("llama3.2", server_url="http://custom")

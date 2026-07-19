@@ -63,6 +63,30 @@ def test_openai_shared_live_contract(request):
     run_shared_live_contract_checks(OPENAI_SPEC, request)
 
 
+def test_openai_availability_probe_caps_generation(monkeypatch):
+    # Same contract as the ollama adapter: the availability probe must cap the
+    # test completion instead of paying for a full uncapped generation.
+    _patch_openai_constructor(monkeypatch)
+    adapter = OpenAIPromptAdapter("gpt-4.1-nano")
+    seen = {}
+
+    class DummyCompletions:
+        @staticmethod
+        def create(**kwargs):
+            seen.update(kwargs)
+            return object()
+
+    class DummyChat:
+        completions = DummyCompletions()
+
+    class DummyClient:
+        chat = DummyChat()
+
+    adapter.client = DummyClient()
+    assert adapter.is_available() is True
+    assert seen.get("max_completion_tokens") == 1
+
+
 def test_openai_responses_request_switches_between_parse_and_create(monkeypatch):
     _patch_openai_constructor(monkeypatch)
     adapter = OpenAIPromptAdapter("gpt-4.1-nano")

@@ -26,6 +26,20 @@
   - Hover help is styled again: current CodeMirror wraps hover content in a
     `.cm-tooltip-hover` host, so the old `.cm-tooltip.workbench-hover` compound
     selector never matched and the card rendered unstyled/unbounded.
+  - Editor hint popups no longer jitter on Firefox. Firefox fails CodeMirror's
+    fixed-positioning probe on every measure cycle, so each update positioned
+    the tooltip as fixed and then rewrote it as absolute — a per-keystroke
+    double paint. Tooltips now use absolute positioning explicitly.
+  - The heuristic "Likely next" list and the editor autocomplete no longer wait
+    for the LLM before appearing. The suggestions panel used to stay hidden
+    until `GET /api/settings` returned, and that endpoint probes the model
+    before answering; the panel now shows as soon as the (fast) stats API
+    responds, with the AI section reading "Checking LLM availability…" until
+    the probe resolves.
+  - The ollama and openai availability probes cap their test completion at one
+    token (as the anthropic adapter already did). An uncapped probe ran a full
+    generation — minutes on a thinking model — before the workbench settings
+    endpoint could answer.
   - Interactive chat now shows the real error in the output pane. Because the
     pipeline runs lazily while the response streams, a provider failure
     (e.g. a missing Ollama model, whose message includes an `ollama pull` hint)

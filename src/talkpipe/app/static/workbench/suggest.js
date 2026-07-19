@@ -306,14 +306,25 @@ export function notifyCursorMoved() {
 
 export async function initSuggestions(editorHandle) {
   editor = editorHandle;
-  const hasStats = await refreshStats();
-  const settings = await fetchLlmStatus();
 
+  // The settings response includes the resolved LLM status, and the server
+  // probes the model before answering — on a slow or unreachable endpoint
+  // that takes as long as an LLM call. The heuristic "likely next" list only
+  // needs the (fast) stats API, so it must never wait for settings: show the
+  // panel as soon as stats arrive and let the LLM section fill in later.
+  const settingsPromise = fetchLlmStatus();
+  const hasStats = await refreshStats();
+
+  if (hasStats) {
+    $("suggest-panel").classList.remove("hidden");
+    renderHeuristics();
+    setLlmStatusText("Checking LLM availability…");
+  }
+
+  const settings = await settingsPromise;
   if (!hasStats && !settings) return; // neither API exists: stay hidden
 
   $("suggest-panel").classList.remove("hidden");
-  renderHeuristics();
-
   if (settings) {
     $("settingsButton").hidden = false;
     $("settingsButton").addEventListener("click", openSettings);
@@ -323,6 +334,7 @@ export async function initSuggestions(editorHandle) {
     $("llmSuggestSection").classList.add("hidden");
     $("suggestButton").classList.add("hidden");
   }
+  if (!hasStats) renderHeuristics();
 
   // Stats change after saves; refresh when the pipeline list mutates.
   document.addEventListener("workbench:saved", async () => {
