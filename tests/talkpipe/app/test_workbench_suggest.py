@@ -94,8 +94,12 @@ def test_suggest_unavailable_without_model(client):
     data = response.json()
     assert data["available"] is False
     assert data["suggestions"] == []
-    # The response says why, so API consumers aren't left guessing.
-    assert data["error"] == "no model configured"
+    # The response says why and how to fix it: an LLM endpoint must be
+    # configured, and any supported provider works — not just ollama.
+    assert "no LLM endpoint configured" in data["error"]
+    for provider in ("ollama", "openai", "anthropic"):
+        assert provider in data["error"]
+    assert "Settings" in data["error"]
 
 
 def test_suggest_happy_path(with_fake_llm):

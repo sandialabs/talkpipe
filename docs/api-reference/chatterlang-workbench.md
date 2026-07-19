@@ -187,6 +187,10 @@ Everything the UI does is available over HTTP on the same port:
 - Verify LLM connectivity (Ollama/OpenAI)
 - Check API key configuration
 
+**AI suggestions say no LLM endpoint is configured**
+- Suggestions work with any supported provider (ollama, openai, anthropic) — not just Ollama
+- Pick a provider and model in the Settings dialog (⚙), start the workbench with `--suggest-source` / `--suggest-model`, or set the TalkPipe default model configuration
+
 **AI suggestions say the model is not reachable**
 - If the message instead says a provider is *not installed* (e.g. "Ollama is not installed. Please install it with: `pip install talkpipe[ollama]`"), install that extra and restart — the model was never the problem
 - If Ollama runs on another machine, set `TALKPIPE_OLLAMA_SERVER_URL` and restart the workbench

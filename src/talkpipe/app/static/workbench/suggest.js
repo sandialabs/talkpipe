@@ -276,7 +276,9 @@ function applySettings(settings) {
   llmStatus = settings.resolved || { available: false };
   if (llmStatus.available) {
     setLlmStatusText(`Ready: ${llmStatus.source} / ${llmStatus.model}`);
-  } else if (llmStatus.reason && llmStatus.reason !== "no model configured") {
+  } else if (llmStatus.reason) {
+    // The server's reason is self-contained and actionable (it names the
+    // supported providers and where to configure them).
     setLlmStatusText(`LLM unavailable: ${llmStatus.reason}`);
   } else {
     setLlmStatusText("No LLM configured — set one in Settings (⚙).");

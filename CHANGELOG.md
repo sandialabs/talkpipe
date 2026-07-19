@@ -3,10 +3,29 @@
 ## Unreleased
 
 - ChatterLang Workbench fixes found in usability testing:
-  - Editor hint popups (the autocomplete list and the hover help) now carry an
-    explicit workbench-owned `z-index`, so a popup that overlaps the right-hand
-    Suggestions panel is always drawn above it instead of relying on the vendored
-    CodeMirror default stacking.
+  - Editor hint popups (the autocomplete list and the hover help) now mount on
+    `document.body` (CodeMirror `tooltips({parent})`) and carry an explicit
+    workbench-owned `z-index`. Inside the editor pane, Firefox's fallback to
+    absolute tooltip positioning clipped any part of a hint overlapping the
+    right-hand Suggestions panel; hints now always draw above the panels in all
+    browsers.
+  - Clicking a suggestion in the Suggestions sidebar now replaces the partial
+    (or complete) component/parameter name the cursor sits against instead of
+    appending after it — typing `llmP` and clicking `llmPrompt` yields
+    `llmPrompt`, not `llmPllmPrompt`.
+  - The Output and Logs panes scroll to the bottom as new lines arrive.
+    Previously a long output grew the pane beyond its box (flex min-height),
+    so the pane never actually scrolled.
+  - New copy and save buttons next to the clear (trash) button on the
+    Output/Logs bar copy the visible pane to the clipboard or download it as a
+    text file.
+  - When no suggestion LLM is configured, the sidebar status and `/api/suggest`
+    error now spell out that an LLM endpoint needs to be configured and name
+    every supported provider (ollama, openai, anthropic, …) rather than the
+    bare "no model configured".
+  - Hover help is styled again: current CodeMirror wraps hover content in a
+    `.cm-tooltip-hover` host, so the old `.cm-tooltip.workbench-hover` compound
+    selector never matched and the card rendered unstyled/unbounded.
   - Interactive chat now shows the real error in the output pane. Because the
     pipeline runs lazily while the response streams, a provider failure
     (e.g. a missing Ollama model, whose message includes an `ollama pull` hint)

@@ -73,7 +73,11 @@
       <div id="bottom-tabs">
         <button class="tab active" data-tab="output">Output</button>
         <button class="tab" data-tab="logs">Logs</button>
-        <button id="clearOutput" class="icon-button" title="Clear">&#128465;</button>
+        <div class="tab-actions">
+          <button id="copyPane" class="icon-button" title="Copy contents to clipboard">&#128203;</button>
+          <button id="savePane" class="icon-button" title="Save contents to a file">&#128190;</button>
+          <button id="clearOutput" class="icon-button" title="Clear">&#128465;</button>
+        </div>
       </div>
       <div id="output" class="tab-pane"></div>
       <div id="log-content" class="tab-pane hidden"></div>

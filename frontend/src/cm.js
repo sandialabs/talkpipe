@@ -14,6 +14,7 @@ export {
   rectangularSelection,
   crosshairCursor,
   hoverTooltip,
+  tooltips,
   placeholder,
 } from "@codemirror/view";
 export {

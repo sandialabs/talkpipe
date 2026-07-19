@@ -46,9 +46,60 @@ function selectTab(name) {
   }
 }
 
+function activeTabName() {
+  return document.querySelector("#bottom-tabs .tab.active").dataset.tab;
+}
+
+// The pane's entries are one <div> per line; join them explicitly rather than
+// relying on innerText, which collapses the line breaks when the pane is hidden.
+function activePaneText() {
+  const pane = tabPanes[activeTabName()];
+  const lines = [...pane.children].map((child) => child.textContent);
+  return lines.length ? lines.join("\n") : pane.textContent;
+}
+
 $("clearOutput").addEventListener("click", () => {
-  const active = document.querySelector("#bottom-tabs .tab.active").dataset.tab;
-  tabPanes[active].textContent = "";
+  tabPanes[activeTabName()].textContent = "";
+});
+
+// navigator.clipboard only exists in secure contexts (https or localhost);
+// served over plain http on a LAN address the workbench needs the
+// old execCommand path.
+async function copyToClipboard(text) {
+  if (navigator.clipboard && window.isSecureContext) {
+    await navigator.clipboard.writeText(text);
+    return;
+  }
+  const textarea = document.createElement("textarea");
+  textarea.value = text;
+  textarea.style.position = "fixed";
+  textarea.style.opacity = "0";
+  document.body.appendChild(textarea);
+  textarea.select();
+  const ok = document.execCommand("copy");
+  textarea.remove();
+  if (!ok) throw new Error("copy command failed");
+}
+
+$("copyPane").addEventListener("click", async () => {
+  const button = $("copyPane");
+  try {
+    await copyToClipboard(activePaneText());
+    button.textContent = "✓";
+  } catch (e) {
+    button.textContent = "✗";
+  }
+  setTimeout(() => { button.innerHTML = "&#128203;"; }, 1200);
+});
+
+$("savePane").addEventListener("click", () => {
+  const name = activeTabName();
+  const blob = new Blob([activePaneText()], { type: "text/plain" });
+  const link = document.createElement("a");
+  link.href = URL.createObjectURL(blob);
+  link.download = `workbench-${name}.txt`;
+  link.click();
+  URL.revokeObjectURL(link.href);
 });
 
 function scrollToBottom(element) {

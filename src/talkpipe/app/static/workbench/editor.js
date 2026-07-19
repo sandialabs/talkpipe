@@ -11,6 +11,7 @@ import {
   highlightSpecialChars,
   drawSelection,
   hoverTooltip,
+  tooltips,
   placeholder,
   defaultKeymap,
   history,
@@ -465,6 +466,11 @@ export function createEditor(parent, { onCursor, onChange, onRun } = {}) {
       syntaxHighlighting(defaultHighlightStyle, { fallback: true }),
       chatterlangLanguage,
       autocompletion({ override: [chatterlangCompletions] }),
+      // Mount tooltips (autocomplete popup, hover help) on document.body.
+      // Inside the editor pane they get clipped at the pane edge on Firefox,
+      // which falls back to absolute positioning within the pane's
+      // overflow:hidden subtree, hiding any part that overlaps a side panel.
+      tooltips({ parent: document.body }),
       chatterlangHover,
       chatterlangLinter,
       lintGutter(),
@@ -494,11 +500,18 @@ export function createEditor(parent, { onCursor, onChange, onRun } = {}) {
         changes: { from: 0, to: view.state.doc.length, insert: text },
       });
     },
+    // Inserts text at the cursor. Any partial word the cursor sits directly
+    // after is replaced rather than appended to (typing "llmP" and clicking
+    // the llmPrompt suggestion must not produce "llmPllmPrompt") — matching
+    // cursorContext(), which already treats that word as a partial being typed.
     insertAtCursor: (text) => {
       const head = view.state.selection.main.head;
+      const line = view.state.doc.lineAt(head);
+      const partial = view.state.sliceDoc(line.from, head).match(/[@\w]+$/);
+      const from = partial ? head - partial[0].length : head;
       view.dispatch({
-        changes: { from: head, insert: text },
-        selection: { anchor: head + text.length },
+        changes: { from, to: head, insert: text },
+        selection: { anchor: from + text.length },
       });
       view.focus();
     },

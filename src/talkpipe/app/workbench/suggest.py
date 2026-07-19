@@ -61,7 +61,12 @@ def resolve_llm_status(settings: Optional[dict] = None):
         or cfg.get(TALKPIPE_MODEL_NAME)
     )
     if not source or not model:
-        return None, "no model configured"
+        known = ", ".join(getPromptSources())
+        return None, (
+            "no LLM endpoint configured — suggestions need a provider "
+            f"({known}) and a model name; set them in Settings (⚙), with "
+            "--suggest-source/--suggest-model, or via the default model config"
+        )
     if source not in getPromptSources():
         logger.warning(f"Unknown suggestion LLM source: {source}")
         known = ", ".join(getPromptSources())
