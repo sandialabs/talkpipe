@@ -188,9 +188,13 @@ Everything the UI does is available over HTTP on the same port:
 - Check API key configuration
 
 **AI suggestions say the model is not reachable**
+- If the message instead says a provider is *not installed* (e.g. "Ollama is not installed. Please install it with: `pip install talkpipe[ollama]`"), install that extra and restart — the model was never the problem
 - If Ollama runs on another machine, set `TALKPIPE_OLLAMA_SERVER_URL` and restart the workbench
 - Verify the model is pulled on the Ollama server (`ollama pull <model>`)
 - If you started with `--no-llm-suggestions`, LLM suggestions stay off regardless of Settings
+
+**Interactive chat shows "Error: …" in the output pane**
+- The message is the real error from the provider (e.g. a missing model with a `ollama pull` hint); the bottom **Logs** tab has the full detail and stack context
 
 **My `--suggest-model` flag seems ignored**
 - A model saved in the Settings dialog (stored in `<workspace>/settings.json`) takes precedence over the CLI flags; clear the fields in Settings (choose "(default)") or remove `settings.json` to fall back to the flags

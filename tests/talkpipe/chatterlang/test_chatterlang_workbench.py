@@ -99,6 +99,34 @@ def test_interactive_go(client):
     output = "".join(list(go_response.iter_text()))
     assert "Interactive response to: hello" in output
 
+def test_interactive_go_streams_error_instead_of_aborting(client, monkeypatch):
+    # A pipeline that fails lazily (e.g. an unreachable LLM model) raises while
+    # the response is already streaming, so we cannot switch to an error status.
+    # The real message must be written into the stream body rather than dropped
+    # (which the browser would render as a meaningless "network error").
+    def failing_compile(script):
+        def compiled_instance(inputs):
+            def gen():
+                raise ValueError(
+                    "Model 'no-such' is not available. Run `ollama pull no-such`."
+                )
+                yield  # pragma: no cover - makes this function a generator
+            return gen()
+        return compiled_instance
+
+    monkeypatch.setattr(chatterlang_workbench, "compile", failing_compile)
+    monkeypatch.setattr("talkpipe.chatterlang.compiler.compile", failing_compile)
+
+    compile_response = client.post("/compile", json={"script": "|chat"})
+    assert compile_response.status_code == 200
+    script_id = compile_response.json()["id"]
+
+    go_response = client.post("/go", json={"id": script_id, "user_input": "hi"})
+    assert go_response.status_code == 200
+    output = "".join(list(go_response.iter_text()))
+    assert "Model 'no-such' is not available" in output
+    assert "ollama pull no-such" in output
+
 def test_interactive_go_not_found(client):
     # Call /go with a non-existent script id.
     response = client.post("/go", json={"id": str(uuid.uuid4()), "user_input": "hello"})

@@ -77,6 +77,15 @@ def resolve_llm(settings: Optional[dict] = None):
 
 def unreachable_reason(source: str, model: str) -> str:
     """An actionable message for a configured-but-unreachable model."""
+    # A missing or broken provider dependency surfaces as an ImportError from
+    # the adapter's is_available() (e.g. "Ollama is not installed. Please install
+    # it with: pip install talkpipe[ollama]"). That is a different problem than
+    # connectivity — and its message already tells the user exactly what to do —
+    # so surface it verbatim instead of the misleading "not reachable" text, which
+    # would send them chasing TALKPIPE_OLLAMA_SERVER_URL / `ollama pull`.
+    cause = _availability_cause.get((source, model))
+    if isinstance(cause, ImportError):
+        return str(cause)
     if source == "ollama":
         from talkpipe.util.constants import OLLAMA_SERVER_URL
         url = get_config().get(OLLAMA_SERVER_URL) or "http://localhost:11434"
@@ -89,6 +98,10 @@ def unreachable_reason(source: str, model: str) -> str:
 
 
 _availability_cache = {}
+# Records the exception (if any) from the most recent failed availability check,
+# so unreachable_reason can distinguish a missing dependency from a connectivity
+# problem. Kept in step with _availability_cache.
+_availability_cause = {}
 AVAILABILITY_TTL_SECONDS = 60
 
 
@@ -99,18 +112,22 @@ def check_availability(source: str, model: str) -> bool:
     now = time.monotonic()
     if cached and now - cached[1] < AVAILABILITY_TTL_SECONDS:
         return cached[0]
+    cause = None
     try:
         adapter = getPromptAdapter(source)(model=model)
         available = bool(adapter.is_available())
     except Exception as e:
         logger.info(f"Suggestion LLM unavailable ({source}/{model}): {e}")
         available = False
+        cause = e
     _availability_cache[key] = (available, now)
+    _availability_cause[key] = cause
     return available
 
 
 def invalidate_availability_cache():
     _availability_cache.clear()
+    _availability_cause.clear()
 
 
 def _registered_names() -> set:

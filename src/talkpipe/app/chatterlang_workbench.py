@@ -309,11 +309,19 @@ def interactive_go(request: InteractiveRequest):
     if not script_info["interactive"]:
         logging.error(f"Non-interactive script called with /go: {request.id}")
         raise HTTPException(status_code=400, detail="This script is not interactive")
-    try:
-        logging.info(f"Processing interactive input for script: {request.id}")
-        output_iterator = script_info["instance"]([request.user_input])
-        # Create a wrapper generator that ensures all items are string-serializable
-        def ensure_serializable():
+    logging.info(f"Processing interactive input for script: {request.id}")
+
+    # Create a wrapper generator that ensures all items are string-serializable.
+    # The pipeline is lazy (e.g. the LLM call in llmPrompt happens as items are
+    # consumed here), so a failure typically occurs *after* the StreamingResponse
+    # has already sent HTTP 200 and its headers. We therefore cannot switch to an
+    # error status code; if we let the exception propagate, the connection aborts
+    # and the browser reports a meaningless "network error". Instead, catch it and
+    # yield the real, actionable message into the stream body so it shows up in the
+    # output pane (mirroring the /compile error text).
+    def ensure_serializable():
+        try:
+            output_iterator = script_info["instance"]([request.user_input])
             for item in output_iterator:
                 # Handle Pydantic models and other complex objects
                 if hasattr(item, 'model_dump_json'):
@@ -325,10 +333,11 @@ def interactive_go(request: InteractiveRequest):
                 else:
                     # Pass through strings and other basic types
                     yield str(item)
-        return StreamingResponse(ensure_serializable(), media_type="text/plain")
-    except Exception as e:
-        logging.error(f"Interactive execution failed: {str(e)}")
-        raise HTTPException(status_code=400, detail=f"Interactive execution error: {e}")
+        except Exception as e:
+            logging.error(f"Interactive execution failed: {str(e)}")
+            yield f"\nError: {e}"
+
+    return StreamingResponse(ensure_serializable(), media_type="text/plain")
 
 @app.get("/", response_class=HTMLResponse)
 def get_ui():

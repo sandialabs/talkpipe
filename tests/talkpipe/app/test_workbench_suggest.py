@@ -218,6 +218,31 @@ def test_resolved_reason_unreachable_ollama_mentions_server_url(with_fake_llm):
     assert "test-model" in resolved["reason"]
 
 
+def test_resolved_reason_surfaces_missing_dependency(with_fake_llm, monkeypatch):
+    # When the provider package is not installed, is_available() raises an
+    # ImportError carrying an install hint. The status must surface that hint
+    # instead of the generic "not reachable" / TALKPIPE_OLLAMA_SERVER_URL text,
+    # which would send the user chasing the wrong fix.
+    class MissingDepAdapter:
+        def __init__(self, model, **kwargs):
+            pass
+
+        def is_available(self):
+            raise ImportError(
+                "Ollama is not installed. Please install it with: "
+                "pip install talkpipe[ollama]"
+            )
+
+    monkeypatch.setattr(suggest, "getPromptAdapter", lambda name: MissingDepAdapter)
+    suggest.invalidate_availability_cache()
+
+    resolved = with_fake_llm.get("/api/settings").json()["resolved"]
+    assert resolved["available"] is False
+    assert "pip install talkpipe[ollama]" in resolved["reason"]
+    assert "not reachable" not in resolved["reason"]
+    assert "TALKPIPE_OLLAMA_SERVER_URL" not in resolved["reason"]
+
+
 def test_resolved_reason_unknown_stored_source(with_fake_llm, tmp_path):
     # A stale settings.json can hold a source the install no longer knows.
     (tmp_path / "settings.json").write_text(json.dumps({

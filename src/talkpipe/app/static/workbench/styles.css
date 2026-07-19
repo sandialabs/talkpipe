@@ -230,6 +230,17 @@ button:disabled { background: #9eabc9; cursor: not-allowed; opacity: 0.7; }
 }
 #editor .cm-gutters { background: #f8f9fa; border-right: 1px solid #e5e7eb; }
 
+/* Editor tooltips (autocomplete popup, hover hints) must sit above the side
+   panels. The vendored CodeMirror base theme scopes its own rule as
+   `.<theme-class> .cm-tooltip { z-index: 500 }`, whose specificity (0,2,0)
+   outranks a plain `.cm-tooltip` selector regardless of source order, so the
+   override needs !important to win. Make the ordering explicit and
+   workbench-owned so a tooltip overlapping the Suggestions panel can never
+   paint underneath it. */
+.cm-tooltip {
+  z-index: 1000 !important;
+}
+
 .cm-tooltip.workbench-hover {
   max-width: 480px;
   padding: 8px 10px;

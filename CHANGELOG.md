@@ -2,6 +2,24 @@
 
 ## Unreleased
 
+- ChatterLang Workbench fixes found in usability testing:
+  - Editor hint popups (the autocomplete list and the hover help) now carry an
+    explicit workbench-owned `z-index`, so a popup that overlaps the right-hand
+    Suggestions panel is always drawn above it instead of relying on the vendored
+    CodeMirror default stacking.
+  - Interactive chat now shows the real error in the output pane. Because the
+    pipeline runs lazily while the response streams, a provider failure
+    (e.g. a missing Ollama model, whose message includes an `ollama pull` hint)
+    previously aborted the stream and the browser reported a meaningless
+    "network error"; the actual message is now written into the stream body.
+  - The suggestions sidebar no longer mislabels a missing provider package as an
+    unreachable model. When a provider dependency is not installed, the status
+    now surfaces the install hint (e.g. "Ollama is not installed. Please install
+    it with: `pip install talkpipe[ollama]`") instead of pointing at
+    `TALKPIPE_OLLAMA_SERVER_URL`.
+  - The workbench masthead now reads "ChatterLang Workbench", matching the page
+    title, startup banner, `--help`, and documentation.
+
 - Added `build_rag_database()` (talkpipe.pipelines.vector_databases), a
   unified RAG-ingestion driver shared by the `makevectordatabase` CLI and
   downstream applications such as talkpipe-vault. Internally it is a
