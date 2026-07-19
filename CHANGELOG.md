@@ -20,9 +20,9 @@
     Output/Logs bar copy the visible pane to the clipboard or download it as a
     text file.
   - When no suggestion LLM is configured, the sidebar status and `/api/suggest`
-    error now spell out that an LLM endpoint needs to be configured and name
-    every supported provider (ollama, openai, anthropic, …) rather than the
-    bare "no model configured".
+    error now spell out that an LLM endpoint needs to be configured and give
+    example providers ("such as ollama, openai, anthropic, ..." — plugins can
+    register additional sources) rather than the bare "no model configured".
   - Hover help is styled again: current CodeMirror wraps hover content in a
     `.cm-tooltip-hover` host, so the old `.cm-tooltip.workbench-hover` compound
     selector never matched and the card rendered unstyled/unbounded.

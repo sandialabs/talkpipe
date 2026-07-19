@@ -188,7 +188,7 @@ Everything the UI does is available over HTTP on the same port:
 - Check API key configuration
 
 **AI suggestions say no LLM endpoint is configured**
-- Suggestions work with any supported provider (ollama, openai, anthropic) — not just Ollama
+- Suggestions work with any supported provider (such as ollama, openai, or anthropic — plugins can register additional sources), not just Ollama
 - Pick a provider and model in the Settings dialog (⚙), start the workbench with `--suggest-source` / `--suggest-model`, or set the TalkPipe default model configuration
 
 **AI suggestions say the model is not reachable**

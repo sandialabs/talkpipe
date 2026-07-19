@@ -61,11 +61,14 @@ def resolve_llm_status(settings: Optional[dict] = None):
         or cfg.get(TALKPIPE_MODEL_NAME)
     )
     if not source or not model:
-        known = ", ".join(getPromptSources())
+        # Named providers are examples, not an exhaustive list — plugins can
+        # register additional sources. The eliza toy adapter is left out.
+        known = ", ".join(s for s in getPromptSources() if s != "eliza")
         return None, (
             "no LLM endpoint configured — suggestions need a provider "
-            f"({known}) and a model name; set them in Settings (⚙), with "
-            "--suggest-source/--suggest-model, or via the default model config"
+            f"(such as {known}, ...) and a model name; set them in Settings "
+            "(⚙), with --suggest-source/--suggest-model, or via the default "
+            "model config"
         )
     if source not in getPromptSources():
         logger.warning(f"Unknown suggestion LLM source: {source}")

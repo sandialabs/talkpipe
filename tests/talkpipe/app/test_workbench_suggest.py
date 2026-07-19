@@ -95,10 +95,14 @@ def test_suggest_unavailable_without_model(client):
     assert data["available"] is False
     assert data["suggestions"] == []
     # The response says why and how to fix it: an LLM endpoint must be
-    # configured, and any supported provider works — not just ollama.
+    # configured, and any supported provider works — not just ollama. The
+    # providers are examples ("such as"), since plugins can register more,
+    # and the eliza toy adapter is not suggested.
     assert "no LLM endpoint configured" in data["error"]
+    assert "such as" in data["error"]
     for provider in ("ollama", "openai", "anthropic"):
         assert provider in data["error"]
+    assert "eliza" not in data["error"]
     assert "Settings" in data["error"]
 
 
