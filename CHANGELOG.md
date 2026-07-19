@@ -30,6 +30,19 @@
     fixed-positioning probe on every measure cycle, so each update positioned
     the tooltip as fixed and then rewrote it as absolute — a per-keystroke
     double paint. Tooltips now use absolute positioning explicitly.
+  - The autocomplete popup no longer slides around when it opens near the right
+    edge of the window. There CodeMirror places it at (viewport right − popup
+    width), and the popup's natural width changes as typing filters the option
+    list, moving it horizontally on every keystroke; the list now has a fixed
+    width so the clamped position is constant.
+  - Editor hints can no longer be permanently lost to a slow server start. The
+    component reference powers the autocomplete popup, hover help, and the
+    sidebar's "Likely next" list, but the frontend gave up fetching it after
+    ~22s of cache-warming 503s — leaving every non-LLM hint dead until a page
+    reload. It now retries through the whole warm-up, the sidebar shows
+    "Loading the component reference…" (or a failure notice) instead of an
+    empty list, and everything re-renders by itself the moment the reference
+    arrives.
   - The heuristic "Likely next" list and the editor autocomplete no longer wait
     for the LLM before appearing. The suggestions panel used to stay hidden
     until `GET /api/settings` returned, and that endpoint probes the model

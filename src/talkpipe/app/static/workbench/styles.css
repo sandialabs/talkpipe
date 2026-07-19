@@ -241,6 +241,16 @@ button:disabled { background: #9eabc9; cursor: not-allowed; opacity: 0.7; }
   z-index: 1000 !important;
 }
 
+/* Fixed width for the autocomplete list. Its natural width changes as typing
+   filters the options, and near the right screen edge CodeMirror positions
+   the popup at (viewport right - width) — so a content-driven width makes the
+   popup slide horizontally on every keystroke there. A constant width keeps
+   it still. */
+.cm-tooltip.cm-tooltip-autocomplete > ul {
+  width: 420px;
+  max-width: 95vw;
+}
+
 /* CodeMirror mounts hover content as a .cm-tooltip-section inside a
    .cm-tooltip-hover host element, so the box styling goes on the host and
    the content styling on the .workbench-hover div created in editor.js. */

@@ -41,15 +41,24 @@ import {
 
 let referencePromise = null;
 let referenceData = null; // {byName: Map, sources: [], segments: []}
+let referenceStatus = "loading"; // "loading" | "ready" | "failed"
 let heuristicStats = null; // {bigrams: {...}, starts: {...}}
 
 async function fetchReferenceOnce() {
-  for (let attempt = 0; attempt < 5; attempt++) {
+  // The server answers 503 while its component cache warms; with many
+  // plugin components that can take a long while, and every editor hint
+  // (autocomplete, hover, the sidebar's likely-next list) is dead until the
+  // reference arrives — so keep retrying through the whole warm-up instead
+  // of giving up. Only a definitive error response or repeated network
+  // failures abandon the load.
+  const delay = (ms) => new Promise((r) => setTimeout(r, ms));
+  let networkErrors = 0;
+  for (let attempt = 0; attempt < 120; attempt++) {
     try {
       const resp = await fetch("/api/reference");
       if (resp.status === 503) {
         // cache still warming
-        await new Promise((r) => setTimeout(r, 1500 * (attempt + 1)));
+        await delay(Math.min(1000 * (attempt + 1), 5000));
         continue;
       }
       if (!resp.ok) return null;
@@ -64,7 +73,8 @@ async function fetchReferenceOnce() {
       }
       return { byName, sources, segments };
     } catch (e) {
-      return null;
+      if (++networkErrors > 5) return null;
+      await delay(2000);
     }
   }
   return null;
@@ -74,6 +84,10 @@ export function loadReference() {
   if (!referencePromise) {
     referencePromise = fetchReferenceOnce().then((data) => {
       referenceData = data;
+      referenceStatus = data ? "ready" : "failed";
+      // Lets the suggestions sidebar re-render its list without waiting for
+      // the next keystroke or cursor move.
+      document.dispatchEvent(new CustomEvent("workbench:reference-loaded"));
       return data;
     });
   }
@@ -82,6 +96,10 @@ export function loadReference() {
 
 export function getReference() {
   return referenceData;
+}
+
+export function getReferenceStatus() {
+  return referenceStatus;
 }
 
 export function setHeuristicStats(stats) {

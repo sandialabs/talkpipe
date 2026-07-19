@@ -2,7 +2,7 @@
 // /api/suggest/stats) plus LLM suggestions (/api/suggest) with settings.
 // The whole panel stays hidden if neither API is available.
 
-import { setHeuristicStats, getReference, cursorContext } from "./editor.js";
+import { setHeuristicStats, getReference, getReferenceStatus, cursorContext } from "./editor.js";
 
 const $ = (id) => document.getElementById(id);
 
@@ -115,9 +115,18 @@ function renderHeuristics() {
   if (ranked.length === 0) {
     const empty = document.createElement("div");
     empty.className = "suggest-status";
-    empty.textContent = ctx.prev
-      ? `No history for what follows "${ctx.prev}" yet.`
-      : "Save some pipelines to build up suggestions.";
+    // Candidates are filtered against the component reference, so a missing
+    // reference empties the list no matter what the stats hold — say so
+    // instead of showing a misleading "no history" message (or nothing).
+    if (!getReference()) {
+      empty.textContent = getReferenceStatus() === "failed"
+        ? "Component reference unavailable — editor hints are disabled (check the server logs)."
+        : "Loading the component reference…";
+    } else {
+      empty.textContent = ctx.prev
+        ? `No history for what follows "${ctx.prev}" yet.`
+        : "Save some pipelines to build up suggestions.";
+    }
     list.appendChild(empty);
     return;
   }
@@ -340,5 +349,12 @@ export async function initSuggestions(editorHandle) {
   document.addEventListener("workbench:saved", async () => {
     await refreshStats();
     renderHeuristics();
+  });
+
+  // The heuristic list filters against the component reference, which loads
+  // (possibly slowly) in parallel — re-render when it arrives so the list
+  // populates without waiting for the next keystroke.
+  document.addEventListener("workbench:reference-loaded", () => {
+    if (stats) renderHeuristics();
   });
 }
