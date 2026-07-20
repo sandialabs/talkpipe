@@ -1,6 +1,8 @@
 # Changelog
 
-## Unreleased
+## Unreleased 
+
+## 0.14.0
 
 - ChatterLang Workbench fixes found in usability testing:
   - Editor hint popups (the autocomplete list and the hover help) now mount on
@@ -66,7 +68,7 @@
   - The workbench masthead now reads "ChatterLang Workbench", matching the page
     title, startup banner, `--help`, and documentation.
 
-- Added `build_rag_database()` (talkpipe.pipelines.vector_databases), a
+- Added `build_rag_database()` (talkpipe.pipelines.vector\_databases), a
   unified RAG-ingestion driver shared by the `makevectordatabase` CLI and
   downstream applications such as talkpipe-vault. Internally it is a
   standard `|` pipeline — `ProcessDocumentsSegment | (tally) | LLMEmbed |
@@ -83,7 +85,7 @@
   "chunks extracted but none embedded" raises `RagIngestError` so a dead
   embedder cannot masquerade as empty documents. The CLI now reports
   files/skipped counts, gained `--on_token_overflow`
-  (error|truncate|chunk_pool, default truncate — a behavior change: an
+  (error|truncate|chunk\_pool, default truncate — a behavior change: an
   over-long chunk previously aborted the run), and exits non-zero with a
   clear message on ingest errors. `MakeVectorDatabaseSegment` gained an
   `on_token_overflow` passthrough (default `error`, unchanged).
@@ -105,7 +107,7 @@
     component's parameters instead of unrelated components.
   - The prompt now includes full parameter signatures (name, type, default,
     description) for the most plausible candidates at the cursor and requires
-    double-quoted string values, so params_hint suggestions use real
+    double-quoted string values, so params\_hint suggestions use real
     parameter names and valid syntax.
 - Documented `llmPrompt`'s model sources as a plugin architecture: `ollama`,
   `openai`, and `anthropic` ship built-in, additional sources can be
