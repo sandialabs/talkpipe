@@ -44,6 +44,11 @@ For the full story, see **[Architecture](docs/architecture/)**. Define a pipelin
 - **[chatterlang_workbench](docs/api-reference/chatterlang-workbench.md)**
   Launches a browser-based IDE for writing, testing, and running ChatterLang scripts. It provides an editor with autocomplete and live error checking, real-time execution, pipeline save/load, next-component suggestions, logging, and documentation lookup.
 
+<video width="640" height="360" controls>
+  <source src="docs/workbench_demo.mp4" type="video/mp4">
+  Your browser does not support the video tag.
+</video>
+
 - **[chatterlang_script](docs/api-reference/chatterlang-script.md)**
   Runs ChatterLang scripts from files or directly from the command line, enabling batch processing and automation.
 
