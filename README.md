@@ -147,6 +147,20 @@ rag("What is TalkPipe?")
 
 > **No Ollama server?** Swap `embedding_source="model2vec"` and `embedding_model="minishlab/potion-base-8M"` for offline embeddings (included in `talkpipe[all]`). The first run downloads the model from Hugging Face (a few files, ~30 MB); after that it's cached and needs no network — see [Precache for offline use](docs/guides/model2vec-embeddings.md#precache-for-offline-use) to pre-download for air-gapped environments. Note: the `ragToText` completion step still requires an LLM provider. See the [model2vec guide](docs/guides/model2vec-embeddings.md).
 
+> **Indexing large collections inside a container?** Building a vector
+> database over thousands of documents (`makevectordatabase`,
+> `build_rag_database`) peaks around 1.5–2 GB of memory. On macOS and
+> Windows, containers run inside the podman machine VM, whose default
+> allocation (often 2 GB) is too tight for that — the ingestion is killed
+> silently (exit code 137; `podman inspect` shows `oom=true`). Give the VM
+> more room first:
+>
+> ```bash
+> podman machine stop
+> podman machine set --memory 4096    # MiB; use 8192 for very large collections
+> podman machine start
+> ```
+
 # Core Components
 
 ## 1. The Pipe API (Internal DSL)
