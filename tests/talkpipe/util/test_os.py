@@ -138,3 +138,40 @@ print(path2)
         # At minimum, our specific test directories should not exist
         assert not (temp_base / "cleanup_test_1").exists()
         assert not (temp_base / "cleanup_test_2").exists()
+
+
+def test_limit_malloc_arenas_env_var_takes_precedence(monkeypatch):
+    """An explicit MALLOC_ARENA_MAX in the environment is left in charge."""
+    import ctypes
+
+    from talkpipe.util.os import limit_malloc_arenas
+
+    monkeypatch.setenv("MALLOC_ARENA_MAX", "2")
+
+    def fail_if_loaded(*args, **kwargs):
+        raise AssertionError("mallopt must not run when the env var governs")
+
+    monkeypatch.setattr(ctypes, "CDLL", fail_if_loaded)
+    assert limit_malloc_arenas() is True
+
+
+def test_limit_malloc_arenas_applies_or_degrades_gracefully(monkeypatch):
+    """On glibc the cap applies; elsewhere it reports False, never raises."""
+    from talkpipe.util.os import limit_malloc_arenas
+
+    monkeypatch.delenv("MALLOC_ARENA_MAX", raising=False)
+    assert limit_malloc_arenas() in (True, False)
+
+
+def test_limit_malloc_arenas_missing_libc_reports_false(monkeypatch):
+    import ctypes
+
+    from talkpipe.util.os import limit_malloc_arenas
+
+    monkeypatch.delenv("MALLOC_ARENA_MAX", raising=False)
+
+    def no_libc(*args, **kwargs):
+        raise OSError("no libc here")
+
+    monkeypatch.setattr(ctypes, "CDLL", no_libc)
+    assert limit_malloc_arenas() is False

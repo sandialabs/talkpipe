@@ -251,3 +251,35 @@ def _cleanup_process_temp_dirs():
             logger.debug("Removed empty talkpipe_tmp base directory")
     except Exception as e:
         logger.debug(f"Could not remove talkpipe_tmp base directory: {e}")
+
+# glibc mallopt parameter number for M_ARENA_MAX (malloc.h).
+_M_ARENA_MAX = -8
+
+
+def limit_malloc_arenas(max_arenas: int = 2) -> bool:
+    """Cap the number of glibc malloc arenas for this process.
+
+    Long multithreaded native workloads (e.g. LanceDB ingestion) free memory
+    on many worker threads; glibc parks those freed blocks in per-thread
+    arenas instead of returning them to the OS, so resident memory grows
+    without bound over a long run. Capping the arena count keeps it flat at
+    no measured throughput cost.
+
+    Call at process startup, before the allocating threads exist. Defers to
+    an explicit MALLOC_ARENA_MAX environment variable and is a no-op on
+    platforms without glibc (macOS, musl).
+
+    Returns:
+        True when the cap is in effect (applied here or via the environment
+        variable), False when unavailable on this platform.
+    """
+    import ctypes
+    import os as _os
+
+    if _os.environ.get("MALLOC_ARENA_MAX"):
+        return True
+    try:
+        libc = ctypes.CDLL("libc.so.6")
+        return bool(libc.mallopt(_M_ARENA_MAX, max_arenas))
+    except (OSError, AttributeError):
+        return False

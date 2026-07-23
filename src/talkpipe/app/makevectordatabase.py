@@ -6,11 +6,14 @@ from talkpipe.util.config import get_config, parse_unknown_args, add_config_valu
 from talkpipe.util.constants import TALKPIPE_EMBEDDING_MODEL_NAME, TALKPIPE_EMBEDDING_MODEL_SOURCE
 from talkpipe.llm.config import getEmbeddingSources
 from talkpipe.pipelines.vector_databases import RagIngestError, build_rag_database
+from talkpipe.util.os import limit_malloc_arenas
 
 logger = logging.getLogger(__name__)
 
 def main():
     """Create a vector database using the Talkpipe document pipeline."""
+    # Before LanceDB's worker threads exist: keep long ingestion memory flat.
+    limit_malloc_arenas()
     parser = argparse.ArgumentParser(description='Create a LanceDB vector database from a set of documents.')
     
     # Required arguments
