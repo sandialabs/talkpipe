@@ -6,13 +6,9 @@
 
 **Build and iterate on AI workflows efficiently.**
 
-TalkPipe is a Python toolkit for creating, testing, and deploying workflows that combine generative AI with your data and tools. Use **Python** (`|` pipelines) or **ChatterLang** (text scripts) with the same building blocks—LLMs as one tool among many.
+TalkPipe is a Python toolkit for creating, testing, and deploying workflows that combine generative AI with your data and tools. Write pipelines in **Python** (the Pipe API, chaining steps with `|`) or in **ChatterLang** (a concise text DSL) — both use the same building blocks, with LLMs as one tool among many. Pipelines are **streaming generators**, so large datasets flow through without being loaded into memory, and a pipeline defined once can run from Python, Jupyter, Docker, `chatterlang_script`, or `chatterlang_serve`.
 
-**Who it is for:** engineers and researchers who want **scriptable AI pipelines**—RAG, batch scoring, web ingestion, agents, and automation—without giving up normal Python when you need it. First-party CLIs and apps (workbench, `chatterlang_serve`) help you go from experiment to batch jobs or a small HTTP surface without a bespoke framework.
-
-**When TalkPipe fits well:** streaming, composable steps; sharing pipelines as text; quick vector-store and RAG flows; mixing LLM calls with pandas, files, and HTTP. **When to look elsewhere:** if you need a large prebuilt agent platform or GUI-first orchestration as your primary model, you may prefer another tool or layer one on top—TalkPipe stays close to code and scripts.
-
-TalkPipe emphasizes **streaming generators** (memory-friendly streams), a **dual API** (Pipe in Python, ChatterLang as a concise DSL), and **built-in tooling** (script runner, reference browser, serve). That complements “everything in Python” stacks by keeping pipeline definitions portable where that helps operations and review.
+**Who it's for:** engineers and researchers who want scriptable AI pipelines — RAG, batch scoring, web ingestion, agents, and automation — without giving up normal Python when they need it. If your primary model is a large prebuilt agent platform or GUI-first orchestration, another tool may fit better (or layer one on top); TalkPipe stays close to code and scripts.
 
 **Typical vertical flow:** ingest → chunk/embed → index (for example LanceDB) → retrieve → prompt → answer, then expose the same script with `chatterlang_serve` if you want an API. See **[Example 5: RAG pipeline](#example-5-rag-pipeline-with-vector-database)** for a full walkthrough.
 
@@ -37,12 +33,14 @@ Three layers; use any mix of them in one project:
 - **AI and data primitives** — LLMs, full-text search, and vector databases behind one style of component.
 - **Pipelines and applications** — Higher-level RAG-style pieces plus CLIs and web apps.
 
-For the full story, see **[Architecture](docs/architecture/)**. Define a pipeline once and run it from Python, Jupyter, Docker, `chatterlang_script`, or `chatterlang_serve`.
+For the full story, see **[Architecture](docs/architecture/)**.
 
 ### Key Applications
 
+These are the entry points for different usage scenarios, from interactive development to production deployment:
+
 - **[chatterlang_workbench](docs/api-reference/chatterlang-workbench.md)**
-  Launches a browser-based IDE for writing, testing, and running ChatterLang scripts. It provides an editor with autocomplete and live error checking, real-time execution, pipeline save/load, next-component suggestions, logging, and documentation lookup.
+  A browser-based IDE for writing, testing, and running ChatterLang scripts: editor with autocomplete and live error checking, real-time execution, pipeline save/load, next-component suggestions, logging, and documentation lookup.
 
 <video width="640" height="360" controls>
   <source src="docs/workbench_demo.mp4" type="video/mp4">
@@ -50,27 +48,22 @@ For the full story, see **[Architecture](docs/architecture/)**. Define a pipelin
 </video>
 
 - **[chatterlang_script](docs/api-reference/chatterlang-script.md)**
-  Runs ChatterLang scripts from files or directly from the command line, enabling batch processing and automation.
+  Runs ChatterLang scripts from files or directly from the command line, for batch processing and automation.
 
 - **[chatterlang_serve](docs/api-reference/chatterlang-server.md)**
-  Exposes ChatterLang pipelines as REST APIs or web forms, allowing you to deploy workflows as web services or user-facing endpoints.
+  Exposes ChatterLang pipelines as REST APIs or web forms, so workflows can be deployed as web services or user-facing endpoints.
 
 - **[makevectordatabase & serverag](docs/guides/makevectordatabase-and-serverag.md)**
   Create vector databases from documents and run RAG web servers in two commands—no scripts required.
 
-- **[Container images](docs/guides/container-images.md)**
-  Pull release images from GitHub Container Registry (multi-platform on each GitHub release).
-
-- **[chatterlang_reference_browser](docs/api-reference/talkpipe-ref.md)**
-  An interactive command line application for searching and browsing installed ChatterLang sources and segments.
-
-- **[chatterlang_reference_generator](docs/api-reference/talkpipe-ref.md)**
-  Generates comprehensive documentation for all available sources and segments in HTML and text formats.
+- **[chatterlang_reference_browser & chatterlang_reference_generator](docs/api-reference/talkpipe-ref.md)**
+  Browse installed ChatterLang sources and segments interactively, or generate reference documentation for all of them in HTML and text formats.
 
 - **[talkpipe_plugins](docs/api-reference/talkpipe-plugin-manager.md)**
-  TalkPipe includes a plugin system that lets developers register their own sources and segments, extending its functionality. This allows the TalkPipe ecosystem to grow through community contributions and domain-specific extensions. talkpipe_plugins lets users view and manage those plugins.
+  View and manage plugins. TalkPipe's plugin system lets developers register their own sources and segments, so the ecosystem can grow through community contributions and domain-specific extensions.
 
-These applications are entry points for different usage scenarios, from interactive development to production deployment.
+- **[Container images](docs/guides/container-images.md)**
+  Pull release images from GitHub Container Registry (multi-platform on each GitHub release).
 
 ## Quick Start
 
@@ -193,7 +186,6 @@ def uppercase(items):
 # Use it in a pipeline
 pipeline = io.echo(data="hello,world") | uppercase() | io.Print()
 result = pipeline.as_function(single_out=False)()
-print(result)
 
 # Output:
 # HELLO
@@ -243,19 +235,6 @@ The `@registry.register_segment()` decorator makes your component discoverable b
 - **Constants**: Define reusable values with `CONST name = "value"`
 - **Loops**: Repeat operations with `LOOP n TIMES { ... }`
 - **Multiple Pipelines**: Chain workflows with `;` or newlines
-
-## 3. Built-in Applications
-
-### Command-Line Tools
-- [`chatterlang_workbench`](docs/api-reference/chatterlang-workbench.md) - Start the interactive web interface for experimenting with ChatterLang
-- [`chatterlang_script`](docs/api-reference/chatterlang-script.md) - Run ChatterLang scripts from files or command line
-- [`chatterlang_reference_generator`](docs/api-reference/talkpipe-ref.md) - Generate documentation for all available sources and segments
-- [`chatterlang_reference_browser`](docs/api-reference/talkpipe-ref.md) - Interactive command-line browser for sources and segments
-- [`chatterlang_serve`](docs/api-reference/chatterlang-server.md) - Create a customizable user-accessible web interface and REST API from ChatterLang scripts
-- [`talkpipe_plugins`](docs/api-reference/talkpipe-plugin-manager.md) - View and manage TalkPipe plugins
-
-### Jupyter Integration
-TalkPipe components work seamlessly in Jupyter notebooks for interactive data analysis.
 
 # Detailed Examples
 
@@ -503,41 +482,13 @@ For comprehensive documentation and examples, see the **[docs/](docs/)** directo
 | Official container images (GHCR, multi-arch releases) | [Container images](docs/guides/container-images.md) |
 | Contributor glossary and conventions | [Developer handbook](docs/contributing/developer-handbook.md) |
 
-- **[Documentation hub](docs/)** — Index and navigation
-- **[Getting started](docs/quickstart.md)** — Installation, concepts, first pipeline
-- **[API reference](docs/api-reference/)** — Commands and components
-- **[Architecture](docs/architecture/)** — Technical deep dives
-- **[Tutorials](docs/tutorials/)** — Patterns and real-world examples
-
-## Quick Reference
-
-| Command | Purpose | Documentation |
-|---------|---------|---------------|
-| `chatterlang_serve` | Create web APIs and forms | [📄](docs/api-reference/chatterlang-server.md) |
-| `chatterlang_workbench` | Interactive web interface | [📄](docs/api-reference/chatterlang-workbench.md) |
-| `chatterlang_script` | Run scripts from command line | [📄](docs/api-reference/chatterlang-script.md) |
-| `chatterlang_reference_generator` | Generate documentation | [📄](docs/api-reference/talkpipe-ref.md) |
-| `chatterlang_reference_browser` | Browse sources/segments interactively | [📄](docs/api-reference/talkpipe-ref.md) |
-| `talkpipe_plugins` | Manage TalkPipe plugins | [📄](docs/api-reference/talkpipe-plugin-manager.md) |
-
 # Architecture & Development
 
 ## Design Principles
 
-### Dual-Language Architecture
-- **Internal DSL (Pipe API)**: Pure Python for maximum flexibility and IDE support
-- **External DSL (ChatterLang)**: Concise syntax for rapid prototyping
-
-### Streaming Architecture
-TalkPipe uses Python generators throughout, enabling:
-- Memory-efficient processing of large datasets
-- Real-time results as data flows through pipelines
-- Natural integration with streaming data sources
-
-### Extensibility First
-- Simple decorators (`@source`, `@segment`, `@field_segment`) for adding functionality
-- Components are just Python functions - easy to test and debug
-- Mix TalkPipe with any Python code or library
+- **Dual-language architecture** — Pure Python (Pipe API) for maximum flexibility and IDE support; ChatterLang for concise, portable scripts.
+- **Streaming architecture** — Python generators throughout: memory-efficient processing of large datasets, real-time results as data flows, natural integration with streaming sources.
+- **Extensibility first** — Simple decorators (`@source`, `@segment`, `@field_segment`) for adding functionality; components are just Python functions, easy to test and debug; mix TalkPipe with any Python code or library.
 
 ## Project Structure
 
@@ -585,6 +536,8 @@ This is especially useful for CLI tools and scripts that don't use all TalkPipe 
 
 ## Development Guidelines
 
+Contributor-focused glossary, naming conventions, parameter semantics, standard config keys, and segment/source reference notes live in the **[developer handbook](docs/contributing/developer-handbook.md)**.
+
 ### Naming Conventions
 - **Classes**: `CamelCase` (e.g., `LLMPrompt`)
 - **Decorated functions**: `camelCase` (e.g., `@segment def extractText`)
@@ -592,7 +545,8 @@ This is especially useful for CLI tools and scripts that don't use all TalkPipe 
 
 ### Creating Components
 
-**Sources** generate data:
+**Sources** generate data (see [Creating Custom Components](#creating-custom-components) above for **segments**, which transform data):
+
 ```python
 from talkpipe.pipe import core, io
 
@@ -614,29 +568,6 @@ result = pipeline.as_function(single_out=False)()
 # 2
 # 3
 # Returns: [0, 1, 1, 2, 3]
-```
-
-**Segments** transform data:
-```python
-from talkpipe.pipe.math import arange
-from talkpipe.pipe import core, io
-
-@core.segment()
-def multiplyBy(items, factor=2):
-    for item in items:
-        yield item * factor
-
-# Use it to multiply each value in the range by 3
-pipeline = arange(lower=5, upper=10) | multiplyBy(factor=3) | io.Print()
-result = pipeline.as_function(single_out=False)()
-
-# Output:
-# 15
-# 18
-# 21
-# 24
-# 27
-# Returns: [15, 18, 21, 24, 27]
 ```
 
 **Field Segments** provide a convenient way to create 1:1 segments:
@@ -695,9 +626,5 @@ TalkPipe is in active development: feature-rich and in use, but APIs may evolve.
 
 TalkPipe is licensed under the Apache License 2.0. See LICENSE file for details.
 
-## Developer handbook
-
-Contributor-focused **glossary, naming conventions, parameter semantics, standard config keys, and segment/source reference notes** live in **[docs/contributing/developer-handbook.md](docs/contributing/developer-handbook.md)**.
-
 ---
-Last reviewed: 2026-03-20
+Last reviewed: 2026-07-24
