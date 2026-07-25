@@ -26,7 +26,7 @@ class TestHtmlModuleExceptions:
         assert result is None
         
         # Verify can_fetch was called correctly
-        mock_can_fetch.assert_called_with("https://example.com", "*")
+        mock_can_fetch.assert_called_with("https://example.com", html.DEFAULT_USER_AGENT)
     
     @patch('talkpipe.data.html.can_fetch')
     @patch('requests.get')
@@ -158,7 +158,7 @@ class TestHtmlModuleExceptions:
         assert result is True
         
         # Verify can_fetch was called
-        mock_parser.can_fetch.assert_called_once_with("*", "https://example.com")
+        mock_parser.can_fetch.assert_called_once_with(html.DEFAULT_USER_AGENT, "https://example.com")
     
     @patch('talkpipe.data.html.get_robot_parser')
     def test_can_fetch_timeout_handling(self, mock_get_robot_parser):

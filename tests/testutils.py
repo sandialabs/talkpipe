@@ -54,6 +54,9 @@ def mock_requests_get_completion(monkeypatch):
             self.text = text or None
             # Add content attribute for compatibility with requests library
             self.content = (text or "").encode('utf-8') if text else b""
+            self.headers = {"Content-Type": "text/html; charset=utf-8"}
+            self.encoding = "utf-8"
+            self.apparent_encoding = "utf-8"
 
         def json(self):
             return self.json_data

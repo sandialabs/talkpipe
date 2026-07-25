@@ -4,6 +4,7 @@ from typing import Optional, Annotated
 import logging
 import re
 import gzip
+import time
 import urllib.error
 import requests
 import urllib
@@ -11,7 +12,7 @@ from urllib.parse import urlparse
 from urllib.robotparser import RobotFileParser
 from functools import lru_cache
 from html import unescape
-from readability import Document 
+from readability import Document
 from talkpipe.util.config import get_config
 from talkpipe.chatterlang.registry import register_segment
 from talkpipe.pipe import core
@@ -20,6 +21,38 @@ from talkpipe import util
 logger = logging.getLogger(__name__)
 
 USER_AGENT_KEY = "user_agent"
+
+# Many sites answer the python-requests default agent (or a placeholder like
+# "*") with 403s or bot-interstitial pages, so downloads fail before any
+# content arrives.  Present a mainstream browser signature by default; override
+# with the "user_agent" config key.
+DEFAULT_USER_AGENT = (
+    "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
+    "(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
+)
+
+# Servers also reject requests that carry a browser User-Agent but none of the
+# headers a browser always sends.
+BROWSER_HEADERS = {
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+    "Accept-Language": "en-US,en;q=0.9",
+}
+
+RETRYABLE_STATUS_CODES = frozenset({408, 429, 500, 502, 503, 504})
+RETRYABLE_EXCEPTIONS = (
+    requests.exceptions.ConnectionError,
+    requests.exceptions.Timeout,
+    requests.exceptions.ChunkedEncodingError,
+)
+MAX_RETRY_DELAY = 30.0
+
+
+def resolve_user_agent(user_agent=None):
+    """Return the User-Agent to send: explicit argument, then the
+    "user_agent" config key, then the browser-like default."""
+    if user_agent is not None:
+        return user_agent
+    return get_config().get(USER_AGENT_KEY, DEFAULT_USER_AGENT)
 
 def htmlToText(html, cleanText=True):
     """
@@ -104,7 +137,10 @@ def get_robot_parser(domain, timeout=5):
     rp.set_url(robots_url)
 
     try:
-        response = requests.get(robots_url, timeout=timeout)
+        # Send the same identification headers as page fetches; some hosts
+        # refuse header-less clients even for robots.txt.
+        headers = {"User-Agent": resolve_user_agent(), **BROWSER_HEADERS}
+        response = requests.get(robots_url, timeout=timeout, headers=headers)
         response.raise_for_status()  # Raise an exception for bad status codes
         content_bytes = response.content
         if content_bytes.startswith(b'\x1f\x8b'):
@@ -139,8 +175,7 @@ def can_fetch(url, user_agent=None):
     parsed_url = urlparse(url)
     domain = f"{parsed_url.scheme}://{parsed_url.netloc}"
 
-    if user_agent is None:
-        user_agent = get_config().get(USER_AGENT_KEY, "*")
+    user_agent = resolve_user_agent(user_agent)
 
     try:
         rp = get_robot_parser(domain)
@@ -162,20 +197,55 @@ def can_fetch(url, user_agent=None):
         logger.warning(f"Error checking can_fetch for {url}. Assuming allowed. Error: {e}")
         return True  # Assume allowed if there's an error during check
 
-def downloadURL(url, fail_on_error=True, user_agent=None, timeout=10):
+def _retry_delay(prior_attempts, response, backoff_factor):
+    """Seconds to sleep before the next retry: exponential backoff, raised to
+    the server's Retry-After when one was sent, capped at MAX_RETRY_DELAY."""
+    delay = backoff_factor * (2 ** prior_attempts)
+    retry_after = response.headers.get("Retry-After") if response is not None else None
+    if retry_after:
+        try:
+            delay = max(delay, float(retry_after))
+        except (TypeError, ValueError):
+            pass  # Retry-After can be an HTTP-date; backoff alone is fine then
+    return min(delay, MAX_RETRY_DELAY)
+
+
+def _fix_encoding(response):
+    """Repair the charset guess before reading response.text.
+
+    When a page declares no charset, requests falls back to ISO-8859-1 (the
+    old HTTP default), which garbles the UTF-8 that most of the web actually
+    serves.  Defer to the content-based detection requests already ships.
+    """
+    if response.encoding is None:
+        response.encoding = response.apparent_encoding or response.encoding
+    else:
+        content_type = (response.headers.get("Content-Type") or "").lower()
+        if "charset" not in content_type and response.encoding.lower() == "iso-8859-1":
+            response.encoding = response.apparent_encoding or response.encoding
+
+
+def downloadURL(url, fail_on_error=True, user_agent=None, timeout=10, retries=2,
+                backoff_factor=0.5):
     """Downloads content from a specified URL with respect to robots.txt rules.
 
     This function attempts to download content from a given URL while checking robots.txt
-    permissions and handling various error conditions. It supports custom user agents and
-    timeout settings.
+    permissions and handling various error conditions. Requests are sent with
+    browser-like headers, and transient failures (connection errors, timeouts,
+    HTTP 408/429/5xx) are retried with exponential backoff, honoring the
+    server's Retry-After header when present.
 
     Args:
         url (str): The URL to download content from.
         fail_on_error (bool, optional): If True, raises exceptions on errors. If False,
             returns None on errors. Defaults to True.
         user_agent (str, optional): User agent string to use for requests.
-            Defaults to "*".
+            Defaults to the "user_agent" config key, then DEFAULT_USER_AGENT.
         timeout (int, optional): Request timeout in seconds. Defaults to 10.
+        retries (int, optional): How many additional attempts to make after a
+            transient failure. Defaults to 2.
+        backoff_factor (float, optional): Base delay in seconds between
+            retries; attempt n waits backoff_factor * 2**n. Defaults to 0.5.
 
     Returns:
         str or None: The downloaded content as text if successful, None if unsuccessful
@@ -183,17 +253,11 @@ def downloadURL(url, fail_on_error=True, user_agent=None, timeout=10):
 
     Raises:
         PermissionError: If the URL is disallowed by robots.txt and fail_on_error is True.
-        ValueError: If the HTTP response status code is not 200 and fail_on_error is True.
+        ValueError: If the final HTTP response status is not 2xx and fail_on_error is True.
         Exception: If the download request fails for any other reason and fail_on_error is True.
-
-    Example:
-        >>> content = downloadURL("https://example.com")
-        >>> print(content)
-        '<html>...</html>'
     """
     logger.debug(f"Checking robots.txt permissions for URL: {url}")
-    if user_agent is None:
-        user_agent = get_config().get(USER_AGENT_KEY, "*")
+    user_agent = resolve_user_agent(user_agent)
     if not can_fetch(url, user_agent):
         error_message = f"Fetching URL: {url} is disallowed by robots.txt"
         logger.warning(error_message)
@@ -202,21 +266,47 @@ def downloadURL(url, fail_on_error=True, user_agent=None, timeout=10):
         else:
             return None
 
-    headers = {"User-Agent": user_agent}
+    headers = {"User-Agent": user_agent, **BROWSER_HEADERS}
+    attempts = max(0, retries) + 1
+    response = None
+    last_exception = None
     logger.debug(f"Initiating download request for URL: {url}")
-    try:
-        logger.debug(f"Sending GET request to {url} with timeout {timeout}s")
-        response = requests.get(url, headers=headers, timeout=timeout)
-    except Exception as e:
+    for attempt in range(attempts):
+        if attempt:
+            delay = _retry_delay(attempt - 1, response, backoff_factor)
+            logger.debug(f"Retrying {url} in {delay:.1f}s (attempt {attempt + 1} of {attempts})")
+            time.sleep(delay)
+        try:
+            logger.debug(f"Sending GET request to {url} with timeout {timeout}s")
+            response = requests.get(url, headers=headers, timeout=timeout)
+            last_exception = None
+        except RETRYABLE_EXCEPTIONS as e:
+            logger.warning(f"Transient error downloading {url} (attempt {attempt + 1} of {attempts}): {e}")
+            response = None
+            last_exception = e
+            continue
+        except Exception as e:
+            # Not transient (bad URL, SSL failure, ...): retrying won't help.
+            response = None
+            last_exception = e
+            break
+        if response.status_code in RETRYABLE_STATUS_CODES:
+            logger.warning(
+                f"Got status {response.status_code} from {url} (attempt {attempt + 1} of {attempts})")
+            continue
+        break
+
+    if last_exception is not None:
+        error_message = f"Failed to download URL: {url}\nError: {last_exception}"
         if fail_on_error:
-            logger.error(f"Failed to download URL: {url}\nError: {e}")
-            raise Exception(f"Failed to download URL: {url}\nError: {e}")
+            logger.error(error_message)
+            raise Exception(error_message)
         else:
-            logger.warning(f"Failed to download URL: {url}\nError: {e}")
+            logger.warning(error_message)
             return None
 
     logger.debug(f"Received response with status code: {response.status_code}")
-    if response.status_code != 200:
+    if not 200 <= response.status_code < 300:
         error_message = f"Failed to download URL: {url} with status code {response.status_code}"
         if fail_on_error:
             logger.error(error_message)
@@ -226,23 +316,25 @@ def downloadURL(url, fail_on_error=True, user_agent=None, timeout=10):
             return None
     else:
         logger.debug(f"Successfully downloaded content from {url}")
+        _fix_encoding(response)
         return response.text
 
 
 @register_segment("downloadURL")
 @core.field_segment()
-def downloadURLSegment(item: Annotated[str, "The URL to download"], 
-                       fail_on_error: Annotated[bool, "If True, raises exceptions on download errors. If False, returns None on errors"] = True, 
-                       timeout: Annotated[int, "The timeout in seconds for the download request"] = 10, 
-                       user_agent: Annotated[Optional[str], "User agent string to use for the request"] = None):
+def downloadURLSegment(item: Annotated[str, "The URL to download"],
+                       fail_on_error: Annotated[bool, "If True, raises exceptions on download errors. If False, returns None on errors"] = True,
+                       timeout: Annotated[int, "The timeout in seconds for the download request"] = 10,
+                       user_agent: Annotated[Optional[str], "User agent string to use for the request"] = None,
+                       retries: Annotated[int, "How many additional attempts to make after a transient failure (connection error, timeout, HTTP 408/429/5xx)"] = 2):
     """Download a URL segment and return its content.
 
     This function is a wrapper around downloadURL that specifically handles URL segments.
-    It attempts to download content from the specified URL with configurable error handling
-    and timeout settings.
+    It attempts to download content from the specified URL with configurable error handling,
+    timeout, and retry settings.
 
     Returns:
-        bytes|None: The downloaded content as bytes if successful, None if fail_on_error
+        str|None: The downloaded content as text if successful, None if fail_on_error
             is False and an error occurs.
 
     Raises:
@@ -250,4 +342,5 @@ def downloadURLSegment(item: Annotated[str, "The URL to download"],
         an error occurs during download.
     """
     logger.debug(f"Downloading URL: {item}")
-    return downloadURL(item, fail_on_error=fail_on_error, timeout=timeout, user_agent=user_agent)
+    return downloadURL(item, fail_on_error=fail_on_error, timeout=timeout,
+                       user_agent=user_agent, retries=retries)

@@ -2,6 +2,20 @@
 
 ## Unreleased 
 
+- Made the `downloadURL` segment far more likely to succeed on real-world
+  pages (#4), without new dependencies:
+  - Requests now send a browser-like User-Agent (configurable via the
+    `user_agent` config key) plus `Accept`/`Accept-Language` headers, instead
+    of the literal `*` many sites reject as a bot.
+  - Transient failures — connection errors, timeouts, HTTP 408/429/5xx — are
+    retried with exponential backoff (new `retries` parameter, default 2),
+    honoring the server's `Retry-After` header.
+  - Any 2xx response is accepted instead of only 200.
+  - Pages served without a declared charset are decoded with requests'
+    content-based encoding detection rather than the ISO-8859-1 fallback,
+    fixing mojibake on undeclared-UTF-8 pages.
+  - robots.txt fetches send the same identification headers as page fetches.
+
 ## 0.14.0
 
 - ChatterLang Workbench fixes found in usability testing:

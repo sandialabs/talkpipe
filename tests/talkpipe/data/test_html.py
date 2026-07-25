@@ -193,16 +193,124 @@ def test_downloadURL_exceptions():
             result = html.downloadURL("https://example.com/error", fail_on_error=False)
             assert result is None
             
-    # Test case 4: Timeout exception
+    # Test case 4: Timeout exception (retried, then raised once retries are exhausted)
     with patch('talkpipe.data.html.can_fetch', return_value=True):
-        with patch('requests.get', side_effect=requests.Timeout("Request timed out")):
-            # With fail_on_error=True, should raise Exception
-            with pytest.raises(Exception):
-                html.downloadURL("https://example.com/timeout", fail_on_error=True, timeout=1)
-            
-            # With fail_on_error=False, should return None
-            result = html.downloadURL("https://example.com/timeout", fail_on_error=False, timeout=1)
-            assert result is None
+        with patch('talkpipe.data.html.time.sleep'):
+            with patch('requests.get', side_effect=requests.Timeout("Request timed out")):
+                # With fail_on_error=True, should raise Exception
+                with pytest.raises(Exception):
+                    html.downloadURL("https://example.com/timeout", fail_on_error=True, timeout=1)
+
+                # With fail_on_error=False, should return None
+                result = html.downloadURL("https://example.com/timeout", fail_on_error=False, timeout=1)
+                assert result is None
+
+
+def _mock_response(status_code=200, text="<html>ok</html>", headers=None,
+                   encoding="utf-8", apparent_encoding="utf-8"):
+    response = MagicMock()
+    response.status_code = status_code
+    response.text = text
+    response.headers = headers if headers is not None else {}
+    response.encoding = encoding
+    response.apparent_encoding = apparent_encoding
+    return response
+
+
+def test_downloadURL_retries_transient_connection_error():
+    """A connection error is retried and the download succeeds on a later attempt."""
+    ok = _mock_response()
+    with patch('talkpipe.data.html.can_fetch', return_value=True):
+        with patch('talkpipe.data.html.time.sleep') as mock_sleep:
+            with patch('requests.get', side_effect=[requests.ConnectionError("reset"), ok]) as mock_get:
+                result = html.downloadURL("https://example.com/flaky")
+    assert result == "<html>ok</html>"
+    assert mock_get.call_count == 2
+    assert mock_sleep.call_count == 1
+
+
+def test_downloadURL_retries_transient_status_codes():
+    """A 503 answer is retried and the download succeeds on a later attempt."""
+    ok = _mock_response()
+    with patch('talkpipe.data.html.can_fetch', return_value=True):
+        with patch('talkpipe.data.html.time.sleep'):
+            with patch('requests.get', side_effect=[_mock_response(status_code=503), ok]) as mock_get:
+                result = html.downloadURL("https://example.com/overloaded")
+    assert result == "<html>ok</html>"
+    assert mock_get.call_count == 2
+
+
+def test_downloadURL_honors_retry_after():
+    """A Retry-After header longer than the backoff sets the retry delay."""
+    throttled = _mock_response(status_code=429, headers={"Retry-After": "7"})
+    ok = _mock_response()
+    with patch('talkpipe.data.html.can_fetch', return_value=True):
+        with patch('talkpipe.data.html.time.sleep') as mock_sleep:
+            with patch('requests.get', side_effect=[throttled, ok]):
+                result = html.downloadURL("https://example.com/throttled")
+    assert result == "<html>ok</html>"
+    mock_sleep.assert_called_once_with(7.0)
+
+
+def test_downloadURL_does_not_retry_permanent_failures():
+    """A 404 fails immediately; retrying would not help."""
+    with patch('talkpipe.data.html.can_fetch', return_value=True):
+        with patch('talkpipe.data.html.time.sleep') as mock_sleep:
+            with patch('requests.get', return_value=_mock_response(status_code=404)) as mock_get:
+                result = html.downloadURL("https://example.com/gone", fail_on_error=False)
+    assert result is None
+    assert mock_get.call_count == 1
+    mock_sleep.assert_not_called()
+
+
+def test_downloadURL_exhausts_retries_on_persistent_5xx():
+    """Persistent 5xx answers fail after the configured number of attempts."""
+    with patch('talkpipe.data.html.can_fetch', return_value=True):
+        with patch('talkpipe.data.html.time.sleep'):
+            with patch('requests.get', return_value=_mock_response(status_code=500)) as mock_get:
+                with pytest.raises(ValueError):
+                    html.downloadURL("https://example.com/broken", retries=2)
+    assert mock_get.call_count == 3
+
+
+def test_downloadURL_accepts_any_2xx_status():
+    """Non-200 success codes such as 203 still return the content."""
+    with patch('talkpipe.data.html.can_fetch', return_value=True):
+        with patch('requests.get', return_value=_mock_response(status_code=203)):
+            result = html.downloadURL("https://example.com/proxied")
+    assert result == "<html>ok</html>"
+
+
+def test_downloadURL_sends_browser_headers():
+    """Requests identify as a browser instead of the bare requests default."""
+    with patch('talkpipe.data.html.can_fetch', return_value=True):
+        with patch('talkpipe.data.html.get_config', return_value={}):
+            with patch('requests.get', return_value=_mock_response()) as mock_get:
+                html.downloadURL("https://example.com/")
+    headers = mock_get.call_args.kwargs["headers"]
+    assert headers["User-Agent"] == html.DEFAULT_USER_AGENT
+    assert "Accept" in headers
+    assert "Accept-Language" in headers
+
+
+def test_downloadURL_fixes_undeclared_charset():
+    """Without a declared charset, detected encoding replaces the ISO-8859-1 fallback."""
+    response = _mock_response(headers={"Content-Type": "text/html"},
+                              encoding="ISO-8859-1", apparent_encoding="utf-8")
+    with patch('talkpipe.data.html.can_fetch', return_value=True):
+        with patch('requests.get', return_value=response):
+            html.downloadURL("https://example.com/utf8")
+    assert response.encoding == "utf-8"
+
+
+def test_downloadURL_keeps_declared_charset():
+    """A charset declared in the Content-Type header is trusted as-is."""
+    response = _mock_response(headers={"Content-Type": "text/html; charset=ISO-8859-1"},
+                              encoding="ISO-8859-1", apparent_encoding="utf-8")
+    with patch('talkpipe.data.html.can_fetch', return_value=True):
+        with patch('requests.get', return_value=response):
+            html.downloadURL("https://example.com/latin1")
+    assert response.encoding == "ISO-8859-1"
 
 def test_downloadURL(mock_requests_get_completion):
 
