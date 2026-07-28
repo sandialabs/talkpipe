@@ -277,6 +277,80 @@ def test_precache_model_smoke(monkeypatch):
     assert result["smoke_test_length"] == 3
 
 
+def test_embedder_reuses_loaded_model_across_instances(monkeypatch):
+    """Constructing several embedders for the same model loads it only once.
+
+    The web app rebuilds its pipelines regularly; without reuse each rebuild
+    re-ran StaticModel.from_pretrained, which re-resolves the model against
+    the Hugging Face Hub on every query.
+    """
+    load_calls = []
+
+    class DummyModel:
+        dim = 3
+        normalize = True
+
+        @classmethod
+        def from_pretrained(cls, path, **kwargs):
+            load_calls.append(path)
+            return cls()
+
+        def encode(self, text, **_):
+            return np.array([0.1, 0.2, 0.3])
+
+    monkeypatch.setattr(
+        "talkpipe.llm.model2vec_embeddings._require_model2vec",
+        lambda: DummyModel,
+    )
+
+    first = Model2VecEmbedder("minishlab/potion-base-8M")
+    second = Model2VecEmbedder("minishlab/potion-base-8M")
+
+    assert load_calls == ["minishlab/potion-base-8M"]
+    assert first.model is second.model
+
+    Model2VecEmbedder("minishlab/potion-base-2M")
+    assert load_calls == [
+        "minishlab/potion-base-8M",
+        "minishlab/potion-base-2M",
+    ]
+
+
+def test_embedder_revision_resolves_snapshot_only_once(monkeypatch):
+    """Cache hits skip huggingface_hub.snapshot_download entirely."""
+    download_calls = []
+
+    def fake_snapshot_download(**kwargs):
+        download_calls.append(kwargs)
+        return "/cache/snapshots/abc123"
+
+    class DummyModel:
+        dim = 3
+        normalize = True
+
+        @classmethod
+        def from_pretrained(cls, path, **kwargs):
+            return cls()
+
+        def encode(self, text, **_):
+            return np.array([0.1, 0.2, 0.3])
+
+    monkeypatch.setattr(
+        "talkpipe.llm.model2vec_embeddings._require_model2vec",
+        lambda: DummyModel,
+    )
+    monkeypatch.setattr("huggingface_hub.snapshot_download", fake_snapshot_download)
+
+    for _ in range(2):
+        Model2VecEmbedder(
+            "minishlab/potion-base-8M",
+            revision="abc123",
+            cache_folder="/tmp/cache",
+        )
+
+    assert len(download_calls) == 1
+
+
 def test_precache_model_raises_on_empty_embedding(monkeypatch):
     class DummyModel:
         dim = 0

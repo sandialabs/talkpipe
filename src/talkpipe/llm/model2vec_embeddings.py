@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import threading
 from pathlib import Path
 from typing import Sequence
 
@@ -56,6 +57,51 @@ def _resolve_snapshot(
     )
 
 
+# Loaded StaticModels, shared for the life of the process. The models are
+# static and read-only, so one instance can back any number of embedders;
+# reloading one per embedder re-resolves the model against the Hugging Face
+# Hub every time (a network round-trip per pipeline rebuild). Keyed by the
+# loader class as well as the model spec so a monkeypatched loader never
+# hands its models to code using a different loader.
+_static_model_cache: dict = {}
+_static_model_cache_lock = threading.Lock()
+
+
+def _load_static_model(
+    StaticModel,
+    model_name: str,
+    revision: str | None,
+    cache_folder: str | Path | None,
+):
+    """Load a StaticModel, reusing a previously loaded instance when possible.
+
+    Hub resolution (snapshot download / revision pinning) only happens on a
+    cache miss, so repeated embedder construction neither reloads the model
+    nor touches the network.
+    """
+    key = (
+        StaticModel,
+        model_name,
+        revision,
+        str(cache_folder) if cache_folder is not None else None,
+    )
+    with _static_model_cache_lock:
+        model = _static_model_cache.get(key)
+        if model is None:
+            local_path = _resolve_local_path(model_name)
+            if local_path is not None:
+                # A previously downloaded model on disk: load it directly and
+                # skip any Hugging Face Hub resolution.
+                path = local_path
+            elif revision is not None or cache_folder is not None:
+                path = _resolve_snapshot(model_name, revision, cache_folder)
+            else:
+                path = model_name
+            model = StaticModel.from_pretrained(path)
+            _static_model_cache[key] = model
+        return model
+
+
 class Model2VecEmbedder:
     """Generates embeddings using a locally cached model2vec StaticModel."""
 
@@ -69,16 +115,9 @@ class Model2VecEmbedder:
         self.model_name = model_name
         self.revision = revision
         StaticModel = _require_model2vec()
-        local_path = _resolve_local_path(model_name)
-        if local_path is not None:
-            # A previously downloaded model on disk: load it directly and skip
-            # any Hugging Face Hub resolution.
-            path = local_path
-        elif revision is not None or cache_folder is not None:
-            path = _resolve_snapshot(model_name, revision, cache_folder)
-        else:
-            path = model_name
-        self.model = StaticModel.from_pretrained(path)
+        self.model = _load_static_model(
+            StaticModel, model_name, revision, cache_folder
+        )
 
     @property
     def dimension(self) -> int:
