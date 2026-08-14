@@ -13,8 +13,12 @@ report:
     enabled: true
     auto-ignore-in-report:
       python:
-        environment-results: true
-        unpinned-requirements: true
+        # Both are deliberately false: findings against the installed
+        # environment and against unpinned declared requirements must show up
+        # in the report and fail the scan. Do not flip these back to true to
+        # get a red build green -- fix the requirement instead.
+        environment-results: false
+        unpinned-requirements: false
       cvss-severity: []
 
 

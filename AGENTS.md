@@ -1,6 +1,7 @@
 ## Dev environment tips
 - When running code or pytest, use the .venv environment in the root of the project. Activate it with `source .venv/bin/activate` (or `source .venv/Scripts/activate` on Windows).
 - If the .venv environment doesn't exist and you need to run code or tests, abort and ask the user to create the environment.
+- Local development resolves against the committed `uv.lock` (`uv sync --all-extras`); CI installs with pip and ignores the lock on purpose, so it resolves the way `pip install talkpipe` does. See "Development environment" in [README.md](README.md). The lock is a dev convenience, not a security control — fix a vulnerable dependency by raising its floor in [pyproject.toml](pyproject.toml), and re-run `uv lock` after any dependency change so `uv lock --check` stays green in CI.
 
 ## Important Commands
 - `python -m build` — create a new release

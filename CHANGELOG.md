@@ -14,11 +14,17 @@
     already being resolved, so nothing about an actual install changes.
   - The `starlette` security override moves from `>=0.49.1` to `>=1.3.1`,
     covering the advisories published since that pin was added.
-  - `uv.lock` now pins `pypdf` 6.16.1 instead of 6.14.2. Releases below 6.15.0
-    are affected by CVE-2026-71870 and CVE-2026-71852, both unbounded
-    memory/CPU consumption on crafted PDFs (large `/ToUnicode` streams and
-    large CID font width ranges). This is the only resolved version the lock
-    refresh changed.
+  - The `pypdf` floor is what protects installs against CVE-2026-71870 and
+    CVE-2026-71852, both unbounded memory/CPU consumption on crafted PDFs
+    (large `/ToUnicode` streams and large CID font width ranges); releases
+    below 6.15.0 are affected. (Development note, not part of any install: the
+    committed `uv.lock` was refreshed to match, moving `pypdf` 6.14.2 ->
+    6.16.1.)
+  - The `safety` scan now actually gates CI. `.safety-policy.yml` no longer
+    auto-ignores findings against the installed environment or against
+    unpinned declared requirements, and the bandit and safety report steps no
+    longer swallow a scanner failure with `|| true`, so a new advisory turns
+    the build red instead of passing silently.
 
 - Made the `downloadURL` segment far more likely to succeed on real-world
   pages (#4), without new dependencies:

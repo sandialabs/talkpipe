@@ -49,8 +49,11 @@ dependencies = [
     'pyyaml>=5.4',
     'greenlet',
     'networkx',
-    # starlette is a transitive dependency of FastAPI, floored here because
-    # FastAPI's own requirement is looser than the security floor.
+    # Security override: starlette is a transitive dependency of FastAPI,
+    # floored here because FastAPI's own requirement (>=0.46.0) is looser than
+    # the security floor. >=0.49.1 fixed CVE-2025-62727 (DoS); >=1.3.1 also
+    # covers the advisories published since, the latest being CVE-2026-54283,
+    # which is first fixed in 1.3.1.
     "starlette>=1.3.1",
     "build>=1.5.0",
 ]

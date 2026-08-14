@@ -618,6 +618,32 @@ TalkPipe is under active development. Current priorities:
 
 We welcome contributions! Whether it's new components, bug fixes, documentation, or examples, please check our [GitHub repository](https://github.com/sandialabs/talkpipe) for contribution guidelines.
 
+### Development environment
+
+Local development uses [uv](https://docs.astral.sh/uv/) against the committed
+`uv.lock`, so contributors share one reproducible set of versions:
+
+```bash
+uv sync --all-extras
+```
+
+**CI does not use the lockfile.** It installs with pip (`pip install -e
+".[dev,all]"`) and resolves dependencies fresh, on purpose: that is what
+someone running `pip install talkpipe` gets, so the build breaks when *they*
+would break. A dependency problem that only the lockfile hides is a problem
+we want CI to see.
+
+Two consequences worth remembering:
+
+- `uv.lock` is a development convenience. It pins nothing for users, and it is
+  not a security control — the version floors in `pyproject.toml` are what
+  actually protect an install. Fix a vulnerable dependency by raising its
+  floor, not by refreshing the lock.
+- The lock must still stay honest. CI runs `uv lock --check`, which installs
+  nothing and fails only when `uv.lock` and `pyproject.toml` have drifted
+  apart. If you change dependencies in `pyproject.toml`, run `uv lock` and
+  commit the result.
+
 ## Status
 
 TalkPipe is in active development: feature-rich and in use, but APIs may evolve. We follow [semantic versioning](https://semver.org/): minor versions aim for compatibility within a major series; major bumps may include breaking changes. **Reasonably stable for everyday use:** install from PyPI, the `|` pipeline model, `compiler.compile(...).as_function(...)`, and optional extras for LLM providers.
