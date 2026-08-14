@@ -2,6 +2,24 @@
 
 ## Unreleased 
 
+- Resolved the dependency vulnerabilities reported by the `safety` scan
+  (149 findings, now zero) without changing behavior or adding dependencies:
+  - Declared dependencies that were previously unbounded now carry a security
+    floor — the lowest release of that package with no known vulnerability —
+    so a resolver can no longer select a known-vulnerable old release. Affects
+    `prompt_toolkit`, `pydantic`, `requests`, `numpy`, `python-docx`, `pandas`,
+    `feedparser`, `lxml`, `lxml_html_clean`, `fastapi`, `ipywidgets`,
+    `pymongo`, `scikit-learn`, `uvicorn`, `pyyaml`, `pytest`, `pytest-cov`,
+    `anthropic`, `Pillow`, and `pypdf`. Every floor is well below the version
+    already being resolved, so nothing about an actual install changes.
+  - The `starlette` security override moves from `>=0.49.1` to `>=1.3.1`,
+    covering the advisories published since that pin was added.
+  - `uv.lock` now pins `pypdf` 6.16.1 instead of 6.14.2. Releases below 6.15.0
+    are affected by CVE-2026-71870 and CVE-2026-71852, both unbounded
+    memory/CPU consumption on crafted PDFs (large `/ToUnicode` streams and
+    large CID font width ranges). This is the only resolved version the lock
+    refresh changed.
+
 - Made the `downloadURL` segment far more likely to succeed on real-world
   pages (#4), without new dependencies:
   - Requests now send a browser-like User-Agent (configurable via the
