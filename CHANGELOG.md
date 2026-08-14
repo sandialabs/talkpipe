@@ -25,6 +25,11 @@
     unpinned declared requirements, and the bandit and safety report steps no
     longer swallow a scanner failure with `|| true`, so a new advisory turns
     the build red instead of passing silently.
+  - When no `SAFETY_API_KEY` is available the scan falls back to the free
+    vulnerability database (`safety check`) instead of failing for lack of
+    authentication. Both paths still fail the build on a known vulnerability;
+    the fallback's data is simply older than the authenticated scan that gates
+    pushes.
 
 - Made the `downloadURL` segment far more likely to succeed on real-world
   pages (#4), without new dependencies:

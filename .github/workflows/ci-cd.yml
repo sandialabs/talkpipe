@@ -107,8 +107,26 @@ jobs:
 
     - name: Run Safety dependency scan
       run: |
-        safety scan --save-as json safety-report.json
-        safety scan
+        if [ -n "${SAFETY_API_KEY:-}" ]; then
+          # Authenticated: the commercial database, gated by .safety-policy.yml.
+          safety scan --save-as json safety-report.json
+          safety scan
+        else
+          # Gitea does not pass repository secrets to pull-request runs, so the
+          # key is absent there and `safety scan` would only ask us to log in.
+          # Fall back to the free database rather than failing for lack of auth
+          # or, worse, passing without scanning anything. This still fails the
+          # build on a known vulnerability -- the database is just staler than
+          # the authenticated scan that gates pushes to develop and main.
+          echo "SAFETY_API_KEY unavailable; falling back to 'safety check' (free database)."
+          # `check` is the legacy command and the only one that runs without an
+          # account. It rejects .safety-policy.yml because that file is v3.0 and
+          # only `scan` parses v3, so run it from a directory holding no policy
+          # file; it scans the installed environment either way.
+          report="$PWD/safety-report.json"
+          workdir="$(mktemp -d)"
+          (cd "$workdir" && safety check --save-json "$report")
+        fi
     
     - name: Upload security scan results
       uses: actions/upload-artifact@v7
