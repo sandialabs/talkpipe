@@ -12,6 +12,18 @@ are not at the start of a pipeline are Segments.
 
 ## Conventions
 
+### Code quality
+
+Ruff (lint and Black-compatible formatting) and mypy gate CI: any finding
+from `ruff check .`, `ruff format --check .`, or `mypy` fails the build, with
+no advisory mode. The rule set (`[tool.ruff]`) and the type-checking
+baseline (`[tool.mypy]`) live in `pyproject.toml`; `ruff check --fix . &&
+ruff format .` fixes most lint and format findings. `pre-commit install`
+(opt-in, per clone) runs the same three checks on every commit. mypy starts
+from a permissive baseline (untyped function bodies are checked, missing
+annotations are not yet errors) and is tightened towards `strict` over time
+-- do not add `# type: ignore` without an error code and a reason.
+
 ### Versioning
 
 This codebase will use [semantic versioning](https://semver.org/) with the additional convention that during the 0.x.y development that each MINOR version will mostly maintain backward compatibility and PATCH versions will include substantial new capability.  So, for example, every 0.2.x version will be mostly backward compatible, but 0.3.0 might contain code reorganization.

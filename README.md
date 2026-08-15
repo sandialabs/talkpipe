@@ -644,6 +644,13 @@ Two consequences worth remembering:
   apart. If you change dependencies in `pyproject.toml`, run `uv lock` and
   commit the result.
 
+**Code quality.** CI fails on any finding from `ruff check .`,
+`ruff format --check .`, or `mypy` (the rule set and type-checking config
+live in `pyproject.toml`), so run them before pushing —
+`ruff check --fix . && ruff format .` fixes most findings. To run the same
+checks on every commit, opt in once per clone with `uv run pre-commit
+install`; `pre-commit run --all-files` reproduces the CI gate locally.
+
 ## Status
 
 TalkPipe is in active development: feature-rich and in use, but APIs may evolve. We follow [semantic versioning](https://semver.org/): minor versions aim for compatibility within a major series; major bumps may include breaking changes. **Reasonably stable for everyday use:** install from PyPI, the `|` pipeline model, `compiler.compile(...).as_function(...)`, and optional extras for LLM providers.
