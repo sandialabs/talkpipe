@@ -2,14 +2,12 @@
 """
 Tests for chatterlang_generate_entry_points.py script.
 """
+
 import tempfile
 from pathlib import Path
-import pytest
 
 from talkpipe.app.chatterlang_generate_entry_points import (
-    DecoratorFinder,
     scan_file,
-    scan_directory,
 )
 
 
@@ -44,20 +42,24 @@ def transform_func(items):
         results = scan_file(test_file, tmpdir_path, "testpackage")
 
         # Verify that both the function-based source and segment were found
-        assert len(results['sources']) == 1, f"Expected 1 source, found {len(results['sources'])}"
-        assert len(results['segments']) == 1, f"Expected 1 segment, found {len(results['segments'])}"
+        assert len(results["sources"]) == 1, (
+            f"Expected 1 source, found {len(results['sources'])}"
+        )
+        assert len(results["segments"]) == 1, (
+            f"Expected 1 segment, found {len(results['segments'])}"
+        )
 
         # Check the source details
-        source_name, source_class, source_module = results['sources'][0]
-        assert source_name == 'test_echo'
-        assert source_class == 'echo_func'
-        assert source_module == 'testpackage.test_module'
+        source_name, source_class, source_module = results["sources"][0]
+        assert source_name == "test_echo"
+        assert source_class == "echo_func"
+        assert source_module == "testpackage.test_module"
 
         # Check the segment details
-        segment_name, segment_class, segment_module = results['segments'][0]
-        assert segment_name == 'test_transform'
-        assert segment_class == 'transform_func'
-        assert segment_module == 'testpackage.test_module'
+        segment_name, segment_class, segment_module = results["segments"][0]
+        assert segment_name == "test_transform"
+        assert segment_class == "transform_func"
+        assert segment_module == "testpackage.test_module"
 
 
 def test_decorator_finder_finds_class_based_sources_and_segments():
@@ -91,26 +93,30 @@ class Print(AbstractSegment):
         results = scan_file(test_file, tmpdir_path, "testpackage")
 
         # Verify that both the class-based source and segment were found
-        assert len(results['sources']) == 1, f"Expected 1 source, found {len(results['sources'])}"
-        assert len(results['segments']) == 1, f"Expected 1 segment, found {len(results['segments'])}"
+        assert len(results["sources"]) == 1, (
+            f"Expected 1 source, found {len(results['sources'])}"
+        )
+        assert len(results["segments"]) == 1, (
+            f"Expected 1 segment, found {len(results['segments'])}"
+        )
 
         # Check the source details
-        source_name, source_class, source_module = results['sources'][0]
-        assert source_name == 'test_prompt'
-        assert source_class == 'Prompt'
-        assert source_module == 'testpackage.test_module'
+        source_name, source_class, source_module = results["sources"][0]
+        assert source_name == "test_prompt"
+        assert source_class == "Prompt"
+        assert source_module == "testpackage.test_module"
 
         # Check the segment details
-        segment_name, segment_class, segment_module = results['segments'][0]
-        assert segment_name == 'test_print'
-        assert segment_class == 'Print'
-        assert segment_module == 'testpackage.test_module'
+        segment_name, segment_class, segment_module = results["segments"][0]
+        assert segment_name == "test_print"
+        assert segment_class == "Print"
+        assert segment_module == "testpackage.test_module"
 
 
 def test_decorator_finder_handles_both_functions_and_classes():
     """Test that DecoratorFinder can find decorators on both functions and classes in the same file."""
 
-    test_code = '''
+    test_code = """
 from talkpipe.chatterlang.registry import register_source, register_segment
 from talkpipe.pipe.core import AbstractSource, AbstractSegment, source, segment
 
@@ -135,7 +141,7 @@ class ClassSegment(AbstractSegment):
 def func_segment(items):
     for item in items:
         yield item
-'''
+"""
 
     with tempfile.TemporaryDirectory() as tmpdir:
         tmpdir_path = Path(tmpdir)
@@ -146,21 +152,25 @@ def func_segment(items):
         results = scan_file(test_file, tmpdir_path, "testpackage")
 
         # Should find 2 sources (1 class, 1 function) and 2 segments (1 class, 1 function)
-        assert len(results['sources']) == 2, f"Expected 2 sources, found {len(results['sources'])}"
-        assert len(results['segments']) == 2, f"Expected 2 segments, found {len(results['segments'])}"
+        assert len(results["sources"]) == 2, (
+            f"Expected 2 sources, found {len(results['sources'])}"
+        )
+        assert len(results["segments"]) == 2, (
+            f"Expected 2 segments, found {len(results['segments'])}"
+        )
 
         # Check that we have the right mix
-        source_names = {name for name, _, _ in results['sources']}
-        assert source_names == {'class_source', 'func_source'}
+        source_names = {name for name, _, _ in results["sources"]}
+        assert source_names == {"class_source", "func_source"}
 
-        segment_names = {name for name, _, _ in results['segments']}
-        assert segment_names == {'class_segment', 'func_segment'}
+        segment_names = {name for name, _, _ in results["segments"]}
+        assert segment_names == {"class_segment", "func_segment"}
 
 
 def test_decorator_finder_finds_factory_created_segments():
     """Test that FactoryCallFinder finds segments created by factory functions."""
 
-    test_code = '''
+    test_code = """
 def _make_comparison_segment(name: str, op, docstring: str):
     @registry.register_segment(name=name)
     class ComparisonSegment:
@@ -170,7 +180,7 @@ def _make_comparison_segment(name: str, op, docstring: str):
 
 EQ = _make_comparison_segment("eq", lambda x, y: x == y, "Equals")
 GT = _make_comparison_segment("gt", lambda x, y: x > y, "Greater than")
-'''
+"""
 
     with tempfile.TemporaryDirectory() as tmpdir:
         tmpdir_path = Path(tmpdir)
@@ -179,6 +189,6 @@ GT = _make_comparison_segment("gt", lambda x, y: x > y, "Greater than")
 
         results = scan_file(test_file, tmpdir_path, "testpackage")
 
-        assert len(results['segments']) == 2
-        segment_names = {(name, cls) for name, cls, _ in results['segments']}
-        assert segment_names == {('eq', 'EQ'), ('gt', 'GT')}
+        assert len(results["segments"]) == 2
+        segment_names = {(name, cls) for name, cls, _ in results["segments"]}
+        assert segment_names == {("eq", "EQ"), ("gt", "GT")}

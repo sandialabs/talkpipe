@@ -1,14 +1,42 @@
 import warnings
-warnings.filterwarnings("ignore", message=".*ColPaliEmbeddings.*has conflict with protected namespace.*")
-warnings.filterwarnings("ignore", message=".*SigLipEmbeddings.*has conflict with protected namespace.*")
 
-# Load plugins automatically on import
-from talkpipe.util.plugin_loader import load_plugins
-from talkpipe.chatterlang import compile
-from talkpipe.pipe.core import segment, field_segment, AbstractFieldSegment, AbstractSegment, source, AbstractSource
-from talkpipe.chatterlang.registry import register_segment, register_source
+warnings.filterwarnings(
+    "ignore", message=".*ColPaliEmbeddings.*has conflict with protected namespace.*"
+)
+warnings.filterwarnings(
+    "ignore", message=".*SigLipEmbeddings.*has conflict with protected namespace.*"
+)
 
-import logging
+# The warning filters above must be installed before talkpipe's own modules
+# are imported, hence the late imports.
+import logging  # noqa: E402
+
+from talkpipe.chatterlang import compile  # noqa: E402
+from talkpipe.chatterlang.registry import (  # noqa: E402
+    register_segment,
+    register_source,
+)
+from talkpipe.pipe.core import (  # noqa: E402
+    AbstractFieldSegment,
+    AbstractSegment,
+    AbstractSource,
+    field_segment,
+    segment,
+    source,
+)
+from talkpipe.util.plugin_loader import load_plugins  # noqa: E402
+
+__all__ = [
+    "AbstractFieldSegment",
+    "AbstractSegment",
+    "AbstractSource",
+    "compile",
+    "field_segment",
+    "register_segment",
+    "register_source",
+    "segment",
+    "source",
+]
 
 # Configure logging for plugin loading
 logger = logging.getLogger(__name__)

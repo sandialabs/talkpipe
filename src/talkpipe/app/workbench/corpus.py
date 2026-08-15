@@ -11,10 +11,11 @@ in-progress scripts fall back to a regex scan so the user's own drafts still
 contribute signal.
 """
 
+import itertools
 import logging
 import re
+from collections.abc import Iterable
 from pathlib import Path
-from typing import Dict, Iterable, List
 
 from parsy import ParseError
 
@@ -34,7 +35,7 @@ SEED_SCRIPTS_DIR = Path(__file__).parent.parent / "workbench_data" / "seed_scrip
 _KEYWORDS = {"INPUT", "FROM", "NEW", "CONST", "SET", "LOOP", "TIMES", "True", "False"}
 
 
-def _chains_from_parsed(parsed) -> List[List[str]]:
+def _chains_from_parsed(parsed) -> list[list[str]]:
     """Ordered component-name chains, one per pipeline (loops flattened)."""
     chains = []
 
@@ -47,7 +48,11 @@ def _chains_from_parsed(parsed) -> List[List[str]]:
             return
         chain = []
         node = pipeline.input_node
-        if node is not None and not isinstance(node.source, str) and not node.is_variable:
+        if (
+            node is not None
+            and not isinstance(node.source, str)
+            and not node.is_variable
+        ):
             chain.append(node.source.name)
         for transform in pipeline.transforms:
             if isinstance(transform, SegmentNode):
@@ -66,7 +71,7 @@ def _chains_from_parsed(parsed) -> List[List[str]]:
     return chains
 
 
-def _chains_from_regex(script: str) -> List[List[str]]:
+def _chains_from_regex(script: str) -> list[list[str]]:
     """Crude fallback for scripts the parser rejects."""
     chains = []
     text = remove_comments(script)
@@ -82,7 +87,7 @@ def _chains_from_regex(script: str) -> List[List[str]]:
     return chains
 
 
-def mine_script(script: str) -> List[List[str]]:
+def mine_script(script: str) -> list[list[str]]:
     """Component-name chains for one script (parser first, regex fallback)."""
     if not script or not script.strip():
         return []
@@ -95,10 +100,10 @@ def mine_script(script: str) -> List[List[str]]:
         return _chains_from_regex(script)
 
 
-def build_tables(weighted_scripts: Iterable[tuple]) -> Dict:
+def build_tables(weighted_scripts: Iterable[tuple]) -> dict:
     """Aggregate (script_text, weight) pairs into suggestion tables."""
-    starts: Dict[str, int] = {}
-    bigrams: Dict[str, Dict[str, int]] = {}
+    starts: dict[str, int] = {}
+    bigrams: dict[str, dict[str, int]] = {}
     mined = 0
     for script, weight in weighted_scripts:
         chains = mine_script(script)
@@ -106,30 +111,34 @@ def build_tables(weighted_scripts: Iterable[tuple]) -> Dict:
             mined += 1
         for chain in chains:
             starts[chain[0]] = starts.get(chain[0], 0) + weight
-            for prev, nxt in zip(chain, chain[1:]):
-                bigrams.setdefault(prev, {})[nxt] = bigrams.get(prev, {}).get(nxt, 0) + weight
+            for prev, nxt in itertools.pairwise(chain):
+                bigrams.setdefault(prev, {})[nxt] = (
+                    bigrams.get(prev, {}).get(nxt, 0) + weight
+                )
     return {"starts": starts, "bigrams": bigrams, "scripts_mined": mined}
 
 
-def _example_scripts() -> List[str]:
+def _example_scripts() -> list[str]:
     # Imported lazily: chatterlang_workbench imports this package at load time.
     from talkpipe.app.chatterlang_workbench import EXAMPLE_SCRIPTS
+
     return [
-        example["code"]
-        for examples in EXAMPLE_SCRIPTS.values()
-        for example in examples
+        example["code"] for examples in EXAMPLE_SCRIPTS.values() for example in examples
     ]
 
 
-def _seed_scripts() -> List[str]:
+def _seed_scripts() -> list[str]:
     if not SEED_SCRIPTS_DIR.is_dir():
         return []
-    return [path.read_text(encoding="utf-8")
-            for path in sorted(SEED_SCRIPTS_DIR.glob("*.script"))]
+    return [
+        path.read_text(encoding="utf-8")
+        for path in sorted(SEED_SCRIPTS_DIR.glob("*.script"))
+    ]
 
 
-def build_corpus_tables(workspace_scripts: List[str],
-                        workspace_weight: int = 3) -> Dict:
+def build_corpus_tables(
+    workspace_scripts: list[str], workspace_weight: int = 3
+) -> dict:
     """The full suggestion tables: examples + seed scripts + user pipelines.
 
     The user's own pipelines are weighted higher so their habits dominate

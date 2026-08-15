@@ -1,5 +1,5 @@
-from talkpipe.pipe import fork
-from talkpipe.pipe import core
+from talkpipe.pipe import core, fork
+
 
 def test_fork_1_branch():
     @core.segment()
@@ -10,6 +10,7 @@ def test_fork_1_branch():
     pipeline = fork.ForkSegment([branch1()])
     results = list(pipeline(range(5)))
     assert results == [0, 2, 4, 6, 8]
+
 
 def test_fork_2_branches():
     # Define a simple pipeline with two branches
@@ -28,12 +29,13 @@ def test_fork_2_branches():
     # Test broadcast mode
     pipeline.mode = fork.ForkMode.BROADCAST
     results = list(pipeline(range(5)))
-    assert set(results) == set([0, 2, 4, 6, 8, 10, 11, 12, 13, 14])
+    assert set(results) == {0, 2, 4, 6, 8, 10, 11, 12, 13, 14}
 
     # Test round-robin mode
     pipeline.mode = fork.ForkMode.ROUND_ROBIN
     results = list(pipeline(range(5)))
-    assert set(results) == set([0, 11, 4, 13, 8])
+    assert set(results) == {0, 11, 4, 13, 8}
+
 
 def test_complex_fork():
     @core.segment()
@@ -54,7 +56,7 @@ def test_complex_fork():
     @core.segment()
     def branch4(iterable):
         for item in iterable:
-            yield item ** 2
+            yield item**2
 
     forkSegment = fork.ForkSegment([branch1(), branch2()])
     forkSegment.mode = fork.ForkMode.ROUND_ROBIN
@@ -62,6 +64,10 @@ def test_complex_fork():
     pipeline = branch3() | forkSegment | branch4()
 
     results = list(pipeline(range(5)))
-    assert set(results) == set([((0-5)*2)**2, ((1-5)+10)**2, ((2-5)*2)**2, ((3-5)+10)**2, ((4-5)*2)**2])    
-
-
+    assert set(results) == {
+        ((0 - 5) * 2) ** 2,
+        ((1 - 5) + 10) ** 2,
+        ((2 - 5) * 2) ** 2,
+        ((3 - 5) + 10) ** 2,
+        ((4 - 5) * 2) ** 2,
+    }

@@ -21,7 +21,7 @@ _DATA_URI_RE = re.compile(r"data:[\w.+-]+/[\w.+-]+;\s*base64,\s*[A-Za-z0-9+/=]+"
 
 @lru_cache(maxsize=8)
 def _base64_run_re(min_run: int) -> re.Pattern:
-    return re.compile(r"[A-Za-z0-9+/]{%d,}={0,2}" % min_run)
+    return re.compile(rf"[A-Za-z0-9+/]{{{min_run},}}={{0,2}}")
 
 
 def _looks_like_base64(run: str) -> bool:
@@ -60,7 +60,9 @@ def strip_base64_blobs(text: str, min_run: int = DEFAULT_MIN_RUN) -> str:
 @field_segment()
 def stripBase64(
     text: Annotated[str, "Text to clean"],
-    min_run: Annotated[int, "Minimum unbroken base64 run length to strip"] = DEFAULT_MIN_RUN,
+    min_run: Annotated[
+        int, "Minimum unbroken base64 run length to strip"
+    ] = DEFAULT_MIN_RUN,
 ) -> str:
     """Removes base64-encoded payloads (data URIs and bare encoded runs) from text.
 

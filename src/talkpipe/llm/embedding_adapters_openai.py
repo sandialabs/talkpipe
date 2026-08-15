@@ -1,4 +1,4 @@
-from typing import List, Sequence
+from collections.abc import Sequence
 
 from .embedding_adapters import AbstractEmbeddingAdapter
 
@@ -21,7 +21,7 @@ class OpenAIEmbeddingAdapter(AbstractEmbeddingAdapter):
         openai = _require_openai()
         self.client = openai.OpenAI()
 
-    def execute_batch(self, texts: Sequence[str]) -> List[List[float]]:
+    def execute_batch(self, texts: Sequence[str]) -> list[list[float]]:
         if not texts:
             return []
         response = self.client.embeddings.create(
@@ -30,7 +30,7 @@ class OpenAIEmbeddingAdapter(AbstractEmbeddingAdapter):
         )
         return [list(d.embedding) for d in response.data]
 
-    def execute_one(self, text: str) -> List[float]:
+    def execute_one(self, text: str) -> list[float]:
         response = self.client.embeddings.create(
             model=self.model_name,
             input=text,

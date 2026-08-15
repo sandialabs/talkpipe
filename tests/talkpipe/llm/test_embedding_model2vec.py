@@ -6,7 +6,11 @@ import pytest
 
 from talkpipe.chatterlang import compile
 from talkpipe.llm.embedding import LLMEmbed
-from talkpipe.llm.model2vec_embeddings import DEFAULT_MODEL, Model2VecEmbedder, precache_model
+from talkpipe.llm.model2vec_embeddings import (
+    DEFAULT_MODEL,
+    Model2VecEmbedder,
+    precache_model,
+)
 
 
 def _mock_static_model(monkeypatch, *, dimension=256, embedding=None):
@@ -148,9 +152,7 @@ def test_embedder_with_revision_resolves_via_snapshot_download(monkeypatch):
         "talkpipe.llm.model2vec_embeddings._require_model2vec",
         lambda: DummyModel,
     )
-    monkeypatch.setattr(
-        "huggingface_hub.snapshot_download", fake_snapshot_download
-    )
+    monkeypatch.setattr("huggingface_hub.snapshot_download", fake_snapshot_download)
 
     Model2VecEmbedder(
         "minishlab/potion-base-8M",
@@ -253,9 +255,7 @@ def test_precache_model_smoke(monkeypatch):
         "talkpipe.llm.model2vec_embeddings._require_model2vec",
         lambda: DummyModel,
     )
-    monkeypatch.setattr(
-        "huggingface_hub.snapshot_download", fake_snapshot_download
-    )
+    monkeypatch.setattr("huggingface_hub.snapshot_download", fake_snapshot_download)
 
     result = precache_model(
         "minishlab/potion-base-8M",
@@ -379,6 +379,8 @@ def test_precache_model_raises_on_empty_embedding(monkeypatch):
 def test_require_model2vec_import_error():
     from talkpipe.llm import model2vec_embeddings
 
-    with patch.dict("sys.modules", {"model2vec": None}):
-        with pytest.raises(ImportError, match="model2vec"):
-            model2vec_embeddings._require_model2vec()
+    with (
+        patch.dict("sys.modules", {"model2vec": None}),
+        pytest.raises(ImportError, match="model2vec"),
+    ):
+        model2vec_embeddings._require_model2vec()

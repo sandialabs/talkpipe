@@ -1,5 +1,4 @@
 import logging
-from typing import Optional
 
 from talkpipe.data.text.englishnormalize import summarize
 
@@ -7,6 +6,48 @@ logger = logging.getLogger("talkpipe.llm.prompt_adapters")
 
 
 class PromptAdapterMemoryMixin:
+    """Rolling-memory compaction shared by prompt adapters.
+
+    The host class (``AbstractLLMPromptAdapter``) provides the state and
+    helpers declared below; they are typed here so the mixin type-checks
+    standalone.
+    """
+
+    # State owned by the host class.
+    _model_name: str
+    _source: str
+    _messages: list
+    _summary_message: dict | None
+    _memory_mode: str
+    _summarization_mode: str
+    _summary_strategy: str
+    _unsummarized_message_count: int
+    _context_token_trigger: int | float | None
+    _debug_messages: bool
+    _summary_max_tokens: int | None
+    _summary_max_chars: int
+    _summary_model: str | None
+
+    # Helpers implemented by the host class.
+    def _request_messages(self) -> list:
+        raise NotImplementedError
+
+    def _log_message_payload(self, payload_name: str, messages: list) -> None:
+        raise NotImplementedError
+
+    def _clip_debug_text(self, text: str | None, limit: int = 1200) -> str:
+        raise NotImplementedError
+
+    def complete_text_without_context(
+        self,
+        prompt: str,
+        *,
+        model: str | None = None,
+        temperature: float = 0.0,
+        max_tokens: int | None = None,
+    ) -> str:
+        raise NotImplementedError
+
     def _estimate_tokens(self, messages: list) -> int:
         # Provider-agnostic approximation to stay lightweight and deterministic.
         content_size = sum(len(str(message.get("content", ""))) for message in messages)
@@ -18,11 +59,19 @@ class PromptAdapterMemoryMixin:
         effective_budget = self._get_effective_context_token_trigger()
         if not effective_budget:
             return False
-        return self._estimate_tokens(self._request_messages()) > max(1, int(effective_budget))
+        return self._estimate_tokens(self._request_messages()) > max(
+            1, int(effective_budget)
+        )
 
     def _configure_memory_mode(self, memory_mode: str) -> None:
         mode = (memory_mode or "full").strip().lower()
-        valid_modes = {"full", "recent_only", "summary_llm", "summary_deterministic", "summary_truncate"}
+        valid_modes = {
+            "full",
+            "recent_only",
+            "summary_llm",
+            "summary_deterministic",
+            "summary_truncate",
+        }
         if mode not in valid_modes:
             raise ValueError(
                 f"Unknown memory_mode: {memory_mode}. "
@@ -37,7 +86,7 @@ class PromptAdapterMemoryMixin:
         else:
             self._summary_strategy = "llm"
 
-    def _get_effective_context_token_trigger(self) -> Optional[int]:
+    def _get_effective_context_token_trigger(self) -> int | None:
         trigger = self._context_token_trigger
         if trigger is None:
             return None
@@ -46,14 +95,16 @@ class PromptAdapterMemoryMixin:
         return None
 
     def _messages_to_summary_text(self, messages: list) -> str:
-        lines = []
+        lines: list[str] = []
         for message in messages:
             role = str(message.get("role", "unknown")).upper()
             content = str(message.get("content", ""))
             lines.append(f"{role}: {content}")
         return "\n".join(lines)
 
-    def _build_summary_prompt(self, previous_summary: str, archived_messages: list) -> str:
+    def _build_summary_prompt(
+        self, previous_summary: str, archived_messages: list
+    ) -> str:
         history_text = self._messages_to_summary_text(archived_messages)
         return (
             "Summarize the archived chat history for future context. "
@@ -63,23 +114,39 @@ class PromptAdapterMemoryMixin:
             f"Archived messages:\n{history_text}"
         )
 
-    def _summarize_deterministic(self, previous_summary: str, archived_messages: list) -> str:
+    def _summarize_deterministic(
+        self, previous_summary: str, archived_messages: list
+    ) -> str:
         history_text = self._messages_to_summary_text(archived_messages)
-        combined = history_text if not previous_summary else f"{previous_summary}\n{history_text}"
+        combined = (
+            history_text
+            if not previous_summary
+            else f"{previous_summary}\n{history_text}"
+        )
         if not combined.strip():
             return ""
         lines = [line for line in combined.splitlines() if line.strip()]
-        summary = summarize(lines, max_chars=self._summary_max_chars, strategy="deterministic")
+        summary = summarize(
+            lines, max_chars=self._summary_max_chars, strategy="deterministic"
+        )
         return f"Conversation memory (deterministic fallback):\n{summary}"
 
-    def _summarize_truncate(self, previous_summary: str, archived_messages: list) -> str:
+    def _summarize_truncate(
+        self, previous_summary: str, archived_messages: list
+    ) -> str:
         history_text = self._messages_to_summary_text(archived_messages)
-        combined = history_text if not previous_summary else f"{previous_summary}\n{history_text}"
+        combined = (
+            history_text
+            if not previous_summary
+            else f"{previous_summary}\n{history_text}"
+        )
         if not combined.strip():
             return ""
         return combined.strip()[-self._summary_max_chars :]
 
-    def _summarize_with_llm(self, previous_summary: str, archived_messages: list) -> str:
+    def _summarize_with_llm(
+        self, previous_summary: str, archived_messages: list
+    ) -> str:
         summary_model = self._summary_model or self._model_name
         summary_prompt = self._build_summary_prompt(previous_summary, archived_messages)
         return self.complete_text_without_context(
@@ -104,9 +171,13 @@ class PromptAdapterMemoryMixin:
         except NotImplementedError:
             raise
         except Exception as exc:
-            logger.warning(f"LLM summary strategy failed, using deterministic fallback: {exc}")
+            logger.warning(
+                f"LLM summary strategy failed, using deterministic fallback: {exc}"
+            )
 
-        deterministic_summary = self._summarize_deterministic(previous_summary, archived_messages)
+        deterministic_summary = self._summarize_deterministic(
+            previous_summary, archived_messages
+        )
         if deterministic_summary and deterministic_summary.strip():
             return deterministic_summary.strip()[: self._summary_max_chars]
         return self._summarize_truncate(previous_summary, archived_messages)
@@ -140,13 +211,17 @@ class PromptAdapterMemoryMixin:
             len(recent_messages),
             self._summary_strategy,
         )
-        previous_summary = self._summary_message["content"] if self._summary_message else ""
+        previous_summary = (
+            self._summary_message["content"] if self._summary_message else ""
+        )
         if self._memory_mode == "recent_only":
             new_summary = ""
             self._summary_message = None
         else:
             new_summary = self._summarize_history(previous_summary, archived_messages)
-            self._summary_message = {"role": "system", "content": new_summary} if new_summary else None
+            self._summary_message = (
+                {"role": "system", "content": new_summary} if new_summary else None
+            )
 
         if self._debug_messages:
             self._log_message_payload("archived_messages", archived_messages)

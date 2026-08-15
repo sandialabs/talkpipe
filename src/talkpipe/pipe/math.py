@@ -3,37 +3,44 @@
 Provides sources (randomInts, range) and segments (scale, eq, neq, gt, gte, lt, lte)
 for numeric pipelines.
 """
-from typing import Iterable, Union, Callable, Any, Annotated
+
+from collections.abc import Callable, Iterable, Iterator
+from typing import Annotated, Any
+
 from numpy import random
-from talkpipe.pipe import core
+
 from talkpipe.chatterlang import registry
+from talkpipe.pipe import core
 from talkpipe.util.data_manipulation import extract_property
+
 
 @registry.register_source(name="randomInts")
 @core.source(n=10, lower=0, upper=100)
 def randomInts(
-    n: Annotated[int, "Number of random integers to generate"], 
-    lower: Annotated[int, "Lower bound (inclusive)"], 
-    upper: Annotated[int, "Upper bound (exclusive)"]
+    n: Annotated[int, "Number of random integers to generate"],
+    lower: Annotated[int, "Lower bound (inclusive)"],
+    upper: Annotated[int, "Upper bound (exclusive)"],
 ) -> Iterable[int]:
     """Generate n random integers between lower and upper."""
     yield from random.randint(lower, upper, n)
 
+
 @registry.register_segment(name="scale")
 @core.segment(multiplier=2)
 def scale(
-    items: Iterable[Union[int, float]], 
-    multiplier: Annotated[Union[int, float], "Value to multiply each item by"]
-) -> Iterable[Union[int, float]]:
+    items: Iterable[int | float],
+    multiplier: Annotated[int | float, "Value to multiply each item by"],
+) -> Iterable[int | float]:
     """Scale each item in the input stream by the multiplier."""
     for x in items:
         yield x * multiplier
 
+
 @registry.register_source(name="range")
 @core.source(lower=0, upper=10)
 def arange(
-    lower: Annotated[int, "Lower bound of the range (inclusive)"], 
-    upper: Annotated[int, "Upper bound of the range (exclusive)"]
+    lower: Annotated[int, "Lower bound of the range (inclusive)"],
+    upper: Annotated[int, "Upper bound of the range (exclusive)"],
 ):
     """Generate a range of integers between lower (inclusive) and upper (exclusive)
 
@@ -58,7 +65,7 @@ class AbstractComparisonFilter(core.AbstractSegment):
         self.n = n
         self.comparator = comparator
 
-    def transform(self, items: Iterable) -> Iterable:
+    def transform(self, items: Iterable) -> Iterator:
         """Yield items whose field value satisfies the comparator."""
         for item in items:
             value = extract_property(item, self.field, fail_on_missing=True)
@@ -68,28 +75,50 @@ class AbstractComparisonFilter(core.AbstractSegment):
 
 def _make_comparison_segment(name: str, op: Callable[[Any, Any], bool], docstring: str):
     """Factory: create a registered comparison segment with given op and docstring."""
+
     @registry.register_segment(name=name)
     class ComparisonSegment(AbstractComparisonFilter):
         __doc__ = docstring
 
-        def __init__(self, 
-                     field: Annotated[str, "Field/property to compare"], 
-                     n: Annotated[Any, "Value to compare against"]):
+        def __init__(
+            self,
+            field: Annotated[str, "Field/property to compare"],
+            n: Annotated[Any, "Value to compare against"],
+        ):
             super().__init__(field, n, op)
+
     ComparisonSegment.__name__ = name
     return ComparisonSegment
 
 
-# Comparison segments: filter by field value vs threshold 
-EQ = _make_comparison_segment("eq", lambda x, y: x == y,
-    "Filter items where a specified field's value equals a number.")
-NEQ = _make_comparison_segment("neq", lambda x, y: x != y,
-    "Filter items where a specified field's value does not equal a number.")
-GT = _make_comparison_segment("gt", lambda x, y: x > y,
-    "Filter items where a specified field's value is greater than a number.")
-GTE = _make_comparison_segment("gte", lambda x, y: x >= y,
-    "Filter items where a specified field's value is greater than or equal to a number.")
-LT = _make_comparison_segment("lt", lambda x, y: x < y,
-    "Filters items based on a field value being less than a specified number.")
-LTE = _make_comparison_segment("lte", lambda x, y: x <= y,
-    "Filter items where a specified field's value is less than or equal to a number.")
+# Comparison segments: filter by field value vs threshold
+EQ = _make_comparison_segment(
+    "eq",
+    lambda x, y: x == y,
+    "Filter items where a specified field's value equals a number.",
+)
+NEQ = _make_comparison_segment(
+    "neq",
+    lambda x, y: x != y,
+    "Filter items where a specified field's value does not equal a number.",
+)
+GT = _make_comparison_segment(
+    "gt",
+    lambda x, y: x > y,
+    "Filter items where a specified field's value is greater than a number.",
+)
+GTE = _make_comparison_segment(
+    "gte",
+    lambda x, y: x >= y,
+    "Filter items where a specified field's value is greater than or equal to a number.",
+)
+LT = _make_comparison_segment(
+    "lt",
+    lambda x, y: x < y,
+    "Filters items based on a field value being less than a specified number.",
+)
+LTE = _make_comparison_segment(
+    "lte",
+    lambda x, y: x <= y,
+    "Filter items where a specified field's value is less than or equal to a number.",
+)

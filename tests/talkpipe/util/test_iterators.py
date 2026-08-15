@@ -1,10 +1,11 @@
-import pytest
 from talkpipe.util.iterators import bypass
 
 
 def test_bypass():
     """Test the bypass function with various scenarios."""
-    predicate = lambda x: (x % 2 == 0)
+
+    def predicate(x):
+        return x % 2 == 0
 
     def handler(stream):
         for x in stream:
@@ -34,11 +35,10 @@ def test_bypass():
     assert result == [30, 300, 50, 500]
     # Note: 7 is skipped by the handler, so no output for it
 
-    data = [7,7,7]
+    data = [7, 7, 7]
     result = list(bypass(data, predicate, handler))
     assert result == []
 
     data = [3, 5, 9]
     result = list(bypass(data, predicate, handler))
     assert result == [30, 300, 50, 500, 90, 900]
-

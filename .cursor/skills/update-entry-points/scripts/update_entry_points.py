@@ -18,7 +18,7 @@ from pathlib import Path
 _project_root = Path(__file__).resolve().parent.parent.parent.parent.parent
 sys.path.insert(0, str(_project_root / "src"))
 
-from talkpipe.app.chatterlang_generate_entry_points import (
+from talkpipe.app.chatterlang_generate_entry_points import (  # noqa: E402
     generate_toml_section,
     scan_directory,
 )
@@ -59,14 +59,20 @@ def update_pyproject(
     new_toml = generate_toml_section(results["sources"], results["segments"])
 
     if not new_toml.strip():
-        print("Warning: No entry points generated. Check that sources use @register_source/@register_segment.", file=sys.stderr)
+        print(
+            "Warning: No entry points generated. Check that sources use @register_source/@register_segment.",
+            file=sys.stderr,
+        )
         return False
 
     content = pyproject_path.read_text(encoding="utf-8")
     start = _find_entry_points_start(content)
 
     if start < 0:
-        print("Error: Could not find [project.entry-points.\"talkpipe.sources\"] in pyproject.toml", file=sys.stderr)
+        print(
+            'Error: Could not find [project.entry-points."talkpipe.sources"] in pyproject.toml',
+            file=sys.stderr,
+        )
         return False
 
     prefix = content[:start]
@@ -87,9 +93,13 @@ def update_pyproject(
 
     if new_content != content:
         pyproject_path.write_text(new_content, encoding="utf-8")
-        print(f"Updated {pyproject_path} with {len(results['sources'])} sources and {len(results['segments'])} segments.")
+        print(
+            f"Updated {pyproject_path} with {len(results['sources'])} sources and {len(results['segments'])} segments."
+        )
     else:
-        print("No changes needed; pyproject.toml already matches generated entry points.")
+        print(
+            "No changes needed; pyproject.toml already matches generated entry points."
+        )
 
     return True
 

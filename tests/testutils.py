@@ -1,28 +1,32 @@
-from typing import Iterable, List
-from unittest.mock import Mock 
+import os
+import re
+from collections.abc import Iterable
+from unittest.mock import Mock
+
 import pytest
-import os, re
-from collections import namedtuple
+
 from talkpipe.pipe.io import Prompt  # Import the Prompt source class
-from talkpipe.util.config import get_config
+
 
 @pytest.fixture
 def monkeypatched_talkpipe_io_prompt(monkeypatch):
     """Fixture that patches Prompt.generate to yield custom inputs."""
-    
-    def _mock_prompt_responses(responses: List[str]):
+
+    def _mock_prompt_responses(responses: list[str]):
         """Returns a function that mocks Prompt.generate with given responses."""
+
         def mock_generate(self) -> Iterable[str]:
-            for response in responses:
-                yield response
+            yield from responses
+
         monkeypatch.setattr(Prompt, "generate", mock_generate)
 
     return _mock_prompt_responses  # Return function to allow per-test customization
 
+
 @pytest.fixture
 def monkeypatched_env(monkeypatch):
     """Fixture to replace environment variables with a provided dictionary."""
-    
+
     def _set_env(env_vars):
 
         for key in list(os.environ.keys()):
@@ -32,20 +36,25 @@ def monkeypatched_env(monkeypatch):
         for key, value in env_vars.items():
             monkeypatch.setenv(key, value)
 
-    return _set_env  
+    return _set_env
+
 
 @pytest.fixture
 def patch_get_config(monkeypatch):
     monkeypatch.setattr("talkpipe.util.config.get_config", lambda *args, **kwargs: {})
     monkeypatch.setattr("talkpipe.llm.chat.get_config", lambda *args, **kwargs: {})
-    
 
-is_url = lambda s: isinstance(s, str) and bool(re.match(r'^(https?|ftp)://[^\s/$.?#].[^\s]*$', s))
+
+def is_url(s):
+    return isinstance(s, str) and bool(
+        re.match(r"^(https?|ftp)://[^\s/$.?#].[^\s]*$", s)
+    )
+
 
 @pytest.fixture
 def mock_requests_get_completion(monkeypatch):
     """Mock the requests.get method to return a custom response."""
-    
+
     mock_client = Mock()
 
     class MockResponse:
@@ -53,14 +62,14 @@ def mock_requests_get_completion(monkeypatch):
             self.status_code = status_code
             self.text = text or None
             # Add content attribute for compatibility with requests library
-            self.content = (text or "").encode('utf-8') if text else b""
+            self.content = (text or "").encode("utf-8") if text else b""
             self.headers = {"Content-Type": "text/html; charset=utf-8"}
             self.encoding = "utf-8"
             self.apparent_encoding = "utf-8"
 
         def json(self):
             return self.json_data
-        
+
         def raise_for_status(self):
             """Mock implementation of raise_for_status"""
             if self.status_code >= 400:
@@ -69,14 +78,14 @@ def mock_requests_get_completion(monkeypatch):
     def mock_get(*args, **kwargs):
         if is_url(args[0]):
             # Simulate a successful response for a valid URL
-            return MockResponse(status_code=200, text="<html><head><title>Mocked</title></head><body>The URL was: %s</body></html>" % args[0])
-        else:
-            # Simulate a failure for non-URL inputs
-            return MockResponse(status_code=404, text=None)
-    
+            return MockResponse(
+                status_code=200,
+                text=f"<html><head><title>Mocked</title></head><body>The URL was: {args[0]}</body></html>",
+            )
+        # Simulate a failure for non-URL inputs
+        return MockResponse(status_code=404, text=None)
+
     mock_client.get.return_value = mock_get
 
     monkeypatch.setattr("requests.get", mock_get)
     return mock_get
-
-

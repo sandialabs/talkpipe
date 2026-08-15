@@ -1,7 +1,8 @@
 """REST endpoints for the pipeline workspace (/api/pipelines)."""
 
 import logging
-from typing import Optional
+from collections.abc import Callable
+from typing import Any
 
 from fastapi import APIRouter, HTTPException, Response
 from pydantic import BaseModel
@@ -13,7 +14,7 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api")
 
 # Callbacks fired after any mutation (e.g. corpus rebuild in suggest_api).
-_change_listeners = []
+_change_listeners: list[Callable[..., Any]] = []
 
 
 def on_workspace_change(callback):
@@ -36,9 +37,9 @@ class PipelineCreate(BaseModel):
 
 
 class PipelineUpdate(BaseModel):
-    name: Optional[str] = None
-    description: Optional[str] = None
-    script: Optional[str] = None
+    name: str | None = None
+    description: str | None = None
+    script: str | None = None
 
 
 class PipelineRename(BaseModel):
@@ -49,7 +50,7 @@ def _run(operation):
     try:
         return operation()
     except WorkspaceError as e:
-        raise HTTPException(status_code=e.status, detail=str(e))
+        raise HTTPException(status_code=e.status, detail=str(e)) from e
 
 
 @router.get("/pipelines")
@@ -64,22 +65,28 @@ def get_pipeline(pipeline_id: str):
 
 @router.post("/pipelines", status_code=201)
 def create_pipeline(request: PipelineCreate):
-    record = _run(lambda: get_store().create(
-        request.name, request.description, request.script,
-        overwrite=request.overwrite,
-    ))
+    record = _run(
+        lambda: get_store().create(
+            request.name,
+            request.description,
+            request.script,
+            overwrite=request.overwrite,
+        )
+    )
     _notify_change()
     return record
 
 
 @router.put("/pipelines/{pipeline_id}")
 def update_pipeline(pipeline_id: str, request: PipelineUpdate):
-    record = _run(lambda: get_store().update(
-        pipeline_id,
-        name=request.name,
-        description=request.description,
-        script=request.script,
-    ))
+    record = _run(
+        lambda: get_store().update(
+            pipeline_id,
+            name=request.name,
+            description=request.description,
+            script=request.script,
+        )
+    )
     _notify_change()
     return record
 

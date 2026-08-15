@@ -2,23 +2,30 @@
 
 import logging
 import re
-from typing import Optional, Annotated, Iterator, Any, List, Literal
+from collections.abc import Iterator
+from typing import Annotated, Any, Literal
 
 import numpy as np
 
-from talkpipe.pipe.core import AbstractFieldSegment, is_metadata
 from talkpipe.chatterlang.registry import register_segment
-from talkpipe.util.data_manipulation import extract_property, assign_property
+from talkpipe.pipe.core import AbstractFieldSegment, is_metadata
+from talkpipe.util.config import get_config
+from talkpipe.util.constants import (
+    TALKPIPE_EMBEDDING_MODEL_NAME,
+    TALKPIPE_EMBEDDING_MODEL_SOURCE,
+)
+from talkpipe.util.data_manipulation import assign_property, extract_property
+
 from .config import getEmbeddingAdapter, getEmbeddingSources
 from .embedding_errors import is_token_overflow_error
-from talkpipe.util.config import get_config
-from talkpipe.util.constants import TALKPIPE_EMBEDDING_MODEL_NAME, TALKPIPE_EMBEDDING_MODEL_SOURCE
 
 logger = logging.getLogger(__name__)
 
 # on_token_overflow mode strings (compare via _OVERFLOW_* constants to avoid Bandit B105/B107)
 _ON_TOKEN_OVERFLOW_CHOICES = ("error", "truncate", "chunk_pool")
-_OVERFLOW_ERROR, _OVERFLOW_TRUNCATE, _OVERFLOW_CHUNK_POOL = _ON_TOKEN_OVERFLOW_CHOICES
+_OVERFLOW_ERROR: Literal["error"] = "error"
+_OVERFLOW_TRUNCATE: Literal["truncate"] = "truncate"
+_OVERFLOW_CHUNK_POOL: Literal["chunk_pool"] = "chunk_pool"
 _TRUNCATE_SIDE_CHOICES = ("head", "tail", "middle")
 
 # Truncate retry tuning (not exposed on the segment in v1).
@@ -54,7 +61,9 @@ def estimate_tokens(text: str) -> int:
     non_ascii_chars = sum(1 for char in text if not char.isascii())
     non_ascii_weighted_chars = non_ascii_chars + ((chars - non_ascii_chars) / 4)
     non_ascii_ratio = non_ascii_chars / chars if chars else 0
-    non_ascii_floor = chars * 1.5 if non_ascii_ratio >= 0.05 else non_ascii_weighted_chars
+    non_ascii_floor = (
+        chars * 1.5 if non_ascii_ratio >= 0.05 else non_ascii_weighted_chars
+    )
     return int(
         max(
             words * 1.3,
@@ -91,12 +100,23 @@ class LLMEmbed(AbstractFieldSegment):
 
     def __init__(
         self,
-        model: Annotated[Optional[str], "The name of the embedding model to use"] = None,
-        source: Annotated[Optional[str], "The source of the embedding model (e.g., 'ollama')"] = None,
-        field: Annotated[Optional[str], "If provided, extract text from this field in the input items"] = None,
-        set_as: Annotated[Optional[str], "If provided, append embeddings to input items under this field name"] = None,
-        fail_on_error: Annotated[bool, "Whether to raise an error on failure or to silently ignore it"] = True,
-        batch_size: Annotated[int, "Number of stream items to embed per provider API call"] = 1,
+        model: Annotated[str | None, "The name of the embedding model to use"] = None,
+        source: Annotated[
+            str | None, "The source of the embedding model (e.g., 'ollama')"
+        ] = None,
+        field: Annotated[
+            str | None, "If provided, extract text from this field in the input items"
+        ] = None,
+        set_as: Annotated[
+            str | None,
+            "If provided, append embeddings to input items under this field name",
+        ] = None,
+        fail_on_error: Annotated[
+            bool, "Whether to raise an error on failure or to silently ignore it"
+        ] = True,
+        batch_size: Annotated[
+            int, "Number of stream items to embed per provider API call"
+        ] = 1,
         on_token_overflow: Annotated[
             Literal["error", "truncate", "chunk_pool"],
             "When embed fails as too long: error, truncate (shrink and retry), or chunk_pool",
@@ -110,7 +130,7 @@ class LLMEmbed(AbstractFieldSegment):
             "For chunk_pool: number of contiguous segments to split overflow text into",
         ] = 2,
         max_estimated_tokens: Annotated[
-            Optional[int],
+            int | None,
             "If set, pre-truncate text to this estimated token budget before embedding",
         ] = None,
     ):
@@ -155,7 +175,7 @@ class LLMEmbed(AbstractFieldSegment):
         self._embedding_source = source
         self._embedding_model = model
 
-    def process_value(self, value: Any) -> List[float]:
+    def process_value(self, value: Any) -> list[float]:
         """Embed one extracted field value (AbstractFieldSegment hook)."""
         text = self._truncate_to_estimated_token_budget(str(value))
         return self._embed_one_with_overflow_policy(None, text)
@@ -206,14 +226,17 @@ class LLMEmbed(AbstractFieldSegment):
         return self._slice_text(text, low, self.truncate_side)
 
     @staticmethod
-    def _split_num_chunks(text: str, num_chunks: int) -> List[str]:
+    def _split_num_chunks(text: str, num_chunks: int) -> list[str]:
         n = len(text)
         if num_chunks < 2 or n == 0:
             return [text] if text else []
-        return [text[i * n // num_chunks : (i + 1) * n // num_chunks] for i in range(num_chunks)]
+        return [
+            text[i * n // num_chunks : (i + 1) * n // num_chunks]
+            for i in range(num_chunks)
+        ]
 
     @staticmethod
-    def _mean_pool(vectors: List[List[float]]) -> List[float]:
+    def _mean_pool(vectors: list[list[float]]) -> list[float]:
         if not vectors:
             raise ValueError("Cannot mean-pool an empty list of vectors")
         arr = np.asarray(vectors, dtype=float)
@@ -229,7 +252,7 @@ class LLMEmbed(AbstractFieldSegment):
         *,
         item: Any,
         text: str,
-        detail: Optional[str] = None,
+        detail: str | None = None,
     ) -> EmbeddingTokenOverflowError:
         field_part = f"field={self.field!r}, " if self.field else ""
         item_part = f"item={item!r}, " if item is not None else ""
@@ -247,12 +270,12 @@ class LLMEmbed(AbstractFieldSegment):
         )
         return EmbeddingTokenOverflowError(message)
 
-    def _execute_one_raw(self, text: str) -> List[float]:
+    def _execute_one_raw(self, text: str) -> list[float]:
         return self.embedder.execute_one(text)
 
-    def _embed_truncate(self, item: Any, text: str) -> List[float]:
+    def _embed_truncate(self, item: Any, text: str) -> list[float]:
         current = text
-        last_overflow: Optional[BaseException] = None
+        last_overflow: BaseException | None = None
         for _ in range(_MAX_TRUNCATE_ATTEMPTS):
             try:
                 return self._execute_one_raw(current)
@@ -272,7 +295,7 @@ class LLMEmbed(AbstractFieldSegment):
             detail="Truncate retries exhausted.",
         )
 
-    def _embed_chunk_pool(self, item: Any, text: str) -> List[float]:
+    def _embed_chunk_pool(self, item: Any, text: str) -> list[float]:
         segments = self._split_num_chunks(text, self.num_chunks)
         if not segments:
             raise self._wrap_token_overflow(
@@ -299,7 +322,7 @@ class LLMEmbed(AbstractFieldSegment):
             raise
         return self._mean_pool(vectors)
 
-    def _embed_one_with_overflow_policy(self, item: Any, text: str) -> List[float]:
+    def _embed_one_with_overflow_policy(self, item: Any, text: str) -> list[float]:
         try:
             return self._execute_one_raw(text)
         except Exception as exc:
@@ -311,7 +334,7 @@ class LLMEmbed(AbstractFieldSegment):
                 return self._embed_truncate(item, text)
             return self._embed_chunk_pool(item, text)
 
-    def _yield_results(self, item: Any, results: List[Any]) -> Iterator[Any]:
+    def _yield_results(self, item: Any, results: list[Any]) -> Iterator[Any]:
         """Emit results using AbstractFieldSegment assign/yield semantics."""
         for result in results:
             if self.set_as:
@@ -320,8 +343,8 @@ class LLMEmbed(AbstractFieldSegment):
             else:
                 yield result
 
-    def _embed_items_pair(self, items: List[Any], texts: List[str]) -> Iterator[Any]:
-        for item, text in zip(items, texts):
+    def _embed_items_pair(self, items: list[Any], texts: list[str]) -> Iterator[Any]:
+        for item, text in zip(items, texts, strict=False):
             try:
                 vector = self._embed_one_with_overflow_policy(item, text)
             except EmbeddingTokenOverflowError:
@@ -333,7 +356,7 @@ class LLMEmbed(AbstractFieldSegment):
                 continue
             yield from self._yield_results(item, [vector])
 
-    def _embed_buffered(self, items: List[Any], texts: List[str]) -> Iterator[Any]:
+    def _embed_buffered(self, items: list[Any], texts: list[str]) -> Iterator[Any]:
         if not items or not texts:
             return
         logger.debug(f"Embedding batch of {len(texts)} texts")
@@ -342,7 +365,7 @@ class LLMEmbed(AbstractFieldSegment):
             return
         try:
             vectors = self.embedder.execute_batch(texts)
-            for item, vector in zip(items, vectors):
+            for item, vector in zip(items, vectors, strict=False):
                 yield from self._yield_results(item, [vector])
         except Exception as e:
             logger.info(f"Error during batch embedding: {e}")
@@ -350,8 +373,8 @@ class LLMEmbed(AbstractFieldSegment):
 
     def transform(self, input_iter):
         """Transform one stream item at a time; batching is internal only."""
-        buffer_items: List[Any] = []
-        buffer_texts: List[str] = []
+        buffer_items: list[Any] = []
+        buffer_texts: list[str] = []
 
         def flush_buffer() -> Iterator[Any]:
             if not buffer_items:
@@ -366,9 +389,11 @@ class LLMEmbed(AbstractFieldSegment):
                 continue
 
             self._ensure_scalar_item(item)
-            logging.debug(f"Processing input item: {item}")
-            text = self._truncate_to_estimated_token_budget(str(self._input_value(item)))
-            logging.debug(f"Embedding text: {text}")
+            logger.debug(f"Processing input item: {item}")
+            text = self._truncate_to_estimated_token_budget(
+                str(self._input_value(item))
+            )
+            logger.debug(f"Embedding text: {text}")
 
             if self.batch_size <= 1:
                 yield from self._embed_buffered([item], [text])

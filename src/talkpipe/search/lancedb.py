@@ -1,17 +1,28 @@
-from typing import Annotated, List, Optional
 import logging
-import lancedb
 import uuid
-import numpy as np
+from collections.abc import Iterable
 from datetime import timedelta
-from talkpipe.chatterlang import register_segment
+from typing import Annotated, Any
+
+import lancedb
+import numpy as np
+
 from talkpipe import segment
+from talkpipe.chatterlang import register_segment
 from talkpipe.pipe.core import is_metadata
 from talkpipe.pipe.metadata import Flush
 from talkpipe.util.collections import AdaptiveBuffer
-from talkpipe.util.data_manipulation import extract_property, VectorLike, Document, DocID, toDict, assign_property
+from talkpipe.util.data_manipulation import (
+    DocID,
+    Document,
+    VectorLike,
+    assign_property,
+    extract_property,
+    toDict,
+)
 from talkpipe.util.os import get_process_temp_dir
-from .abstract import DocumentStore, VectorAddable, VectorSearchable, SearchResult
+
+from .abstract import DocumentStore, SearchResult, VectorAddable, VectorSearchable
 
 logger = logging.getLogger(__name__)
 
@@ -44,7 +55,9 @@ def parse_db_path(path: str) -> str:
         ValueError: If tmp:// URI has no name, or if memory:// is used
     """
     if path.startswith("memory://"):
-        raise ValueError("memory:// is no longer supported. Use 'tmp://<name>' for process-scoped temp DBs or a filesystem path.")
+        raise ValueError(
+            "memory:// is no longer supported. Use 'tmp://<name>' for process-scoped temp DBs or a filesystem path."
+        )
     if path.startswith("tmp://"):
         # Extract name from URI
         name = path[6:]  # Remove "tmp://" prefix
@@ -57,38 +70,45 @@ def parse_db_path(path: str) -> str:
     # Pass through other URIs/paths
     return path
 
+
 @register_segment("searchLanceDB", "searchLancDB")
 @segment()
-def search_lancedb(items: Annotated[object, "Items with the query vectors"],
-                   path: Annotated[str, "Path to the LanceDB database. Supports file paths or 'tmp://name' for process-scoped temp (auto-cleanup)"],
-                   table_name: Annotated[str, "Table name in the LanceDB database"],
-                   all_results_at_once: Annotated[bool, "If true, return all results at once"]=False,
-                   field: Annotated[str, "Field with the vector"]=None,
-                   set_as: Annotated[str, "Set the results as this variable"]=None,
-                   limit: Annotated[int, "Number of results to return per query"]=10,
-                   vector_dim: Annotated[Optional[int], "Expected dimension of vectors"]=None,
-                   read_consistency_interval: Annotated[int, "Read consistency interval in seconds"]=10
-                ):
+def search_lancedb(
+    items: Annotated[Iterable[Any], "Items with the query vectors"],
+    path: Annotated[
+        str,
+        "Path to the LanceDB database. Supports file paths or 'tmp://name' for process-scoped temp (auto-cleanup)",
+    ],
+    table_name: Annotated[str, "Table name in the LanceDB database"],
+    all_results_at_once: Annotated[bool, "If true, return all results at once"] = False,
+    field: Annotated[str | None, "Field with the vector"] = None,
+    set_as: Annotated[str | None, "Set the results as this variable"] = None,
+    limit: Annotated[int, "Number of results to return per query"] = 10,
+    vector_dim: Annotated[int | None, "Expected dimension of vectors"] = None,
+    read_consistency_interval: Annotated[
+        int, "Read consistency interval in seconds"
+    ] = 10,
+):
     """Search for similar vectors in a LanceDB vector database.
-    
+
     Searches a vector database created with addToLanceDB using vector similarity search.
     For each input item, extracts a query vector and finds the most similar vectors in
     the database, returning the associated documents.
-    
+
     LanceDB is optimized for vector similarity search and supports approximate nearest
     neighbor (ANN) search for efficient similarity matching. Results are scored by
     similarity distance.
-    
+
     Path supports storage options:
     - "/path/to/db": Persistent file-based database
     - "tmp://name": Process-scoped temporary database (shared by name, auto-cleanup on exit)
-    
+
     Useful for:
     - Building semantic search systems
     - Finding similar items using embeddings
     - Recommendation systems based on vector similarity
     - Image or text similarity matching
-    
+
     Yields:
         SearchResult objects or lists of SearchResult objects.
     """
@@ -99,13 +119,12 @@ def search_lancedb(items: Annotated[object, "Items with the query vectors"],
         raise ValueError("If 'set_as' is provided, 'all_results_at_once' must be True.")
 
     # Use LanceDBDocumentStore for consistent interface
-    doc_store = LanceDBDocumentStore(path, table_name, vector_dim, read_consistency_interval)
+    doc_store = LanceDBDocumentStore(
+        path, table_name, vector_dim, read_consistency_interval
+    )
 
     for item in items:
-        if field:
-            query_vector = extract_property(item, field)
-        else:
-            query_vector = item
+        query_vector = extract_property(item, field) if field else item
 
         # Get SearchResult objects from document store
         search_results = doc_store.vector_search(query_vector, limit)
@@ -117,37 +136,50 @@ def search_lancedb(items: Annotated[object, "Items with the query vectors"],
             yield search_results
         else:
             # Yield individual SearchResult objects
-            for result in search_results:
-                yield result
+            yield from search_results
+
 
 @register_segment("addToLanceDB", "addToLancDB")
 @segment(process_metadata=True)
-def add_to_lancedb(items: Annotated[object, "Items with the vectors and documents"],
-                   path: Annotated[str, "Path to the LanceDB database. Supports file paths or 'tmp://name' for process-scoped temp (auto-cleanup)"],
-                   table_name: Annotated[str, "Table name in the LanceDB database"],
-                   vector_field: Annotated[str, "The field containing the vector data"] = "vector",
-                   doc_id_field: Annotated[Optional[str], "Field containing document ID"] = None,
-                   metadata_field_list: Annotated[Optional[str], "Optional metadata field list"] = None,
-                   overwrite: Annotated[bool, "If true, overwrite existing table"]=False,
-                   vector_dim: Annotated[Optional[int], "Expected dimension of vectors"]=None,
-                   batch_size: Annotated[int, "Maximum batch size for adding vectors"]=1,
-                   optimize_on_batch: Annotated[bool, "If true, optimize the table after each batch.  Otherwise optimize after last batch."]=False,
-                   optimize_every: Annotated[int, "Optimize the table after at least this many rows have been added since the last optimization. 0 disables periodic optimization."]=5000,
-                   skip_zero_vectors: Annotated[bool, "If true, skip items whose vector has zero magnitude instead of indexing them"]=True,
-                   ):
+def add_to_lancedb(
+    items: Annotated[Iterable[Any], "Items with the vectors and documents"],
+    path: Annotated[
+        str,
+        "Path to the LanceDB database. Supports file paths or 'tmp://name' for process-scoped temp (auto-cleanup)",
+    ],
+    table_name: Annotated[str, "Table name in the LanceDB database"],
+    vector_field: Annotated[str, "The field containing the vector data"] = "vector",
+    doc_id_field: Annotated[str | None, "Field containing document ID"] = None,
+    metadata_field_list: Annotated[str | None, "Optional metadata field list"] = None,
+    overwrite: Annotated[bool, "If true, overwrite existing table"] = False,
+    vector_dim: Annotated[int | None, "Expected dimension of vectors"] = None,
+    batch_size: Annotated[int, "Maximum batch size for adding vectors"] = 1,
+    optimize_on_batch: Annotated[
+        bool,
+        "If true, optimize the table after each batch.  Otherwise optimize after last batch.",
+    ] = False,
+    optimize_every: Annotated[
+        int,
+        "Optimize the table after at least this many rows have been added since the last optimization. 0 disables periodic optimization.",
+    ] = 5000,
+    skip_zero_vectors: Annotated[
+        bool,
+        "If true, skip items whose vector has zero magnitude instead of indexing them",
+    ] = True,
+):
     """Add vectors and documents to a LanceDB vector database.
-    
+
     Builds a searchable vector index from items containing embeddings (vectors).
     Each item should have a vector field (typically embeddings from a model) and
     associated metadata or documents to return in search results.
-    
+
     LanceDB stores both the vectors for similarity search and the associated documents
     for retrieval. Vectors are indexed for efficient approximate nearest neighbor search.
-    
+
     Path supports storage options:
     - "/path/to/db": Persistent file-based database
     - "tmp://name": Process-scoped temporary database (shared by name, auto-cleanup on exit)
-    
+
     When doc_id_field is provided, uses upsert behavior: if a document with the same
     ID already exists, it is updated with the new vector and metadata. When
     doc_id_field is omitted, IDs are freshly generated and rows are appended, which
@@ -165,13 +197,13 @@ def add_to_lancedb(items: Annotated[object, "Items with the vectors and document
     recognizes (e.g. base64 or binary content), and under L2 distance against
     normalized embeddings it sits closer to every query than unrelated real
     documents, polluting all search results if indexed.
-    
+
     Useful for:
     - Creating semantic search indexes from embeddings
     - Building recommendation systems
     - Storing document embeddings for similarity matching
     - Building multi-modal search systems
-    
+
     Returns:
         The original items with the document IDs added.
     """
@@ -195,7 +227,9 @@ def add_to_lancedb(items: Annotated[object, "Items with the vectors and document
             doc_store._table = None
         except Exception:
             # If there's any issue with dropping, continue
-            logger.warning(f"Could not drop table '{table_name}' for overwrite. Continuing without dropping.")
+            logger.warning(
+                f"Could not drop table '{table_name}' for overwrite. Continuing without dropping."
+            )
 
     # Without a doc_id_field every ID is a fresh UUID that can never match an
     # existing row, so append instead of paying merge_insert's scan of the table.
@@ -218,14 +252,20 @@ def add_to_lancedb(items: Annotated[object, "Items with the vectors and document
                 rows_since_optimize = 0
             # Don't yield Flush events - consume them
             continue
-        
+
         # Extract vector
         vector = extract_property(item, vector_field, fail_on_missing=True)
         if not isinstance(vector, (list, tuple, np.ndarray)):
-            raise ValueError(f"Vector field '{vector_field}' must be a list, tuple, or numpy array")
+            raise ValueError(
+                f"Vector field '{vector_field}' must be a list, tuple, or numpy array"
+            )
 
         if skip_zero_vectors and not np.any(np.asarray(vector, dtype=np.float64)):
-            ident = extract_property(item, doc_id_field, fail_on_missing=False) if doc_id_field else None
+            ident = (
+                extract_property(item, doc_id_field, fail_on_missing=False)
+                if doc_id_field
+                else None
+            )
             logger.warning(
                 f"Skipping zero-magnitude vector (doc id: {ident}): the embedded text "
                 "likely contained nothing the embedding model recognizes (e.g. base64 data), "
@@ -248,8 +288,10 @@ def add_to_lancedb(items: Annotated[object, "Items with the vectors and document
             if isinstance(item, dict):
                 metadata = {k: v for k, v in item.items() if k != vector_field}
             else:
-                raise ValueError("If 'metadata_field_list' is not provided, item must be a dict to extract fields.")
-            
+                raise ValueError(
+                    "If 'metadata_field_list' is not provided, item must be a dict to extract fields."
+                )
+
         # Convert metadata to Document format (string keys and values)
         document = {str(k): str(v) for k, v in metadata.items()}
 
@@ -257,7 +299,9 @@ def add_to_lancedb(items: Annotated[object, "Items with the vectors and document
         if batch is not None:
             doc_store.add_vectors(batch, upsert=upsert)
             rows_since_optimize += len(batch)
-            if optimize_on_batch or (optimize_every > 0 and rows_since_optimize >= optimize_every):
+            if optimize_on_batch or (
+                optimize_every > 0 and rows_since_optimize >= optimize_every
+            ):
                 doc_store.optimize()
                 rows_since_optimize = 0
 
@@ -275,7 +319,13 @@ def add_to_lancedb(items: Annotated[object, "Items with the vectors and document
 class LanceDBDocumentStore(DocumentStore, VectorAddable, VectorSearchable):
     """A LanceDB-based document store that implements vector storage and search capabilities."""
 
-    def __init__(self, path: str, table_name: str = "documents", vector_dim: Optional[int] = None, read_consistency_interval: int = 10):
+    def __init__(
+        self,
+        path: str,
+        table_name: str = "documents",
+        vector_dim: int | None = None,
+        read_consistency_interval: int | None = 10,
+    ):
         """
         Initialize the LanceDB document store.
 
@@ -319,7 +369,9 @@ class LanceDBDocumentStore(DocumentStore, VectorAddable, VectorSearchable):
                     self._table = db.create_table(self.table_name, schema_if_missing)
                     created_and_updated = True
                 else:
-                    raise ValueError(f"Table '{self.table_name}' not found and no schema provided. Please provide a LanceDB compatible schema.")
+                    raise ValueError(
+                        f"Table '{self.table_name}' not found and no schema provided. Please provide a LanceDB compatible schema."
+                    ) from None
         return self._table, created_and_updated
 
     def _ensure_id_index(self):
@@ -333,19 +385,24 @@ class LanceDBDocumentStore(DocumentStore, VectorAddable, VectorSearchable):
             return
         table, _ = self._get_table()
         try:
-            has_index = any("id" in getattr(idx, "columns", []) for idx in table.list_indices())
+            has_index = any(
+                "id" in getattr(idx, "columns", []) for idx in table.list_indices()
+            )
             if not has_index:
                 try:
                     from lancedb.index import BTree
+
                     table.create_index("id", config=BTree())
                 except (ImportError, TypeError):
                     # Older lancedb versions without the unified create_index API
                     table.create_scalar_index("id")
         except Exception as e:
-            logger.warning(f"Could not create scalar index on 'id' for table '{self.table_name}': {e}. Upserts may be slow on large tables.")
+            logger.warning(
+                f"Could not create scalar index on 'id' for table '{self.table_name}': {e}. Upserts may be slow on large tables."
+            )
         self._id_index_ensured = True
 
-    def optimize(self, cleanup_older_than_seconds: Optional[float] = 120.0):
+    def optimize(self, cleanup_older_than_seconds: float | None = 120.0):
         """Compact small fragments, update indices, and prune old table versions.
 
         Every write commits a new table version and fragment. During a long ingest
@@ -361,10 +418,14 @@ class LanceDBDocumentStore(DocumentStore, VectorAddable, VectorSearchable):
                 versions from a long ingest on disk.
         """
         table, _ = self._get_table()
-        cleanup = timedelta(seconds=cleanup_older_than_seconds) if cleanup_older_than_seconds is not None else None
+        cleanup = (
+            timedelta(seconds=cleanup_older_than_seconds)
+            if cleanup_older_than_seconds is not None
+            else None
+        )
         table.optimize(cleanup_older_than=cleanup)
 
-    def _validate_vector(self, vector: VectorLike) -> List[float]:
+    def _validate_vector(self, vector: VectorLike) -> list[float]:
         """Validate vector and return as list of floats."""
         if isinstance(vector, np.ndarray):
             vec_array = vector
@@ -379,25 +440,29 @@ class LanceDBDocumentStore(DocumentStore, VectorAddable, VectorSearchable):
         if self.vector_dim is None:
             self.vector_dim = len(vec_array)
         elif len(vec_array) != self.vector_dim:
-            raise ValueError(f"Vector dimension {len(vec_array)} doesn't match expected {self.vector_dim}")
+            raise ValueError(
+                f"Vector dimension {len(vec_array)} doesn't match expected {self.vector_dim}"
+            )
 
         return vec_array.tolist()
 
     def _serialize_document(self, document: Document) -> str:
         """Serialize document to JSON string for storage."""
         import json
+
         return json.dumps(document)
 
     def _deserialize_document(self, document_str: str) -> Document:
         """Deserialize document from JSON string."""
         import json
+
         return json.loads(document_str)
 
     # DocumentStore protocol implementation
-    def get_document(self, doc_id: DocID) -> Optional[Document]:
+    def get_document(self, doc_id: DocID) -> Document | None:
         """Retrieve a document by ID."""
         try:
-            table, created_and_updated = self._get_table()
+            table, _created_and_updated = self._get_table()
             results = table.search().where(f"id = '{doc_id}'").to_list()
             if results:
                 return self._deserialize_document(results[0]["document"])
@@ -406,10 +471,12 @@ class LanceDBDocumentStore(DocumentStore, VectorAddable, VectorSearchable):
             return None
 
     # VectorAddable protocol implementation
-    def add_vector(self, vector: VectorLike, document: Document, doc_id: Optional[DocID] = None) -> DocID:
+    def add_vector(
+        self, vector: VectorLike, document: Document, doc_id: DocID | None = None
+    ) -> DocID:
         return self.add_vectors([(vector, document, doc_id)])[0]
 
-    def add_vectors(self, documents: List[tuple], upsert: bool = True) -> List[DocID]:
+    def add_vectors(self, documents: list[tuple], upsert: bool = True) -> list[DocID]:
         """Add multiple vectors to the store in a batch operation.
 
         Args:
@@ -426,31 +493,37 @@ class LanceDBDocumentStore(DocumentStore, VectorAddable, VectorSearchable):
         """
         if not documents:
             return []
-        
+
         doc_ids = []
         schema_data = []
-        
+
         for vector, document, doc_id in documents:
             vec_list = self._validate_vector(vector)
-            
+
             if doc_id is None:
                 doc_id = str(uuid.uuid4())
-            
+
             doc_ids.append(doc_id)
-            
-            schema_data.append({
-                "id": doc_id,
-                "vector": vec_list,
-                "document": self._serialize_document(document)
-            })
-        
+
+            schema_data.append(
+                {
+                    "id": doc_id,
+                    "vector": vec_list,
+                    "document": self._serialize_document(document),
+                }
+            )
+
         table, created_and_updated = self._get_table(schema_if_missing=schema_data)
 
         if not created_and_updated:
             if upsert:
                 # Keep 'id' indexed so merge_insert doesn't scan the whole table per batch
                 self._ensure_id_index()
-                table.merge_insert('id').when_matched_update_all().when_not_matched_insert_all().execute(schema_data)
+                table.merge_insert(
+                    "id"
+                ).when_matched_update_all().when_not_matched_insert_all().execute(
+                    schema_data
+                )
             else:
                 # Fresh IDs can never match an existing row; append directly
                 table.add(schema_data)
@@ -458,12 +531,12 @@ class LanceDBDocumentStore(DocumentStore, VectorAddable, VectorSearchable):
         return doc_ids
 
     # VectorSearchable protocol implementation
-    def vector_search(self, vector: VectorLike, limit: int = 10) -> List[SearchResult]:
+    def vector_search(self, vector: VectorLike, limit: int = 10) -> list[SearchResult]:
         """Search for vectors similar to the given vector."""
         vec_list = self._validate_vector(vector)
 
         try:
-            table, created_and_updated = self._get_table()
+            table, _created_and_updated = self._get_table()
             results = table.search(vec_list).limit(limit).to_list()
 
             search_results = []
@@ -476,7 +549,7 @@ class LanceDBDocumentStore(DocumentStore, VectorAddable, VectorSearchable):
                 search_result = SearchResult(
                     score=score,
                     doc_id=result["id"],
-                    document=self._deserialize_document(result["document"])
+                    document=self._deserialize_document(result["document"]),
                 )
                 search_results.append(search_result)
 
@@ -487,13 +560,15 @@ class LanceDBDocumentStore(DocumentStore, VectorAddable, VectorSearchable):
     def delete_document(self, doc_id: DocID) -> bool:
         """Delete a document by ID."""
         try:
-            table, created_and_updated = self._get_table()
+            table, _created_and_updated = self._get_table()
             table = table.delete(f"id = '{doc_id}'")
             return True
         except Exception:
             return False
 
-    def update_document(self, doc_id: DocID, document: Document, vector: Optional[VectorLike] = None) -> bool:
+    def update_document(
+        self, doc_id: DocID, document: Document, vector: VectorLike | None = None
+    ) -> bool:
         """Update an existing document."""
         try:
             # Check if document exists
@@ -509,7 +584,7 @@ class LanceDBDocumentStore(DocumentStore, VectorAddable, VectorSearchable):
                 vec_list = self._validate_vector(vector)
             else:
                 # Get the old vector from the table before deletion
-                table, created_and_updated = self._get_table()
+                table, _created_and_updated = self._get_table()
                 results = table.search().where(f"id = '{doc_id}'").to_list()
                 if not results:
                     return False
@@ -524,19 +599,18 @@ class LanceDBDocumentStore(DocumentStore, VectorAddable, VectorSearchable):
     def count(self) -> int:
         """Return the number of documents in the store."""
         try:
-            table, created_and_updated = self._get_table()
+            table, _created_and_updated = self._get_table()
             # Use count_rows method if available, otherwise fallback to counting all results
-            if hasattr(table, 'count_rows'):
+            if hasattr(table, "count_rows"):
                 return table.count_rows()
-            else:
-                return len(table.search().to_list())
+            return len(table.search().to_list())
         except Exception:
             return 0
 
-    def list_ids(self) -> List[DocID]:
+    def list_ids(self) -> list[DocID]:
         """Return a list of all document IDs."""
         try:
-            table, created_and_updated = self._get_table()
+            table, _created_and_updated = self._get_table()
             results = table.search().select(["id"]).to_list()
             return [result["id"] for result in results]
         except Exception:

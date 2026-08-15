@@ -1,7 +1,8 @@
 from __future__ import annotations
 
 import warnings
-from typing import List, overload, Sequence, Union
+from collections.abc import Sequence
+from typing import overload
 
 import numpy as np
 
@@ -9,11 +10,11 @@ from talkpipe.util.config import get_config
 from talkpipe.util.constants import OLLAMA_SERVER_URL
 
 
-def _vector_to_list(vec) -> List[float]:
+def _vector_to_list(vec) -> list[float]:
     return np.asarray(vec, dtype=float).tolist()
 
 
-def _vectors_to_lists(arr) -> List[List[float]]:
+def _vectors_to_lists(arr) -> list[list[float]]:
     a = np.asarray(arr, dtype=float)
     if a.size == 0:
         return []
@@ -55,15 +56,15 @@ class AbstractEmbeddingAdapter:
     def __repr__(self):
         return self.__str__()
 
-    def execute_one(self, text: str) -> List[float]:
+    def execute_one(self, text: str) -> list[float]:
         raise NotImplementedError("Subclasses must implement execute_one.")
 
-    def execute_batch(self, texts: Sequence[str]) -> List[List[float]]:
+    def execute_batch(self, texts: Sequence[str]) -> list[list[float]]:
         if not texts:
             return []
         return [self.execute_one(t) for t in texts]
 
-    def execute(self, text: str) -> List[float]:
+    def execute(self, text: str) -> list[float]:
         """Embed a single string (deprecated).
 
         .. deprecated::
@@ -79,14 +80,12 @@ class AbstractEmbeddingAdapter:
         return self.execute_one(text)
 
     @overload
-    def __call__(self, text: str) -> List[float]: ...
+    def __call__(self, text: str) -> list[float]: ...  # type: ignore[overload-overlap]  # str is itself a Sequence[str]; runtime dispatches on isinstance
 
     @overload
-    def __call__(self, text: Sequence[str]) -> List[List[float]]: ...
+    def __call__(self, text: Sequence[str]) -> list[list[float]]: ...
 
-    def __call__(
-        self, text: Union[str, Sequence[str]]
-    ) -> Union[List[float], List[List[float]]]:
+    def __call__(self, text: str | Sequence[str]) -> list[float] | list[list[float]]:
         if isinstance(text, str):
             return self.execute_one(text)
         return self.execute_batch(list(text))
@@ -95,7 +94,7 @@ class AbstractEmbeddingAdapter:
 class OllamaEmbedderAdapter(AbstractEmbeddingAdapter):
     """Embedding adapter for Ollama"""
 
-    def __init__(self, model: str, server_url: str = None):
+    def __init__(self, model: str, server_url: str | None = None):
         super().__init__(model, "ollama")
         self._server_url = server_url
 
@@ -108,14 +107,14 @@ class OllamaEmbedderAdapter(AbstractEmbeddingAdapter):
     def _client(self):
         try:
             import ollama
-        except ImportError:
+        except ImportError as e:
             raise ImportError(
                 "Ollama is not installed. Please install it with: pip install talkpipe[ollama]"
-            )
+            ) from e
         server_url = self._resolve_server_url()
         return ollama.Client(server_url) if server_url else ollama
 
-    def execute_batch(self, texts: Sequence[str]) -> List[List[float]]:
+    def execute_batch(self, texts: Sequence[str]) -> list[list[float]]:
         if not texts:
             return []
         client = self._client()
@@ -132,5 +131,5 @@ class OllamaEmbedderAdapter(AbstractEmbeddingAdapter):
             ) from exc
         return _vectors_to_lists(response["embeddings"])
 
-    def execute_one(self, text: str) -> List[float]:
+    def execute_one(self, text: str) -> list[float]:
         return self.execute_batch([text])[0]

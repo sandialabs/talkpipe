@@ -1,6 +1,5 @@
 import re
-from typing import Iterable
-
+from collections.abc import Iterable
 
 CONSTRAINT_PATTERNS = (
     r"\b(must|should|always|never|do not|don't|avoid|required|please)\b",
@@ -33,8 +32,7 @@ ROLE_WEIGHTS = {
 
 
 def normalize_text(text: str) -> str:
-    normalized = re.sub(r"\s+", " ", str(text)).strip().lower()
-    return normalized
+    return re.sub(r"\s+", " ", str(text)).strip().lower()
 
 
 def _matches_any_pattern(text: str, patterns: tuple[str, ...]) -> bool:
@@ -74,12 +72,19 @@ def _score_line(category: str, role: str, content: str, index: int) -> float:
     return category_weight + role_weight + recency_bonus - verbosity_penalty
 
 
-def summarize(lines: Iterable[str], max_chars: int, strategy: str = "deterministic") -> str:
+def summarize(
+    lines: Iterable[str], max_chars: int, strategy: str = "deterministic"
+) -> str:
     if strategy != "deterministic":
         raise ValueError(f"Unsupported summarize strategy: {strategy}")
 
-    buckets = {"constraint": [], "fact": [], "open_item": [], "other": []}
-    seen = set()
+    buckets: dict[str, list[tuple[float, int, str]]] = {
+        "constraint": [],
+        "fact": [],
+        "open_item": [],
+        "other": [],
+    }
+    seen: set[str] = set()
     for index, line in enumerate(lines):
         role, content = _extract_role_and_text(line)
         normalized = normalize_text(content)

@@ -1,8 +1,10 @@
-import os
 import pickle
+
 import feedparser
-from talkpipe.data import rss
+
 from talkpipe.chatterlang.compiler import compile
+from talkpipe.data import rss
+
 
 def test_rss(monkeypatch):
     with open("tests/talkpipe/data/sample_feed.pkl", "rb") as f:
@@ -10,7 +12,11 @@ def test_rss(monkeypatch):
 
     monkeypatch.setattr(feedparser, "parse", lambda x: sample_rss)
 
-    ans = list(rss.rss_monitor("http://example.com/feed", db_path=":memory:", poll_interval_minutes=-1))
+    ans = list(
+        rss.rss_monitor(
+            "http://example.com/feed", db_path=":memory:", poll_interval_minutes=-1
+        )
+    )
     for item in ans:
         assert isinstance(item, dict)
         assert "title" in item
@@ -19,6 +25,7 @@ def test_rss(monkeypatch):
         assert "summary" in item
         assert "author" in item
     assert len(ans) == 8
+
 
 def test_rss_segment(monkeypatch):
     with open("tests/talkpipe/data/sample_feed.pkl", "rb") as f:

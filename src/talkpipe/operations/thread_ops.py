@@ -1,9 +1,12 @@
-from typing import Iterator, Any, Dict, Annotated
-import threading
 import queue
+import threading
 import uuid
-from talkpipe.pipe import core
+from collections.abc import Iterator
+from typing import Annotated, Any
+
 from talkpipe.chatterlang import registry
+from talkpipe.pipe import core
+
 
 class QueueConsumer:
     """
@@ -11,8 +14,9 @@ class QueueConsumer:
     It blocks waiting for new items; when it receives a termination sentinel,
     iteration stops.
     """
-    def __init__(self, parent_queue: 'ThreadedQueue', maxsize: int = 100):
-        self.personal_queue = queue.Queue(maxsize=maxsize)
+
+    def __init__(self, parent_queue: "ThreadedQueue", maxsize: int = 100):
+        self.personal_queue: queue.Queue[Any] = queue.Queue(maxsize=maxsize)
         self.parent = parent_queue
         self.consumer_id = str(uuid.uuid4())
         self.active = True
@@ -53,10 +57,11 @@ class ThreadedQueue:
     When the last producer finishes (or if there are no producers), a termination sentinel
     is broadcast so that consumers stop.
     """
+
     def __init__(self, maxsize: int = 0):
-        self.consumer_queues: Dict[str, queue.Queue] = {}
-        self._active_producers: Dict[str, threading.Thread] = {}
-        self._pending_producers: Dict[str, Iterator[Any]] = {}
+        self.consumer_queues: dict[str, queue.Queue] = {}
+        self._active_producers: dict[str, threading.Thread | None] = {}
+        self._pending_producers: dict[str, Iterator[Any]] = {}
         self._started = False  # Flag indicating that start() has been called.
         self.active = threading.Event()
         self.active.set()
@@ -100,6 +105,7 @@ class ThreadedQueue:
         Helper to start a producer in its own thread. Each item produced is
         broadcast to all registered consumer queues.
         """
+
         def producer_worker():
             try:
                 for item in generator:
@@ -127,8 +133,7 @@ class ThreadedQueue:
         with self._lock:
             if self._started:
                 raise RuntimeError("Cannot register consumers after start() is called")
-            consumer = QueueConsumer(self)
-        return consumer
+            return QueueConsumer(self)
 
     def start(self):
         """
@@ -175,12 +180,14 @@ class ThreadedQueue:
 
 @registry.register_segment(name="threaded")
 @core.segment()
-def threadedSegment(items: Annotated[Iterator, "Input stream to link to threaded queue system"]):
+def threadedSegment(
+    items: Annotated[Iterator, "Input stream to link to threaded queue system"],
+):
     """Links the input stream to a threaded queue system.
 
     This segment takes an input stream and links it to a threaded queue system.
     It starts the queue system and then starts yielding from the queue.  That way
-    the upstream units don't have to wait for the downstream segments to draw 
+    the upstream units don't have to wait for the downstream segments to draw
     from them.
     """
 
@@ -189,4 +196,3 @@ def threadedSegment(items: Annotated[Iterator, "Input stream to link to threaded
     consumer = queue_system.register_consumer()
     queue_system.start()
     yield from consumer
-

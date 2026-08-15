@@ -1,41 +1,27 @@
-import json
 import pytest
 from pydantic import BaseModel
+
 from talkpipe.util import data_manipulation
+
 
 # Note that many of the utils for this module are in test_util.py because of an earlier refactor.
 @pytest.mark.parametrize(
-    "item, expected",
+    ("item", "expected"),
     [
-        (
-            {"name": "Alice", "age": 30},
-            "name: Alice\nage: 30"
-        ),
-        (
-            {"name": "Bob", "active": True},
-            "name: Bob\nactive: True"
-        ),
-        (
-            {"price": 1234.5678},
-            "price: 1234.5678"
-        ),
+        ({"name": "Alice", "age": 30}, "name: Alice\nage: 30"),
+        ({"name": "Bob", "active": True}, "name: Bob\nactive: True"),
+        ({"price": 1234.5678}, "price: 1234.5678"),
         (
             {"description": "This is a long text. " * 20},
-            None  # We'll check for wrapping, not exact string
+            None,  # We'll check for wrapping, not exact string
         ),
         (
             {"html": "<b>Bold</b> and <i>italic</i>."},
-            "html: <b>Bold</b> and <i>italic</i>."  # The script does not clean HTML, so we expect raw HTML
+            "html: <b>Bold</b> and <i>italic</i>.",  # The script does not clean HTML, so we expect raw HTML
         ),
-        (
-            {"missing": None},
-            "missing: None"
-        ),
-        (
-            {"nested": {"x": 1}},
-            "nested: {'x': 1}"
-        ),
-    ]
+        ({"missing": None}, "missing: None"),
+        ({"nested": {"x": 1}}, "nested: {'x': 1}"),
+    ],
 )
 def test_dict_to_text(item, expected):
     result = data_manipulation.dict_to_text(item)
@@ -46,9 +32,12 @@ def test_dict_to_text(item, expected):
         assert "This is a long text." in result
         assert "\n" in result
 
+
 def test_dict_to_text_separator_and_field_separator():
     item = {"a": 1, "b": 2}
-    out = data_manipulation.dict_to_text(item, field_name_separator=" = ", field_separator=" | ")
+    out = data_manipulation.dict_to_text(
+        item, field_name_separator=" = ", field_separator=" | "
+    )
     assert out == "a = 1 | b = 2"
 
 
@@ -58,7 +47,9 @@ def test_compileLambda_blocks_import():
         dangerous_lambda = data_manipulation.compileLambda("__import__('os')")
         result = dangerous_lambda(1)
         # If we get here, the vulnerability exists - fail the test
-        pytest.fail(f"SECURITY VULNERABILITY: __import__ was accessible and returned: {type(result)}")
+        pytest.fail(
+            f"SECURITY VULNERABILITY: __import__ was accessible and returned: {type(result)}"
+        )
     except ValueError:
         # This is the expected secure behavior
         pass
@@ -70,7 +61,9 @@ def test_compileLambda_blocks_open():
         dangerous_lambda = data_manipulation.compileLambda("open('/etc/passwd')")
         result = dangerous_lambda(1)
         # If we get here, the vulnerability exists - fail the test
-        pytest.fail(f"SECURITY VULNERABILITY: open() was accessible and returned: {type(result)}")
+        pytest.fail(
+            f"SECURITY VULNERABILITY: open() was accessible and returned: {type(result)}"
+        )
     except ValueError:
         # This is the expected secure behavior
         pass
@@ -82,7 +75,9 @@ def test_compileLambda_blocks_exec():
         dangerous_lambda = data_manipulation.compileLambda("exec('print(1)')")
         result = dangerous_lambda(1)
         # If we get here, the vulnerability exists - fail the test
-        pytest.fail(f"SECURITY VULNERABILITY: exec was accessible and returned: {type(result)}")
+        pytest.fail(
+            f"SECURITY VULNERABILITY: exec was accessible and returned: {type(result)}"
+        )
     except ValueError:
         # This is the expected secure behavior
         pass
@@ -133,13 +128,15 @@ def test_extract_property_underscore_passthrough():
     data3 = {"nested": {"deep": {"value": 42}}}
     result3 = data_manipulation.extract_property(data3, "nested._.deep._.value")
     expected3 = data_manipulation.extract_property(data3, "nested.deep.value")
-    assert result3 == expected3, f"nested._.deep._.value should return {expected3}, but got {result3}"
+    assert result3 == expected3, (
+        f"nested._.deep._.value should return {expected3}, but got {result3}"
+    )
     assert result3 == 42
 
     # Test 4: _ by itself should still return the entire item
     data4 = {"foo": "bar"}
     result4 = data_manipulation.extract_property(data4, "_")
-    assert result4 == data4, f"_ by itself should return the entire item"
+    assert result4 == data4, "_ by itself should return the entire item"
 
     # Test 5: _.1 should be equivalent to 1 (underscore at the beginning)
     data5 = ["a", "b", "c"]
@@ -228,5 +225,3 @@ def test_assign_property_different_types():
     # None value
     data_manipulation.assign_property(data, "none_field", None)
     assert data["none_field"] is None
-
-

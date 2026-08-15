@@ -16,7 +16,7 @@ _script_dir = Path(__file__).resolve().parent
 _project_root = _script_dir.parent
 sys.path.insert(0, str(_project_root / "src"))
 
-from talkpipe.app.doc_examples import (
+from talkpipe.app.doc_examples import (  # noqa: E402
     extract_all_examples,
     generate_runner_script,
 )

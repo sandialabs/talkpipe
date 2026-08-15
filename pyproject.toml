@@ -64,7 +64,14 @@ dev = [
     'pytest>=9.0.3',
     'pytest-mock',
     'pytest-cov>=2.0.0',
-    'mongomock'
+    'mongomock',
+    # Lint/type tools are pinned to a minor series on purpose: ruff promotes
+    # new rules and mypy adds checks in minor releases, and CI resolves fresh,
+    # so an open floor would turn a tool release into a red build. Bump the
+    # pins deliberately (and the ruff-pre-commit rev with them).
+    "ruff>=0.16.3,<0.17",
+    "mypy>=2.3,<3",
+    "pre-commit>=4.0",
 ]
 ollama = [
     'ollama'
@@ -236,3 +243,87 @@ toDict = "talkpipe.pipe.basic:ToDict"
 toList = "talkpipe.pipe.basic:ToList"
 writePickle = "talkpipe.pipe.io:writePickle"
 writeString = "talkpipe.pipe.io:writeString"
+
+[tool.ruff]
+line-length = 88
+target-version = "py311"
+src = ["src", "tests"]
+# *.md: ruff would otherwise reformat Python code blocks in prose; the docs
+# are not part of this gate.
+extend-exclude = ["build", "dist", ".venv", "*.md"]
+
+[tool.ruff.lint]
+# An explicit select rather than ruff's (version-dependent) defaults, so a
+# ruff upgrade never silently changes what CI enforces. CI fails on any
+# finding; there is no advisory pass.
+select = [
+    "E", "W",   # pycodestyle
+    "F",        # pyflakes
+    "I",        # isort
+    "UP",       # pyupgrade
+    "B",        # bugbear
+    "C4",       # comprehensions
+    "SIM",      # simplify
+    "PIE", "RUF", "PERF", "RET", "ISC", "FLY",
+    "PT",       # pytest style
+    "T10",      # debugger left in
+    "LOG", "G", # logging
+    "PGH",      # blanket noqa / type: ignore
+    "PLE",      # pylint errors only
+]
+ignore = [
+    "E501",   # line length: ruff format governs code; long strings/docstrings stay
+    "ISC001", # conflicts with the formatter
+    "G004",   # f-strings in logging calls are accepted style here
+]
+
+[tool.ruff.lint.per-file-ignores]
+# pytest-style rules only make sense in the test suite (an application
+# function that happens to be named test_* is not a test).
+"src/**" = ["PT"]
+# Tests assert on exception *types* deliberately; requiring a message match
+# on every `pytest.raises` adds noise without catching bugs.
+"tests/**" = ["PT011"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["talkpipe"]
+
+[tool.ruff.format]
+docstring-code-format = true
+
+[tool.mypy]
+# 3.12+ so mypy can parse modern dependency stubs (e.g. numpy uses `type`
+# statements); the package itself still supports Python 3.11.
+python_version = "3.12"
+files = ["src"]
+# Baseline that gates from day one on a codebase that was not written with
+# types in mind: bodies of untyped functions are still checked, but missing
+# annotations are not yet errors. Tightening towards `strict` (first
+# disallow_incomplete_defs, then disallow_untyped_defs) is tracked as a
+# follow-up.
+check_untyped_defs = true
+no_implicit_optional = true
+strict_equality = true
+warn_unused_configs = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+warn_unreachable = true
+warn_no_return = true
+show_error_codes = true
+enable_error_code = ["ignore-without-code"]
+
+[[tool.mypy.overrides]]
+# Third-party packages that ship no type information (no py.typed, no stubs).
+module = [
+    "feedparser.*",
+    "greenlet.*",
+    "lancedb.*",
+    "networkx.*",
+    "pandas.*",
+    "parsy.*",
+    "readability.*",
+    "sklearn.*",
+    "whoosh.*",
+    "yaml.*",
+]
+ignore_missing_imports = true

@@ -70,7 +70,9 @@ def test_require_dependency_raises_helpful_error_for_missing_package():
     assert module is not None
 
     with pytest.raises(ImportError, match=r"pip install talkpipe\[fake-extra\]"):
-        adapter._require_dependency("missing_module_for_talkpipe_tests", "Missing", "fake-extra")
+        adapter._require_dependency(
+            "missing_module_for_talkpipe_tests", "Missing", "fake-extra"
+        )
 
 
 def test_complete_text_without_context_default_raises_not_implemented():

@@ -1,33 +1,46 @@
 """This module contains segments for extracting text from files."""
 
-from typing import Union, Iterable, Annotated, Callable, Optional, Iterator
-from functools import partial
-import gc
-import logging
 import csv
-import json
-from pydantic import BaseModel, ConfigDict
+import gc
 import glob
+import json
+import logging
 import os
-from pathlib import PosixPath, Path
-from docx import Document
-from talkpipe.pipe.core import segment, AbstractFieldSegment, field_segment
-from talkpipe.chatterlang.registry import register_segment
-from .html import htmlToText
+from collections.abc import Callable, Iterable, Iterator
+from functools import partial
+from pathlib import Path, PosixPath
+from typing import Annotated
 
+from docx import Document
+from pydantic import BaseModel, ConfigDict
+
+from talkpipe.chatterlang.registry import register_segment
+from talkpipe.pipe.core import AbstractFieldSegment, field_segment, segment
+
+from .html import htmlToText
 
 logger = logging.getLogger(__name__)
 
+
 class ExtractionResult(BaseModel):
     """Model representing the result of a file extraction."""
+
     model_config = ConfigDict(extra="allow")
     content: Annotated[str, "Extracted text content from the file"]
     source: Annotated[str, "Source file path"]
-    id: Annotated[str, "Unique identifier for the extraction result.  Typically will be source unless multiple results are emitted per source."]
-    title: Annotated[str, "Title or description of the extracted content. Generally includes filename and part of file if appropriate."]
+    id: Annotated[
+        str,
+        "Unique identifier for the extraction result.  Typically will be source unless multiple results are emitted per source.",
+    ]
+    title: Annotated[
+        str,
+        "Title or description of the extracted content. Generally includes filename and part of file if appropriate.",
+    ]
+
 
 # Type alias for extractor functions: take a path, yield ExtractionResult objects (or nothing for skip)
-ExtractorFunc = Callable[[Union[str, Path]], Iterator[ExtractionResult]]
+ExtractorFunc = Callable[[str | Path], Iterator[ExtractionResult]]
+
 
 class ExtractorRegistry:
     """
@@ -44,7 +57,7 @@ class ExtractorRegistry:
 
     def __init__(self):
         self._extractors: dict[str, ExtractorFunc] = {}
-        self._default_extractor: Optional[ExtractorFunc] = None
+        self._default_extractor: ExtractorFunc | None = None
 
     def register(self, extension: str, extractor: ExtractorFunc) -> None:
         """
@@ -68,7 +81,7 @@ class ExtractorRegistry:
         logger.debug("Registering default extractor")
         self._default_extractor = extractor
 
-    def get_extractor(self, file_path: Union[str, Path]) -> Optional[ExtractorFunc]:
+    def get_extractor(self, file_path: str | Path) -> ExtractorFunc | None:
         """
         Get the appropriate extractor for a file path.
 
@@ -86,7 +99,7 @@ class ExtractorRegistry:
             return self._extractors[extension]
         return self._default_extractor
 
-    def extract(self, file_path: Union[str, Path]) -> Iterator[ExtractionResult]:
+    def extract(self, file_path: str | Path) -> Iterator[ExtractionResult]:
         """
         Extract text from a file using the appropriate extractor.
 
@@ -120,7 +133,8 @@ class ExtractorRegistry:
 
 # Standalone extractor functions for use with the registry
 
-def extract_text(file_path: Union[str, Path]) -> Iterator[ExtractionResult]:
+
+def extract_text(file_path: str | Path) -> Iterator[ExtractionResult]:
     """
     Extract text from a plain text file.
 
@@ -146,13 +160,11 @@ def extract_text(file_path: Union[str, Path]) -> Iterator[ExtractionResult]:
     with p.open("r") as file:
         content = file.read()
         yield ExtractionResult(
-            content=content,
-            source=source_str,
-            id=source_str,
-            title=p.name
+            content=content, source=source_str, id=source_str, title=p.name
         )
 
-def extract_html(file_path: Union[str, Path]) -> Iterator[ExtractionResult]:
+
+def extract_html(file_path: str | Path) -> Iterator[ExtractionResult]:
     """
     Extract readable text from an HTML file.
     """
@@ -160,11 +172,11 @@ def extract_html(file_path: Union[str, Path]) -> Iterator[ExtractionResult]:
     raw_html = result.content
     readable_text = htmlToText(raw_html)
     result.content = readable_text
-    result.raw_html = raw_html
-    yield result
+    # raw_html is an extra field (model_config allows extras), not a declared one
+    yield result.model_copy(update={"raw_html": raw_html})
 
 
-def extract_docx(file_path: Union[str, Path]) -> Iterator[ExtractionResult]:
+def extract_docx(file_path: str | Path) -> Iterator[ExtractionResult]:
     """
     Extract text from a Microsoft Word (.docx) file.
 
@@ -187,20 +199,16 @@ def extract_docx(file_path: Union[str, Path]) -> Iterator[ExtractionResult]:
 
     logger.info(f"Reading docx file: {p}")
     source_str = str(p.resolve())
-    doc = Document(p)
-    full_text = []
-    for para in doc.paragraphs:
-        full_text.append(para.text)
-    content = " ".join(full_text)
+    doc = Document(str(p))
+    content = " ".join(para.text for para in doc.paragraphs)
     yield ExtractionResult(
-        content=content,
-        source=source_str,
-        id=source_str,
-        title=p.name
+        content=content, source=source_str, id=source_str, title=p.name
     )
 
 
-def extract_csv(file_path: Union[str, Path], delimiter: str = ',') -> Iterator[ExtractionResult]:
+def extract_csv(
+    file_path: str | Path, delimiter: str = ","
+) -> Iterator[ExtractionResult]:
     """
     Extract rows from a delimited text file, yielding each row as an ExtractionResult.
 
@@ -233,40 +241,42 @@ def extract_csv(file_path: Union[str, Path], delimiter: str = ',') -> Iterator[E
 
     logger.debug(f"Reading CSV file: {p}")
     source_str = str(p.resolve())
-    extraction_fields = {'content', 'source', 'id', 'title'}
+    extraction_fields = {"content", "source", "id", "title"}
 
-    with p.open("r", newline='', encoding='utf-8') as file:
+    with p.open("r", newline="", encoding="utf-8") as file:
         reader = csv.DictReader(file, delimiter=delimiter)
         for row_num, row in enumerate(reader, start=1):
             # Build ExtractionResult fields, using CSV values if present
             result_fields = {}
 
-            if 'content' in row:
-                result_fields['content'] = row['content']
+            if "content" in row:
+                result_fields["content"] = row["content"]
             else:
-                result_fields['content'] = ', '.join(f"{k}: {v}" for k, v in row.items())
+                result_fields["content"] = ", ".join(
+                    f"{k}: {v}" for k, v in row.items()
+                )
 
-            if 'source' in row:
-                result_fields['source'] = row['source']
+            if "source" in row:
+                result_fields["source"] = row["source"]
             else:
-                result_fields['source'] = source_str
+                result_fields["source"] = source_str
 
-            if 'id' in row:
-                result_fields['id'] = row['id']
+            if "id" in row:
+                result_fields["id"] = row["id"]
             else:
-                result_fields['id'] = f"{source_str}:{row_num}"
+                result_fields["id"] = f"{source_str}:{row_num}"
 
-            if 'title' in row:
-                result_fields['title'] = row['title']
+            if "title" in row:
+                result_fields["title"] = row["title"]
             else:
-                result_fields['title'] = f"{p.name}:{row_num}"
+                result_fields["title"] = f"{p.name}:{row_num}"
 
             # Add all CSV fields as extra fields (excluding ones already in result_fields)
             extra_fields = {k: v for k, v in row.items() if k not in extraction_fields}
             yield ExtractionResult(**result_fields, **extra_fields)
 
 
-def extract_jsonl(file_path: Union[str, Path]) -> Iterator[ExtractionResult]:
+def extract_jsonl(file_path: str | Path) -> Iterator[ExtractionResult]:
     """
     Extract lines from a JSONL file, yielding each line as an ExtractionResult.
 
@@ -300,9 +310,9 @@ def extract_jsonl(file_path: Union[str, Path]) -> Iterator[ExtractionResult]:
 
     logger.debug(f"Reading JSONL file: {p}")
     source_str = str(p.resolve())
-    extraction_fields = {'content', 'source', 'id', 'title'}
+    extraction_fields = {"content", "source", "id", "title"}
 
-    with p.open("r", encoding='utf-8') as file:
+    with p.open("r", encoding="utf-8") as file:
         for line_num, line in enumerate(file, start=1):
             line = line.strip()
             if not line:
@@ -315,50 +325,54 @@ def extract_jsonl(file_path: Union[str, Path]) -> Iterator[ExtractionResult]:
 
             if isinstance(data, dict):
                 # Dictionary: check for matching ExtractionResult fields
-                if 'content' in data:
-                    result_fields['content'] = str(data['content'])
+                if "content" in data:
+                    result_fields["content"] = str(data["content"])
                 else:
-                    result_fields['content'] = ', '.join(f"{k}: {v}" for k, v in data.items())
+                    result_fields["content"] = ", ".join(
+                        f"{k}: {v}" for k, v in data.items()
+                    )
 
-                if 'source' in data:
-                    result_fields['source'] = str(data['source'])
+                if "source" in data:
+                    result_fields["source"] = str(data["source"])
                 else:
-                    result_fields['source'] = source_str
+                    result_fields["source"] = source_str
 
-                if 'id' in data:
-                    result_fields['id'] = str(data['id'])
+                if "id" in data:
+                    result_fields["id"] = str(data["id"])
                 else:
-                    result_fields['id'] = f"{source_str}:{line_num}"
+                    result_fields["id"] = f"{source_str}:{line_num}"
 
-                if 'title' in data:
-                    result_fields['title'] = str(data['title'])
+                if "title" in data:
+                    result_fields["title"] = str(data["title"])
                 else:
-                    result_fields['title'] = f"{p.name}:{line_num}"
+                    result_fields["title"] = f"{p.name}:{line_num}"
 
                 # Add all dict fields as extra fields (excluding standard fields)
-                extra_fields = {k: v for k, v in data.items() if k not in extraction_fields}
+                extra_fields = {
+                    k: v for k, v in data.items() if k not in extraction_fields
+                }
             else:
                 # Non-dict: use value directly for content if string, else JSON representation
                 if isinstance(data, str):
-                    result_fields['content'] = data
+                    result_fields["content"] = data
                 else:
-                    result_fields['content'] = json.dumps(data)
+                    result_fields["content"] = json.dumps(data)
 
-                result_fields['source'] = source_str
-                result_fields['id'] = f"{source_str}:{line_num}"
-                result_fields['title'] = f"{p.name}:{line_num}"
+                result_fields["source"] = source_str
+                result_fields["id"] = f"{source_str}:{line_num}"
+                result_fields["title"] = f"{p.name}:{line_num}"
 
                 # Store original value as extra field
-                extra_fields['value'] = data
+                extra_fields["value"] = data
 
             yield ExtractionResult(**result_fields, **extra_fields)
 
 
-extract_tsv = partial(extract_csv, delimiter='\t')
+extract_tsv = partial(extract_csv, delimiter="\t")
 extract_tsv.__doc__ = "Extract rows from a TSV (tab-separated) file. See extract_csv."
 
 
-def extract_json(file_path: Union[str, Path]) -> Iterator[ExtractionResult]:
+def extract_json(file_path: str | Path) -> Iterator[ExtractionResult]:
     """
     Extract content from a JSON file, yielding a single ExtractionResult.
 
@@ -386,7 +400,7 @@ def extract_json(file_path: Union[str, Path]) -> Iterator[ExtractionResult]:
 
     logger.debug(f"Reading JSON file: {p}")
     source_str = str(p.resolve())
-    extraction_fields = {'content', 'source', 'id', 'title'}
+    extraction_fields = {"content", "source", "id", "title"}
 
     with p.open("r", encoding="utf-8") as f:
         data = json.load(f)
@@ -395,22 +409,28 @@ def extract_json(file_path: Union[str, Path]) -> Iterator[ExtractionResult]:
     extra_fields: dict = {}
 
     if isinstance(data, dict):
-        result_fields['content'] = str(data['content']) if 'content' in data else ', '.join(f"{k}: {v}" for k, v in data.items())
-        result_fields['source'] = str(data['source']) if 'source' in data else source_str
-        result_fields['id'] = str(data['id']) if 'id' in data else source_str
-        result_fields['title'] = str(data['title']) if 'title' in data else p.name
+        result_fields["content"] = (
+            str(data["content"])
+            if "content" in data
+            else ", ".join(f"{k}: {v}" for k, v in data.items())
+        )
+        result_fields["source"] = (
+            str(data["source"]) if "source" in data else source_str
+        )
+        result_fields["id"] = str(data["id"]) if "id" in data else source_str
+        result_fields["title"] = str(data["title"]) if "title" in data else p.name
         extra_fields = {k: v for k, v in data.items() if k not in extraction_fields}
     else:
-        result_fields['content'] = data if isinstance(data, str) else json.dumps(data)
-        result_fields['source'] = source_str
-        result_fields['id'] = source_str
-        result_fields['title'] = p.name
-        extra_fields['value'] = data
+        result_fields["content"] = data if isinstance(data, str) else json.dumps(data)
+        result_fields["source"] = source_str
+        result_fields["id"] = source_str
+        result_fields["title"] = p.name
+        extra_fields["value"] = data
 
     yield ExtractionResult(**result_fields, **extra_fields)
 
 
-def extract_pdf(file_path: Union[str, Path]) -> Iterator[ExtractionResult]:
+def extract_pdf(file_path: str | Path) -> Iterator[ExtractionResult]:
     """
     Extract text from a PDF file.
 
@@ -459,18 +479,14 @@ def extract_pdf(file_path: Union[str, Path]) -> Iterator[ExtractionResult]:
     # down over a long ingest. Collect now that the reader is out of scope.
     gc.collect()
     yield ExtractionResult(
-        content=content,
-        source=source_str,
-        id=source_str,
-        title=p.name
+        content=content, source=source_str, id=source_str, title=p.name
     )
 
 
-def skip_file(file_path: Union[str, Path]) -> Iterator[ExtractionResult]:
+def skip_file(file_path: str | Path) -> Iterator[ExtractionResult]:
     """Default extractor that skips files by yielding nothing."""
     logger.debug(f"Skipping unsupported file: {file_path}")
-    if False:
-        yield
+    yield from ()
 
 
 def get_default_registry() -> ExtractorRegistry:
@@ -651,29 +667,40 @@ def readjsonl(file_path: Annotated[str, "Path to the JSONL file to read"]):
 
 @register_segment("listFiles")
 @segment()
-def listFiles(patterns: Annotated[Iterable[str], "Iterable of file patterns or paths (supports wildcards like *, ?, [])"], full_path: Annotated[bool, "Whether to yield full absolute paths or just filenames"] = True, files_only: Annotated[bool, "Whether to include only files (excluding directories)"] = False):
+def listFiles(
+    patterns: Annotated[
+        Iterable[str],
+        "Iterable of file patterns or paths (supports wildcards like *, ?, [])",
+    ],
+    full_path: Annotated[
+        bool, "Whether to yield full absolute paths or just filenames"
+    ] = True,
+    files_only: Annotated[
+        bool, "Whether to include only files (excluding directories)"
+    ] = False,
+):
     """List files matching given glob patterns and yield their paths.
-    
+
     Takes file patterns (supporting standard glob wildcards) and yields matching file
     paths. Glob patterns support:
     - * : matches any number of characters in a filename
     - ? : matches exactly one character
     - [abc] : matches any character in the brackets
     - ** : matches across directories (recursive)
-    
+
     Patterns are expanded to include home directory (~) and environment variables.
     If a pattern contains no wildcards and is a directory, all files in that directory
     are implicitly searched.
-    
+
     Useful for:
     - Discovering files by pattern (e.g., all CSV files)
     - Finding files by name (e.g., log files)
     - Batch processing multiple files matching a pattern
     - Building file lists for pipelines
-    
+
     Yields:
         Absolute paths if full_path=True, just filenames if full_path=False.
-    
+
     Examples:
         listFiles(["*.txt"]) - all text files in current directory
         listFiles(["/data/**/*.csv"]) - all CSV files under /data recursively
@@ -681,15 +708,17 @@ def listFiles(patterns: Annotated[Iterable[str], "Iterable of file patterns or p
     """
     for pattern in patterns:
         expanded_pattern = os.path.expanduser(pattern)
-        
+
         # If no wildcard is provided and the path is a directory, add implied "/*"
         path = Path(expanded_pattern)
-        if path.is_dir() and not any(char in expanded_pattern for char in ['*', '?', '[']):
-            expanded_pattern = os.path.join(expanded_pattern, '*')
+        if path.is_dir() and not any(
+            char in expanded_pattern for char in ["*", "?", "["]
+        ):
+            expanded_pattern = os.path.join(expanded_pattern, "*")
 
         logger.info(f"Searching for files matching pattern: {expanded_pattern}")
         matches = glob.glob(expanded_pattern, recursive=True)
-        
+
         for match in sorted(matches):
             path = Path(match)
             if path.is_file() or (not files_only and path.is_dir()):
@@ -699,6 +728,7 @@ def listFiles(patterns: Annotated[Iterable[str], "Iterable of file patterns or p
                     yield path.name
             else:
                 logger.debug(f"Skipping non-file: {match}")
+
 
 @register_segment("readFile", "fileToText")
 class ReadFile(AbstractFieldSegment):
@@ -725,12 +755,19 @@ class ReadFile(AbstractFieldSegment):
     instead of skipping, pass skip_errors=False.
 
     """
+
     _registry: ExtractorRegistry
     _skip_unsupported: bool
     _skip_errors: bool
 
-    def __init__(self, field: str = None, set_as: str = None, skip_unsupported: bool = True,
-                 skip_errors: bool = True, registry: ExtractorRegistry = None):
+    def __init__(
+        self,
+        field: str | None = None,
+        set_as: str | None = None,
+        skip_unsupported: bool = True,
+        skip_errors: bool = True,
+        registry: ExtractorRegistry | None = None,
+    ):
         """
         Initialize ReadFile with an optional custom registry.
 
@@ -764,7 +801,7 @@ class ReadFile(AbstractFieldSegment):
         """
         self._registry.register(file_extension, extractor)
 
-    def process_value(self, file_path: Union[str, PosixPath]) -> Iterator[ExtractionResult]:
+    def process_value(self, file_path: str | PosixPath) -> Iterator[ExtractionResult]:
         """
         Extract content from a single file.
 
@@ -793,6 +830,7 @@ class ReadFile(AbstractFieldSegment):
                 raise Exception(f"File extension {extension} not supported")
         else:
             extractor = self._registry.get_extractor(file_path)
+            assert extractor is not None  # a registered extension always resolves
 
         logger.debug(f"Extracting content from file: {file_path}")
         try:
@@ -804,4 +842,3 @@ class ReadFile(AbstractFieldSegment):
                 f"Skipping file that could not be read: {file_path} "
                 f"({type(exc).__name__}: {exc})"
             )
-

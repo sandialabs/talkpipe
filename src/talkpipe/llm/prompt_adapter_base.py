@@ -1,7 +1,7 @@
-from abc import ABC, abstractmethod
 import json
 import logging
-from typing import Annotated, Optional, Union
+from abc import ABC, abstractmethod
+from typing import Annotated
 
 from pydantic import BaseModel
 
@@ -22,8 +22,8 @@ class AbstractLLMPromptAdapter(PromptAdapterMemoryMixin, ABC):
 
     _model_name: str
     _source: str
-    _system_message: Optional[dict]
-    _summary_message: Optional[dict]
+    _system_message: dict | None
+    _summary_message: dict | None
     _messages: list
     _multi_turn: bool
 
@@ -31,16 +31,37 @@ class AbstractLLMPromptAdapter(PromptAdapterMemoryMixin, ABC):
         self,
         model: Annotated[str, "The name of the model"],
         source: Annotated[str, "The source of the model"],
-        system_prompt: Annotated[Optional[str], "The system prompt for the model"] = "You are a helpful assistant.",
-        multi_turn: Annotated[bool, "Whether the model supports multi-turn conversations"] = True,
-        temperature: Annotated[float, "The temperature for the model"] = None,
-        output_format: Annotated[BaseModel, "The output format for the model"] = None,
-        role_map: Annotated[str, "The role map for the model in the form 'role:message,role:message'. If the system role is included here, it overrides the system_prompt message"] = None,
-        memory_mode: Annotated[str, "Memory behavior: full, recent_only, summary_llm, summary_deterministic, or summary_truncate"] = "full",
-        unsummarized_message_count: Annotated[int, "Recent message count kept out of summary compaction"] = 6,
-        context_token_trigger: Annotated[Optional[Union[int, float]], "Approximate context-token trigger for rolling memory compaction (values < 1 are ignored)"] = None,
-        memory_size: Annotated[int, "Target max tokens for generated summary memory"] = 512,
-        debug_messages: Annotated[bool, "Whether to log outbound LLM request messages"] = False,
+        system_prompt: Annotated[
+            str | None, "The system prompt for the model"
+        ] = "You are a helpful assistant.",
+        multi_turn: Annotated[
+            bool, "Whether the model supports multi-turn conversations"
+        ] = True,
+        temperature: Annotated[float | None, "The temperature for the model"] = None,
+        output_format: Annotated[
+            type[BaseModel] | None, "The output format for the model"
+        ] = None,
+        role_map: Annotated[
+            str | None,
+            "The role map for the model in the form 'role:message,role:message'. If the system role is included here, it overrides the system_prompt message",
+        ] = None,
+        memory_mode: Annotated[
+            str,
+            "Memory behavior: full, recent_only, summary_llm, summary_deterministic, or summary_truncate",
+        ] = "full",
+        unsummarized_message_count: Annotated[
+            int, "Recent message count kept out of summary compaction"
+        ] = 6,
+        context_token_trigger: Annotated[
+            int | float | None,
+            "Approximate context-token trigger for rolling memory compaction (values < 1 are ignored)",
+        ] = None,
+        memory_size: Annotated[
+            int, "Target max tokens for generated summary memory"
+        ] = 512,
+        debug_messages: Annotated[
+            bool, "Whether to log outbound LLM request messages"
+        ] = False,
     ):
         """Initialize the chat model."""
         self._model_name = model
@@ -134,7 +155,9 @@ class AbstractLLMPromptAdapter(PromptAdapterMemoryMixin, ABC):
     def _record_assistant_response(self, response_text: str) -> None:
         # Single helper keeps history mutation consistent across providers.
         if self._multi_turn:
-            logger.debug("Multi-turn enabled, appending assistant response to chat history")
+            logger.debug(
+                "Multi-turn enabled, appending assistant response to chat history"
+            )
             self._messages.append({"role": "assistant", "content": response_text})
         else:
             logger.debug("Single-turn mode, clearing message and summary history")
@@ -162,7 +185,9 @@ class AbstractLLMPromptAdapter(PromptAdapterMemoryMixin, ABC):
             return {
                 "role": role,
                 "content": content,
-                "images": [f"<{len(image)} base64 chars>" for image in message["images"]],
+                "images": [
+                    f"<{len(image)} base64 chars>" for image in message["images"]
+                ],
             }
         content = message.get("content", "")
         if isinstance(content, list):
@@ -182,7 +207,7 @@ class AbstractLLMPromptAdapter(PromptAdapterMemoryMixin, ABC):
             content = content[:500] + "...[truncated]"
         return {"role": role, "content": content}
 
-    def _clip_debug_text(self, text: str, limit: int = 1200) -> str:
+    def _clip_debug_text(self, text: str | None, limit: int = 1200) -> str:
         if text is None:
             return ""
         if len(text) <= limit:
@@ -193,9 +218,9 @@ class AbstractLLMPromptAdapter(PromptAdapterMemoryMixin, ABC):
         self,
         prompt: str,
         *,
-        model: Optional[str] = None,
+        model: str | None = None,
         temperature: float = 0.0,
-        max_tokens: Optional[int] = None,
+        max_tokens: int | None = None,
     ) -> str:
         """Return a plain text completion without reading or mutating chat history."""
         raise NotImplementedError(
@@ -222,13 +247,13 @@ class AbstractLLMPromptAdapter(PromptAdapterMemoryMixin, ABC):
         return self.__str__()
 
     @abstractmethod
-    def execute(self, prompt: str) -> str:
+    def execute(self, prompt: str) -> str | BaseModel:
         """Execute the chat model.
 
         This method is used to execute the chat model with a given input.
         """
 
-    def execute_turn(self, user_turn) -> str:
+    def execute_turn(self, user_turn) -> str | BaseModel:
         """Execute the chat model with a multimodal user turn."""
         raise NotImplementedError(
             f"{self.__class__.__name__} must implement execute_turn() for multimodal prompts."

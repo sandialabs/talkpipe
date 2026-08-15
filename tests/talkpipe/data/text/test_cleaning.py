@@ -24,8 +24,10 @@ def test_strip_base64_blobs_removes_long_bare_run():
 
 def test_strip_base64_blobs_removes_multiline_wrapped_payload():
     # MIME/PEM-style base64 wrapped at 64 or 76 characters per line
-    raw = base64.b64encode(b"binary attachment content, long enough to wrap" * 10).decode()
-    wrapped = "\n".join(raw[i:i + 64] for i in range(0, len(raw), 64))
+    raw = base64.b64encode(
+        b"binary attachment content, long enough to wrap" * 10
+    ).decode()
+    wrapped = "\n".join(raw[i : i + 64] for i in range(0, len(raw), 64))
     text = f"Attached certificate:\n{wrapped}\nRegards, Alice"
     cleaned = strip_base64_blobs(text)
     assert raw[:64] not in cleaned

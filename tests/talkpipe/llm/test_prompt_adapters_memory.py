@@ -14,7 +14,9 @@ class DummyMemoryAdapter(AbstractLLMPromptAdapter):
     def is_available(self) -> bool:
         return True
 
-    def complete_text_without_context(self, prompt: str, *, model=None, temperature=0.0, max_tokens=None) -> str:
+    def complete_text_without_context(
+        self, prompt: str, *, model=None, temperature=0.0, max_tokens=None
+    ) -> str:
         return self.no_context_response
 
 
@@ -50,7 +52,9 @@ def test_effective_context_token_trigger_accepts_only_absolute_values():
 
 
 def test_estimate_tokens_and_needs_compaction_threshold():
-    adapter = DummyMemoryAdapter(memory_mode="summary_truncate", context_token_trigger=10, system_prompt=None)
+    adapter = DummyMemoryAdapter(
+        memory_mode="summary_truncate", context_token_trigger=10, system_prompt=None
+    )
     adapter._messages = [{"role": "user", "content": "abcdefghij"}]
     assert adapter._estimate_tokens(adapter._request_messages()) == 8
     assert adapter._needs_compaction() is False
@@ -60,11 +64,15 @@ def test_estimate_tokens_and_needs_compaction_threshold():
 
 
 def test_needs_compaction_returns_false_when_not_rolling_or_no_budget():
-    full_mode = DummyMemoryAdapter(memory_mode="full", context_token_trigger=1, system_prompt=None)
+    full_mode = DummyMemoryAdapter(
+        memory_mode="full", context_token_trigger=1, system_prompt=None
+    )
     full_mode._messages = [{"role": "user", "content": "x" * 100}]
     assert full_mode._needs_compaction() is False
 
-    rolling_no_budget = DummyMemoryAdapter(memory_mode="summary_truncate", context_token_trigger=None, system_prompt=None)
+    rolling_no_budget = DummyMemoryAdapter(
+        memory_mode="summary_truncate", context_token_trigger=None, system_prompt=None
+    )
     rolling_no_budget._messages = [{"role": "user", "content": "x" * 100}]
     assert rolling_no_budget._needs_compaction() is False
 
@@ -86,7 +94,9 @@ def test_messages_to_summary_text_and_prompt_builder_include_expected_sections()
 def test_summarize_truncate_respects_character_limit():
     adapter = DummyMemoryAdapter(memory_mode="summary_truncate")
     adapter._summary_max_chars = 10
-    summary = adapter._summarize_truncate("", [{"role": "user", "content": "123456789012345"}])
+    summary = adapter._summarize_truncate(
+        "", [{"role": "user", "content": "123456789012345"}]
+    )
     assert summary == "6789012345"
 
 
@@ -111,7 +121,9 @@ def test_summarize_history_falls_back_to_deterministic_when_llm_fails(monkeypatc
         raise RuntimeError("llm down")
 
     monkeypatch.setattr(adapter, "_summarize_with_llm", raise_runtime_error)
-    summary = adapter._summarize_history("", [{"role": "user", "content": "capture this fact"}])
+    summary = adapter._summarize_history(
+        "", [{"role": "user", "content": "capture this fact"}]
+    )
     assert "deterministic fallback" in summary.lower()
 
 
@@ -126,27 +138,40 @@ def test_summarize_history_propagates_not_implemented(monkeypatch):
         adapter._summarize_history("", [{"role": "user", "content": "x"}])
 
 
-def test_summarize_history_falls_back_to_truncate_when_deterministic_is_empty(monkeypatch):
+def test_summarize_history_falls_back_to_truncate_when_deterministic_is_empty(
+    monkeypatch,
+):
     adapter = DummyMemoryAdapter(memory_mode="summary_llm")
 
     def raise_runtime_error(*_args, **_kwargs):
         raise RuntimeError("llm down")
 
     monkeypatch.setattr(adapter, "_summarize_with_llm", raise_runtime_error)
-    monkeypatch.setattr(adapter, "_summarize_deterministic", lambda *_args, **_kwargs: "")
-    monkeypatch.setattr(adapter, "_summarize_truncate", lambda *_args, **_kwargs: "truncate fallback")
+    monkeypatch.setattr(
+        adapter, "_summarize_deterministic", lambda *_args, **_kwargs: ""
+    )
+    monkeypatch.setattr(
+        adapter, "_summarize_truncate", lambda *_args, **_kwargs: "truncate fallback"
+    )
 
-    assert adapter._summarize_history("", [{"role": "user", "content": "x"}]) == "truncate fallback"
+    assert (
+        adapter._summarize_history("", [{"role": "user", "content": "x"}])
+        == "truncate fallback"
+    )
 
 
 def test_summarize_history_direct_deterministic_and_truncate_paths():
     deterministic = DummyMemoryAdapter(memory_mode="summary_deterministic")
-    deterministic_summary = deterministic._summarize_history("", [{"role": "user", "content": "fact"}])
+    deterministic_summary = deterministic._summarize_history(
+        "", [{"role": "user", "content": "fact"}]
+    )
     assert "deterministic fallback" in deterministic_summary.lower()
 
     truncate = DummyMemoryAdapter(memory_mode="summary_truncate")
     truncate._summary_max_chars = 6
-    truncate_summary = truncate._summarize_history("", [{"role": "user", "content": "123456789"}])
+    truncate_summary = truncate._summarize_history(
+        "", [{"role": "user", "content": "123456789"}]
+    )
     assert truncate_summary == "456789"
 
 
@@ -167,7 +192,9 @@ def test_compact_context_recent_only_drops_archived_messages_without_summary():
 
 
 def test_compact_context_returns_early_when_not_needed():
-    adapter = DummyMemoryAdapter(memory_mode="summary_truncate", context_token_trigger=9999, system_prompt=None)
+    adapter = DummyMemoryAdapter(
+        memory_mode="summary_truncate", context_token_trigger=9999, system_prompt=None
+    )
     adapter._messages = [{"role": "user", "content": "small"}]
     adapter._compact_context_if_needed()
     assert adapter._messages == [{"role": "user", "content": "small"}]

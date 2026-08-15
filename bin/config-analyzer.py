@@ -1,10 +1,11 @@
-import os
-import ast
 import argparse
+import ast
+import os
+
 
 def extract_config_keys_from_file(file_path):
-    """ Extracts configuration keys accessed via get_config() from a given Python file. """
-    with open(file_path, "r", encoding="utf-8") as f:
+    """Extracts configuration keys accessed via get_config() from a given Python file."""
+    with open(file_path, encoding="utf-8") as f:
         try:
             tree = ast.parse(f.read(), filename=file_path)
         except SyntaxError:
@@ -32,28 +33,35 @@ def extract_config_keys_from_file(file_path):
             self.generic_visit(node)
 
         def visit_Assign(self, node):
-            """ Detects assignments like 'config = get_config()' or 'CONSTANT = "value"'. """
+            """Detects assignments like 'config = get_config()' or 'CONSTANT = "value"'."""
             # Handle assignments with boolean operations
             if isinstance(node.value, ast.BoolOp):
                 self.visit_BoolOp(node.value)
-            
+
             # Track get_config assignments
-            if isinstance(node.value, ast.Call) and self.is_get_config_call(node.value):
-                if isinstance(node.targets[0], ast.Name):
-                    config_variables.add(node.targets[0].id)
-            
+            if (
+                isinstance(node.value, ast.Call)
+                and self.is_get_config_call(node.value)
+                and isinstance(node.targets[0], ast.Name)
+            ):
+                config_variables.add(node.targets[0].id)
+
             # Track constant assignments
             if isinstance(node.targets[0], ast.Name):
                 if isinstance(node.value, ast.Constant):
                     constant_assignments[node.targets[0].id] = node.value.value
                 # Track assignments of imported names
-                elif isinstance(node.value, ast.Name) and node.value.id in imported_names:
-                    constant_assignments[node.targets[0].id] = imported_names[node.value.id]
+                elif (
+                    isinstance(node.value, ast.Name) and node.value.id in imported_names
+                ):
+                    constant_assignments[node.targets[0].id] = imported_names[
+                        node.value.id
+                    ]
 
             self.generic_visit(node)
 
         def visit_Subscript(self, node):
-            """ Detects dictionary-style access: config["key"]. """
+            """Detects dictionary-style access: config["key"]."""
             if (
                 isinstance(node.value, ast.Name)
                 and node.value.id in config_variables  # Ensure it's from get_config()
@@ -64,17 +72,17 @@ def extract_config_keys_from_file(file_path):
             self.generic_visit(node)
 
         def visit_Call(self, node):
-            """ Detects method calls like config.get("key"), util.get_config().get("key"), and cfg.get(IMPORTED_CONSTANT). """
+            """Detects method calls like config.get("key"), util.get_config().get("key"), and cfg.get(IMPORTED_CONSTANT)."""
             if (
                 isinstance(node.func, ast.Attribute)
                 and node.func.attr == "get"
                 and len(node.args) >= 1
             ):
                 # Check if the call is on a config-like object
-                if (isinstance(node.func.value, ast.Name) and 
-                    (node.func.value.id in config_variables or 
-                     node.func.value.id.lower().endswith('cfg'))):  # Added check for cfg-like names
-                    
+                if isinstance(node.func.value, ast.Name) and (
+                    node.func.value.id in config_variables
+                    or node.func.value.id.lower().endswith("cfg")
+                ):  # Added check for cfg-like names
                     key_node = node.args[0]
                     self.handle_get_argument(key_node)
 
@@ -97,7 +105,9 @@ def extract_config_keys_from_file(file_path):
                         config_keys.add(const_value)
                     elif isinstance(const_value, dict):
                         # This is an imported name - add it to config keys with a note
-                        imported_info = f"IMPORTED: {const_value['module']}.{const_value['name']}"
+                        imported_info = (
+                            f"IMPORTED: {const_value['module']}.{const_value['name']}"
+                        )
                         config_keys.add(imported_info)
                 elif key_node.id in imported_names:
                     # Direct use of imported name without reassignment
@@ -105,11 +115,15 @@ def extract_config_keys_from_file(file_path):
                     config_keys.add(imported_info)
 
         def is_get_config_call(self, node):
-            """ Checks if a function call is get_config() or util.get_config(). """
+            """Checks if a function call is get_config() or util.get_config()."""
             return (
-                (isinstance(node, ast.Call) and isinstance(node.func, ast.Name) and node.func.id == "get_config")
-                or
-                (isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute) and node.func.attr == "get_config")
+                isinstance(node, ast.Call)
+                and isinstance(node.func, ast.Name)
+                and node.func.id == "get_config"
+            ) or (
+                isinstance(node, ast.Call)
+                and isinstance(node.func, ast.Attribute)
+                and node.func.attr == "get_config"
             )
 
     visitor = ConfigVisitor()
@@ -117,8 +131,9 @@ def extract_config_keys_from_file(file_path):
 
     return config_keys
 
+
 def scan_directory_for_config_usage(directory):
-    """ Scans all Python files in a directory for get_config key usage. """
+    """Scans all Python files in a directory for get_config key usage."""
     all_configs = {}
 
     for root, _, files in os.walk(directory):
@@ -131,8 +146,11 @@ def scan_directory_for_config_usage(directory):
 
     return all_configs
 
+
 def main():
-    parser = argparse.ArgumentParser(description="Scan a directory for get_config key usage in Python files.")
+    parser = argparse.ArgumentParser(
+        description="Scan a directory for get_config key usage in Python files."
+    )
     parser.add_argument("directory", help="Path to the directory to scan.")
 
     args = parser.parse_args()
@@ -144,15 +162,15 @@ def main():
 
     config_usage = scan_directory_for_config_usage(directory)
 
-    keys = sorted(list(set([key for keys in config_usage.values() for key in keys])))
+    keys = sorted({key for keys in config_usage.values() for key in keys})
     for key in keys:
         print(f"* **{key}** - ")
-    
 
     for file, keys in config_usage.items():
         print(f"\nFile: {file}")
         for key in keys:
             print(f"  - Config Key: '{key}'")
+
 
 if __name__ == "__main__":
     main()

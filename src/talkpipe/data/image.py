@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
-from typing import Annotated, Union
+from typing import Annotated, Any
 from urllib.parse import urlparse
 
 import requests
@@ -65,7 +65,7 @@ def load_image_from_bytes(data: bytes, *, mime_type: str | None = None) -> Image
     )
 
 
-def load_image_from_path(file_path: Union[str, Path]) -> ImageResult:
+def load_image_from_path(file_path: str | Path) -> ImageResult:
     path = Path(file_path)
     if not path.exists():
         raise FileNotFoundError(f"Image file not found: {file_path}")
@@ -112,7 +112,9 @@ def load_image_from_url(
 
     data = response.content
     header_mime = response.headers.get("Content-Type", "").split(";")[0].strip()
-    mime_type = header_mime if header_mime.startswith("image/") else sniff_mime_type(data)
+    mime_type = (
+        header_mime if header_mime.startswith("image/") else sniff_mime_type(data)
+    )
     return ImageResult(
         data=data,
         mime_type=mime_type,
@@ -123,7 +125,7 @@ def load_image_from_url(
 
 
 def load_image(
-    source: Union[str, Path, bytes, ImageResult],
+    source: str | Path | bytes | ImageResult,
     *,
     mime_type: str | None = None,
 ) -> ImageResult:
@@ -134,7 +136,7 @@ def load_image(
         return load_image_from_bytes(source, mime_type=mime_type)
     if isinstance(source, str):
         stripped = source.strip()
-        if stripped.startswith("http://") or stripped.startswith("https://"):
+        if stripped.startswith(("http://", "https://")):
             return load_image_from_url(stripped)
         return load_image_from_path(stripped)
     return load_image_from_path(source)
@@ -152,7 +154,7 @@ def normalize_image(
 
     from PIL import Image
 
-    image = Image.open(BytesIO(result.data))
+    image: Image.Image = Image.open(BytesIO(result.data))
     if max_dimension is not None:
         image.thumbnail((max_dimension, max_dimension))
 
@@ -164,28 +166,31 @@ def normalize_image(
         "WEBP": "image/webp",
     }
     buffer = BytesIO()
-    save_kwargs = {}
+    save_kwargs: dict[str, Any] = {}
     if output_format.upper() == "JPEG":
         save_kwargs["quality"] = 85
         if image.mode in ("RGBA", "P"):
             image = image.convert("RGB")
     image.save(buffer, format=output_format, **save_kwargs)
     normalized = buffer.getvalue()
+    # width/height are extra fields (model_config allows extras), not declared ones
+    dimensions: dict[str, Any] = {"width": image.width, "height": image.height}
     return ImageResult(
         data=normalized,
         mime_type=mime_map.get(output_format.upper(), result.mime_type),
         source=result.source,
         id=result.id,
         title=result.title,
-        width=image.width,
-        height=image.height,
+        **dimensions,
     )
 
 
 @register_segment("loadImage")
 @core.field_segment()
 def loadImageSegment(
-    item: Annotated[Union[str, Path, bytes, ImageResult], "Image path, URL, bytes, or ImageResult"],
+    item: Annotated[
+        str | Path | bytes | ImageResult, "Image path, URL, bytes, or ImageResult"
+    ],
 ) -> ImageResult:
     """Load an image from a path, URL, or bytes."""
     return load_image(item)

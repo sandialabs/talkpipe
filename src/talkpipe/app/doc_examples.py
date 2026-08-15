@@ -4,6 +4,8 @@ import re
 import subprocess  # nosec B404 - Required to run extracted doc examples script
 import sys
 from pathlib import Path
+from types import ModuleType
+from typing import Any
 
 # Directories to skip when scanning markdown files
 SKIP_DIRS = {".github", ".pytest_cache", ".claude", ".venv", "venv", "__pycache__"}
@@ -74,7 +76,9 @@ def extract_all_examples(root: Path) -> list[tuple[Path, int, str]]:
         except OSError:
             continue
         for line_num, code in extract_python_blocks(content):
-            rel_path = md_path.relative_to(root) if md_path.is_relative_to(root) else md_path
+            rel_path = (
+                md_path.relative_to(root) if md_path.is_relative_to(root) else md_path
+            )
             examples.append((rel_path, line_num, code))
     return examples
 
@@ -86,14 +90,16 @@ def run_example(location: str, code: str) -> tuple[bool, BaseException | None]:
     Returns (True, None) if successful, (False, exception) on failure.
     Patches io.Prompt to use echo with default input (avoids blocking on user input).
     """
-    io_module = None
-    original_prompt = None
+    io_module: ModuleType | None = None
+    original_prompt: Any = None
     try:
         import talkpipe.pipe.io as _io
 
         io_module = _io
         original_prompt = _io.Prompt
-        _io.Prompt = lambda *args, **kwargs: _io.echo(data="Hello, world!")
+        setattr(  # noqa: B010 - monkeypatch a module attribute
+            _io, "Prompt", lambda *args, **kwargs: _io.echo(data="Hello, world!")
+        )
     except ImportError:
         pass
 
@@ -105,10 +111,12 @@ def run_example(location: str, code: str) -> tuple[bool, BaseException | None]:
         return (False, e)
     finally:
         if io_module is not None and original_prompt is not None:
-            io_module.Prompt = original_prompt
+            setattr(io_module, "Prompt", original_prompt)  # noqa: B010
 
 
-def generate_runner_script(examples: list[tuple[Path, int, str]], output_path: Path) -> None:
+def generate_runner_script(
+    examples: list[tuple[Path, int, str]], output_path: Path
+) -> None:
     """Generate a Python script that runs each example with location printed."""
     lines = [
         '"""',
@@ -134,7 +142,7 @@ def generate_runner_script(examples: list[tuple[Path, int, str]], output_path: P
         "    except ImportError:",
         "        pass",
         "",
-        "    namespace = {\"__name__\": \"__main__\", \"__package__\": None}",
+        '    namespace = {"__name__": "__main__", "__package__": None}',
         "    try:",
         "        exec(code, namespace)",
         "        return True",
@@ -157,7 +165,9 @@ def generate_runner_script(examples: list[tuple[Path, int, str]], output_path: P
         lines.append(escaped)
         lines.append('"""),')
 
-    fail_index_path = "Path(__file__).resolve().parent / '.extracted_examples_fail_index'"
+    fail_index_path = (
+        "Path(__file__).resolve().parent / '.extracted_examples_fail_index'"
+    )
     lines.extend(
         [
             "    ]",
@@ -176,7 +186,7 @@ def generate_runner_script(examples: list[tuple[Path, int, str]], output_path: P
             "        path, line_num, code = examples[i]",
             '        print(f"\\n--- {Path(path).name}:{line_num} ---")',
             '        print(f"  {path}")',
-            "        if not run_example(f\"{path}:{line_num}\", code):",
+            '        if not run_example(f"{path}:{line_num}", code):',
             "            fail_index_path.write_text(str(i))",
             '            print(f"\\nExiting: example {i + 1} failed. Run again to retry from here.", file=sys.stderr)',
             "            sys.exit(1)",

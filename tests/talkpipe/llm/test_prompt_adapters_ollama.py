@@ -1,10 +1,11 @@
-from talkpipe.llm.prompt_adapters import OllamaPromptAdapter
+import pytest
 
 from prompt_adapter_contract_suite import (
     PromptAdapterSpec,
     run_shared_live_contract_checks,
     run_shared_offline_contract_checks,
 )
+from talkpipe.llm.prompt_adapters import OllamaPromptAdapter
 
 
 def _patch_ollama_constructor(monkeypatch):
@@ -13,7 +14,11 @@ def _patch_ollama_constructor(monkeypatch):
         def chat(*_args, **_kwargs):
             return None
 
-    monkeypatch.setattr(OllamaPromptAdapter, "_require_dependency", lambda *_args, **_kwargs: DummyOllamaModule)
+    monkeypatch.setattr(
+        OllamaPromptAdapter,
+        "_require_dependency",
+        lambda *_args, **_kwargs: DummyOllamaModule,
+    )
 
 
 def _patch_ollama_execute(monkeypatch, adapter, response_text: str):
@@ -23,7 +28,9 @@ def _patch_ollama_execute(monkeypatch, adapter, response_text: str):
     class DummyResponse:
         message = DummyMessage()
 
-    monkeypatch.setattr(adapter, "_chat_completion", lambda *_args, **_kwargs: DummyResponse())
+    monkeypatch.setattr(
+        adapter, "_chat_completion", lambda *_args, **_kwargs: DummyResponse()
+    )
 
 
 OLLAMA_SPEC = PromptAdapterSpec(
@@ -90,7 +97,11 @@ def test_ollama_chat_completion_uses_configured_server_url(monkeypatch):
     class DummyOllamaModule:
         Client = DummyClient
 
-    monkeypatch.setattr(OllamaPromptAdapter, "_require_dependency", lambda *_args, **_kwargs: DummyOllamaModule)
+    monkeypatch.setattr(
+        OllamaPromptAdapter,
+        "_require_dependency",
+        lambda *_args, **_kwargs: DummyOllamaModule,
+    )
 
     adapter._chat_completion("llama3.2", [{"role": "user", "content": "hello"}])
     assert captured["host"] == "http://custom"
@@ -112,14 +123,21 @@ def test_ollama_chat_completion_missing_model_reports_status_code_once(monkeypat
         Client = DummyClient
         ResponseError = ollama.ResponseError
 
-    monkeypatch.setattr(OllamaPromptAdapter, "_require_dependency", lambda *_args, **_kwargs: DummyOllamaModule)
+    monkeypatch.setattr(
+        OllamaPromptAdapter,
+        "_require_dependency",
+        lambda *_args, **_kwargs: DummyOllamaModule,
+    )
 
     try:
         adapter._chat_completion("llama9.99", [{"role": "user", "content": "hello"}])
-        assert False, "expected ResponseError"
+        raise AssertionError("expected ResponseError")
     except ollama.ResponseError as exc:
         message = str(exc)
-        assert "Model 'llama9.99' is not available on the Ollama server at http://custom:11434" in message
+        assert (
+            "Model 'llama9.99' is not available on the Ollama server at http://custom:11434"
+            in message
+        )
         assert "ollama pull llama9.99" in message
         assert message.count("(status code: 404)") == 1
 
@@ -137,15 +155,18 @@ def test_ollama_chat_completion_connection_error_names_url_and_env_var(monkeypat
     class DummyOllamaModule:
         Client = DummyClient
 
-    monkeypatch.setattr(OllamaPromptAdapter, "_require_dependency", lambda *_args, **_kwargs: DummyOllamaModule)
+    monkeypatch.setattr(
+        OllamaPromptAdapter,
+        "_require_dependency",
+        lambda *_args, **_kwargs: DummyOllamaModule,
+    )
 
-    try:
+    with pytest.raises(ConnectionError) as exc_info:
         adapter._chat_completion("llama3.2", [{"role": "user", "content": "hello"}])
-        assert False, "expected ConnectionError"
-    except ConnectionError as exc:
-        assert "http://custom:11434" in str(exc)
-        assert "TALKPIPE_OLLAMA_SERVER_URL" in str(exc)
-        # The example must stay paste-safe: an angle-bracket placeholder like
-        # <host> is parsed as a shell redirection when copied into a terminal.
-        assert "http://your-ollama-host:11434" in str(exc)
-        assert "<host>" not in str(exc)
+    message = str(exc_info.value)
+    assert "http://custom:11434" in message
+    assert "TALKPIPE_OLLAMA_SERVER_URL" in message
+    # The example must stay paste-safe: an angle-bracket placeholder like
+    # <host> is parsed as a shell redirection when copied into a terminal.
+    assert "http://your-ollama-host:11434" in message
+    assert "<host>" not in message

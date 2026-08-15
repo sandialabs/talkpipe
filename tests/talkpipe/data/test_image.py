@@ -1,5 +1,5 @@
 import base64
-from pathlib import Path
+from typing import ClassVar
 
 import pytest
 
@@ -13,9 +13,7 @@ from talkpipe.data.image import (
 )
 
 # Minimal 1x1 PNG
-MINIMAL_PNG_B64 = (
-    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=="
-)
+MINIMAL_PNG_B64 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=="
 MINIMAL_PNG = base64.b64decode(MINIMAL_PNG_B64)
 
 
@@ -69,7 +67,7 @@ def test_load_image_from_url(monkeypatch):
 
     class DummyResponse:
         content = MINIMAL_PNG
-        headers = {"Content-Type": "image/png"}
+        headers: ClassVar[dict[str, str]] = {"Content-Type": "image/png"}
 
         @staticmethod
         def raise_for_status():
@@ -79,7 +77,9 @@ def test_load_image_from_url(monkeypatch):
         captured["url"] = url
         return DummyResponse()
 
-    monkeypatch.setattr("talkpipe.data.image.can_fetch", lambda url, user_agent=None: True)
+    monkeypatch.setattr(
+        "talkpipe.data.image.can_fetch", lambda url, user_agent=None: True
+    )
     monkeypatch.setattr("talkpipe.data.image.requests.get", fake_get)
 
     result = load_image("https://example.com/photo.png")

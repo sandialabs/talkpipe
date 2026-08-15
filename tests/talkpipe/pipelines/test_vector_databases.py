@@ -1,14 +1,20 @@
-import pytest
 import base64
-import tempfile
 import os
-import threading
 import queue
+import tempfile
+import threading
 import time
+
+import pytest
+
 from talkpipe import AbstractSegment
-from talkpipe.pipelines.vector_databases import MakeVectorDatabaseSegment, ProcessDocumentsSegment, SearchVectorDatabaseSegment
-from talkpipe.search.lancedb import LanceDBDocumentStore
+from talkpipe.pipelines.vector_databases import (
+    MakeVectorDatabaseSegment,
+    ProcessDocumentsSegment,
+    SearchVectorDatabaseSegment,
+)
 from talkpipe.search.abstract import SearchResult
+from talkpipe.search.lancedb import LanceDBDocumentStore
 
 
 @pytest.fixture
@@ -22,9 +28,21 @@ def temp_db_path():
 def sample_documents():
     """Sample documents for testing."""
     return [
-        {"text": "The quick brown fox jumps over the lazy dog", "title": "Fox Story", "id": "doc1"},
-        {"text": "Python is a great programming language", "title": "Python Info", "id": "doc2"},
-        {"text": "Machine learning is transforming technology", "title": "ML Article", "id": "doc3"}
+        {
+            "text": "The quick brown fox jumps over the lazy dog",
+            "title": "Fox Story",
+            "id": "doc1",
+        },
+        {
+            "text": "Python is a great programming language",
+            "title": "Python Info",
+            "id": "doc2",
+        },
+        {
+            "text": "Machine learning is transforming technology",
+            "title": "ML Article",
+            "id": "doc3",
+        },
     ]
 
 
@@ -66,16 +84,29 @@ def test_process_documents_segment_strip_base64_disabled(tmp_path):
     document_path = tmp_path / "receipt.md"
     document_path.write_text(f"Receipt for payment. {blob}")
 
-    results = list(ProcessDocumentsSegment(strip_base64=False).transform([str(document_path)]))
+    results = list(
+        ProcessDocumentsSegment(strip_base64=False).transform([str(document_path)])
+    )
 
     joined = " ".join(item["shingle_text"] for item in results)
     assert blob[:64] in joined
 
 
-def test_make_vector_database_indexes_default_shingles_as_content(tmp_path, monkeypatch):
+def test_make_vector_database_indexes_default_shingles_as_content(
+    tmp_path, monkeypatch
+):
     """Indexed documents should store the shingled text as the content chunk."""
+
     class FakeLLMEmbed(AbstractSegment):
-        def __init__(self, model=None, source=None, field=None, set_as=None, fail_on_error=True, **kwargs):
+        def __init__(
+            self,
+            model=None,
+            source=None,
+            field=None,
+            set_as=None,
+            fail_on_error=True,
+            **kwargs,
+        ):
             super().__init__()
             self.field = field
             self.set_as = set_as
@@ -119,7 +150,7 @@ def test_make_vector_database_basic(requires_ollama, temp_db_path, sample_docume
         embedding_source="ollama",
         path=temp_db_path,
         doc_id_field="id",
-        overwrite=True
+        overwrite=True,
     )
 
     # Process the documents through the segment
@@ -135,15 +166,21 @@ def test_make_vector_database_basic(requires_ollama, temp_db_path, sample_docume
         assert result["id"] == sample_documents[i]["id"]
 
     # Verify the database was created and contains the documents
-    db_store = LanceDBDocumentStore(path=temp_db_path, table_name="docs", vector_dim=1024)
+    db_store = LanceDBDocumentStore(
+        path=temp_db_path, table_name="docs", vector_dim=1024
+    )
     count = db_store.count()
     assert count == 3, f"Expected 3 documents in database, found {count}"
 
 
-def test_make_vector_database_without_doc_id(requires_ollama, temp_db_path, sample_documents):
+def test_make_vector_database_without_doc_id(
+    requires_ollama, temp_db_path, sample_documents
+):
     """Test MakeVectorDatabaseSegment without specifying doc_id_field."""
     # Remove id field from documents
-    docs_without_id = [{"text": doc["text"], "title": doc["title"]} for doc in sample_documents]
+    docs_without_id = [
+        {"text": doc["text"], "title": doc["title"]} for doc in sample_documents
+    ]
 
     # Create the segment without doc_id_field
     segment = MakeVectorDatabaseSegment(
@@ -151,7 +188,7 @@ def test_make_vector_database_without_doc_id(requires_ollama, temp_db_path, samp
         embedding_model="mxbai-embed-large",
         embedding_source="ollama",
         path=temp_db_path,
-        overwrite=True
+        overwrite=True,
     )
 
     # Process the documents
@@ -161,12 +198,16 @@ def test_make_vector_database_without_doc_id(requires_ollama, temp_db_path, samp
     assert len(results) == 3
 
     # Verify the database contains the documents
-    db_store = LanceDBDocumentStore(path=temp_db_path, table_name="docs", vector_dim=1024)
+    db_store = LanceDBDocumentStore(
+        path=temp_db_path, table_name="docs", vector_dim=1024
+    )
     count = db_store.count()
     assert count == 3
 
 
-def test_make_vector_database_overwrite(requires_ollama, temp_db_path, sample_documents):
+def test_make_vector_database_overwrite(
+    requires_ollama, temp_db_path, sample_documents
+):
     """Test that overwrite parameter correctly replaces existing database."""
     # Create initial database
     segment1 = MakeVectorDatabaseSegment(
@@ -174,12 +215,14 @@ def test_make_vector_database_overwrite(requires_ollama, temp_db_path, sample_do
         embedding_model="mxbai-embed-large",
         embedding_source="ollama",
         path=temp_db_path,
-        overwrite=True
+        overwrite=True,
     )
     list(segment1.transform(sample_documents))
 
     # Verify initial count
-    db_store = LanceDBDocumentStore(path=temp_db_path, table_name="docs", vector_dim=1024)
+    db_store = LanceDBDocumentStore(
+        path=temp_db_path, table_name="docs", vector_dim=1024
+    )
     assert db_store.count() == 3
 
     # Create new segment with overwrite=True and add only 1 document
@@ -188,16 +231,20 @@ def test_make_vector_database_overwrite(requires_ollama, temp_db_path, sample_do
         embedding_model="mxbai-embed-large",
         embedding_source="ollama",
         path=temp_db_path,
-        overwrite=True
+        overwrite=True,
     )
     list(segment2.transform([sample_documents[0]]))
 
     # Verify count is now 1 (database was overwritten)
-    db_store2 = LanceDBDocumentStore(path=temp_db_path, table_name="docs", vector_dim=1024)
+    db_store2 = LanceDBDocumentStore(
+        path=temp_db_path, table_name="docs", vector_dim=1024
+    )
     assert db_store2.count() == 1
 
 
-def test_make_vector_database_no_overwrite(requires_ollama, temp_db_path, sample_documents):
+def test_make_vector_database_no_overwrite(
+    requires_ollama, temp_db_path, sample_documents
+):
     """Test that without overwrite, documents are appended to existing database."""
     # Create initial database with first document
     segment1 = MakeVectorDatabaseSegment(
@@ -205,12 +252,14 @@ def test_make_vector_database_no_overwrite(requires_ollama, temp_db_path, sample
         embedding_model="mxbai-embed-large",
         embedding_source="ollama",
         path=temp_db_path,
-        overwrite=True
+        overwrite=True,
     )
     list(segment1.transform([sample_documents[0]]))
 
     # Verify initial count
-    db_store = LanceDBDocumentStore(path=temp_db_path, table_name="docs", vector_dim=1024)
+    db_store = LanceDBDocumentStore(
+        path=temp_db_path, table_name="docs", vector_dim=1024
+    )
     assert db_store.count() == 1
 
     # Add more documents without overwrite
@@ -219,16 +268,20 @@ def test_make_vector_database_no_overwrite(requires_ollama, temp_db_path, sample
         embedding_model="mxbai-embed-large",
         embedding_source="ollama",
         path=temp_db_path,
-        overwrite=False
+        overwrite=False,
     )
     list(segment2.transform(sample_documents[1:]))
 
     # Verify count is now 3 (documents were appended)
-    db_store2 = LanceDBDocumentStore(path=temp_db_path, table_name="docs", vector_dim=1024)
+    db_store2 = LanceDBDocumentStore(
+        path=temp_db_path, table_name="docs", vector_dim=1024
+    )
     assert db_store2.count() == 3
 
 
-def test_make_vector_database_preserves_original_data(requires_ollama, temp_db_path, sample_documents):
+def test_make_vector_database_preserves_original_data(
+    requires_ollama, temp_db_path, sample_documents
+):
     """Test that the segment preserves all original document fields."""
     segment = MakeVectorDatabaseSegment(
         embedding_field="text",
@@ -236,7 +289,7 @@ def test_make_vector_database_preserves_original_data(requires_ollama, temp_db_p
         embedding_source="ollama",
         path=temp_db_path,
         doc_id_field="id",
-        overwrite=True
+        overwrite=True,
     )
 
     # Process documents
@@ -253,7 +306,9 @@ def test_make_vector_database_preserves_original_data(requires_ollama, temp_db_p
         assert result["id"] == sample_documents[i]["id"]
 
     # Verify metadata is stored in the database correctly
-    db_store = LanceDBDocumentStore(path=temp_db_path, table_name="docs", vector_dim=1024)
+    db_store = LanceDBDocumentStore(
+        path=temp_db_path, table_name="docs", vector_dim=1024
+    )
 
     # Retrieve a document and check its metadata
     stored_doc = db_store.get_document(sample_documents[0]["id"])
@@ -272,7 +327,7 @@ def populated_db_path(requires_ollama, temp_db_path, sample_documents):
         embedding_source="ollama",
         path=temp_db_path,
         doc_id_field="id",
-        overwrite=True
+        overwrite=True,
     )
     list(segment.transform(sample_documents))
     return temp_db_path
@@ -287,7 +342,7 @@ def test_search_vector_database_with_string_inputs(populated_db_path):
         embedding_model="mxbai-embed-large",
         embedding_source="ollama",
         path=populated_db_path,
-        limit=2
+        limit=2,
     )
 
     # Search with a query similar to one of the documents
@@ -303,9 +358,9 @@ def test_search_vector_database_with_string_inputs(populated_db_path):
     # Each result should be a SearchResult
     for result in search_results_list:
         assert isinstance(result, SearchResult)
-        assert hasattr(result, 'score')
-        assert hasattr(result, 'doc_id')
-        assert hasattr(result, 'document')
+        assert hasattr(result, "score")
+        assert hasattr(result, "doc_id")
+        assert hasattr(result, "document")
         assert 0 <= result.score <= 1
 
 
@@ -317,13 +372,13 @@ def test_search_vector_database_with_dict_and_set_as(populated_db_path):
         path=populated_db_path,
         query_field="query",
         set_as="search_results",
-        limit=3
+        limit=3,
     )
 
     # Search with dictionary inputs
     queries = [
         {"query": "programming language", "user_id": "user1"},
-        {"query": "animals", "user_id": "user2"}
+        {"query": "animals", "user_id": "user2"},
     ]
     results = list(search_segment.transform(queries))
 
@@ -353,7 +408,7 @@ def test_search_vector_database_with_dict_no_set_as(populated_db_path):
         path=populated_db_path,
         query_field="query",
         set_as=None,
-        limit=2
+        limit=2,
     )
 
     # Search with dictionary inputs
@@ -372,13 +427,15 @@ def test_search_vector_database_with_dict_no_set_as(populated_db_path):
 
 def test_search_vector_database_validation_error(populated_db_path):
     """Test that SearchVectorDatabaseSegment raises error when query_field=None but set_as is not None."""
-    with pytest.raises(ValueError, match="set_as must be None when query_field is None"):
+    with pytest.raises(
+        ValueError, match="set_as must be None when query_field is None"
+    ):
         SearchVectorDatabaseSegment(
             embedding_model="mxbai-embed-large",
             embedding_source="ollama",
             path=populated_db_path,
             query_field=None,  # String inputs
-            set_as="results"   # This should cause an error
+            set_as="results",  # This should cause an error
         )
 
 
@@ -388,7 +445,7 @@ def test_search_vector_database_relevance(populated_db_path, sample_documents):
         embedding_model="mxbai-embed-large",
         embedding_source="ollama",
         path=populated_db_path,
-        limit=3
+        limit=3,
     )
 
     # Query similar to "Python is a great programming language"
@@ -414,7 +471,7 @@ def test_search_vector_database_limit_parameter(populated_db_path):
         embedding_model="mxbai-embed-large",
         embedding_source="ollama",
         path=populated_db_path,
-        limit=1
+        limit=1,
     )
 
     results = list(search_segment.transform(["test query"]))
@@ -426,7 +483,7 @@ def test_search_vector_database_limit_parameter(populated_db_path):
         embedding_model="mxbai-embed-large",
         embedding_source="ollama",
         path=populated_db_path,
-        limit=3
+        limit=3,
     )
 
     results = list(search_segment.transform(["test query"]))
@@ -440,7 +497,7 @@ def test_search_vector_database_multiple_queries(populated_db_path):
         embedding_model="mxbai-embed-large",
         embedding_source="ollama",
         path=populated_db_path,
-        limit=2
+        limit=2,
     )
 
     queries = ["fox", "Python", "technology"]
@@ -462,7 +519,7 @@ def test_search_vector_database_empty_database(requires_ollama, temp_db_path):
         embedding_model="mxbai-embed-large",
         embedding_source="ollama",
         path=temp_db_path,
-        overwrite=True
+        overwrite=True,
     )
     list(segment.transform([]))  # Empty input
 
@@ -471,7 +528,7 @@ def test_search_vector_database_empty_database(requires_ollama, temp_db_path):
         embedding_model="mxbai-embed-large",
         embedding_source="ollama",
         path=temp_db_path,
-        limit=10
+        limit=10,
     )
 
     # This should handle the empty database gracefully
@@ -492,7 +549,7 @@ def test_search_vector_database_preserves_metadata(populated_db_path, sample_doc
         embedding_model="mxbai-embed-large",
         embedding_source="ollama",
         path=populated_db_path,
-        limit=1
+        limit=1,
     )
 
     # Search for something specific
@@ -511,9 +568,24 @@ def test_vector_database_stores_non_embedding_fields(requires_ollama, temp_db_pa
     """Test that fields not used for embedding (like 'path') are stored and retrieved."""
     # Documents where 'content' is for embedding, but 'path' and 'author' are metadata
     docs = [
-        {"content": "Python is a versatile programming language", "path": "/docs/python.txt", "author": "Alice", "id": "doc1"},
-        {"content": "Machine learning enables pattern recognition", "path": "/docs/ml.txt", "author": "Bob", "id": "doc2"},
-        {"content": "Data science combines statistics and programming", "path": "/docs/datascience.txt", "author": "Charlie", "id": "doc3"},
+        {
+            "content": "Python is a versatile programming language",
+            "path": "/docs/python.txt",
+            "author": "Alice",
+            "id": "doc1",
+        },
+        {
+            "content": "Machine learning enables pattern recognition",
+            "path": "/docs/ml.txt",
+            "author": "Bob",
+            "id": "doc2",
+        },
+        {
+            "content": "Data science combines statistics and programming",
+            "path": "/docs/datascience.txt",
+            "author": "Charlie",
+            "id": "doc3",
+        },
     ]
 
     # Create database - embedding only the 'content' field
@@ -523,12 +595,14 @@ def test_vector_database_stores_non_embedding_fields(requires_ollama, temp_db_pa
         embedding_source="ollama",
         path=temp_db_path,
         doc_id_field="id",
-        overwrite=True
+        overwrite=True,
     )
     list(make_segment.transform(docs))
 
     # Verify non-embedding fields are stored in the database
-    db_store = LanceDBDocumentStore(path=temp_db_path, table_name="docs", vector_dim=1024)
+    db_store = LanceDBDocumentStore(
+        path=temp_db_path, table_name="docs", vector_dim=1024
+    )
     stored_doc = db_store.get_document("doc1")
     assert stored_doc is not None
     assert stored_doc["path"] == "/docs/python.txt"
@@ -540,7 +614,7 @@ def test_vector_database_stores_non_embedding_fields(requires_ollama, temp_db_pa
         embedding_model="mxbai-embed-large",
         embedding_source="ollama",
         path=temp_db_path,
-        limit=3
+        limit=3,
     )
     results = list(search_segment.transform(["programming language"]))
 
@@ -550,8 +624,12 @@ def test_vector_database_stores_non_embedding_fields(requires_ollama, temp_db_pa
 
     # Check that retrieved documents contain the non-embedding fields
     for result in search_results:
-        assert "path" in result.document, "Non-embedding field 'path' should be in search results"
-        assert "author" in result.document, "Non-embedding field 'author' should be in search results"
+        assert "path" in result.document, (
+            "Non-embedding field 'path' should be in search results"
+        )
+        assert "author" in result.document, (
+            "Non-embedding field 'author' should be in search results"
+        )
         assert "content" in result.document
         assert result.document["path"].startswith("/docs/")
         assert result.document["author"] in ["Alice", "Bob", "Charlie"]
@@ -559,7 +637,7 @@ def test_vector_database_stores_non_embedding_fields(requires_ollama, temp_db_pa
 
 def test_concurrent_write_and_read(requires_ollama, temp_db_path):
     """Test that you can read from a vector database while another pipeline is still writing to it.
-    
+
     This test demonstrates concurrent access by:
     1. Creating a writer pipeline that feeds from a blocking queue
     2. Adding 3 documents to the queue one at a time
@@ -568,14 +646,26 @@ def test_concurrent_write_and_read(requires_ollama, temp_db_path):
     """
     # Documents to add to the database
     documents = [
-        {"text": "The quick brown fox jumps over the lazy dog", "title": "Fox Story", "id": "doc1"},
-        {"text": "Python is a great programming language", "title": "Python Info", "id": "doc2"},
-        {"text": "Machine learning is transforming technology", "title": "ML Article", "id": "doc3"}
+        {
+            "text": "The quick brown fox jumps over the lazy dog",
+            "title": "Fox Story",
+            "id": "doc1",
+        },
+        {
+            "text": "Python is a great programming language",
+            "title": "Python Info",
+            "id": "doc2",
+        },
+        {
+            "text": "Machine learning is transforming technology",
+            "title": "ML Article",
+            "id": "doc3",
+        },
     ]
-    
+
     # Blocking queue to feed documents to the writer
     doc_queue = queue.Queue()
-    
+
     # Generator that yields from the blocking queue (blocks when empty)
     def queue_generator():
         while True:
@@ -584,7 +674,7 @@ def test_concurrent_write_and_read(requires_ollama, temp_db_path):
                 break
             yield doc
             doc_queue.task_done()
-    
+
     # Create writer pipeline with batch_size=1 to flush each document immediately
     writer_segment = MakeVectorDatabaseSegment(
         embedding_field="text",
@@ -593,36 +683,36 @@ def test_concurrent_write_and_read(requires_ollama, temp_db_path):
         path=temp_db_path,
         doc_id_field="id",
         overwrite=True,
-        batch_size=1  # Flush each document immediately
+        batch_size=1,  # Flush each document immediately
     )
-    
+
     # Track writer completion and document processing
     writer_done = threading.Event()
     writer_error = [None]  # Use list to allow assignment from nested function
     processed_count = [0]  # Track how many documents have been processed
-    
+
     def writer_thread():
         """Thread that runs the writer pipeline, consuming from the queue."""
         try:
-            for item in writer_segment.transform(queue_generator()):
+            for _item in writer_segment.transform(queue_generator()):
                 processed_count[0] += 1
         except Exception as e:
             writer_error[0] = e
             raise
         finally:
             writer_done.set()
-    
+
     # Start writer thread
     writer_thread_obj = threading.Thread(target=writer_thread, daemon=True)
     writer_thread_obj.start()
-    
+
     # Add first document to queue (writer will start processing)
     doc_queue.put(documents[0])
     # Wait for the document to be processed (writer yields it)
     while processed_count[0] < 1:
         time.sleep(0.1)
     time.sleep(0.2)  # Give a bit more time for the write to complete
-    
+
     # While writer is still active, create and use a reader pipeline
     # This demonstrates reading from a database that hasn't been closed yet
     search_segment = SearchVectorDatabaseSegment(
@@ -630,71 +720,78 @@ def test_concurrent_write_and_read(requires_ollama, temp_db_path):
         embedding_source="ollama",
         path=temp_db_path,
         limit=10,
-        read_consistency_interval=0  # Use 0 to see writes immediately
+        read_consistency_interval=0,  # Use 0 to see writes immediately
     )
-    
+
     # Search for the first document that should already be in the database
     query = "fox jumping"
     search_results = list(search_segment.transform([query]))
-    
+
     # Verify we got results (at least the first document should be searchable)
     assert len(search_results) == 1
-    assert len(search_results[0]) > 0, "Should find at least one document while writer is active"
-    
+    assert len(search_results[0]) > 0, (
+        "Should find at least one document while writer is active"
+    )
+
     # Verify the first document is in the results
-    found_doc1 = any("doc1" == result.doc_id for result in search_results[0])
-    assert found_doc1, "First document should be searchable while writer is still active"
-    
+    found_doc1 = any(result.doc_id == "doc1" for result in search_results[0])
+    assert found_doc1, (
+        "First document should be searchable while writer is still active"
+    )
+
     # Add second document to queue
     doc_queue.put(documents[1])
     # Wait for the document to be processed
     while processed_count[0] < 2:
         time.sleep(0.1)
     time.sleep(0.2)  # Give a bit more time for the write to complete
-    
+
     # Search again - should now find both documents
     query2 = "programming language"
     search_results2 = list(search_segment.transform([query2]))
     assert len(search_results2) == 1
     assert len(search_results2[0]) > 0
-    
+
     # Add third document to queue
     doc_queue.put(documents[2])
     # Wait for the document to be processed
     while processed_count[0] < 3:
         time.sleep(0.1)
     time.sleep(0.2)  # Give a bit more time for the write to complete
-    
+
     # Search for the third document
     query3 = "machine learning"
     search_results3 = list(search_segment.transform([query3]))
     assert len(search_results3) == 1
     assert len(search_results3[0]) > 0
-    
+
     # Signal writer to stop
     doc_queue.put(None)
-    
+
     # Wait for writer to finish
     writer_done.wait(timeout=10.0)
     assert writer_done.is_set(), "Writer thread should have completed"
-    
+
     if writer_error[0]:
         raise writer_error[0]
-    
+
     # Final verification: all documents should be in the database
-    db_store = LanceDBDocumentStore(path=temp_db_path, table_name="docs", vector_dim=1024)
+    db_store = LanceDBDocumentStore(
+        path=temp_db_path, table_name="docs", vector_dim=1024
+    )
     count = db_store.count()
     assert count == 3, f"Expected 3 documents in database, found {count}"
-    
+
     # Verify all documents are searchable
     final_search = list(search_segment.transform(["technology"]))
     assert len(final_search) == 1
     assert len(final_search[0]) >= 1, "Should find documents after writer completes"
-    
+
     # Verify we can find all three documents by their IDs
     found_ids = {result.doc_id for result in final_search[0]}
-    assert "doc1" in found_ids or "doc2" in found_ids or "doc3" in found_ids, \
+    assert "doc1" in found_ids or "doc2" in found_ids or "doc3" in found_ids, (
         "Should find at least one of the added documents"
+    )
 
 
 # --- build_rag_database (unified RAG ingestion driver) ---
@@ -747,7 +844,9 @@ def rag_corpus(tmp_path):
     return str(docs / "*.txt")
 
 
-def test_build_rag_database_indexes_and_reports_counts(tmp_path, rag_corpus, monkeypatch):
+def test_build_rag_database_indexes_and_reports_counts(
+    tmp_path, rag_corpus, monkeypatch
+):
     from talkpipe.pipelines import vector_databases as vdb
 
     monkeypatch.setattr(vdb, "LLMEmbed", _fake_llm_embed())
@@ -815,7 +914,9 @@ def test_build_rag_database_preflight_failure_reads_no_documents(
     class BrokenEmbed(_fake_llm_embed()):
         def __init__(self, **kwargs):
             super().__init__(**kwargs)
-            self.embedder = _FakeEmbedAdapter(error=ConnectionError("server unreachable"))
+            self.embedder = _FakeEmbedAdapter(
+                error=ConnectionError("server unreachable")
+            )
 
         def transform(self, input_iter):  # pragma: no cover - must never run
             raise AssertionError("pipeline ran despite failed preflight")
@@ -849,7 +950,9 @@ def test_build_rag_database_dimension_mismatch(tmp_path, rag_corpus, monkeypatch
     assert excinfo.value.actual == 3
 
 
-def test_build_rag_database_raises_when_nothing_embeds(tmp_path, rag_corpus, monkeypatch):
+def test_build_rag_database_raises_when_nothing_embeds(
+    tmp_path, rag_corpus, monkeypatch
+):
     from talkpipe.pipelines import vector_databases as vdb
 
     monkeypatch.setattr(vdb, "LLMEmbed", _fake_llm_embed(drop_indices=(0, 1)))

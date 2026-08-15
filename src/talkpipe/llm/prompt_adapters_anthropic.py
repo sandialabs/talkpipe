@@ -1,11 +1,10 @@
 import json
-from typing import Optional, Union
 
 from pydantic import BaseModel
 
-from .prompt_adapter_base import AbstractLLMPromptAdapter, logger
 from .content import UserTurn
 from .multimodal import to_anthropic_user_message
+from .prompt_adapter_base import AbstractLLMPromptAdapter, logger
 
 
 class AnthropicPromptAdapter(AbstractLLMPromptAdapter):
@@ -14,19 +13,20 @@ class AnthropicPromptAdapter(AbstractLLMPromptAdapter):
     def __init__(
         self,
         model: str,
-        system_prompt: Optional[str] = "You are a helpful assistant.",
+        system_prompt: str | None = "You are a helpful assistant.",
         multi_turn: bool = True,
-        temperature: float = None,
-        output_format: BaseModel = None,
-        role_map: str = None,
+        temperature: float | None = None,
+        output_format: type[BaseModel] | None = None,
+        role_map: str | None = None,
         memory_mode: str = "full",
         unsummarized_message_count: int = 6,
-        context_token_trigger: Optional[Union[int, float]] = None,
+        context_token_trigger: int | float | None = None,
         memory_size: int = 512,
         debug_messages: bool = False,
     ):
         anthropic = self._require_dependency("anthropic", "Anthropic", "anthropic")
 
+        self.pydantic_json_schema: str | None
         if output_format and system_prompt:
             self.pydantic_json_schema = json.dumps(output_format.model_json_schema())
             system_prompt = (
@@ -55,7 +55,7 @@ class AnthropicPromptAdapter(AbstractLLMPromptAdapter):
         )
         self._max_tokens = 4096  # Default max tokens for response
 
-    def execute(self, prompt: str) -> str:
+    def execute(self, prompt: str) -> str | BaseModel:
         """Execute the chat model.
 
         Handles its own multi-turn conversation state.
@@ -83,6 +83,7 @@ class AnthropicPromptAdapter(AbstractLLMPromptAdapter):
         response_text = self._extract_anthropic_text(response)
         self._record_assistant_response(response_text)
 
+        result: str | BaseModel
         if self._output_format:
             result = self._output_format.model_validate_json(response_text)
         else:
@@ -91,7 +92,7 @@ class AnthropicPromptAdapter(AbstractLLMPromptAdapter):
         logger.debug(f"Returning response: {result}")
         return result
 
-    def execute_turn(self, user_turn: UserTurn) -> str:
+    def execute_turn(self, user_turn: UserTurn) -> str | BaseModel:
         """Execute the chat model with a multimodal user turn."""
         self._require_dependency("anthropic", "Anthropic", "anthropic")
 
@@ -115,6 +116,7 @@ class AnthropicPromptAdapter(AbstractLLMPromptAdapter):
         response_text = self._extract_anthropic_text(response)
         self._record_assistant_response(response_text)
 
+        result: str | BaseModel
         if self._output_format:
             result = self._output_format.model_validate_json(response_text)
         else:
@@ -124,11 +126,16 @@ class AnthropicPromptAdapter(AbstractLLMPromptAdapter):
         return result
 
     def _build_messages_request_params(self) -> dict:
-        non_system_prefix = [msg for msg in self._prefix_messages if msg["role"].lower() != "system"]
+        non_system_prefix = [
+            msg for msg in self._prefix_messages if msg["role"].lower() != "system"
+        ]
         non_system_summary = []
         if self._summary_message:
             non_system_summary = [
-                {"role": "assistant", "content": f"Conversation memory:\n{self._summary_message['content']}"}
+                {
+                    "role": "assistant",
+                    "content": f"Conversation memory:\n{self._summary_message['content']}",
+                }
             ]
         request_params = {
             "model": self._model_name,
@@ -137,7 +144,9 @@ class AnthropicPromptAdapter(AbstractLLMPromptAdapter):
         }
         if self._system_message:
             summary_text = (
-                f"\n\nConversation memory:\n{self._summary_message['content']}" if self._summary_message else ""
+                f"\n\nConversation memory:\n{self._summary_message['content']}"
+                if self._summary_message
+                else ""
             )
             request_params["system"] = self._system_message["content"] + summary_text
         self._apply_temperature_if_explicit(request_params)
@@ -148,7 +157,17 @@ class AnthropicPromptAdapter(AbstractLLMPromptAdapter):
             return self.client.messages.create(**request_params)
         except Exception as exc:
             msg = str(exc).lower()
-            if any(kw in msg for kw in ("authentication", "api_key", "api key", "auth_token", "credentials", "could not resolve")):
+            if any(
+                kw in msg
+                for kw in (
+                    "authentication",
+                    "api_key",
+                    "api key",
+                    "auth_token",
+                    "credentials",
+                    "could not resolve",
+                )
+            ):
                 raise RuntimeError(
                     "Could not authenticate with Anthropic. Set the ANTHROPIC_API_KEY environment variable "
                     "to your API key (see https://console.anthropic.com/). "
@@ -167,9 +186,9 @@ class AnthropicPromptAdapter(AbstractLLMPromptAdapter):
         self,
         prompt: str,
         *,
-        model: Optional[str] = None,
+        model: str | None = None,
         temperature: float = 0.0,
-        max_tokens: Optional[int] = None,
+        max_tokens: int | None = None,
     ) -> str:
         response = self._messages_create(
             model=model or self._model_name,
@@ -191,7 +210,11 @@ class AnthropicPromptAdapter(AbstractLLMPromptAdapter):
 
         try:
             # Check if the model is available by making a minimal request.
-            request_params = {"model": self._model_name, "messages": [{"role": "user", "content": "test"}], "max_tokens": 1}
+            request_params = {
+                "model": self._model_name,
+                "messages": [{"role": "user", "content": "test"}],
+                "max_tokens": 1,
+            }
 
             # Only include system parameter if system_message exists.
             if self._system_message:

@@ -1,37 +1,45 @@
-from typing import Iterable
+from collections.abc import Iterable
+
 from numpy import random
 
 import talkpipe.pipe.core as core
 from talkpipe.pipe.io import Print
+
 
 @core.segment()
 def add_one(items: Iterable[int]) -> Iterable[int]:
     for item in items:
         yield item + 1
 
+
 @core.segment()
 def double(items: Iterable[float]) -> Iterable[float]:
     for item in items:
         yield item * 2
+
 
 @core.segment(multiplier=2)
 def scale(items: Iterable[int], multiplier: int) -> Iterable[int]:
     for item in items:
         yield item * multiplier
 
+
 @core.segment(offset=0)
 def add(items: Iterable[int], offset: int) -> Iterable[int]:
     for item in items:
         yield item + offset
+
 
 @core.segment(divisor=2)
 def divide(items: Iterable[int], divisor: int) -> Iterable[int]:
     for x in items:
         yield x // divisor
 
+
 @core.source()
 def randomInts(n: int) -> Iterable[int]:
     yield from random.randint(0, 100, n)
+
 
 def test_ordering():
     composed0 = add_one() | double() | scale(multiplier=3)
@@ -42,10 +50,12 @@ def test_ordering():
     assert list(composed2([1])) == [12]
     assert list(composed1([1])) == [12]
 
+
 def test_direct_call():
 
     composed = add_one() | double() | scale(multiplier=3)
     assert list(composed([1])) == [12]
+
 
 def test_operation_decorator_noparams():
     pipe = add_one()
@@ -79,6 +89,7 @@ def test_operation_decorator_named_params():
     pipe = divide()
     assert list(pipe.transform([10])) == [5]
 
+
 def test_input_operation():
 
     pipe = randomInts(10) | add_one()
@@ -90,7 +101,6 @@ def test_input_operation():
 def test_runtime_component():
 
     class GetAVar(core.AbstractSource):
-
         def __init__(self, var_name: str):
             super().__init__()
             self.var_name = var_name
@@ -99,7 +109,6 @@ def test_runtime_component():
             yield from self.runtime.variable_store[self.var_name]
 
     class SetAVar(core.AbstractSegment):
-        
         def __init__(self, var_name: str):
             super().__init__()
             self.var_name = var_name
@@ -118,7 +127,7 @@ def test_runtime_component():
 
     sav("A string")
     assert list(gav()) == ["A string"]
-    
+
 
 def test_function_segment():
 
@@ -130,52 +139,61 @@ def test_function_segment():
     assert list(pipe([1, 2, 3])) == [3, 4, 5]
 
     pipe = add_two(field="x")
-    assert list(pipe([{"x": 1, 'y': 2}, {"x": 2}, {"x": 3}])) == [3, 4, 5]
+    assert list(pipe([{"x": 1, "y": 2}, {"x": 2}, {"x": 3}])) == [3, 4, 5]
 
     pipe = add_two(field="x", set_as="z")
-    assert list(pipe([{"x": 1, 'y': 2}, {"x": 2}, {"x": 3}])) == [{"x": 1, 'y': 2, 'z': 3}, {"x": 2, 'z': 4}, {"x": 3, 'z': 5}]
+    assert list(pipe([{"x": 1, "y": 2}, {"x": 2}, {"x": 3}])) == [
+        {"x": 1, "y": 2, "z": 3},
+        {"x": 2, "z": 4},
+        {"x": 3, "z": 5},
+    ]
 
     @core.field_segment()
     def add_n(item: int, n: int) -> int:
-        return item + n 
-    
+        return item + n
+
     pipe = add_n(n=3)
     assert list(pipe([1, 2, 3])) == [4, 5, 6]
 
     pipe = add_n(n=3, field="x")
-    assert list(pipe([{"x": 1, 'y': 2}, {"x": 2}, {"x": 3}])) == [4, 5, 6]
+    assert list(pipe([{"x": 1, "y": 2}, {"x": 2}, {"x": 3}])) == [4, 5, 6]
 
     pipe = add_n(n=3, field="x", set_as="z")
-    assert list(pipe([{"x": 1, 'y': 2}, {"x": 2}, {"x": 3}])) == [{"x": 1, 'y': 2, 'z': 4}, {"x": 2, 'z': 5}, {"x": 3, 'z': 6}]
+    assert list(pipe([{"x": 1, "y": 2}, {"x": 2}, {"x": 3}])) == [
+        {"x": 1, "y": 2, "z": 4},
+        {"x": 2, "z": 5},
+        {"x": 3, "z": 6},
+    ]
+
 
 def test_metadata_bypass():
 
     @core.segment(process_metadata=True)
     def CountEvenMetadata(items: Iterable[int]) -> Iterable[int]:
-        yield len([item for item in items])
+        yield len(list(items))
 
     @core.segment(process_metadata=False)
     def CountNonMetadata(items: Iterable[int]) -> Iterable[int]:
-        yield len([item for item in items])
+        yield len(list(items))
 
     class MyFakeMetadata(core.Metadata):
         pass
 
     data = [1, 2, "three", MyFakeMetadata(), "4", 5]
     pipe = CountEvenMetadata().as_function(single_in=False, single_out=True)
-    ans = pipe(data) 
+    ans = pipe(data)
     assert ans == 6
 
     pipe = CountNonMetadata().as_function(single_in=False, single_out=False)
-    ans = list(pipe(data)) 
+    ans = list(pipe(data))
     assert len(ans) == 1
     assert ans[0] == 5
 
     pipe = (CountEvenMetadata() | Print()).as_function(single_in=False, single_out=True)
-    ans = pipe(data) 
+    ans = pipe(data)
     assert ans == 6
 
     pipe = (CountNonMetadata() | Print()).as_function(single_in=False, single_out=False)
-    ans = list(pipe(data)) 
+    ans = list(pipe(data))
     assert len(ans) == 1
     assert ans[0] == 5

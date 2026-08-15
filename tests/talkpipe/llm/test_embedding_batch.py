@@ -1,16 +1,19 @@
 """Tests for batch embedding adapters and hybrid llmEmbed batching."""
 
-import numpy as np
-import pytest
+from collections.abc import Callable
+from dataclasses import dataclass
 from unittest.mock import MagicMock, Mock
 
-from dataclasses import dataclass
-from typing import Callable, Optional
+import numpy as np
+import pytest
 
 from talkpipe.llm.embedding import LLMEmbed
-from talkpipe.llm.embedding_adapters import AbstractEmbeddingAdapter, OllamaEmbedderAdapter
-from talkpipe.llm.embedding_adapters_openai import OpenAIEmbeddingAdapter
+from talkpipe.llm.embedding_adapters import (
+    AbstractEmbeddingAdapter,
+    OllamaEmbedderAdapter,
+)
 from talkpipe.llm.embedding_adapters_model2vec import Model2VecEmbeddingAdapter
+from talkpipe.llm.embedding_adapters_openai import OpenAIEmbeddingAdapter
 
 
 def _patch_openai_embedding_client_batch(monkeypatch, embeddings=None):
@@ -21,16 +24,15 @@ def _patch_openai_embedding_client_batch(monkeypatch, embeddings=None):
         @staticmethod
         def create(*, model, input):
             assert model == "text-embedding-3-small"
-            if isinstance(input, str):
-                inputs = [input]
-            else:
-                inputs = list(input)
+            inputs = [input] if isinstance(input, str) else list(input)
             response = MagicMock()
             response.data = []
             for i, text in enumerate(inputs):
                 assert text in ("Hello", "World", "a", "b")
                 data_item = MagicMock()
-                data_item.embedding = embeddings[i] if i < len(embeddings) else embeddings[-1]
+                data_item.embedding = (
+                    embeddings[i] if i < len(embeddings) else embeddings[-1]
+                )
                 response.data.append(data_item)
             return response
 
@@ -74,7 +76,9 @@ def test_openai_execute_one_mocked(monkeypatch):
 def test_execute_deprecated_warns_and_delegates_to_execute_one(monkeypatch):
     _patch_openai_embedding_client_batch(monkeypatch, embeddings=[[0.1, 0.2, 0.3]])
     model = OpenAIEmbeddingAdapter("text-embedding-3-small")
-    with pytest.warns(DeprecationWarning, match="execute_one\\(\\) or execute_batch\\(\\)"):
+    with pytest.warns(
+        DeprecationWarning, match="execute_one\\(\\) or execute_batch\\(\\)"
+    ):
         result = model.execute("Hello")
     assert result == [0.1, 0.2, 0.3]
 
@@ -84,15 +88,12 @@ def test_ollama_execute_batch_mocked(monkeypatch):
 
     class DummyClient:
         def embed(self, *, model, input):
-            embed_calls.append((model, list(input) if not isinstance(input, str) else [input]))
-            if isinstance(input, str):
-                texts = [input]
-            else:
-                texts = list(input)
+            embed_calls.append(
+                (model, list(input) if not isinstance(input, str) else [input])
+            )
+            texts = [input] if isinstance(input, str) else list(input)
             return {
-                "embeddings": [
-                    [float(i), float(i + 1)] for i, _ in enumerate(texts)
-                ]
+                "embeddings": [[float(i), float(i + 1)] for i, _ in enumerate(texts)]
             }
 
     model = OllamaEmbedderAdapter("test-model")
@@ -213,7 +214,9 @@ def test_llmembed_batch_size_calls_execute_batch():
 )
 def test_llmembed_rejects_list_shaped_stream_items(stream_input):
     mock_embedder = Mock()
-    embedder = LLMEmbed(model="test-model", source="ollama", field="text", set_as="vector")
+    embedder = LLMEmbed(
+        model="test-model", source="ollama", field="text", set_as="vector"
+    )
     embedder.embedder = mock_embedder
     with pytest.raises(TypeError, match="list-shaped"):
         list(embedder(stream_input))
@@ -265,10 +268,10 @@ class LLMEmbedShapeCase:
     expected_yields: list
     expected_batch_calls: list
     expected_one_calls: list
-    result_checker: Optional[Callable[[list], None]] = None
+    result_checker: Callable[[list], None] | None = None
     expects_exception: bool = False
     exception_type: type = Exception
-    exception_match: Optional[str] = None
+    exception_match: str | None = None
 
 
 def _check_dict_vectors(result, field="vector"):
@@ -293,7 +296,6 @@ LLM_EMBED_SHAPE_CASES = [
         expected_batch_calls=[],
         expected_one_calls=["a", "b", "c"],
     ),
-
     LLMEmbedShapeCase(
         # handed a stream of three items, one vector per yield even though batch_size is 3
         # input is three different items, so batching inside the embedder is
@@ -376,7 +378,9 @@ def _embedder_for_case(case: LLMEmbedShapeCase):
     return _make_tracking_embedder()
 
 
-@pytest.mark.parametrize("case", LLM_EMBED_SHAPE_CASES, ids=[c.id for c in LLM_EMBED_SHAPE_CASES])
+@pytest.mark.parametrize(
+    "case", LLM_EMBED_SHAPE_CASES, ids=[c.id for c in LLM_EMBED_SHAPE_CASES]
+)
 def test_llmembed_output_shape_by_configuration(case: LLMEmbedShapeCase):
     """Encode llmEmbed output shape: one item in, one item out; internal batch_size only."""
     mock, state = _embedder_for_case(case)
@@ -389,8 +393,7 @@ def test_llmembed_output_shape_by_configuration(case: LLMEmbedShapeCase):
     else:
         result = list(embedder(case.stream_input))
         assert result == case.expected_yields, (
-            f"{case.id}: stream yield count/shape mismatch "
-            f"(got {len(result)} yields)"
+            f"{case.id}: stream yield count/shape mismatch (got {len(result)} yields)"
         )
         if case.result_checker is not None:
             case.result_checker(result)
@@ -435,5 +438,3 @@ def test_llmembed_dict_with_list_field_scalar_path():
     assert len(result[0]["vectors"]) == 1
     assert state["one"] == [str(["a", "b"])]
     assert state["batch"] == []
-
-

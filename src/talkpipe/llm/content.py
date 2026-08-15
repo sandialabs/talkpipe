@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Annotated, Union
+from typing import Annotated
 
 from pydantic import BaseModel, ConfigDict
 
@@ -31,14 +31,14 @@ class UserTurn(BaseModel):
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
-    parts: list[Union[TextPart, ImagePart]]
+    parts: list[TextPart | ImagePart]
 
 
 def image_part_from_result(result: ImageResult) -> ImagePart:
     return ImagePart(data=result.data, mime_type=result.mime_type)
 
 
-def _coerce_image(image: Union[ImageResult, bytes, str]) -> ImagePart:
+def _coerce_image(image: ImageResult | bytes | str | ImagePart) -> ImagePart:
     if isinstance(image, ImagePart):
         return image
     if isinstance(image, ImageResult):
@@ -54,18 +54,17 @@ def user_turn_from_fields(
     *,
     prompt: str = DEFAULT_VISION_PROMPT,
     context: str | None = None,
-    images: Union[ImageResult, bytes, str, ImagePart, list, None] = None,
+    images: ImageResult | bytes | str | ImagePart | list | None = None,
 ) -> UserTurn:
     """Build a UserTurn from vision segment field values."""
-    parts: list[Union[TextPart, ImagePart]] = []
+    parts: list[TextPart | ImagePart] = []
     if context:
         parts.append(TextPart(text=context))
     if prompt:
         parts.append(TextPart(text=prompt))
     if images is not None:
         if isinstance(images, list):
-            for image in images:
-                parts.append(_coerce_image(image))
+            parts.extend(_coerce_image(image) for image in images)
         else:
             parts.append(_coerce_image(images))
     if not parts:
@@ -75,4 +74,6 @@ def user_turn_from_fields(
 
 def user_turn_text(user_turn: UserTurn) -> str:
     """Concatenate text parts for logging and legacy string paths."""
-    return "\n".join(part.text for part in user_turn.parts if isinstance(part, TextPart))
+    return "\n".join(
+        part.text for part in user_turn.parts if isinstance(part, TextPart)
+    )

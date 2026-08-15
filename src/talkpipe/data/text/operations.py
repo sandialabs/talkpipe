@@ -1,10 +1,19 @@
+from collections.abc import Iterable, Iterator
+from typing import Any
+
 from talkpipe.util.data_manipulation import extract_property
 
 
-from typing import Any, Iterator, Tuple, Union
-
-
-def shingle_generator(text_chunks: Iterator[Any], string_field: str, key_field: str, shingle_size: int, overlap: int, delimiter=' ', size_mode: str = 'count', include_paragraph_numbers: bool = False) -> Union[Iterator[Tuple[Any, str]], Iterator[Tuple[Any, str, int, int]]]:
+def shingle_generator(
+    text_chunks: Iterable[Any],
+    string_field: str | None,
+    key_field: str | None,
+    shingle_size: int,
+    overlap: int,
+    delimiter: str = " ",
+    size_mode: str = "count",
+    include_paragraph_numbers: bool = False,
+) -> Iterator[tuple[Any, ...]]:
     """Generates shingles from text chunks.
 
     Args:
@@ -17,28 +26,27 @@ def shingle_generator(text_chunks: Iterator[Any], string_field: str, key_field: 
         size_mode: Either 'count' (count chunks) or 'length' (measure character length)
         include_paragraph_numbers: If True, yields 4-tuples (item, text, first_para, last_para) instead of 2-tuples (item, text)
     """
-    shingles = []
+    shingles: list[str] = []
     current_key = None
     last_item = None
-    paragraph_numbers = []
+    paragraph_numbers: list[int] = []
     paragraph_counter = 0
     has_yielded_for_key = False
 
     def is_shingle_complete():
         """Check if current shingle meets size threshold."""
-        if size_mode == 'length':
+        if size_mode == "length":
             return len(delimiter.join(shingles)) >= shingle_size
-        else:  # count mode
-            return len(shingles) == shingle_size
+        # count mode
+        return len(shingles) == shingle_size
 
-    def yield_shingle():
+    def yield_shingle() -> tuple[Any, ...]:
         """Yield current shingle with appropriate format."""
         yield_item = last_item.copy() if isinstance(last_item, dict) else last_item
         shingle_text = delimiter.join(shingles)
         if include_paragraph_numbers:
             return yield_item, shingle_text, paragraph_numbers[0], paragraph_numbers[-1]
-        else:
-            return yield_item, shingle_text
+        return yield_item, shingle_text
 
     for item in text_chunks:
         text = extract_property(item, string_field) if string_field else item
@@ -51,7 +59,12 @@ def shingle_generator(text_chunks: Iterator[Any], string_field: str, key_field: 
                 # Yield if complete, or if incomplete but we never yielded anything for this key,
                 # or if overlap=0 (no overlap means boundaries should be yielded),
                 # or (in count mode only) if we have new data beyond the overlap from the last shingle
-                if shingles and (is_shingle_complete() or not has_yielded_for_key or overlap == 0 or (size_mode == 'count' and len(shingles) > overlap)):
+                if shingles and (
+                    is_shingle_complete()
+                    or not has_yielded_for_key
+                    or overlap == 0
+                    or (size_mode == "count" and len(shingles) > overlap)
+                ):
                     yield yield_shingle()
                 shingles = []
                 paragraph_numbers = []
@@ -75,5 +88,10 @@ def shingle_generator(text_chunks: Iterator[Any], string_field: str, key_field: 
     # Yield if complete, or if incomplete but we never yielded anything for this key,
     # or if overlap=0 (no overlap means boundaries should be yielded),
     # or (in count mode only) if we have new data beyond the overlap from the last shingle
-    if shingles and (is_shingle_complete() or not has_yielded_for_key or overlap == 0 or (size_mode == 'count' and len(shingles) > overlap)):
+    if shingles and (
+        is_shingle_complete()
+        or not has_yielded_for_key
+        or overlap == 0
+        or (size_mode == "count" and len(shingles) > overlap)
+    ):
         yield yield_shingle()

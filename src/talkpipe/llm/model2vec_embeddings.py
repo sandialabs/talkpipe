@@ -3,8 +3,8 @@
 from __future__ import annotations
 
 import threading
+from collections.abc import Sequence
 from pathlib import Path
-from typing import Sequence
 
 import numpy as np
 
@@ -115,9 +115,7 @@ class Model2VecEmbedder:
         self.model_name = model_name
         self.revision = revision
         StaticModel = _require_model2vec()
-        self.model = _load_static_model(
-            StaticModel, model_name, revision, cache_folder
-        )
+        self.model = _load_static_model(StaticModel, model_name, revision, cache_folder)
 
     @property
     def dimension(self) -> int:

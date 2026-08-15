@@ -3,25 +3,28 @@
 from __future__ import annotations
 
 import base64
+from typing import Any
 
 from .content import ImagePart, TextPart, UserTurn
 
 
 def to_ollama_user_message(user_turn: UserTurn) -> dict:
-    text = "\n".join(part.text for part in user_turn.parts if isinstance(part, TextPart))
+    text = "\n".join(
+        part.text for part in user_turn.parts if isinstance(part, TextPart)
+    )
     images = [
         base64.b64encode(part.data).decode("ascii")
         for part in user_turn.parts
         if isinstance(part, ImagePart)
     ]
-    message = {"role": "user", "content": text}
+    message: dict[str, Any] = {"role": "user", "content": text}
     if images:
         message["images"] = images
     return message
 
 
 def to_openai_user_message(user_turn: UserTurn) -> dict:
-    content = []
+    content: list[dict[str, Any]] = []
     for part in user_turn.parts:
         if isinstance(part, TextPart):
             content.append({"type": "input_text", "text": part.text})
@@ -37,7 +40,7 @@ def to_openai_user_message(user_turn: UserTurn) -> dict:
 
 
 def to_anthropic_user_message(user_turn: UserTurn) -> dict:
-    content = []
+    content: list[dict[str, Any]] = []
     for part in user_turn.parts:
         if isinstance(part, TextPart):
             content.append({"type": "text", "text": part.text})

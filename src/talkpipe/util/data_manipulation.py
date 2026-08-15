@@ -1,24 +1,29 @@
-from typing import Union
+import inspect
 import logging
 import re
-import inspect
-import json
 import textwrap
 from types import MappingProxyType
-from typing import Any, Dict, List, Set
+from typing import Any
 
 import numpy as np
+
 from talkpipe.util.config import parse_key_value_str
 
 # Type aliases
-VectorLike = Union[List[float], np.ndarray]
-Document = Dict[str, str]
+VectorLike = list[float] | np.ndarray
+Document = dict[str, str]
 DocID = str
 
 logger = logging.getLogger(__name__)
 
-def get_all_attributes(obj: Any, skip_packages: tuple = ('pydantic',), visited: Set = None,
-                      depth: int = 0, max_depth: int = 10) -> list:
+
+def get_all_attributes(
+    obj: Any,
+    skip_packages: tuple = ("pydantic",),
+    visited: set | None = None,
+    depth: int = 0,
+    max_depth: int = 10,
+) -> list | str:
     """
     Recursively get all non-hidden attributes of an object, including dictionary keys
     and list lengths.
@@ -35,17 +40,23 @@ def get_all_attributes(obj: Any, skip_packages: tuple = ('pydantic',), visited: 
     """
     # Handle dictionary type specially to show keys and inspect values
     if isinstance(obj, dict):
-        result = []
+        result: list[Any] = []
         for key, value in obj.items():
             if isinstance(value, dict):
-                nested = get_all_attributes(value, skip_packages, visited, depth + 1, max_depth)
+                nested = get_all_attributes(
+                    value, skip_packages, visited, depth + 1, max_depth
+                )
                 result.append({key: nested})
             elif isinstance(value, list):
                 result.append({key: f"list of {len(value)}"})
-            elif isinstance(value, (str, int, float, bool, type(None), set, tuple, bytes, bytearray)):
+            elif isinstance(
+                value, (str, int, float, bool, type(None), set, tuple, bytes, bytearray)
+            ):
                 result.append(key)
             else:
-                nested = get_all_attributes(value, skip_packages, visited, depth + 1, max_depth)
+                nested = get_all_attributes(
+                    value, skip_packages, visited, depth + 1, max_depth
+                )
                 if nested:
                     result.append({key: nested})
                 else:
@@ -57,7 +68,9 @@ def get_all_attributes(obj: Any, skip_packages: tuple = ('pydantic',), visited: 
         return f"list of {len(obj)}"
 
     # Skip introspection for other basic types
-    if isinstance(obj, (str, int, float, bool, type(None), set, tuple, bytes, bytearray)):
+    if isinstance(
+        obj, (str, int, float, bool, type(None), set, tuple, bytes, bytearray)
+    ):
         return []
 
     if visited is None:
@@ -71,10 +84,10 @@ def get_all_attributes(obj: Any, skip_packages: tuple = ('pydantic',), visited: 
     visited.add(id(obj))
 
     # Get all attributes that don't start with '_'
-    attributes = []
+    attributes: list[Any] = []
 
     for attr_name in dir(obj):
-        if not attr_name.startswith('_'):
+        if not attr_name.startswith("_"):
             try:
                 attr_value = getattr(obj, attr_name)
 
@@ -83,36 +96,52 @@ def get_all_attributes(obj: Any, skip_packages: tuple = ('pydantic',), visited: 
 
                 # Get the module of the attribute if it's a method or property
                 if inspect.ismethod(attr_value) or isinstance(attr_value, property):
-                    if hasattr(attr_value, '__qualname__'):
+                    if hasattr(attr_value, "__qualname__"):
                         module = inspect.getmodule(attr_value)
                         if module:
-                            module_name = module.__name__.split('.')[0]
+                            module_name = module.__name__.split(".")[0]
                             should_skip = module_name in skip_packages
 
                 # For class attributes, check the class's module
-                elif hasattr(obj, '__class__'):
+                elif hasattr(obj, "__class__"):
                     class_attr = getattr(obj.__class__, attr_name, None)
                     if class_attr is not None:
                         module = inspect.getmodule(class_attr)
                         if module:
-                            module_name = module.__name__.split('.')[0]
+                            module_name = module.__name__.split(".")[0]
                             should_skip = module_name in skip_packages
 
                 if not should_skip:
                     # If it's a dictionary, include its keys and inspect values
                     if isinstance(attr_value, dict):
-                        nested = get_all_attributes(attr_value, skip_packages, visited, depth + 1, max_depth)
+                        nested = get_all_attributes(
+                            attr_value, skip_packages, visited, depth + 1, max_depth
+                        )
                         attributes.append({attr_name: nested})
                     # If it's a list, include its length
                     elif isinstance(attr_value, list):
                         attributes.append({attr_name: f"list of {len(attr_value)}"})
                     # For other basic types, just add the attribute name
-                    elif isinstance(attr_value, (str, int, float, bool, type(None), set, tuple, bytes, bytearray)):
+                    elif isinstance(
+                        attr_value,
+                        (
+                            str,
+                            int,
+                            float,
+                            bool,
+                            type(None),
+                            set,
+                            tuple,
+                            bytes,
+                            bytearray,
+                        ),
+                    ):
                         attributes.append(attr_name)
                     # For complex types, recurse
                     else:
-                        nested_attrs = get_all_attributes(attr_value, skip_packages, visited,
-                                                        depth + 1, max_depth)
+                        nested_attrs = get_all_attributes(
+                            attr_value, skip_packages, visited, depth + 1, max_depth
+                        )
                         if nested_attrs:
                             attributes.append({attr_name: nested_attrs})
                         else:
@@ -120,13 +149,17 @@ def get_all_attributes(obj: Any, skip_packages: tuple = ('pydantic',), visited: 
 
             except Exception as e:
                 # Log error when skipping attributes that can't be accessed
-                logger.warning(f"Failed to access attribute '{attr_name}' on object {type(obj).__name__}: {e}")
+                logger.warning(
+                    f"Failed to access attribute '{attr_name}' on object {type(obj).__name__}: {e}"
+                )
                 continue
 
     return attributes
 
 
-def extract_property(data: Any, prop_list: str, fail_on_missing=False, default=None) -> Any:
+def extract_property(
+    data: Any, prop_list: str, fail_on_missing=False, default=None
+) -> Any:
     """Extract a property from a nested data structure using dot notation.
 
     Args:
@@ -146,19 +179,21 @@ def extract_property(data: Any, prop_list: str, fail_on_missing=False, default=N
             continue
         if hasattr(of_interest, prop_name):
             prop_actual = getattr(of_interest, prop_name)
-            if callable(prop_actual):
-                of_interest = prop_actual()
-            else:
-                of_interest = prop_actual
+            of_interest = prop_actual() if callable(prop_actual) else prop_actual
         elif isinstance(of_interest, dict) and prop_name in of_interest:
             of_interest = of_interest[prop_name]
-        elif isinstance(of_interest, (list, tuple)) and prop_name.isdigit() and 0 <= int(prop_name) < len(of_interest):
+        elif (
+            isinstance(of_interest, (list, tuple))
+            and prop_name.isdigit()
+            and 0 <= int(prop_name) < len(of_interest)
+        ):
             of_interest = of_interest[int(prop_name)]
         else:
             if fail_on_missing:
-                raise AttributeError(f"Property '{prop_name}' not found in the input data of type '{type(data)}'")
-            else:
-                return default
+                raise AttributeError(
+                    f"Property '{prop_name}' not found in the input data of type '{type(data)}'"
+                )
+            return default
     return of_interest
 
 
@@ -208,8 +243,7 @@ def get_type_safely(type_name, module=None):
         if module:
             imported_module = __import__(module)
             return getattr(imported_module, type_name)
-        else:
-            return getattr(__import__('builtins'), type_name)
+        return getattr(__import__("builtins"), type_name)
     except (ImportError, AttributeError):
         return None
 
@@ -226,11 +260,21 @@ def toDict(data, field_list: str = "_", fail_on_missing: bool = True):
     ans = {}
     parsed_field_list = parse_key_value_str(field_list)
     for assignment in parsed_field_list.items():
-        ans[assignment[1]] = data if assignment[0]=="_" else extract_property(data, assignment[0], fail_on_missing)
+        ans[assignment[1]] = (
+            data
+            if assignment[0] == "_"
+            else extract_property(data, assignment[0], fail_on_missing)
+        )
     return ans
 
-def dict_to_text(data: dict, wrap_width: int = 80, field_name_separator: str = ": ",
-                 field_separator: str = "\n", item_suffix = "") -> str:
+
+def dict_to_text(
+    data: dict,
+    wrap_width: int = 80,
+    field_name_separator: str = ": ",
+    field_separator: str = "\n",
+    item_suffix="",
+) -> str:
     """
     Convert a dictionary to a formatted string. Each field is separated by the specified field_separator, and
     each property and value is separated by the specified separator.
@@ -258,7 +302,7 @@ def extract_template_field_names(template: str) -> list:
     Extract field names from a template string.
 
     The function looks for patterns like "{name}" in the template and returns
-    a list of all unique field names found. Handles literal curly braces 
+    a list of all unique field names found. Handles literal curly braces
     (escaped as "{{" and "}}").
 
     Args:
@@ -281,7 +325,7 @@ def extract_template_field_names(template: str) -> list:
     temp_template = template.replace("{{", temp_open).replace("}}", temp_close)
 
     # Use regular expression to find all matches of {field_name}
-    pattern = r'\{([^{}]+)\}'
+    pattern = r"\{([^{}]+)\}"
     matches = re.findall(pattern, temp_template)
 
     # Return unique field names
@@ -304,9 +348,13 @@ def fill_template(template: str, values: dict) -> str:
         The template string with all fields replaced by their values
 
     Example:
-        >>> fill_template("Hello, {name}! Today is {day}.", {"name": "Alice", "day": "Monday"})
+        >>> fill_template(
+        ...     "Hello, {name}! Today is {day}.", {"name": "Alice", "day": "Monday"}
+        ... )
         'Hello, Alice! Today is Monday.'
-        >>> fill_template("{{ This has literal braces and {field} }}", {"field": "value"})
+        >>> fill_template(
+        ...     "{{ This has literal braces and {field} }}", {"field": "value"}
+        ... )
         '{ This has literal braces and value }'
     """
     # First, handle escaped braces by replacing them temporarily
@@ -322,9 +370,8 @@ def fill_template(template: str, values: dict) -> str:
         result = result.replace(placeholder, str(value))
 
     # Restore literal braces
-    result = result.replace(temp_open, "{").replace(temp_close, "}")
+    return result.replace(temp_open, "{").replace(temp_close, "}")
 
-    return result
 
 def compileLambda(expression: str):
     """Compile a Python expression into a callable that evaluates safely with a single item parameter.
@@ -338,31 +385,82 @@ def compileLambda(expression: str):
     """
     # Security check: block dangerous patterns in expressions
     dangerous_patterns = [
-        '__import__', 'import', 'exec', 'eval', 'compile', 'open', 'file',
-        'input', 'raw_input', 'reload', 'vars', 'locals', 'globals',
-        'dir', 'hasattr', 'getattr', 'setattr', 'delattr', 'classmethod',
-        'staticmethod', 'super', 'property', '__', '.mro', '.subclasses'
+        "__import__",
+        "import",
+        "exec",
+        "eval",
+        "compile",
+        "open",
+        "file",
+        "input",
+        "raw_input",
+        "reload",
+        "vars",
+        "locals",
+        "globals",
+        "dir",
+        "hasattr",
+        "getattr",
+        "setattr",
+        "delattr",
+        "classmethod",
+        "staticmethod",
+        "super",
+        "property",
+        "__",
+        ".mro",
+        ".subclasses",
     ]
-    
+
     expression_lower = expression.lower()
     for pattern in dangerous_patterns:
         if pattern in expression_lower:
-            raise ValueError(f"Security violation: Expression contains prohibited pattern '{pattern}'")
-    
+            raise ValueError(
+                f"Security violation: Expression contains prohibited pattern '{pattern}'"
+            )
+
     # Additional security: check for attribute access to dangerous methods
-    if '.__' in expression or 'getitem' in expression_lower or 'setitem' in expression_lower:
-        raise ValueError("Security violation: Expression contains prohibited attribute access patterns")
+    if (
+        ".__" in expression
+        or "getitem" in expression_lower
+        or "setitem" in expression_lower
+    ):
+        raise ValueError(
+            "Security violation: Expression contains prohibited attribute access patterns"
+        )
 
     # Set of safe built-ins that can be used in expressions
     _SAFE_BUILTINS = {
-        'abs': abs, 'all': all, 'any': any, 'bool': bool, 'dict': dict,
-        'enumerate': enumerate, 'filter': filter, 'float': float,
-        'frozenset': frozenset, 'int': int, 'isinstance': isinstance,
-        'issubclass': issubclass, 'len': len, 'list': list, 'map': map,
-        'max': max, 'min': min, 'ord': ord, 'pow': pow, 'range': range,
-        'repr': repr, 'reversed': reversed, 'round': round,
-        'set': set, 'slice': slice, 'sorted': sorted, 'str': str,
-        'sum': sum, 'tuple': tuple, 'zip': zip
+        "abs": abs,
+        "all": all,
+        "any": any,
+        "bool": bool,
+        "dict": dict,
+        "enumerate": enumerate,
+        "filter": filter,
+        "float": float,
+        "frozenset": frozenset,
+        "int": int,
+        "isinstance": isinstance,
+        "issubclass": issubclass,
+        "len": len,
+        "list": list,
+        "map": map,
+        "max": max,
+        "min": min,
+        "ord": ord,
+        "pow": pow,
+        "range": range,
+        "repr": repr,
+        "reversed": reversed,
+        "round": round,
+        "set": set,
+        "slice": slice,
+        "sorted": sorted,
+        "str": str,
+        "sum": sum,
+        "tuple": tuple,
+        "zip": zip,
     }
 
     # Create an immutable view of the safe built-ins
@@ -370,27 +468,32 @@ def compileLambda(expression: str):
 
     # Pre-compile the expression for efficiency
     try:
-        compiled_code = compile(expression, '<string>', 'eval')
+        compiled_code = compile(expression, "<string>", "eval")
         logger.debug(f"Successfully pre-compiled expression: {expression}")
     except SyntaxError as e:
         error_msg = f"Invalid expression syntax: {e}"
         logger.error(error_msg)
-        raise ValueError(error_msg)
+        raise ValueError(error_msg) from e
 
     def lambda_function(item: Any) -> Any:
         """Evaluate the pre-compiled expression on a single item."""
         # Always make the item available
-        locals_dict = {'item': item}
+        locals_dict = {"item": item}
 
         # If item is a dictionary, add its keys as variables for convenience
         if isinstance(item, dict):
             # Filter dictionary keys to prevent injection of dangerous names
-            safe_keys = {k: v for k, v in item.items() 
-                        if isinstance(k, str) and not k.startswith('_') and k not in dangerous_patterns}
+            safe_keys = {
+                k: v
+                for k, v in item.items()
+                if isinstance(k, str)
+                and not k.startswith("_")
+                and k not in dangerous_patterns
+            }
             locals_dict.update(safe_keys)
 
         # Create a completely restricted environment with no access to dangerous globals
-        restricted_globals = {'__builtins__': {}}
+        restricted_globals: dict[str, Any] = {"__builtins__": {}}
         restricted_globals.update(SAFE_BUILTINS)
 
         # Evaluate the expression in a heavily restricted environment
@@ -401,12 +504,11 @@ def compileLambda(expression: str):
         # - Exception handling for safety
         # ast.literal_eval() cannot be used as this evaluates dynamic expressions, not just literals
         try:
-            result = eval(compiled_code, restricted_globals, locals_dict)  # nosec B307
-            return result
+            return eval(compiled_code, restricted_globals, locals_dict)  # nosec B307
         except Exception as e:
-            error_msg = f"Error evaluating expression '{expression}' on item {item}: {e}"
-            raise RuntimeError(error_msg, e)
+            error_msg = (
+                f"Error evaluating expression '{expression}' on item {item}: {e}"
+            )
+            raise RuntimeError(error_msg, e) from e
 
     return lambda_function
-
-

@@ -1,50 +1,131 @@
 import argparse
 import glob
-import sys
 import logging
-from talkpipe.util.config import get_config, parse_unknown_args, add_config_values, configure_logger
-from talkpipe.util.constants import TALKPIPE_EMBEDDING_MODEL_NAME, TALKPIPE_EMBEDDING_MODEL_SOURCE
+import sys
+
 from talkpipe.llm.config import getEmbeddingSources
 from talkpipe.pipelines.vector_databases import RagIngestError, build_rag_database
+from talkpipe.util.config import (
+    add_config_values,
+    configure_logger,
+    get_config,
+    parse_unknown_args,
+)
+from talkpipe.util.constants import (
+    TALKPIPE_EMBEDDING_MODEL_NAME,
+    TALKPIPE_EMBEDDING_MODEL_SOURCE,
+)
 from talkpipe.util.os import limit_malloc_arenas
 
 logger = logging.getLogger(__name__)
+
 
 def main():
     """Create a vector database using the Talkpipe document pipeline."""
     # Before LanceDB's worker threads exist: keep long ingestion memory flat.
     limit_malloc_arenas()
-    parser = argparse.ArgumentParser(description='Create a LanceDB vector database from a set of documents.')
-    
+    parser = argparse.ArgumentParser(
+        description="Create a LanceDB vector database from a set of documents."
+    )
+
     # Required arguments
-    parser.add_argument('data_source', type=str, help='File path or glob pattern of documents to process (e.g. "docs/*.md")')
-    parser.add_argument('--path', type=str, required=True, help='Path where the LanceDB database will be created')
-    
+    parser.add_argument(
+        "data_source",
+        type=str,
+        help='File path or glob pattern of documents to process (e.g. "docs/*.md")',
+    )
+    parser.add_argument(
+        "--path",
+        type=str,
+        required=True,
+        help="Path where the LanceDB database will be created",
+    )
+
     # Pipeline arguments
-    parser.add_argument('--shingle_size', type=int, default=3, help='Size threshold for text chunking shingles (default: 3 chunks)')
-    parser.add_argument('--overlap', type=int, default=1, help='Overlap threshold for text chunking shingles (default: 1)')
-    parser.add_argument('--chunk_size', type=int, default=300, help='Size threshold for text chunking (default: 300 characters)')
-    
+    parser.add_argument(
+        "--shingle_size",
+        type=int,
+        default=3,
+        help="Size threshold for text chunking shingles (default: 3 chunks)",
+    )
+    parser.add_argument(
+        "--overlap",
+        type=int,
+        default=1,
+        help="Overlap threshold for text chunking shingles (default: 1)",
+    )
+    parser.add_argument(
+        "--chunk_size",
+        type=int,
+        default=300,
+        help="Size threshold for text chunking (default: 300 characters)",
+    )
+
     # Optional arguments that fall back to config settings
-    parser.add_argument('--embedding_model', type=str, help='Model to use for embedding (defaults to config)')
-    parser.add_argument('--embedding_source', type=str, help='Source of the embedding model (defaults to config)')
-    parser.add_argument('--embedding_field', type=str, default='shingle_text', help='Field to use for embeddings (default: shingle_text)')
-    parser.add_argument('--embedding_fail_on_error', action='store_true', help='If set, fail on error when embedding', default=False)
-    parser.add_argument('--on_token_overflow', type=str, choices=['error', 'truncate', 'chunk_pool'], default='truncate',
-                        help='What to do when a chunk is too long for the embedding model: error (abort the run), truncate (shrink and retry; default), or chunk_pool (split, embed, and mean-pool)')
+    parser.add_argument(
+        "--embedding_model",
+        type=str,
+        help="Model to use for embedding (defaults to config)",
+    )
+    parser.add_argument(
+        "--embedding_source",
+        type=str,
+        help="Source of the embedding model (defaults to config)",
+    )
+    parser.add_argument(
+        "--embedding_field",
+        type=str,
+        default="shingle_text",
+        help="Field to use for embeddings (default: shingle_text)",
+    )
+    parser.add_argument(
+        "--embedding_fail_on_error",
+        action="store_true",
+        help="If set, fail on error when embedding",
+        default=False,
+    )
+    parser.add_argument(
+        "--on_token_overflow",
+        type=str,
+        choices=["error", "truncate", "chunk_pool"],
+        default="truncate",
+        help="What to do when a chunk is too long for the embedding model: error (abort the run), truncate (shrink and retry; default), or chunk_pool (split, embed, and mean-pool)",
+    )
 
     # Other LanceDB options
-    parser.add_argument('--table_name', type=str, default='docs', help='Name of the table to create (default: "docs")')
-    parser.add_argument('--doc_id_field', type=str, default=None,
-                        help='Field containing document ID. Default None generates unique IDs per chunk (recommended for document pipelines with multiple chunks per file)')
-    parser.add_argument('--overwrite', action='store_true', help='If set, overwrite existing database table')
-    parser.add_argument('--batch_size', type=int, default=100, help='Batch size for committing to database (default: 100)')
-    
+    parser.add_argument(
+        "--table_name",
+        type=str,
+        default="docs",
+        help='Name of the table to create (default: "docs")',
+    )
+    parser.add_argument(
+        "--doc_id_field",
+        type=str,
+        default=None,
+        help="Field containing document ID. Default None generates unique IDs per chunk (recommended for document pipelines with multiple chunks per file)",
+    )
+    parser.add_argument(
+        "--overwrite",
+        action="store_true",
+        help="If set, overwrite existing database table",
+    )
+    parser.add_argument(
+        "--batch_size",
+        type=int,
+        default=100,
+        help="Batch size for committing to database (default: 100)",
+    )
+
     # System settings
-    parser.add_argument('--logger_levels', type=str, help="Logger levels in format 'logger:level,logger:level,...'")
+    parser.add_argument(
+        "--logger_levels",
+        type=str,
+        help="Logger levels in format 'logger:level,logger:level,...'",
+    )
 
     args, unknown_args = parser.parse_known_args()
-    
+
     # Process logger settings
     configure_logger(args.logger_levels)
 
@@ -53,11 +134,13 @@ def main():
     constants = parse_unknown_args(unknown_args)
     if constants:
         add_config_values(constants, override=True)
-        
+
     # Resolve embedding source/model from CLI flags, falling back to config, and
     # fail fast with an actionable message rather than crashing deep in the
     # pipeline with "Source 'None' is not supported".
-    embedding_source = args.embedding_source or config.get(TALKPIPE_EMBEDDING_MODEL_SOURCE)
+    embedding_source = args.embedding_source or config.get(
+        TALKPIPE_EMBEDDING_MODEL_SOURCE
+    )
     embedding_model = args.embedding_model or config.get(TALKPIPE_EMBEDDING_MODEL_NAME)
     missing = []
     if not embedding_source:
@@ -66,7 +149,8 @@ def main():
         missing.append("--embedding_model <name>")
     if missing:
         parser.error(
-            "No embedding configuration found. Provide " + " and ".join(missing)
+            "No embedding configuration found. Provide "
+            + " and ".join(missing)
             + f", or set {TALKPIPE_EMBEDDING_MODEL_SOURCE} / {TALKPIPE_EMBEDDING_MODEL_NAME}"
             + " in ~/.talkpipe.toml (or as TALKPIPE_* environment variables)."
         )
@@ -124,6 +208,7 @@ def main():
             file=sys.stderr,
         )
         sys.exit(1)
+
 
 if __name__ == "__main__":
     main()

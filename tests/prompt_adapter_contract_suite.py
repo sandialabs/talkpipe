@@ -1,5 +1,5 @@
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Callable
 
 
 @dataclass(frozen=True)
@@ -57,7 +57,9 @@ def run_shared_offline_contract_checks(spec: PromptAdapterSpec, monkeypatch) -> 
     assert interaction_calls["compact"] == 1
     assert interaction_calls["assistant_args"] == [response_text]
 
-    single_turn_adapter = spec.adapter_cls(spec.model, multi_turn=False, temperature=0.0)
+    single_turn_adapter = spec.adapter_cls(
+        spec.model, multi_turn=False, temperature=0.0
+    )
     spec.execute_patch(monkeypatch, single_turn_adapter, response_text)
     single_result = single_turn_adapter.execute("one shot")
     assert single_result == response_text
@@ -114,14 +116,16 @@ def run_shared_offline_contract_checks(spec: PromptAdapterSpec, monkeypatch) -> 
     # Contract: this helper should not mutate the chat history.
     assert no_context_adapter._messages == []
     assert no_context_payload.get("model")
-    no_context_list = no_context_payload.get("messages", no_context_payload.get("input"))
+    no_context_list = no_context_payload.get(
+        "messages", no_context_payload.get("input")
+    )
     assert isinstance(no_context_list, list)
     assert len(no_context_list) > 0
 
 
 def run_shared_live_contract_checks(spec: PromptAdapterSpec, request) -> None:
     # Uses fixture skip behavior in tests/conftest.py.
-    if (spec.availability_fixture):
+    if spec.availability_fixture:
         request.getfixturevalue(spec.availability_fixture)
     adapter = spec.adapter_cls(spec.model, temperature=0.0)
 
@@ -131,8 +135,10 @@ def run_shared_live_contract_checks(spec: PromptAdapterSpec, request) -> None:
 
     first = adapter.execute(spec.prompt)
     second = adapter.execute("What is my first name?")
-    assert isinstance(first, str) and first.strip()
-    assert isinstance(second, str) and second.strip()
+    assert isinstance(first, str)
+    assert first.strip()
+    assert isinstance(second, str)
+    assert second.strip()
 
     no_context = adapter.complete_text_without_context(
         "Respond with the single word: ready",

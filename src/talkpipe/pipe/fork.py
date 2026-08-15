@@ -4,12 +4,15 @@ ForkSegment distributes items across multiple downstream pipelines using
 threads and queues. Supports round-robin (one item per branch) or broadcast
 (all items to all branches).
 """
-from typing import List, Iterator, Iterable, Any
+
 import logging
-from queue import Queue
+from collections.abc import Iterable, Iterator
 from concurrent.futures import ThreadPoolExecutor
 from enum import Enum
-from .core import AbstractSegment, is_metadata
+from queue import Queue
+from typing import Any
+
+from .core import AbstractSegment, AbstractSource
 
 logger = logging.getLogger(__name__)
 
@@ -21,7 +24,7 @@ class ForkMode(Enum):
     """Distribution modes for fork segments."""
 
     ROUND_ROBIN = "round_robin"  # Distribute items across branches
-    BROADCAST = "broadcast"      # Send all items to all branches
+    BROADCAST = "broadcast"  # Send all items to all branches
 
 
 def _poison_filter(queue: Queue) -> Iterator[Any]:
@@ -38,21 +41,21 @@ class ForkSegment(AbstractSegment):
 
     def __init__(
         self,
-        branches: List[AbstractSegment],
+        branches: list[AbstractSegment | AbstractSource],
         mode: ForkMode = ForkMode.BROADCAST,
         max_queue_size: int = 100,
-        num_threads: int = None,
+        num_threads: int | None = None,
     ):
         super().__init__(process_metadata=True)  # Metadata flows into branches
         self.branches = branches
         self.mode = mode
         self.max_queue_size = max_queue_size
         self.num_threads = num_threads or len(branches)
-        
+
     def process_branch(
         self,
         branch_id: int,
-        branch: AbstractSegment,
+        branch: AbstractSegment | AbstractSource,
         input_queue: Queue,
         output_queue: Queue,
     ):
@@ -72,22 +75,25 @@ class ForkSegment(AbstractSegment):
         finally:
             output_queue.put((branch_id, None))  # Sentinel: branch finished
             input_queue.task_done()
-            
+
     def transform(self, input_iter: Iterable[Any]) -> Iterator[Any]:
         """Distribute input to branches, collect results as they complete."""
-        input_queues = [Queue(maxsize=self.max_queue_size) for _ in self.branches]
-        output_queue = Queue()
+        input_queues: list[Queue[Any]] = [
+            Queue(maxsize=self.max_queue_size) for _ in self.branches
+        ]
+        output_queue: Queue[Any] = Queue()
 
         with ThreadPoolExecutor(max_workers=self.num_threads) as executor:
             # Submit branch processing tasks
             futures = [
                 executor.submit(
-                    self.process_branch, 
-                    idx, branch, input_queue, output_queue
+                    self.process_branch, idx, branch, input_queue, output_queue
                 )
-                for idx, (branch, input_queue) in enumerate(zip(self.branches, input_queues))
+                for idx, (branch, input_queue) in enumerate(
+                    zip(self.branches, input_queues, strict=False)
+                )
             ]
-            
+
             try:
                 # Feed input to branches according to the selected mode
                 if self.mode == ForkMode.BROADCAST:
@@ -98,32 +104,33 @@ class ForkSegment(AbstractSegment):
                     for i, item in enumerate(input_iter or []):
                         branch_idx = i % len(self.branches)
                         input_queues[branch_idx].put(item)
-                
+
                 # Send poison pills to signal completion
                 for queue in input_queues:
                     queue.put(_poison_pill)
-                
+
                 # Drain output_queue; result=None is branch completion sentinel
                 active_branches = len(self.branches)
                 while active_branches > 0:
-                    branch_id, result = output_queue.get()
+                    _branch_id, result = output_queue.get()
                     if result is None:
                         active_branches -= 1
                     else:
                         yield result
-                
+
             except Exception as e:
                 logger.error(f"Error in fork main thread: {e}")
                 raise
             finally:
                 for future in futures:
                     future.cancel()
-                
+
+
 def fork(
     *branches: AbstractSegment,
     mode: ForkMode = ForkMode.ROUND_ROBIN,
     max_queue_size: int = 100,
-    num_threads: int = None,
+    num_threads: int | None = None,
 ) -> ForkSegment:
     """Create a ForkSegment with the given branches."""
     return ForkSegment(list(branches), mode, max_queue_size, num_threads)

@@ -1,4 +1,3 @@
-import pytest
 from talkpipe.search.abstract import SearchResult
 
 
@@ -8,7 +7,7 @@ def test_prompt_worthy_string_with_priority_fields():
         "title": "Test Document",
         "author": "John Doe",
         "content": "This is test content",
-        "date": "2024-01-01"
+        "date": "2024-01-01",
     }
     result = SearchResult(score=0.95, doc_id="doc1", document=doc)
 
@@ -25,14 +24,13 @@ def test_prompt_worthy_string_with_priority_fields():
 
 def test_prompt_worthy_string_with_missing_priority_fields():
     """Test that missing priority fields are skipped."""
-    doc = {
-        "title": "Test Document",
-        "content": "This is test content"
-    }
+    doc = {"title": "Test Document", "content": "This is test content"}
     result = SearchResult(score=0.95, doc_id="doc1", document=doc)
 
     # Request priority fields that don't all exist
-    output = result.prompt_worthy_string(priority_fields=["author", "title", "missing_field"])
+    output = result.prompt_worthy_string(
+        priority_fields=["author", "title", "missing_field"]
+    )
 
     lines = output.split("\n")
     # Only "title" exists in priority fields, so it should be first
@@ -44,11 +42,7 @@ def test_prompt_worthy_string_with_missing_priority_fields():
 
 def test_prompt_worthy_string_with_empty_priority_fields():
     """Test with empty priority fields list."""
-    doc = {
-        "title": "Test Document",
-        "author": "Jane Doe",
-        "content": "Test content"
-    }
+    doc = {"title": "Test Document", "author": "Jane Doe", "content": "Test content"}
     result = SearchResult(score=0.85, doc_id="doc2", document=doc)
 
     output = result.prompt_worthy_string(priority_fields=[])
@@ -61,11 +55,7 @@ def test_prompt_worthy_string_with_empty_priority_fields():
 
 def test_prompt_worthy_string_field_capitalization():
     """Test that field names are properly capitalized."""
-    doc = {
-        "lowercase": "value1",
-        "UPPERCASE": "value2",
-        "MixedCase": "value3"
-    }
+    doc = {"lowercase": "value1", "UPPERCASE": "value2", "MixedCase": "value3"}
     result = SearchResult(score=0.75, doc_id="doc3", document=doc)
 
     output = result.prompt_worthy_string(priority_fields=[])
@@ -78,12 +68,7 @@ def test_prompt_worthy_string_field_capitalization():
 
 def test_prompt_worthy_string_ordering():
     """Test that fields maintain correct ordering: priority fields first, then others."""
-    doc = {
-        "alpha": "a",
-        "beta": "b",
-        "gamma": "g",
-        "delta": "d"
-    }
+    doc = {"alpha": "a", "beta": "b", "gamma": "g", "delta": "d"}
     result = SearchResult(score=0.90, doc_id="doc4", document=doc)
 
     output = result.prompt_worthy_string(priority_fields=["gamma", "beta"])
@@ -110,10 +95,7 @@ def test_prompt_worthy_string_single_field():
 
 def test_prompt_worthy_string_no_duplicate_fields():
     """Test that fields appearing in priority_fields are not duplicated."""
-    doc = {
-        "title": "No Duplicates",
-        "content": "Test content"
-    }
+    doc = {"title": "No Duplicates", "content": "Test content"}
     result = SearchResult(score=0.88, doc_id="doc6", document=doc)
 
     output = result.prompt_worthy_string(priority_fields=["title"])

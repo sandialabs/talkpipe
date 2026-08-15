@@ -1,5 +1,7 @@
-import pytest
 from pathlib import Path
+
+import pytest
+
 from talkpipe.util.os import get_process_temp_dir
 
 
@@ -108,16 +110,14 @@ print(path2)
 
     # Run subprocess and capture output
     result = subprocess.run(
-        [sys.executable, "-c", subprocess_code],
-        capture_output=True,
-        text=True
+        [sys.executable, "-c", subprocess_code], capture_output=True, text=True
     )
 
     # Verify subprocess succeeded
     assert result.returncode == 0, f"Subprocess failed: {result.stderr}"
 
     # Get the paths that were created
-    lines = result.stdout.strip().split('\n')
+    lines = result.stdout.strip().split("\n")
     assert len(lines) >= 2, f"Expected at least 2 lines of output, got: {result.stdout}"
 
     path1 = lines[0].strip()

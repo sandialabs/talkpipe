@@ -1,9 +1,14 @@
 """Tests for llmEmbed on_token_overflow (reactive token limit handling)."""
 
-import pytest
 from unittest.mock import Mock
 
-from talkpipe.llm.embedding import LLMEmbed, EmbeddingTokenOverflowError, estimate_tokens
+import pytest
+
+from talkpipe.llm.embedding import (
+    EmbeddingTokenOverflowError,
+    LLMEmbed,
+    estimate_tokens,
+)
 from talkpipe.llm.embedding_errors import is_token_overflow_error
 
 TOKEN_OVERFLOW = RuntimeError("maximum context length exceeded")
@@ -25,7 +30,8 @@ def test_estimate_tokens_counts_non_ascii_text_more_densely():
     text = (
         "Tässä artikkelissa kerrotaan ersän kielen avoimen puupankin "
         "ensimmäisistä askeleista. "
-        "Те статиясонть сёрмадтано эрзянь келень од ресурсадо. "
+        # Cyrillic (Erzya) text is intentional: it exercises non-ASCII density.
+        "Те статиясонть сёрмадтано эрзянь келень од ресурсадо. "  # noqa: RUF001
     ) * 4
     assert estimate_tokens(text) >= int(len(text) * 1.5)
 

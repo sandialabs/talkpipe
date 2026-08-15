@@ -5,7 +5,8 @@ from fastapi.testclient import TestClient
 
 from talkpipe.app import chatterlang_workbench
 from talkpipe.app.workbench import reference_api
-from talkpipe.chatterlang.compiler import CompileError, compile as chatterlang_compile
+from talkpipe.chatterlang.compiler import CompileError
+from talkpipe.chatterlang.compiler import compile as chatterlang_compile
 
 
 @pytest.fixture
@@ -21,6 +22,7 @@ def fresh_reference_cache():
 
 
 # --- /api/reference ---------------------------------------------------------
+
 
 def test_reference_contains_known_components(client):
     response = client.get("/api/reference")
@@ -46,16 +48,20 @@ def test_reference_is_cached(client, monkeypatch):
     def boom():
         raise AssertionError("reference rebuilt despite cache")
 
-    monkeypatch.setattr(reference_api.chatterlang_reference_generator,
-                        "analyze_registered_items", boom)
+    monkeypatch.setattr(
+        reference_api.chatterlang_reference_generator, "analyze_registered_items", boom
+    )
     response = client.get("/api/reference")
     assert response.status_code == 200
 
 
 # --- /api/lint: parse mode ----------------------------------------------------
 
+
 def test_lint_clean_script(client):
-    response = client.post("/api/lint", json={"script": 'INPUT FROM echo[data="hi"] | print'})
+    response = client.post(
+        "/api/lint", json={"script": 'INPUT FROM echo[data="hi"] | print'}
+    )
     assert response.status_code == 200
     assert response.json()["diagnostics"] == []
 
@@ -73,7 +79,8 @@ def test_lint_syntax_error_has_position(client):
     d = diagnostics[0]
     assert d["kind"] == "syntax"
     assert d["severity"] == "error"
-    assert d["line"] >= 1 and d["column"] >= 1
+    assert d["line"] >= 1
+    assert d["column"] >= 1
 
 
 def test_lint_unquoted_string_hint(client):
@@ -84,7 +91,9 @@ def test_lint_unquoted_string_hint(client):
 
 
 def test_lint_unknown_segment_did_you_mean(client):
-    response = client.post("/api/lint", json={"script": 'INPUT FROM echo[data="x"] | prnt'})
+    response = client.post(
+        "/api/lint", json={"script": 'INPUT FROM echo[data="x"] | prnt'}
+    )
     diagnostics = response.json()["diagnostics"]
     assert len(diagnostics) == 1
     d = diagnostics[0]
@@ -96,7 +105,9 @@ def test_lint_unknown_segment_did_you_mean(client):
 
 
 def test_lint_unknown_source(client):
-    response = client.post("/api/lint", json={"script": "INPUT FROM nosuchsource | print"})
+    response = client.post(
+        "/api/lint", json={"script": "INPUT FROM nosuchsource | print"}
+    )
     diagnostics = response.json()["diagnostics"]
     assert len(diagnostics) == 1
     assert diagnostics[0]["kind"] == "unknown_name"
@@ -105,7 +116,9 @@ def test_lint_unknown_source(client):
 
 def test_lint_bad_param_name(client):
     # llmPrompt is class-based, so its __init__ signature is introspectable.
-    response = client.post("/api/lint", json={"script": '| llmPrompt[nonsense_param="x"]'})
+    response = client.post(
+        "/api/lint", json={"script": '| llmPrompt[nonsense_param="x"]'}
+    )
     diagnostics = response.json()["diagnostics"]
     assert len(diagnostics) == 1
     d = diagnostics[0]
@@ -118,7 +131,9 @@ def test_lint_valid_params_on_function_component_pass(client):
     # Function-based components hide their signature behind a *args/**kwargs
     # wrapper; the param check sees through it via _original_func, so valid
     # parameters must produce no false positives.
-    response = client.post("/api/lint", json={"script": 'INPUT FROM echo[data="x", delimiter=","] | print'})
+    response = client.post(
+        "/api/lint", json={"script": 'INPUT FROM echo[data="x", delimiter=","] | print'}
+    )
     assert response.json()["diagnostics"] == []
 
 
@@ -153,13 +168,16 @@ def test_lint_checks_inside_loops(client):
     script = 'INPUT FROM echo[data="1"] | @x;\nLOOP 2 TIMES { INPUT FROM @x | bogusSegment | @x };\nINPUT FROM @x | print'
     response = client.post("/api/lint", json={"script": script})
     diagnostics = response.json()["diagnostics"]
-    assert any(d["kind"] == "unknown_name" and "bogusSegment" in d["message"]
-               for d in diagnostics)
+    assert any(
+        d["kind"] == "unknown_name" and "bogusSegment" in d["message"]
+        for d in diagnostics
+    )
     bogus = next(d for d in diagnostics if "bogusSegment" in d["message"])
     assert bogus["line"] == 2
 
 
 # --- /api/lint: full mode -----------------------------------------------------
+
 
 def test_lint_full_mode_reports_compile_error(client, monkeypatch):
     def fake_compile(script):
@@ -187,15 +205,19 @@ def test_lint_full_mode_catches_bad_param_on_function_component(client):
     # parameter-name check.
     response = client.post(
         "/api/lint",
-        json={"script": 'INPUT FROM echo[data="hi", delimeter=","] | print',
-              "mode": "full"},
+        json={
+            "script": 'INPUT FROM echo[data="hi", delimeter=","] | print',
+            "mode": "full",
+        },
     )
     diagnostics = response.json()["diagnostics"]
-    assert any(d["kind"] == "bad_param" and "delimeter" in d["message"]
-               for d in diagnostics)
+    assert any(
+        d["kind"] == "bad_param" and "delimeter" in d["message"] for d in diagnostics
+    )
 
 
 # --- CompileError backward compatibility ---------------------------------------
+
 
 def test_compile_error_message_format_unchanged():
     """The formatted messages existing callers rely on must not change."""
@@ -220,4 +242,5 @@ def test_compile_error_syntax_attributes():
 def test_compile_error_plain_construction_still_works():
     err = CompileError("boom")
     assert str(err) == "boom"
-    assert err.line is None and err.kind is None
+    assert err.line is None
+    assert err.kind is None

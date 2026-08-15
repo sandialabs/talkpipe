@@ -1,10 +1,9 @@
-from talkpipe.llm.prompt_adapters import OpenAIPromptAdapter
-
 from prompt_adapter_contract_suite import (
     PromptAdapterSpec,
     run_shared_live_contract_checks,
     run_shared_offline_contract_checks,
 )
+from talkpipe.llm.prompt_adapters import OpenAIPromptAdapter
 
 
 def _patch_openai_constructor(monkeypatch):
@@ -33,7 +32,11 @@ def _patch_openai_constructor(monkeypatch):
             def __new__(cls):
                 return DummyClient()
 
-    monkeypatch.setattr(OpenAIPromptAdapter, "_require_dependency", lambda *_args, **_kwargs: DummyOpenAI)
+    monkeypatch.setattr(
+        OpenAIPromptAdapter,
+        "_require_dependency",
+        lambda *_args, **_kwargs: DummyOpenAI,
+    )
 
 
 def _patch_openai_execute(monkeypatch, adapter, response_text: str):
@@ -41,7 +44,9 @@ def _patch_openai_execute(monkeypatch, adapter, response_text: str):
         output_text = response_text
         output_parsed = None
 
-    monkeypatch.setattr(adapter, "_responses_request", lambda **_kwargs: DummyResponse())
+    monkeypatch.setattr(
+        adapter, "_responses_request", lambda **_kwargs: DummyResponse()
+    )
 
 
 OPENAI_SPEC = PromptAdapterSpec(

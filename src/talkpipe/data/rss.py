@@ -1,20 +1,18 @@
 import logging
-import time
 import sqlite3
-import feedparser
+import time
 from typing import Annotated
-from talkpipe.util.config import get_config
-from talkpipe.pipe import core
+
+import feedparser
+
 from talkpipe.chatterlang import registry
-from talkpipe.data import html
+from talkpipe.pipe import core
+from talkpipe.util.config import get_config
 
 logger = logging.getLogger(__name__)
 
-def rss_monitor(
-    url: str,
-    db_path: str = ':memory:',
-    poll_interval_minutes: int = 60
-):
+
+def rss_monitor(url: str, db_path: str = ":memory:", poll_interval_minutes: int = 60):
     """Monitor an RSS feed URL and yield new items as they are published.
 
     This function continuously polls an RSS feed at specified intervals, tracks seen items
@@ -68,7 +66,7 @@ def rss_monitor(
         logger.debug(f"Processing {len(feed.entries)} entries from feed")
         # Iterate over each entry in the feed.
         for entry in feed.entries:
-            link = entry.get('link')
+            link = entry.get("link")
             if not link:
                 logger.debug("Skipping entry with no link")
                 continue
@@ -81,27 +79,27 @@ def rss_monitor(
             if result is None:
                 logger.debug(f"Processing new entry with link: {link}")
                 # Extract fields from the feed entry.
-                title = entry.get('title', '')
-                published = entry.get('published', '')
-                summary = entry.get('summary', '')
-                author = entry.get('author', '')
+                title = entry.get("title", "")
+                published = entry.get("published", "")
+                summary = entry.get("summary", "")
+                author = entry.get("author", "")
 
                 # Attempt to get the "full content" from the 'content' field if it exists.
                 # Often this might be a list of dicts with 'value' being the HTML/text.
-                content = ''
-                if 'content' in entry:
+                content = ""
+                if "content" in entry:
                     logger.debug("Extracting full content from entry")
-                    content_list = entry['content']
+                    content_list = entry["content"]
                     if isinstance(content_list, list) and len(content_list) > 0:
-                        content = content_list[0].get('value', '')
+                        content = content_list[0].get("value", "")
 
                 # Prepare a dictionary to yield.
                 item_dict = {
-                    'title': title,
-                    'link': link,
-                    'published': published,
-                    'summary': summary,
-                    'author': author
+                    "title": title,
+                    "link": link,
+                    "published": published,
+                    "summary": summary,
+                    "author": author,
                 }
 
                 logger.debug(f"Yielding new item: {title}")
@@ -110,10 +108,13 @@ def rss_monitor(
 
                 logger.debug("Storing new item in database")
                 # Store the new item in the database (INSERT).
-                cursor.execute("""
+                cursor.execute(
+                    """
                     INSERT INTO feed_items (link, title, published, summary, author, content)
                     VALUES (?, ?, ?, ?, ?, ?)
-                """, (link, title, published, summary, author, content))
+                """,
+                    (link, title, published, summary, author, content),
+                )
                 conn.commit()
 
         if poll_interval_minutes == -1:
@@ -124,12 +125,20 @@ def rss_monitor(
             logger.debug(f"Sleeping for {poll_interval_minutes} minutes...")
             time.sleep(poll_interval_minutes * 60)
 
+
 @registry.register_source("rss")
 @core.source(url=None)
 def rss_source(
-    url: Annotated[str, "The URL of the RSS feed to monitor. If None, reads from config using key 'RSS_URL'"], 
-    db_path: Annotated[str, "Path to SQLite database file for storing entry history"] = ':memory:', 
-    poll_interval_minutes: Annotated[int, "Number of minutes to wait between polling the RSS feed"] = 10
+    url: Annotated[
+        str,
+        "The URL of the RSS feed to monitor. If None, reads from config using key 'RSS_URL'",
+    ],
+    db_path: Annotated[
+        str, "Path to SQLite database file for storing entry history"
+    ] = ":memory:",
+    poll_interval_minutes: Annotated[
+        int, "Number of minutes to wait between polling the RSS feed"
+    ] = 10,
 ):
     """
     Generator function that monitors and yields new entries from an RSS feed.
@@ -151,6 +160,5 @@ def rss_source(
     except Exception as e:
         logger.error(f"Failed to get rss_url from config: {e}")
         raise
-
 
     yield from rss_monitor(url, db_path, poll_interval_minutes)

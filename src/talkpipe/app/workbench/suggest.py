@@ -16,7 +16,6 @@ import json
 import logging
 import re
 import time
-from typing import List, Optional
 
 from talkpipe.chatterlang import registry
 from talkpipe.llm.config import getPromptAdapter, getPromptSources
@@ -40,7 +39,7 @@ def _truthy(value, default=True) -> bool:
     return str(value).strip().lower() not in ("false", "0", "no", "off", "")
 
 
-def resolve_llm_status(settings: Optional[dict] = None):
+def resolve_llm_status(settings: dict | None = None):
     """Resolve the suggestion LLM.
 
     Returns ``((source, model), None)`` on success, or ``(None, reason)``
@@ -77,7 +76,7 @@ def resolve_llm_status(settings: Optional[dict] = None):
     return (source, model), None
 
 
-def resolve_llm(settings: Optional[dict] = None):
+def resolve_llm(settings: dict | None = None):
     """Resolve (source, model) for suggestions, or None if unavailable."""
     resolved, _ = resolve_llm_status(settings)
     return resolved
@@ -96,6 +95,7 @@ def unreachable_reason(source: str, model: str) -> str:
         return str(cause)
     if source == "ollama":
         from talkpipe.util.constants import OLLAMA_SERVER_URL
+
         url = get_config().get(OLLAMA_SERVER_URL) or "http://localhost:11434"
         return (
             f"model '{model}' not reachable at {url} — if your Ollama server "
@@ -105,11 +105,11 @@ def unreachable_reason(source: str, model: str) -> str:
     return f"model '{model}' not reachable via {source} (check credentials and connectivity)"
 
 
-_availability_cache = {}
+_availability_cache: dict[tuple[str, str], tuple[bool, float]] = {}
 # Records the exception (if any) from the most recent failed availability check,
 # so unreachable_reason can distinguish a missing dependency from a connectivity
 # problem. Kept in step with _availability_cache.
-_availability_cause = {}
+_availability_cause: dict[tuple[str, str], Exception | None] = {}
 AVAILABILITY_TTL_SECONDS = 60
 
 
@@ -120,7 +120,7 @@ def check_availability(source: str, model: str) -> bool:
     now = time.monotonic()
     if cached and now - cached[1] < AVAILABILITY_TTL_SECONDS:
         return cached[0]
-    cause = None
+    cause: Exception | None = None
     try:
         adapter = getPromptAdapter(source)(model=model)
         available = bool(adapter.is_available())
@@ -156,12 +156,11 @@ _KEYWORDS = {"INPUT", "FROM", "NEW", "CONST", "SET", "LOOP", "TIMES"}
 
 def _strip_comments(text: str) -> str:
     return "\n".join(
-        line[:line.index("#")] if "#" in line else line
-        for line in text.split("\n")
+        line[: line.index("#")] if "#" in line else line for line in text.split("\n")
     )
 
 
-def _previous_component(stmt: str) -> Optional[str]:
+def _previous_component(stmt: str) -> str | None:
     no_brackets = re.sub(r"\[[^\]]*\]?", "", stmt)
     stages = no_brackets.split("|")
     for stage in reversed(stages):
@@ -201,38 +200,56 @@ def classify_cursor(script: str, cursor_offset: int) -> dict:
                 bracket_idx = -1
     if depth > 0:
         match = re.search(r"([A-Za-z_]\w*)\s*$", stmt[:bracket_idx])
-        return {"context": "brackets",
-                "enclosing": match.group(1) if match else None,
-                "prev": None}
+        return {
+            "context": "brackets",
+            "enclosing": match.group(1) if match else None,
+            "prev": None,
+        }
 
     if re.search(r"(?:INPUT\s+FROM|NEW(?:\s+FROM)?)\s*$", stmt, re.IGNORECASE):
         return {"context": "source_position", "enclosing": None, "prev": None}
 
     if re.search(r"\|\s*$", stmt):
-        return {"context": "pipe_stage", "enclosing": None,
-                "prev": _previous_component(stmt)}
+        return {
+            "context": "pipe_stage",
+            "enclosing": None,
+            "prev": _previous_component(stmt),
+        }
 
     if stmt.strip():
-        return {"context": "after_stage", "enclosing": None,
-                "prev": _previous_component(stmt)}
+        return {
+            "context": "after_stage",
+            "enclosing": None,
+            "prev": _previous_component(stmt),
+        }
 
     return {"context": "statement_start", "enclosing": None, "prev": None}
 
 
 _CONTEXT_INSTRUCTIONS = {
-    "brackets": ('The cursor is inside the parameter brackets of \'{enclosing}\'. '
-                 'Every suggestion must have "segment" set to "{enclosing}" and '
-                 'params_hint set to parameter assignments for it, using only its '
-                 'documented parameter names.'),
-    "source_position": ("The cursor is right after INPUT FROM, so only SOURCES are "
-                        "valid here — never suggest a segment."),
-    "pipe_stage": ("The cursor is at the start of a new pipe stage, so only "
-                   "SEGMENTS are valid here — never suggest a source."),
-    "after_stage": ("The cursor is after a complete stage; the next thing will be "
-                    "piped, so only SEGMENTS are valid — never suggest a source."),
-    "statement_start": ("The cursor is at the start of a new pipeline. It must begin "
-                        "either with `INPUT FROM <source>` or with `| <segment>` "
-                        "(to read interactive user input)."),
+    "brackets": (
+        "The cursor is inside the parameter brackets of '{enclosing}'. "
+        'Every suggestion must have "segment" set to "{enclosing}" and '
+        "params_hint set to parameter assignments for it, using only its "
+        "documented parameter names."
+    ),
+    "source_position": (
+        "The cursor is right after INPUT FROM, so only SOURCES are "
+        "valid here — never suggest a segment."
+    ),
+    "pipe_stage": (
+        "The cursor is at the start of a new pipe stage, so only "
+        "SEGMENTS are valid here — never suggest a source."
+    ),
+    "after_stage": (
+        "The cursor is after a complete stage; the next thing will be "
+        "piped, so only SEGMENTS are valid — never suggest a source."
+    ),
+    "statement_start": (
+        "The cursor is at the start of a new pipeline. It must begin "
+        "either with `INPUT FROM <source>` or with `| <segment>` "
+        "(to read interactive user input)."
+    ),
 }
 
 
@@ -244,7 +261,7 @@ def _valid_types_for(context: str) -> set:
     return {"source", "segment"}
 
 
-def _component_type_of(name: str) -> Optional[str]:
+def _component_type_of(name: str) -> str | None:
     if name in registry.segment_registry.available_names:
         return "segment"
     if name in registry.input_registry.available_names:
@@ -252,8 +269,9 @@ def _component_type_of(name: str) -> Optional[str]:
     return None
 
 
-def insert_text_for(context_info: dict, name: str, params_hint: str,
-                    comp_type: Optional[str]) -> str:
+def insert_text_for(
+    context_info: dict, name: str, params_hint: str, comp_type: str | None
+) -> str:
     """The exact text to insert at the cursor for a suggestion."""
     params = f"[{params_hint}]" if params_hint else ""
     context = context_info["context"]
@@ -280,10 +298,10 @@ def _component_lines(reference: dict) -> str:
     return "\n".join(lines)
 
 
-_builtin_records_cache = None
+_builtin_records_cache: list[dict] | None = None
 
 
-def builtin_pipeline_records() -> List[dict]:
+def builtin_pipeline_records() -> list[dict]:
     """The built-in examples and seed scripts as pipeline records.
 
     Used as few-shot material when the user's workspace is empty or has
@@ -295,33 +313,36 @@ def builtin_pipeline_records() -> List[dict]:
     from talkpipe.app.chatterlang_workbench import EXAMPLE_SCRIPTS
     from talkpipe.app.workbench.corpus import SEED_SCRIPTS_DIR
 
-    records = []
-    for examples in EXAMPLE_SCRIPTS.values():
-        for example in examples:
-            records.append({
-                "name": example["name"],
-                "description": example.get("description", ""),
-                "script": example["code"],
-            })
+    records = [
+        {
+            "name": example["name"],
+            "description": example.get("description", ""),
+            "script": example["code"],
+        }
+        for examples in EXAMPLE_SCRIPTS.values()
+        for example in examples
+    ]
     if SEED_SCRIPTS_DIR.is_dir():
-        for path in sorted(SEED_SCRIPTS_DIR.glob("*.script")):
-            records.append({
+        records.extend(
+            {
                 "name": path.stem.replace("__", ": ").replace("_", " "),
                 "description": "built-in tutorial script",
                 "script": path.read_text(encoding="utf-8"),
-            })
+            }
+            for path in sorted(SEED_SCRIPTS_DIR.glob("*.script"))
+        )
     _builtin_records_cache = records
     return records
 
 
-def _rank_by_similarity(current: set, records: List[dict],
-                        limit: int) -> List[dict]:
+def _rank_by_similarity(current: set, records: list[dict], limit: int) -> list[dict]:
     from talkpipe.app.workbench.corpus import mine_script
 
     scored = []
     for record in records:
-        other = {name for chain in mine_script(record.get("script", ""))
-                 for name in chain}
+        other = {
+            name for chain in mine_script(record.get("script", "")) for name in chain
+        }
         if not other:
             continue
         score = (len(current & other) / len(current | other)) if current else 0
@@ -332,7 +353,7 @@ def _rank_by_similarity(current: set, records: List[dict],
     return [record for _, record in scored[:limit]]
 
 
-def _similar_pipelines(script: str, saved: List[dict], limit: int = 3):
+def _similar_pipelines(script: str, saved: list[dict], limit: int = 3):
     """(user_matches, builtin_fill): few-shot pipelines for the prompt.
 
     The user's own saved pipelines rank first (Jaccard similarity of
@@ -366,8 +387,9 @@ def _signature_line(comp: dict) -> str:
     return line
 
 
-def _candidate_signatures(reference: dict, context_info: dict,
-                          stats: Optional[dict], limit: int = 8) -> List[str]:
+def _candidate_signatures(
+    reference: dict, context_info: dict, stats: dict | None, limit: int = 8
+) -> list[str]:
     """Full signatures for the components most plausible at the cursor.
 
     The one-liner list gives the model breadth; these give it the parameter
@@ -382,17 +404,19 @@ def _candidate_signatures(reference: dict, context_info: dict,
         return [_signature_line(comp)] if comp else []
 
     valid_types = _valid_types_for(context)
-    ranked: List[str] = []
+    ranked: list[str] = []
     if context in ("pipe_stage", "after_stage") and stats:
         prev = context_info.get("prev")
         followers = (stats.get("bigrams") or {}).get(prev, {})
-        ranked = [name for name, _ in
-                  sorted(followers.items(), key=lambda kv: -kv[1])]
+        ranked = [name for name, _ in sorted(followers.items(), key=lambda kv: -kv[1])]
     if len(ranked) < limit and stats:
-        ranked += [name for name, _ in
-                   sorted((stats.get("starts") or {}).items(),
-                          key=lambda kv: -kv[1])
-                   if name not in ranked]
+        ranked += [
+            name
+            for name, _ in sorted(
+                (stats.get("starts") or {}).items(), key=lambda kv: -kv[1]
+            )
+            if name not in ranked
+        ]
 
     lines = []
     for name in ranked:
@@ -408,17 +432,24 @@ def _candidate_signatures(reference: dict, context_info: dict,
     return lines
 
 
-def build_prompt(script: str, cursor_offset: int, reference: dict,
-                 saved: List[dict], max_suggestions: int,
-                 stats: Optional[dict] = None,
-                 context_info: Optional[dict] = None) -> str:
+def build_prompt(
+    script: str,
+    cursor_offset: int,
+    reference: dict,
+    saved: list[dict],
+    max_suggestions: int,
+    stats: dict | None = None,
+    context_info: dict | None = None,
+) -> str:
     cursor_offset = max(0, min(cursor_offset, len(script)))
     marked = script[:cursor_offset] + "<CURSOR>" + script[cursor_offset:]
     context_info = context_info or classify_cursor(script, cursor_offset)
 
     parts = [
-        "You suggest the next component in a ChatterLang pipeline. "
-        "The user is editing the script below; <CURSOR> marks their cursor.",
+        (
+            "You suggest the next component in a ChatterLang pipeline. "
+            "The user is editing the script below; <CURSOR> marks their cursor."
+        ),
         SYNTAX_CRIB,
         "Available components:",
         _component_lines(reference),
@@ -426,30 +457,35 @@ def build_prompt(script: str, cursor_offset: int, reference: dict,
 
     signatures = _candidate_signatures(reference, context_info, stats)
     if signatures:
-        parts.append("Most likely candidates at this position, with their full "
-                     "parameter signatures (prefer these, and use only their "
-                     "documented parameter names):\n" + "\n".join(signatures))
+        parts.append(
+            "Most likely candidates at this position, with their full "
+            "parameter signatures (prefer these, and use only their "
+            "documented parameter names):\n" + "\n".join(signatures)
+        )
 
     user_matches, builtin_fill = _similar_pipelines(script, saved)
     if user_matches:
         parts.append("Pipelines this user previously saved (for style and habits):")
-        for record in user_matches:
-            parts.append(
-                f"### {record.get('name', '')}: {record.get('description', '')}\n"
-                f"{record.get('script', '')}"
-            )
+        parts.extend(
+            f"### {record.get('name', '')}: {record.get('description', '')}\n"
+            f"{record.get('script', '')}"
+            for record in user_matches
+        )
     if builtin_fill:
         parts.append("Built-in example pipelines (for reference):")
-        for record in builtin_fill:
-            parts.append(
-                f"### {record.get('name', '')}: {record.get('description', '')}\n"
-                f"{record.get('script', '')}"
-            )
+        parts.extend(
+            f"### {record.get('name', '')}: {record.get('description', '')}\n"
+            f"{record.get('script', '')}"
+            for record in builtin_fill
+        )
 
     parts.append("Current script:\n" + marked)
-    parts.append("Cursor context: " + _CONTEXT_INSTRUCTIONS[
-        context_info["context"]].format(
-            enclosing=context_info.get("enclosing") or "the component"))
+    parts.append(
+        "Cursor context: "
+        + _CONTEXT_INSTRUCTIONS[context_info["context"]].format(
+            enclosing=context_info.get("enclosing") or "the component"
+        )
+    )
     parts.append(
         f"Respond with ONLY a JSON array of at most {max_suggestions} objects, "
         'each {"segment": "<component name from the list above>", '
@@ -462,8 +498,9 @@ def build_prompt(script: str, cursor_offset: int, reference: dict,
     return "\n\n".join(parts)
 
 
-def parse_suggestions(raw: str, max_suggestions: int,
-                      context_info: Optional[dict] = None) -> List[dict]:
+def parse_suggestions(
+    raw: str, max_suggestions: int, context_info: dict | None = None
+) -> list[dict]:
     """Extract and validate the JSON array from the model output.
 
     Suggestions are dropped when the name isn't registered (hallucination)
@@ -478,13 +515,16 @@ def parse_suggestions(raw: str, max_suggestions: int,
     if not isinstance(parsed, list):
         raise ValueError("model output is not a JSON array")
 
-    context_info = context_info or {"context": "statement_start",
-                                    "enclosing": None, "prev": None}
+    context_info = context_info or {
+        "context": "statement_start",
+        "enclosing": None,
+        "prev": None,
+    }
     valid_types = _valid_types_for(context_info["context"])
     enclosing = context_info.get("enclosing")
 
     suggestions = []
-    for entry in parsed[:max_suggestions * 3]:
+    for entry in parsed[: max_suggestions * 3]:
         if not isinstance(entry, dict):
             continue
         segment = str(entry.get("segment", "")).strip()
@@ -499,37 +539,65 @@ def parse_suggestions(raw: str, max_suggestions: int,
         elif comp_type not in valid_types:
             logger.info(
                 f"Dropping {comp_type} {segment!r}: invalid in "
-                f"{context_info['context']} context")
+                f"{context_info['context']} context"
+            )
             continue
         params_hint = str(entry.get("params_hint", "") or "")
-        suggestions.append({
-            "segment": segment,
-            "type": comp_type,
-            "params_hint": params_hint,
-            "rationale": str(entry.get("rationale", "") or ""),
-            "insert": insert_text_for(context_info, segment, params_hint, comp_type),
-        })
+        suggestions.append(
+            {
+                "segment": segment,
+                "type": comp_type,
+                "params_hint": params_hint,
+                "rationale": str(entry.get("rationale", "") or ""),
+                "insert": insert_text_for(
+                    context_info, segment, params_hint, comp_type
+                ),
+            }
+        )
         if len(suggestions) >= max_suggestions:
             break
     return suggestions
 
 
-def suggest(script: str, cursor_offset: int, reference: dict,
-            saved: List[dict], settings: Optional[dict] = None,
-            max_suggestions: int = 4, stats: Optional[dict] = None) -> dict:
+def suggest(
+    script: str,
+    cursor_offset: int,
+    reference: dict,
+    saved: list[dict],
+    settings: dict | None = None,
+    max_suggestions: int = 4,
+    stats: dict | None = None,
+) -> dict:
     """Produce the /api/suggest response payload."""
     resolved, reason = resolve_llm_status(settings)
     if not resolved:
-        return {"available": False, "source": None, "model": None,
-                "suggestions": [], "error": reason}
+        return {
+            "available": False,
+            "source": None,
+            "model": None,
+            "suggestions": [],
+            "error": reason,
+        }
     source, model = resolved
     if not check_availability(source, model):
-        return {"available": False, "source": source, "model": model,
-                "suggestions": [], "error": unreachable_reason(source, model)}
+        return {
+            "available": False,
+            "source": source,
+            "model": model,
+            "suggestions": [],
+            "error": unreachable_reason(source, model),
+        }
 
     context_info = classify_cursor(script, cursor_offset)
-    prompt = build_prompt(script, cursor_offset, reference, saved,
-                          max_suggestions, stats=stats, context_info=context_info)
+    prompt = build_prompt(
+        script,
+        cursor_offset,
+        reference,
+        saved,
+        max_suggestions,
+        stats=stats,
+        context_info=context_info,
+    )
     try:
         adapter = getPromptAdapter(source)(model=model)
         # Generous cap: on "thinking" models (e.g. gemma4) the budget covers
@@ -539,13 +607,28 @@ def suggest(script: str, cursor_offset: int, reference: dict,
         )
     except Exception as e:
         logger.error(f"Suggestion LLM call failed: {e}")
-        return {"available": True, "source": source, "model": model,
-                "suggestions": [], "error": str(e)}
+        return {
+            "available": True,
+            "source": source,
+            "model": model,
+            "suggestions": [],
+            "error": str(e),
+        }
     try:
         suggestions = parse_suggestions(raw, max_suggestions, context_info)
     except (ValueError, json.JSONDecodeError) as e:
         logger.info(f"Unparseable suggestion output: {e}")
-        return {"available": True, "source": source, "model": model,
-                "suggestions": [], "error": "unparseable model output"}
-    return {"available": True, "source": source, "model": model,
-            "suggestions": suggestions, "error": None}
+        return {
+            "available": True,
+            "source": source,
+            "model": model,
+            "suggestions": [],
+            "error": "unparseable model output",
+        }
+    return {
+        "available": True,
+        "source": source,
+        "model": model,
+        "suggestions": suggestions,
+        "error": None,
+    }

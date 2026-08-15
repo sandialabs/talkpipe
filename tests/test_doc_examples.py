@@ -1,9 +1,9 @@
 """Pytest tests for documentation examples extracted from markdown."""
 
 import shutil
+from pathlib import Path
 
 import pytest
-from pathlib import Path
 
 from talkpipe.app.doc_examples import extract_all_examples, run_example
 
@@ -59,7 +59,11 @@ def _safe_test_id(path: Path, line_num: int) -> str:
 
 def pytest_generate_tests(metafunc: pytest.Metafunc) -> None:
     """Collect doc examples at collection time so new examples are picked up after doc edits."""
-    if "path" in metafunc.fixturenames and "line_num" in metafunc.fixturenames and "code" in metafunc.fixturenames:
+    if (
+        "path" in metafunc.fixturenames
+        and "line_num" in metafunc.fixturenames
+        and "code" in metafunc.fixturenames
+    ):
         examples = extract_all_examples(_project_root)
         metafunc.parametrize(
             "path,line_num,code",
@@ -69,7 +73,7 @@ def pytest_generate_tests(metafunc: pytest.Metafunc) -> None:
 
 
 @pytest.mark.requires_ollama
-def test_doc_example(requires_ollama,path: Path, line_num: int, code: str) -> None:
+def test_doc_example(requires_ollama, path: Path, line_num: int, code: str) -> None:
     """Run a documentation example. Requires Ollama for LLM examples."""
     location = f"{path}:{line_num}"
     success, exc = run_example(location, code)

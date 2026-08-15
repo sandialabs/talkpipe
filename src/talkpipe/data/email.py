@@ -1,19 +1,19 @@
-import logging
 import datetime
-import time
-import smtplib
-import imaplib
 import email
-from email.mime.text import MIMEText
-from email.mime.multipart import MIMEMultipart
+import email.utils
+import imaplib
+import logging
+import smtplib
+import time
 from email.header import decode_header
-from typing import Annotated
-from talkpipe.pipe import core
-from talkpipe.chatterlang import registry
-from talkpipe.util.config import parse_key_value_str
-from talkpipe.util.data_manipulation import extract_property
-from talkpipe.util.config import get_config
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
+from typing import Annotated, Any
 
+from talkpipe.chatterlang import registry
+from talkpipe.pipe import core
+from talkpipe.util.config import get_config, parse_key_value_str
+from talkpipe.util.data_manipulation import extract_property
 
 logger = logging.getLogger(__name__)
 
@@ -21,7 +21,17 @@ logger = logging.getLogger(__name__)
 # Email sending utility functions
 #############################################################################
 
-def send_email(sender_email, sender_password, recipient_email, subject, body, html_body=None, smtp_server='smtp.gmail.com', port=587):
+
+def send_email(
+    sender_email,
+    sender_password,
+    recipient_email,
+    subject,
+    body,
+    html_body=None,
+    smtp_server="smtp.gmail.com",
+    port=587,
+):
     """
     Send an email using SMTP protocol.
     This function sends an email using SMTP protocol with support for both plain text
@@ -36,7 +46,7 @@ def send_email(sender_email, sender_password, recipient_email, subject, body, ht
         smtp_server (str, optional): SMTP server address. Defaults to 'smtp.gmail.com'.
         port (int, optional): Port number for SMTP connection. Defaults to 587.
     Raises:
-        Exception: If email sending fails for any reason (connection issues, 
+        Exception: If email sending fails for any reason (connection issues,
                   authentication failure, etc.)
     Example:
         >>> send_email(
@@ -45,25 +55,27 @@ def send_email(sender_email, sender_password, recipient_email, subject, body, ht
         ...     "recipient@email.com",
         ...     "Hello",
         ...     "This is a test email",
-        ...     "<h1>This is a test email</h1>"
+        ...     "<h1>This is a test email</h1>",
         ... )
     """
     try:
         logger.info(f"Preparing email to {recipient_email} with subject: {subject}")
-        
+
         # Create the email
-        msg = MIMEMultipart("alternative")  # Use "alternative" to support both plain text and HTML
-        msg['From'] = sender_email
-        msg['To'] = recipient_email
-        msg['Subject'] = subject
+        msg = MIMEMultipart(
+            "alternative"
+        )  # Use "alternative" to support both plain text and HTML
+        msg["From"] = sender_email
+        msg["To"] = recipient_email
+        msg["Subject"] = subject
 
         # Attach plain text content
-        msg.attach(MIMEText(body, 'plain'))
+        msg.attach(MIMEText(body, "plain"))
         logger.debug("Attached plain text content")
 
         # Attach HTML content if provided
         if html_body:
-            msg.attach(MIMEText(html_body, 'html'))
+            msg.attach(MIMEText(html_body, "html"))
             logger.debug("Attached HTML content")
 
         # Connect to the SMTP server
@@ -76,8 +88,9 @@ def send_email(sender_email, sender_password, recipient_email, subject, body, ht
             server.send_message(msg)  # Send the email
             logger.debug("Email sent successfully")
     except Exception as e:
-        logger.error(f"Failed to send email: {str(e)}")
+        logger.error(f"Failed to send email: {e!s}")
         raise
+
 
 def item_to_html(item, body_fields):
     """
@@ -110,6 +123,7 @@ def item_to_html(item, body_fields):
         html += f"<p><b>{target}</b></p><p>{value}</p>"
     return html
 
+
 def item_to_text(item, body_fields):
     """
     Convert an item's specified fields into formatted text.
@@ -139,15 +153,26 @@ def item_to_text(item, body_fields):
         text += f"{target}: {value}\n\n"
     return text
 
+
 @registry.register_segment("sendEmail")
-@core.segment(subject_field=None, body_fields=None, sender_email=None, recipient_email=None)
-def sendEmail(items, 
-              subject_field: Annotated[str, "Field name in the item to use as email subject"], 
-              body_fields: Annotated[str, "Comma-separated list of field names to include in email body"], 
-              sender_email: Annotated[str, "Sender's email address. If None, uses config value"], 
-              recipient_email: Annotated[str, "Recipient's email address. If None, uses config value"], 
-              smtp_server: Annotated[str, "SMTP server address. Defaults to 'smtp.gmail.com'"] = None, 
-              port: Annotated[int, "SMTP server port"] = 587):
+@core.segment(
+    subject_field=None, body_fields=None, sender_email=None, recipient_email=None
+)
+def sendEmail(
+    items,
+    subject_field: Annotated[str, "Field name in the item to use as email subject"],
+    body_fields: Annotated[
+        str, "Comma-separated list of field names to include in email body"
+    ],
+    sender_email: Annotated[str, "Sender's email address. If None, uses config value"],
+    recipient_email: Annotated[
+        str, "Recipient's email address. If None, uses config value"
+    ],
+    smtp_server: Annotated[
+        str | None, "SMTP server address. Defaults to 'smtp.gmail.com'"
+    ] = None,
+    port: Annotated[int, "SMTP server port"] = 587,
+):
     """Send emails for each item in the input iterable using SMTP.
 
     This function processes a list of items and sends an email for each one, using the specified
@@ -161,8 +186,10 @@ def sendEmail(items,
         ValueError: If required fields are missing in items
 
     Example:
-        >>> items = [{'title': 'Hello', 'content': 'World'}]
-        >>> for item in sendEmail(items, 'title', ['content'], 'sender@email.com', 'recipient@email.com'):
+        >>> items = [{"title": "Hello", "content": "World"}]
+        >>> for item in sendEmail(
+        ...     items, "title", ["content"], "sender@email.com", "recipient@email.com"
+        ... ):
         ...     print(f"Processed {item}")
 
     Notes:
@@ -170,7 +197,9 @@ def sendEmail(items,
         - Supports HTML formatting in email body
         - Uses TLS encryption for email transmission
     """
-    logger.debug(f"Starting sendEmail with subject_field={subject_field}, body_fields={body_fields}")
+    logger.debug(
+        f"Starting sendEmail with subject_field={subject_field}, body_fields={body_fields}"
+    )
     if subject_field is None:
         raise ValueError("subject_field is required")
     if body_fields is None:
@@ -191,9 +220,19 @@ def sendEmail(items,
         body_html = item_to_html(item, body_fields)
         body_text = item_to_text(item, body_fields)
         logger.debug(f"Generated email with subject: {subject}")
-        send_email(sender, password, recipient, subject, body_text, body_html, _smtp_server, _port)
+        send_email(
+            sender,
+            password,
+            recipient,
+            subject,
+            body_text,
+            body_html,
+            _smtp_server,
+            _port,
+        )
         logger.debug("Email sent successfully")
         yield item
+
 
 ##############################################################################
 # Email Reading utility functions
@@ -203,91 +242,93 @@ def sendEmail(items,
 def get_email_content(msg):
     """
     Extract the content from an email message.
-    
+
     Attempts to extract both plain text and HTML content from the email.
-    
+
     Args:
         msg: An email.message.Message object
-        
+
     Returns:
         tuple: (plain_text, html_content) - Both may be None if not present
     """
     plain_text = None
     html_content = None
-    
+
     if msg.is_multipart():
         for part in msg.walk():
             content_type = part.get_content_type()
             content_disposition = str(part.get("Content-Disposition"))
-            
+
             # Skip attachments
             if "attachment" in content_disposition:
                 continue
-                
+
             # Get the payload
             try:
                 payload = part.get_payload(decode=True)
                 if payload:
-                    charset = part.get_content_charset() or 'utf-8'
-                    decoded_content = payload.decode(charset, errors='replace')
-                    
+                    charset = part.get_content_charset() or "utf-8"
+                    decoded_content = payload.decode(charset, errors="replace")
+
                     if content_type == "text/plain":
                         plain_text = decoded_content
                     elif content_type == "text/html":
                         html_content = decoded_content
             except Exception as e:
-                logger.warning(f"Error extracting email content: {str(e)}")
+                logger.warning(f"Error extracting email content: {e!s}")
     else:
         # Not multipart - get content directly
         payload = msg.get_payload(decode=True)
         if payload:
-            charset = msg.get_content_charset() or 'utf-8'
-            decoded_content = payload.decode(charset, errors='replace')
-            
+            charset = msg.get_content_charset() or "utf-8"
+            decoded_content = payload.decode(charset, errors="replace")
+
             content_type = msg.get_content_type()
             if content_type == "text/plain":
                 plain_text = decoded_content
             elif content_type == "text/html":
                 html_content = decoded_content
-    
+
     return plain_text, html_content
+
 
 def decode_email_header(header_value):
     """
     Decode an email header which might be encoded.
-    
+
     Args:
         header_value: The header value to decode
-        
+
     Returns:
         str: The decoded header value
     """
     if not header_value:
         return ""
-        
+
     decoded_parts = []
     for value, encoding in decode_header(header_value):
         if isinstance(value, bytes):
             if encoding:
-                value = value.decode(encoding, errors='replace')
+                value = value.decode(encoding, errors="replace")
             else:
-                value = value.decode('utf-8', errors='replace')
+                value = value.decode("utf-8", errors="replace")
         decoded_parts.append(value)
-    
+
     return " ".join(decoded_parts)
 
+
 def fetch_emails(
-    imap_server, 
-    email_address, 
-    password, 
-    folder='INBOX', 
+    imap_server,
+    email_address,
+    password,
+    folder="INBOX",
     unseen_only=True,
     mark_as_read=True,
-    limit=100
+    limit=100,
 ):
     """
     Fetch unread emails from the specified IMAP server.
-    
+
     Args:
         imap_server (str): IMAP server address
         email_address (str): Email address
@@ -295,7 +336,7 @@ def fetch_emails(
         folder (str, optional): Mailbox folder to fetch from. Defaults to 'INBOX'.
         mark_as_read (bool, optional): Whether to mark emails as read. Defaults to True.
         limit (int, optional): Maximum number of emails to fetch. Defaults to 10.
-        
+
     Yields:
         dict: Email metadata and content
     """
@@ -304,17 +345,17 @@ def fetch_emails(
         # Connect to IMAP server
         mail = imaplib.IMAP4_SSL(imap_server)
         mail.login(email_address, password)
-        
+
         # Select the mailbox
         mail.select(folder)
-        
+
         # Search for emails
         logger.debug("Searching for emails")
         status, data = mail.search(None, "UNSEEN" if unseen_only else "ALL")
-        if status != 'OK':
+        if status != "OK":
             logger.error(f"Failed to search emails: {status}")
             return
-            
+
         # Get the list of unread email IDs
         email_ids = data[0].split()
         if not email_ids:
@@ -322,85 +363,102 @@ def fetch_emails(
             mail.close()
             mail.logout()
             return
-            
+
         # Limit the number of emails to process unless limit is -1
         email_ids = email_ids[:limit] if limit > 0 else email_ids
-        
+
         for email_id in email_ids:
             # Fetch the email data
-            status, data = mail.fetch(email_id, '(RFC822)')
-            if status != 'OK':
+            status, data = mail.fetch(email_id, "(RFC822)")
+            if status != "OK":
                 logger.error(f"Failed to fetch email {email_id}: {status}")
                 continue
-                
-            # Parse the email
-            raw_email = data[0][1]
+
+            # Parse the email. imaplib types the response as a loose union; an
+            # RFC822 fetch yields (envelope, message-bytes) tuples.
+            fetched: Any = data[0]
+            raw_email: bytes = fetched[1]
             msg = email.message_from_bytes(raw_email)
-            
+
             # Extract metadata
-            message_id = msg.get('Message-ID', '')
-            subject = decode_email_header(msg.get('Subject', ''))
-            from_addr = decode_email_header(msg.get('From', ''))
-            to_addr = decode_email_header(msg.get('To', ''))
-            cc_addr = decode_email_header(msg.get('Cc', ''))
-            date_str = msg.get('Date', '')
-            
+            message_id = msg.get("Message-ID", "")
+            subject = decode_email_header(msg.get("Subject", ""))
+            from_addr = decode_email_header(msg.get("From", ""))
+            to_addr = decode_email_header(msg.get("To", ""))
+            cc_addr = decode_email_header(msg.get("Cc", ""))
+            date_str = msg.get("Date", "")
+
             try:
                 date_obj = email.utils.parsedate_to_datetime(date_str)
             except Exception as e:
-                logger.warning(f"Failed to parse email date '{date_str}': {e}. Using current time.")
+                logger.warning(
+                    f"Failed to parse email date '{date_str}': {e}. Using current time."
+                )
                 date_obj = datetime.datetime.now()
-            
+
             # Extract content
             plain_text, html_content = get_email_content(msg)
-            
+
             # Create email object
             email_obj = {
-                'message_id': message_id,
-                'subject': subject,
-                'from': from_addr,
-                'to': to_addr,
-                'cc': cc_addr,
-                'date': date_obj,
-                'date_str': date_str,
-                'plain_text': plain_text,
-                'html_content': html_content,
-                'headers': dict(msg.items()),
-                'raw_email': raw_email.decode('utf-8', errors='replace')
+                "message_id": message_id,
+                "subject": subject,
+                "from": from_addr,
+                "to": to_addr,
+                "cc": cc_addr,
+                "date": date_obj,
+                "date_str": date_str,
+                "plain_text": plain_text,
+                "html_content": html_content,
+                "headers": dict(msg.items()),
+                "raw_email": raw_email.decode("utf-8", errors="replace"),
             }
-            
+
             # If mark_as_read is True, mark the email as read
             if mark_as_read:
-                mail.store(email_id, '+FLAGS', '\\Seen')
+                mail.store(email_id, "+FLAGS", "\\Seen")
                 logger.debug(f"Marked email {email_id} as read")
-            
+
             yield email_obj
-            
+
         # Close the connection
         mail.close()
         mail.logout()
         logger.debug("Disconnected from IMAP server")
-        
+
     except Exception as e:
-        logger.error(f"Error fetching emails: {str(e)}")
+        logger.error(f"Error fetching emails: {e!s}")
         raise
 
+
 @registry.register_source("readEmail")
-@core.source(poll_interval_minutes=10, folder='INBOX', mark_as_read=True, limit=100, unseen_only=True)
-def readEmail(poll_interval_minutes: Annotated[int, "Minutes between email checks"] = 10, 
-              folder: Annotated[str, "Mailbox folder to check"] = 'INBOX', 
-              mark_as_read: Annotated[bool, "Whether to mark emails as read"] = True, 
-              limit: Annotated[int, "Maximum number of emails to fetch per check. If -1, fetch all"] = 100, 
-              unseen_only: Annotated[bool, "Whether to only fetch unseen emails"] = True,
-              imap_server: Annotated[str, "IMAP server address. If None, uses config"] = None, 
-              email_address: Annotated[str, "Email address. If None, uses config"] = None, 
-              password: Annotated[str, "Password. If None, uses config"] = None):
+@core.source(
+    poll_interval_minutes=10,
+    folder="INBOX",
+    mark_as_read=True,
+    limit=100,
+    unseen_only=True,
+)
+def readEmail(
+    poll_interval_minutes: Annotated[int, "Minutes between email checks"] = 10,
+    folder: Annotated[str, "Mailbox folder to check"] = "INBOX",
+    mark_as_read: Annotated[bool, "Whether to mark emails as read"] = True,
+    limit: Annotated[
+        int, "Maximum number of emails to fetch per check. If -1, fetch all"
+    ] = 100,
+    unseen_only: Annotated[bool, "Whether to only fetch unseen emails"] = True,
+    imap_server: Annotated[
+        str | None, "IMAP server address. If None, uses config"
+    ] = None,
+    email_address: Annotated[str | None, "Email address. If None, uses config"] = None,
+    password: Annotated[str | None, "Password. If None, uses config"] = None,
+):
     """A source that monitors an email inbox and yields new unread emails.
-    
+
     This source periodically checks for new unread emails, marks them as read,
     and yields their content and metadata. It connects using IMAP and can be
     configured to poll at specific intervals.
-        
+
     Yields:
         dict: Email metadata and content including:
             - message_id: Unique message ID
@@ -419,35 +477,48 @@ def readEmail(poll_interval_minutes: Annotated[int, "Minutes between email check
     _imap_server = imap_server or config.get("imap_server")
     _email_address = email_address or config.get("email_address")
     _password = password or config.get("email_password")
-    
+
     if not _imap_server or not _email_address or not _password:
-        error_msg = "Missing configuration for email. Need imap_server, email_address, and email_password.  Currently have (%s)" % [str((_imap_server, _email_address, "NONE" if _password is None else "Not shown"))]
+        error_msg = (
+            "Missing configuration for email. Need imap_server, email_address, and email_password.  Currently have (%s)"
+            % [
+                str(
+                    (
+                        _imap_server,
+                        _email_address,
+                        "NONE" if _password is None else "Not shown",
+                    )
+                )
+            ]
+        )
         logger.error(error_msg)
         raise ValueError(error_msg)
-        
-    logger.info(f"Starting email monitor for {_email_address} with poll interval of {poll_interval_minutes} minutes")
-    
+
+    logger.info(
+        f"Starting email monitor for {_email_address} with poll interval of {poll_interval_minutes} minutes"
+    )
+
     while True:
         try:
             # Fetch and yield unread emails
             yield from fetch_emails(
-                _imap_server, 
-                _email_address, 
-                _password, 
+                _imap_server,
+                _email_address,
+                _password,
                 folder=folder,
                 mark_as_read=mark_as_read,
                 limit=limit,
-                unseen_only=unseen_only
+                unseen_only=unseen_only,
             )
-            
+
         except Exception as e:
-            logger.error(f"Error in email check: {str(e)}")
-            
+            logger.error(f"Error in email check: {e!s}")
+
         # If poll_interval_minutes is -1, only check once
         if poll_interval_minutes == -1:
             logger.info("Single email check completed, stopping")
             break
-            
+
         # Wait for the next poll interval
         logger.debug(f"Waiting {poll_interval_minutes} minutes until next email check")
         time.sleep(poll_interval_minutes * 60)

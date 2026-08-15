@@ -1,28 +1,31 @@
-from talkpipe.util.data_manipulation import extract_property
 from talkpipe.chatterlang import register_segment
 from talkpipe.pipe import field_segment
+from talkpipe.util.data_manipulation import extract_property
+
 
 @register_segment("executiveSummaryPrompt")
 @field_segment()
 def executive_summary_prompt_segment(item):
     """
     Segment for creating a specialized prompt for executive summary generation.
-    
+
     This segment formats the input item into a prompt that generates professional
     executive summaries with structured sections including key findings, technology
     highlights, and strategic implications.
     """
     topic = extract_property(item, "topic", fail_on_missing=True)
     results = extract_property(item, "results", fail_on_missing=True)
-    
-    # Create context from retrieved documents
-    context_text = "\n\n".join([
-        f"Title: {result.document['title']}\nContent: {result.document['content']}" 
-        for result in results
-    ])
 
-    ans = f"""
-    You are a professional business analyst and technical writer. Your task is to create 
+    # Create context from retrieved documents
+    context_text = "\n\n".join(
+        [
+            f"Title: {result.document['title']}\nContent: {result.document['content']}"
+            for result in results
+        ]
+    )
+
+    return f"""
+    You are a professional business analyst and technical writer. Your task is to create
     a comprehensive executive summary based on the provided documents about: {topic}
 
     Please create an executive summary with the following structure:
@@ -30,18 +33,18 @@ def executive_summary_prompt_segment(item):
     # Executive Summary: {topic}
 
     ## Executive Overview
-    Provide a 2-3 paragraph high-level synthesis of the key themes and most important 
-    insights from the source documents. This should be suitable for C-level executives 
+    Provide a 2-3 paragraph high-level synthesis of the key themes and most important
+    insights from the source documents. This should be suitable for C-level executives
     who need to understand the strategic implications quickly.
 
     ## Key Findings
-    List 4-6 bullet points highlighting the most critical discoveries, developments, 
-    or insights from the analyzed documents. Focus on findings that have business 
+    List 4-6 bullet points highlighting the most critical discoveries, developments,
+    or insights from the analyzed documents. Focus on findings that have business
     or strategic relevance.
 
     ## Technology Highlights
-    Identify and briefly describe the specific technologies, innovations, or technical 
-    developments mentioned in the source material. Include both current implementations 
+    Identify and briefly describe the specific technologies, innovations, or technical
+    developments mentioned in the source material. Include both current implementations
     and emerging trends.
 
     ## Strategic Implications
@@ -63,8 +66,6 @@ def executive_summary_prompt_segment(item):
 
     Source Documents:
     {context_text}
-    
+
     Topic for Analysis: {topic}
     """
-
-    return ans

@@ -3,20 +3,30 @@
 Provides fixtures for both real MongoDB testing and mocked testing.
 """
 
-import pytest
 import logging
 import os
-from talkpipe.llm.prompt_adapters import OllamaPromptAdapter, OpenAIPromptAdapter
-from pymongo import MongoClient
+
 import mongomock
-import unittest.mock
+import pytest
+from pymongo import MongoClient
+
+from talkpipe.llm.prompt_adapters import OllamaPromptAdapter, OpenAIPromptAdapter
+
+# Shared fixtures (monkeypatched_env, patch_get_config, ...) live in
+# tests/testutils.py; registering it as a plugin makes them available
+# everywhere without per-file imports that shadow the fixture parameters.
+pytest_plugins = ["testutils"]
 
 logger = logging.getLogger(__name__)
 
 # Constants for testing
 TEST_DB_NAME = "talkpipe_test_db"
 TEST_COLLECTION = "test_collection"
-TEST_CONNECTION_STRING = os.environ.get("TALKPIPE_mongo_connection_string")
+# The lowercase name is what the mongo integration tests read directly from
+# the environment (talkpipe's own config lookup is case-insensitive, but this
+# os.environ.get is not), so keep it as-is to avoid changing behaviour.
+TEST_CONNECTION_STRING = os.environ.get("TALKPIPE_mongo_connection_string")  # noqa: SIM112
+
 
 def pytest_configure(config):
     """Check if the test is running online."""
@@ -25,7 +35,7 @@ def pytest_configure(config):
     config.is_mongodb_available = False
     config.is_openai_available = False
     config.is_package_installed = False
-    
+
     # Check if Ollama is available
     ollama_adapter = OllamaPromptAdapter("llama3.2", temperature=0.0)
     if ollama_adapter.is_available():
@@ -34,7 +44,7 @@ def pytest_configure(config):
     else:
         config.is_ollama_available = False
         logger.warning("Ollama is not available. Skipping tests that require it.")
-    
+
     # Check if MongoDB is available
     try:
         client = MongoClient(TEST_CONNECTION_STRING, serverSelectionTimeoutMS=2000)
@@ -44,7 +54,9 @@ def pytest_configure(config):
         client.close()
     except Exception as e:
         config.is_mongodb_available = False
-        logger.warning(f"MongoDB is not available: {e}.  Skipping tests that require it.")
+        logger.warning(
+            f"MongoDB is not available: {e}.  Skipping tests that require it."
+        )
 
     # Check if OpenAI is available (if needed in future)
     try:
@@ -62,13 +74,18 @@ def pytest_configure(config):
     # Check if Anthropic is available (if needed in future)
     try:
         from talkpipe.llm.prompt_adapters import AnthropicPromptAdapter
-        anthropic_adapter = AnthropicPromptAdapter("claude-3-5-haiku-latest", temperature=0.0)
+
+        anthropic_adapter = AnthropicPromptAdapter(
+            "claude-3-5-haiku-latest", temperature=0.0
+        )
         if anthropic_adapter.is_available():
             config.is_anthropic_available = True
             logger.warning("Anthropic is available.")
         else:
             config.is_anthropic_available = False
-            logger.warning("Anthropic is not available. Skipping tests that require it.")
+            logger.warning(
+                "Anthropic is not available. Skipping tests that require it."
+            )
     except Exception as e:
         config.is_anthropic_available = False
         logger.warning(f"Anthropic check failed: {e}. Skipping tests that require it.")
@@ -76,26 +93,34 @@ def pytest_configure(config):
     # Check if the package is installed (has entry points registered)
     try:
         from importlib.metadata import entry_points
+
         eps = entry_points()
 
-        segment_eps = list(eps.select(group='talkpipe.segments'))
-        source_eps = list(eps.select(group='talkpipe.sources'))
+        segment_eps = list(eps.select(group="talkpipe.segments"))
+        source_eps = list(eps.select(group="talkpipe.sources"))
 
         if segment_eps or source_eps:
             config.is_package_installed = True
-            logger.warning(f"TalkPipe package is installed with {len(segment_eps)} segments and {len(source_eps)} sources registered.")
+            logger.warning(
+                f"TalkPipe package is installed with {len(segment_eps)} segments and {len(source_eps)} sources registered."
+            )
         else:
             config.is_package_installed = False
-            logger.warning("TalkPipe package is not installed (no entry points found). Skipping tests that require it. Run 'pip install -e .' to enable these tests.")
+            logger.warning(
+                "TalkPipe package is not installed (no entry points found). Skipping tests that require it. Run 'pip install -e .' to enable these tests."
+            )
     except Exception as e:
         config.is_package_installed = False
-        logger.warning(f"Could not check package installation: {e}. Skipping tests that require it.")
+        logger.warning(
+            f"Could not check package installation: {e}. Skipping tests that require it."
+        )
+
 
 @pytest.fixture
 def requires_mongodb(request):
     """
     Fixture that skips tests if MongoDB is not available.
-    
+
     Usage:
         def test_something(requires_mongodb):
             # This test will be skipped if MongoDB is not available
@@ -110,21 +135,24 @@ def requires_mongodb(request):
 def requires_ollama(request):
     """
     Fixture that skips tests if Ollama is not available.
-    
+
     Usage:
         def test_something(requires_ollama):
             # This test will be skipped if Ollama is not available
             ...
     """
     if not request.config.is_ollama_available:
-        pytest.skip("Test requires Ollama with llama3.2, but this model or the server is not available")
+        pytest.skip(
+            "Test requires Ollama with llama3.2, but this model or the server is not available"
+        )
     return True
+
 
 @pytest.fixture
 def requires_anthropic(request):
     """
     Fixture that skips tests if Anthropic is not available.
-    
+
     Usage:
         def test_something(requires_anthropic):
             # This test will be skipped if Anthropic is not available
@@ -133,6 +161,7 @@ def requires_anthropic(request):
     if not request.config.is_anthropic_available:
         pytest.skip("Test requires Anthropic, but Anthropic is not available")
     return True
+
 
 @pytest.fixture
 def requires_openai(request):
@@ -148,6 +177,7 @@ def requires_openai(request):
         pytest.skip("Test requires OpenAI, but OpenAI is not available")
     return True
 
+
 @pytest.fixture
 def requires_package_installed(request):
     """
@@ -159,14 +189,17 @@ def requires_package_installed(request):
             ...
     """
     if not request.config.is_package_installed:
-        pytest.skip("Test requires TalkPipe to be installed with entry points. Run 'pip install -e .' to enable this test.")
+        pytest.skip(
+            "Test requires TalkPipe to be installed with entry points. Run 'pip install -e .' to enable this test."
+        )
     return True
+
 
 @pytest.fixture(scope="class")
 def requires_mongodb_class(request):
     """
     Class-level fixture that skips all tests in a class if MongoDB is not available.
-    
+
     Usage:
         @pytest.mark.usefixtures("requires_mongodb_class")
         class TestSomething:
@@ -178,23 +211,25 @@ def requires_mongodb_class(request):
         pytest.skip("Test class requires MongoDB, but MongoDB is not available")
     return True
 
-@pytest.fixture(scope="function")
+
+@pytest.fixture
 def mongodb_client():
     """Create a real MongoDB client for integration tests.
-    
+
     This fixture should be used when you want to test against a real MongoDB instance.
     """
     try:
         from pymongo import MongoClient
+
         client = MongoClient(TEST_CONNECTION_STRING, serverSelectionTimeoutMS=2000)
         # Test connection - will raise if MongoDB is not available
         client.server_info()
-        
+
         # Drop test database if it exists (clean start)
         client.drop_database(TEST_DB_NAME)
-        
+
         yield client
-        
+
         # Teardown - drop test database and close connection
         client.drop_database(TEST_DB_NAME)
         client.close()
@@ -202,27 +237,26 @@ def mongodb_client():
         pytest.skip(f"Skipping test with real MongoDB: {e}")
 
 
-
-@pytest.fixture(scope="function")
+@pytest.fixture
 def mock_mongodb_client():
     """Create a mock MongoDB client using mongomock.
-    
+
     This fixture should be used for pure unit tests that don't require a real MongoDB.
     """
-    client = mongomock.MongoClient()
-    yield client
+    return mongomock.MongoClient()
 
 
 @pytest.fixture
 def patch_mongo_client(monkeypatch):
     """Patch MongoClient to use mongomock for all tests in a module.
-    
+
     Use this fixture at the module level to make all tests use mongomock instead
     of real MongoDB connections, no matter how they're created.
     """
+
     def mock_mongo_client(*args, **kwargs):
         return mongomock.MongoClient()
-    
+
     monkeypatch.setattr("pymongo.MongoClient", mock_mongo_client)
     return mock_mongo_client
 
@@ -230,13 +264,12 @@ def patch_mongo_client(monkeypatch):
 @pytest.fixture
 def config_with_mongo_connection(monkeypatch):
     """Set up configuration with MongoDB connection string.
-    
+
     This fixture mocks the configuration to include the MongoDB connection string.
     """
+
     def mock_get_config():
-        return {
-            "mongo_connection_string": TEST_CONNECTION_STRING
-        }
-    
+        return {"mongo_connection_string": TEST_CONNECTION_STRING}
+
     monkeypatch.setattr("talkpipe.util.config.get_config", mock_get_config)
     return mock_get_config

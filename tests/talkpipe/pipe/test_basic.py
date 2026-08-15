@@ -1,18 +1,18 @@
-import pytest
-import sys
-import pandas as pd
-from talkpipe.pipe import basic
-import talkpipe.pipe.io
-from talkpipe.chatterlang import compiler
 import logging
+import sys
+from typing import ClassVar
+
+import pandas as pd
+import pytest
 from pydantic import BaseModel
 
-"""Unit tests for the DiagPrint segment."""
-
-import pytest
+import talkpipe.pipe.io
 from talkpipe import compile
+from talkpipe.chatterlang import compiler
+from talkpipe.pipe import basic
 
 
+# Unit tests for the DiagPrint segment.
 class TestDiagPrint:
     """Test suite for DiagPrint segment."""
 
@@ -127,7 +127,9 @@ class TestDiagPrint:
         """Test logger output with field_list parameter."""
         items = [{"name": "Alice", "age": 30}]
         with caplog.at_level(logging.DEBUG, logger="test.diagprint.fields"):
-            pipeline = basic.DiagPrint(output="test.diagprint.fields", field_list="name,age")
+            pipeline = basic.DiagPrint(
+                output="test.diagprint.fields", field_list="name,age"
+            )
             result = list(pipeline(items))
 
         assert result == items
@@ -140,7 +142,9 @@ class TestDiagPrint:
         """Test logger output with expression parameter."""
         items = [5]
         with caplog.at_level(logging.WARNING, logger="test.diagprint.expr"):
-            pipeline = basic.DiagPrint(output="test.diagprint.expr", level="WARNING", expression="item * 3")
+            pipeline = basic.DiagPrint(
+                output="test.diagprint.expr", level="WARNING", expression="item * 3"
+            )
             result = list(pipeline(items))
 
         assert result == items
@@ -204,6 +208,7 @@ def test_progressTicks_basic(capsys):
     assert "****\n" in captured.err
     assert "\n" in captured.err
 
+
 def test_progressTicks_with_print_count(capsys):
     # Should print tick and count at end of line
     t = basic.progressTicks(tick=".", tick_count=1, eol_count=3, print_count=True)
@@ -214,6 +219,7 @@ def test_progressTicks_with_print_count(capsys):
     # Should print 3 dots, then '3', newline, then 3 dots, '6', newline
     assert "...3\n" in captured.err
     assert "...6\n" in captured.err
+
 
 def test_firstN():
     f = basic.firstN(n=3)
@@ -229,6 +235,7 @@ def test_firstN():
     ans = list(f([{"x": 1}]))
     assert ans == [{"x": 1}]
 
+
 def test_print_segment(capsys):
     op = talkpipe.pipe.io.Print()
     assert list(op.transform([42, 43, 44])) == [42, 43, 44]
@@ -240,10 +247,14 @@ def test_print_segment(capsys):
     captured = capsys.readouterr()
     assert captured.out == "42\n"
 
+
 def test_DescribeDataSegment():
     ddt = basic.DescribeData()
     assert list(ddt.transform([1])) == [[]]
-    assert list(ddt.transform([{"key": "value", "key2": {"ka": "va", "kb": "vb"}}])) == [["key", {"key2": ["ka", "kb"]}]]
+    assert list(
+        ddt.transform([{"key": "value", "key2": {"ka": "va", "kb": "vb"}}])
+    ) == [["key", {"key2": ["ka", "kb"]}]]
+
 
 def test_CastSegment():
     ct = basic.Cast(str)
@@ -252,14 +263,15 @@ def test_CastSegment():
 
     ct = basic.Cast(float)
     assert list(ct.transform([1])) == [1.0]
-    assert list(ct.transform([1,2])) == [1.0, 2.0]
+    assert list(ct.transform([1, 2])) == [1.0, 2.0]
 
     ct = basic.Cast("str")
     assert list(ct.transform([1])) == ["1"]
 
+
 class TestExtractProperty:
-    a_dict = {"key": "value"}
-    a_list = ["a", "b", "c"]
+    a_dict: ClassVar[dict[str, str]] = {"key": "value"}
+    a_list: ClassVar[list[str]] = ["a", "b", "c"]
 
     @property
     def a_property(self):
@@ -267,6 +279,7 @@ class TestExtractProperty:
 
     def a_func(self):
         return "a_result"
+
 
 def test_extractProperty():
     # Test extracting from a dictionary
@@ -346,18 +359,23 @@ def test_extractProperty():
     result = e({"name": "David", "age": 35})
     assert result == {"name": "David", "age": 35, "extracted_name": "David"}
 
+
 def test_MakeDictSegment():
     mdt = basic.ToDict()
     assert list(mdt.transform(["Hello"])) == [{"original": "Hello"}]
 
     mdt = basic.ToDict(field_list="_,2:middle", fail_on_missing=True)
-    assert list(mdt.transform([[3,4,5,6,7]])) == [{"original": [3,4,5,6,7], "middle": 5}]
+    assert list(mdt.transform([[3, 4, 5, 6, 7]])) == [
+        {"original": [3, 4, 5, 6, 7], "middle": 5}
+    ]
+
 
 def test_setAs():
     aa = basic.setAs(field_list="a:A,b,c.2:D")
     aa = aa.as_function(single_in=True, single_out=True)
-    ans = aa({"a": 1, "b": 2, "c": [3,4,5]})
-    assert ans == {"a": 1, "b": 2, "c": [3,4,5], "A": 1, "D": 5}
+    ans = aa({"a": 1, "b": 2, "c": [3, 4, 5]})
+    assert ans == {"a": 1, "b": 2, "c": [3, 4, 5], "A": 1, "D": 5}
+
 
 def test_setAs_with_pydantic():
     """Test that setAs works with pydantic objects"""
@@ -397,13 +415,15 @@ def test_MakeDataFrameSegment():
     assert list(df["a"]) == [1, 3]
     assert list(df["b"]) == [2, 4]
 
+
 def test_MakeListSegment():
     mdt = basic.ToList()
-    assert list(mdt.transform([1,2,3])) == [[1,2,3]]
+    assert list(mdt.transform([1, 2, 3])) == [[1, 2, 3]]
+
 
 def test_exec_command():
     # Use a cross-platform command that's almost guaranteed to exist
-    if sys.platform.startswith('win'):
+    if sys.platform.startswith("win"):
         # Windows-specific command
         command = "echo Hello, World!"
     else:
@@ -414,7 +434,7 @@ def test_exec_command():
     ans = e()
     assert list(ans) == ["Hello, World!"]
 
-    if sys.platform.startswith('win'):
+    if sys.platform.startswith("win"):
         # Windows: use dir to list files
         command = "dir"
     else:
@@ -424,17 +444,17 @@ def test_exec_command():
     e = compiler.compile('INPUT FROM exec[command="' + command + '"] | print')
     ans = e()
     assert len(list(ans)) > 0
-    
+
+
 def each_char(s):
-    for c in s:
-        yield c
+    yield from s
+
 
 def test_concat():
     c = basic.concat(fields="a,b")
     c = c.as_function(single_in=True, single_out=True)
     ans = c({"a": "x", "b": "y"})
     assert ans == "x\n\ny"
-
 
     c = basic.concat(fields="a,b", delimiter="")
     c = c.as_function(single_in=True, single_out=True)
@@ -451,6 +471,7 @@ def test_concat():
 
     ans = c({"a": "x", "b": "y", "c": "z"})
     assert ans == "x|y"
+
 
 def test_slice():
     s = basic.slice()
@@ -488,78 +509,146 @@ def test_slice():
     ans = s({"x": "abcdef"})
     assert ans == {"x": "abcdef", "y": "ab"}
 
-def test_isIn():
-    i = basic.isIn(field = "_", value=1)
-    i = i.as_function(single_in=True, single_out=False)
-    assert list(i([1,2,3]))
-    assert list(i([5,1,5]))
-    assert len(list(i([2,3,4])))==0
 
-    i = basic.isIn(field = "_", value=1, as_filter=False)
+def test_isIn():
+    i = basic.isIn(field="_", value=1)
     i = i.as_function(single_in=True, single_out=False)
-    assert list(i([1,2,3])) == [True]
+    assert list(i([1, 2, 3]))
+    assert list(i([5, 1, 5]))
+    assert len(list(i([2, 3, 4]))) == 0
+
+    i = basic.isIn(field="_", value=1, as_filter=False)
+    i = i.as_function(single_in=True, single_out=False)
+    assert list(i([1, 2, 3])) == [True]
 
     i = basic.isIn(value=1, field="x", set_as="y", as_filter=False)
     i = i.as_function(single_in=True, single_out=True)
-    assert i({'x': [1,2,3]}) == {"x": [1,2,3], "y": True}
+    assert i({"x": [1, 2, 3]}) == {"x": [1, 2, 3], "y": True}
+
 
 def test_isNotIn():
-    i = basic.isNotIn(field = "_", value=1)
+    i = basic.isNotIn(field="_", value=1)
     i = i.as_function(single_in=True, single_out=False)
-    assert len(list(i([1,2,3])))==0
-    assert len(list(i([5,1,5])))==0
-    assert len(list(i([2,3,4])))==1
+    assert len(list(i([1, 2, 3]))) == 0
+    assert len(list(i([5, 1, 5]))) == 0
+    assert len(list(i([2, 3, 4]))) == 1
 
-    i = basic.isNotIn(field = "_", value=1, as_filter=False)
+    i = basic.isNotIn(field="_", value=1, as_filter=False)
     i = i.as_function(single_in=True, single_out=False)
-    assert list(i([1,2,3])) == [False]
+    assert list(i([1, 2, 3])) == [False]
 
     i = basic.isNotIn(value=1, field="x", set_as="y", as_filter=False)
     i = i.as_function(single_in=True, single_out=True)
-    assert i({'x': [1,2,3]}) == {"x": [1,2,3], "y": False}
+    assert i({"x": [1, 2, 3]}) == {"x": [1, 2, 3], "y": False}
 
 
 def test_isTrue():
-    i = basic.isTrue(field = "_", as_filter=True)
+    i = basic.isTrue(field="_", as_filter=True)
     i = i.as_function(single_in=False, single_out=False)
-    ans = list(i([1,0,None,True,False,"","Hello"]))
+    ans = list(i([1, 0, None, True, False, "", "Hello"]))
     assert ans == [1, True, "Hello"]
 
-    i = basic.isTrue(field = "_", as_filter=False)
+    i = basic.isTrue(field="_", as_filter=False)
     i = i.as_function(single_in=False, single_out=False)
-    ans = list(i([1,0,None,True,False,"","Hello"]))
+    ans = list(i([1, 0, None, True, False, "", "Hello"]))
     assert ans == [True, False, False, True, False, False, True]
 
-    i = basic.isTrue(field = "x", as_filter=True)
+    i = basic.isTrue(field="x", as_filter=True)
     i = i.as_function(single_in=False, single_out=False)
-    ans = list(i([{"x": 1}, {"x": 0}, {"x": None}, {"x": True}, {"x": False}, {"x": ""}, {"x": "Hello"}]))
+    ans = list(
+        i(
+            [
+                {"x": 1},
+                {"x": 0},
+                {"x": None},
+                {"x": True},
+                {"x": False},
+                {"x": ""},
+                {"x": "Hello"},
+            ]
+        )
+    )
     assert ans == [{"x": 1}, {"x": True}, {"x": "Hello"}]
 
-    i = basic.isTrue(field = "x", as_filter=False, set_as="y")
+    i = basic.isTrue(field="x", as_filter=False, set_as="y")
     i = i.as_function(single_in=False, single_out=False)
-    ans = list(i([{"x": 1}, {"x": 0}, {"x": None}, {"x": True}, {"x": False}, {"x": ""}, {"x": "Hello"}]))
-    assert ans == [{"x": 1, "y": True}, {"x": 0, "y": False}, {"x": None, "y": False}, {"x": True, "y": True}, {"x": False, "y": False}, {"x": "", "y": False}, {"x": "Hello", "y": True}]  
+    ans = list(
+        i(
+            [
+                {"x": 1},
+                {"x": 0},
+                {"x": None},
+                {"x": True},
+                {"x": False},
+                {"x": ""},
+                {"x": "Hello"},
+            ]
+        )
+    )
+    assert ans == [
+        {"x": 1, "y": True},
+        {"x": 0, "y": False},
+        {"x": None, "y": False},
+        {"x": True, "y": True},
+        {"x": False, "y": False},
+        {"x": "", "y": False},
+        {"x": "Hello", "y": True},
+    ]
+
 
 def test_isFalse():
-    i = basic.isFalse(field = "_", as_filter=True)
+    i = basic.isFalse(field="_", as_filter=True)
     i = i.as_function(single_in=False, single_out=False)
-    ans = list(i([1,0,None,True,False,"","Hello"]))
+    ans = list(i([1, 0, None, True, False, "", "Hello"]))
     assert ans == [0, None, False, ""]
 
-    i = basic.isFalse(field = "_", as_filter=False)
+    i = basic.isFalse(field="_", as_filter=False)
     i = i.as_function(single_in=False, single_out=False)
-    ans = list(i([1,0,None,True,False,"","Hello"]))
+    ans = list(i([1, 0, None, True, False, "", "Hello"]))
     assert ans == [False, True, True, False, True, True, False]
 
-    i = basic.isFalse(field = "x", as_filter=True)
+    i = basic.isFalse(field="x", as_filter=True)
     i = i.as_function(single_in=False, single_out=False)
-    ans = list(i([{"x": 1}, {"x": 0}, {"x": None}, {"x": True}, {"x": False}, {"x": ""}, {"x": "Hello"}]))
+    ans = list(
+        i(
+            [
+                {"x": 1},
+                {"x": 0},
+                {"x": None},
+                {"x": True},
+                {"x": False},
+                {"x": ""},
+                {"x": "Hello"},
+            ]
+        )
+    )
     assert ans == [{"x": 0}, {"x": None}, {"x": False}, {"x": ""}]
 
-    i = basic.isFalse(field = "x", as_filter=False, set_as="y")
+    i = basic.isFalse(field="x", as_filter=False, set_as="y")
     i = i.as_function(single_in=False, single_out=False)
-    ans = list(i([{"x": 1}, {"x": 0}, {"x": None}, {"x": True}, {"x": False}, {"x": ""}, {"x": "Hello"}]))
-    assert ans == [{"x": 1, "y": False}, {"x": 0, "y": True}, {"x": None, "y": True}, {"x": True, "y": False}, {"x": False, "y": True}, {"x": "", "y": True}, {"x": "Hello", "y": False}]
+    ans = list(
+        i(
+            [
+                {"x": 1},
+                {"x": 0},
+                {"x": None},
+                {"x": True},
+                {"x": False},
+                {"x": ""},
+                {"x": "Hello"},
+            ]
+        )
+    )
+    assert ans == [
+        {"x": 1, "y": False},
+        {"x": 0, "y": True},
+        {"x": None, "y": True},
+        {"x": True, "y": False},
+        {"x": False, "y": True},
+        {"x": "", "y": True},
+        {"x": "Hello", "y": False},
+    ]
+
 
 def test_everyN():
     e = basic.everyN(n=3)
@@ -567,39 +656,58 @@ def test_everyN():
     assert list(e(range(10))) == [2, 5, 8]
     assert list(e(range(4))) == [2]
 
+
 def test_flatten():
     f = basic.flatten()
     f = f.as_function(single_in=False, single_out=False)
-    ans = list(f([[1,2], [3,4]]))
-    assert ans == [1,2,3,4]
+    ans = list(f([[1, 2], [3, 4]]))
+    assert ans == [1, 2, 3, 4]
 
-    ans = list(f([[1,2], [3,4], [5,6]]))
-    assert ans == [1,2,3,4,5,6]
+    ans = list(f([[1, 2], [3, 4], [5, 6]]))
+    assert ans == [1, 2, 3, 4, 5, 6]
 
-    ans = list(f([{"a": [1,2], "b": [3,4]}]))
-    assert ans == [("a", [1,2]), ("b", [3,4])]
+    ans = list(f([{"a": [1, 2], "b": [3, 4]}]))
+    assert ans == [("a", [1, 2]), ("b", [3, 4])]
 
     assert list(f([1])) == [1]
 
     f = basic.flatten(field="x", set_as="y")
     f = f.as_function(single_in=False, single_out=False)
-    ans = list(f([{"x": [1,2]}, {"x": [3,4]}]))
-    assert ans == [{"x": [1,2], "y":1}, {"x": [1,2], "y":2}, {"x": [3,4], "y":3}, {"x": [3,4], "y":4}]
+    ans = list(f([{"x": [1, 2]}, {"x": [3, 4]}]))
+    assert ans == [
+        {"x": [1, 2], "y": 1},
+        {"x": [1, 2], "y": 2},
+        {"x": [3, 4], "y": 3},
+        {"x": [3, 4], "y": 4},
+    ]
+
 
 def test_hash():
     assert basic.hash_data("a") == basic.hash_data("a")
     assert basic.hash_data({"a": 1}) == basic.hash_data({"a": 1})
     assert basic.hash_data({"a": 1, "b": 3}) != basic.hash_data({"a": 2, "b": 6})
-    assert basic.hash_data({"a": 1, "b": 3}, field_list=["a"]) != basic.hash_data({"a": 2, "b": 6}, field_list=["a"])
-    assert basic.hash_data({"a": 1, "b": 3}, field_list=["_"]) != basic.hash_data({"a": 1, "b": 6}, field_list=["_"])
+    assert basic.hash_data({"a": 1, "b": 3}, field_list=["a"]) != basic.hash_data(
+        {"a": 2, "b": 6}, field_list=["a"]
+    )
+    assert basic.hash_data({"a": 1, "b": 3}, field_list=["_"]) != basic.hash_data(
+        {"a": 1, "b": 6}, field_list=["_"]
+    )
 
     assert basic.hash_data("a", use_repr=True) == basic.hash_data("a", use_repr=True)
-    assert basic.hash_data({"a": 1}, use_repr=True) == basic.hash_data({"a": 1}, use_repr=True)
-    assert basic.hash_data({"a": 1, "b": 3}, use_repr=True) != basic.hash_data({"a": 2, "b": 6}, use_repr=True)
-    assert basic.hash_data({"a": 1, "b": 3}, field_list=["a"], use_repr=True) != basic.hash_data({"a": 2, "b": 6}, field_list=["a"], use_repr=True)
-    assert basic.hash_data({"a": 1, "b": 3}, field_list=["_"], use_repr=True) != basic.hash_data({"a": 1, "b": 6}, field_list=["_"], use_repr=True)
+    assert basic.hash_data({"a": 1}, use_repr=True) == basic.hash_data(
+        {"a": 1}, use_repr=True
+    )
+    assert basic.hash_data({"a": 1, "b": 3}, use_repr=True) != basic.hash_data(
+        {"a": 2, "b": 6}, use_repr=True
+    )
+    assert basic.hash_data(
+        {"a": 1, "b": 3}, field_list=["a"], use_repr=True
+    ) != basic.hash_data({"a": 2, "b": 6}, field_list=["a"], use_repr=True)
+    assert basic.hash_data(
+        {"a": 1, "b": 3}, field_list=["_"], use_repr=True
+    ) != basic.hash_data({"a": 1, "b": 6}, field_list=["_"], use_repr=True)
 
-    basic.hash_data({"a": None}, field_list="_") is not None
+    assert basic.hash_data({"a": None}, field_list="_") is not None
 
     with pytest.raises(ValueError):
         basic.hash_data({"a": 1}, field_list=["a"], use_repr=True, algorithm="unknown")
@@ -607,7 +715,10 @@ def test_hash():
     with pytest.raises(AttributeError):
         basic.hash_data({"b": 1}, field_list=["a"])
 
-    assert basic.hash_data("a", algorithm="SHA224") != basic.hash_data("a", algorithm="SHA256")
+    assert basic.hash_data("a", algorithm="SHA224") != basic.hash_data(
+        "a", algorithm="SHA256"
+    )
+
 
 def test_hash_segment():
     s = basic.Hash()
@@ -616,12 +727,13 @@ def test_hash_segment():
 
     s = basic.Hash(field_list="a")
     s = s.as_function(single_in=True, single_out=True)
-    assert s({"a": 1, "b":2}) == s({"a": 1, "c":3})
-    
+    assert s({"a": 1, "b": 2}) == s({"a": 1, "c": 3})
+
     h = basic.hash_data(1)
     s = basic.Hash(set_as="hash", field_list="a")
     s = s.as_function(single_in=True, single_out=True)
     assert s({"a": 1}) == {"a": 1, "hash": h}
+
 
 def test_fillTemplate():
     f = basic.fillTemplate(template="Hello {name}")
@@ -644,6 +756,7 @@ def test_fillTemplate():
     f = f.as_function(single_in=True, single_out=True)
     assert f({"name": "World"}) == "Hello {name}"
 
+
 def test_lambda():
     f = basic.EvalExpression("item*2")
     f = f.as_function()
@@ -663,7 +776,7 @@ def test_lambda():
     f = basic.EvalExpression("item+1", field="x")
     f = f.as_function()
     ans = f([{"x": 1}, {"x": 2}])
-    assert ans == [2,3]
+    assert ans == [2, 3]
 
     f = basic.EvalExpression("'(TAG) ' +item")
     f = f.as_function()
@@ -693,26 +806,43 @@ def test_lambdaFilter():
     ans = list(f([1, 2, 3, 4]))
     assert ans == [3, 4]
 
+
 def test_longestStr():
     f = basic.longestStr(field_list="x,y")
     f = f.as_function(single_in=False, single_out=False)
-    ans = list(f([{"x": "short", "y": "longest", "z":"reallymuchlonger"}, {"x": "longer", "y": "short", "z": "tiny"}]))
+    ans = list(
+        f(
+            [
+                {"x": "short", "y": "longest", "z": "reallymuchlonger"},
+                {"x": "longer", "y": "short", "z": "tiny"},
+            ]
+        )
+    )
     assert ans == ["longest", "longer"]
 
     f = basic.longestStr(field_list="x,y", set_as="longest")
     f = f.as_function(single_in=False, single_out=False)
-    ans = list(f([{"x": "short", "y": "longest", "z":"reallymuchlonger"}, {"x": "longer", "y": "short", "z": "tiny"}]))
+    ans = list(
+        f(
+            [
+                {"x": "short", "y": "longest", "z": "reallymuchlonger"},
+                {"x": "longer", "y": "short", "z": "tiny"},
+            ]
+        )
+    )
     assert ans[0]["longest"] == "longest"
     assert ans[1]["longest"] == "longer"
+
 
 def test_sleep():
     s = basic.sleep(seconds=1, n=2)
     s = s.as_function(single_in=False, single_out=False)
     import time
+
     start_time = time.time()
-    ans = list(s([1,2,3,4,5]))
+    ans = list(s([1, 2, 3, 4, 5]))
     end_time = time.time()
-    assert ans == [1,2,3,4,5]
+    assert ans == [1, 2, 3, 4, 5]
     elapsed = end_time - start_time
     # Should have slept approximately 2 times (after 2nd and 4th items)
     assert 2 <= elapsed < 4
@@ -744,7 +874,7 @@ def test_formatted_item():
         field_list="a,b",
         field_name_separator=" = ",
         field_separator=" | ",
-        item_suffix="END"
+        item_suffix="END",
     )
     result = list(fi.transform([{"a": "1", "b": "2"}]))
     assert len(result) == 1
@@ -757,6 +887,7 @@ def test_assign_segment():
     """Test assign (set) segment."""
     # Call the assign function through the decorator-created class
     from talkpipe.chatterlang import compile
+
     f = compile('| set[value=42, set_as="answer"]')
     result = list(f([{"x": 1}, {"y": 2}]))
     assert result == [{"x": 1, "answer": 42}, {"y": 2, "answer": 42}]
@@ -794,7 +925,7 @@ def test_configure_logger():
 
 def test_hash_data_with_none_and_fail_on_missing():
     """Test hash_data when field value is None and fail_on_missing is True."""
-    with pytest.raises(ValueError, match="Field .* value was None"):
+    with pytest.raises(ValueError, match=r"Field .* value was None"):
         basic.hash_data({"a": None}, field_list=["a"], fail_on_missing=True)
 
 
@@ -807,6 +938,7 @@ def test_hash_data_with_none_and_not_fail_on_missing():
 
 def test_hash_data_json_fallback():
     """Test hash_data JSON serialization fallback for non-JSON-serializable objects."""
+
     class CustomObject:
         def __init__(self, value):
             self.value = value
@@ -852,7 +984,7 @@ def test_lambda_error_handling():
     f = f.as_function()
 
     # Should raise an error when dividing by zero
-    with pytest.raises(Exception):
+    with pytest.raises(RuntimeError, match="division by zero"):
         list(f([0]))
 
 
@@ -893,18 +1025,17 @@ def test_deep_copy_segment():
 
 def test_debounce_basic():
     """Test Debounce segment with basic functionality."""
-    import time
-    
+
     # Create items with path field
     items = [
         {"path": "file1.txt", "data": "first"},
         {"path": "file2.txt", "data": "second"},
     ]
-    
+
     debounce = basic.Debounce(debounce_seconds=0.2)
     debounce_fn = debounce.as_function(single_in=False, single_out=False)
     result = list(debounce_fn(items))
-    
+
     # Both items should be yielded since they have different keys
     assert len(result) == 2
     assert result[0]["path"] == "file1.txt"
@@ -914,18 +1045,18 @@ def test_debounce_basic():
 def test_debounce_same_key_updates():
     """Test Debounce when same key arrives multiple times - only last should be yielded."""
     import time
-    
+
     def item_generator():
         yield {"path": "file.txt", "version": 1}
         time.sleep(0.05)
         yield {"path": "file.txt", "version": 2}
         time.sleep(0.05)
         yield {"path": "file.txt", "version": 3}
-    
+
     debounce = basic.Debounce(key_field="path", debounce_seconds=0.2)
     debounce_fn = debounce.as_function(single_in=False, single_out=False)
     result = list(debounce_fn(item_generator()))
-    
+
     # Only the last version should be yielded after debouncing
     assert len(result) == 1
     assert result[0]["version"] == 3
@@ -934,7 +1065,7 @@ def test_debounce_same_key_updates():
 def test_debounce_multiple_keys():
     """Test Debounce with multiple keys being updated."""
     import time
-    
+
     def item_generator():
         yield {"path": "file1.txt", "data": "v1"}
         time.sleep(0.05)
@@ -943,16 +1074,16 @@ def test_debounce_multiple_keys():
         yield {"path": "file1.txt", "data": "v2"}
         time.sleep(0.05)
         yield {"path": "file2.txt", "data": "v2"}
-    
+
     debounce = basic.Debounce(key_field="path", debounce_seconds=0.2)
     debounce_fn = debounce.as_function(single_in=False, single_out=False)
     result = list(debounce_fn(item_generator()))
-    
+
     # Should get the last update for each key
     assert len(result) == 2
     paths = {item["path"] for item in result}
     assert paths == {"file1.txt", "file2.txt"}
-    
+
     # All should have v2 data (latest)
     for item in result:
         assert item["data"] == "v2"
@@ -960,23 +1091,22 @@ def test_debounce_multiple_keys():
 
 def test_debounce_custom_key_field():
     """Test Debounce with a custom key field."""
-    import time
-    
+
     items = [
         {"id": "doc1", "content": "first"},
         {"id": "doc2", "content": "second"},
         {"id": "doc1", "content": "updated"},
     ]
-    
+
     debounce = basic.Debounce(key_field="id", debounce_seconds=0.1)
     debounce_fn = debounce.as_function(single_in=False, single_out=False)
     result = list(debounce_fn(items))
-    
+
     # Should get 2 items (doc1 updated, doc2)
     assert len(result) == 2
     ids = {item["id"] for item in result}
     assert ids == {"doc1", "doc2"}
-    
+
     # doc1 should have the updated content
     doc1 = next(item for item in result if item["id"] == "doc1")
     assert doc1["content"] == "updated"
@@ -989,11 +1119,11 @@ def test_debounce_no_key_field():
         "plain string",
         123,
     ]
-    
+
     debounce = basic.Debounce(key_field="path", debounce_seconds=0.1)
     debounce_fn = debounce.as_function(single_in=False, single_out=False)
     result = list(debounce_fn(items))
-    
+
     # All items without key field should pass through
     assert len(result) == 3
     assert result[0] == {"data": "no path field"}
@@ -1004,18 +1134,18 @@ def test_debounce_no_key_field():
 def test_debounce_timing():
     """Test that debounce actually waits for the specified duration."""
     import time
-    
+
     def item_generator():
         yield {"path": "file.txt", "data": "v1"}
         time.sleep(0.05)
         yield {"path": "file.txt", "data": "v2"}
-    
+
     start = time.time()
     debounce = basic.Debounce(key_field="path", debounce_seconds=0.2)
     debounce_fn = debounce.as_function(single_in=False, single_out=False)
     result = list(debounce_fn(item_generator()))
     elapsed = time.time() - start
-    
+
     # Should have waited at least the debounce duration
     assert elapsed >= 0.2
     # Should get only the last item

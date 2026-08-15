@@ -1,13 +1,11 @@
-from typing import Optional, Union
-
 from pydantic import BaseModel
 
 from talkpipe.util.config import get_config
 from talkpipe.util.constants import OLLAMA_SERVER_URL
 
-from .prompt_adapter_base import AbstractLLMPromptAdapter, logger
 from .content import UserTurn
 from .multimodal import to_ollama_user_message
+from .prompt_adapter_base import AbstractLLMPromptAdapter, logger
 
 
 class OllamaPromptAdapter(AbstractLLMPromptAdapter):
@@ -22,15 +20,15 @@ class OllamaPromptAdapter(AbstractLLMPromptAdapter):
     def __init__(
         self,
         model: str,
-        system_prompt: Optional[str] = "You are a helpful assistant.",
+        system_prompt: str | None = "You are a helpful assistant.",
         multi_turn: bool = True,
-        temperature: float = None,
-        output_format: BaseModel = None,
-        server_url: str = None,
-        role_map: str = None,
+        temperature: float | None = None,
+        output_format: type[BaseModel] | None = None,
+        server_url: str | None = None,
+        role_map: str | None = None,
         memory_mode: str = "full",
         unsummarized_message_count: int = 6,
-        context_token_trigger: Optional[Union[int, float]] = None,
+        context_token_trigger: int | float | None = None,
         memory_size: int = 512,
         debug_messages: bool = False,
     ):
@@ -53,7 +51,7 @@ class OllamaPromptAdapter(AbstractLLMPromptAdapter):
             self._temperature = 0.5
         self._server_url = server_url
 
-    def execute(self, prompt: str) -> str:
+    def execute(self, prompt: str) -> str | BaseModel:
         """Execute the chat model.
 
         Handles its own multi-turn conversation state.
@@ -70,7 +68,9 @@ class OllamaPromptAdapter(AbstractLLMPromptAdapter):
         response = self._chat_completion(
             model=self._model_name,
             messages=self._request_messages(),
-            format_schema=self._output_format.model_json_schema() if self._output_format else None,
+            format_schema=self._output_format.model_json_schema()
+            if self._output_format
+            else None,
             options={"temperature": self._temperature},
         )
 
@@ -84,7 +84,7 @@ class OllamaPromptAdapter(AbstractLLMPromptAdapter):
         logger.debug(f"Returning response: {result}")
         return result
 
-    def execute_turn(self, user_turn: UserTurn) -> str:
+    def execute_turn(self, user_turn: UserTurn) -> str | BaseModel:
         """Execute the chat model with a multimodal user turn."""
         self._require_dependency("ollama", "Ollama", "ollama")
 
@@ -98,7 +98,9 @@ class OllamaPromptAdapter(AbstractLLMPromptAdapter):
         response = self._chat_completion(
             model=self._model_name,
             messages=self._request_messages(),
-            format_schema=self._output_format.model_json_schema() if self._output_format else None,
+            format_schema=self._output_format.model_json_schema()
+            if self._output_format
+            else None,
             options={"temperature": self._temperature},
         )
 
@@ -112,7 +114,9 @@ class OllamaPromptAdapter(AbstractLLMPromptAdapter):
         logger.debug(f"Returning response: {result}")
         return result
 
-    def _chat_completion(self, model: str, messages: list, format_schema=None, options=None):
+    def _chat_completion(
+        self, model: str, messages: list, format_schema=None, options=None
+    ):
         ollama = self._require_dependency("ollama", "Ollama", "ollama")
 
         server_url = self._server_url
@@ -120,7 +124,9 @@ class OllamaPromptAdapter(AbstractLLMPromptAdapter):
             server_url = get_config().get(OLLAMA_SERVER_URL, None)
         client = ollama.Client(server_url) if server_url else ollama
         try:
-            return client.chat(model, messages=messages, format=format_schema, options=options)
+            return client.chat(
+                model, messages=messages, format=format_schema, options=options
+            )
         except ConnectionError as exc:
             raise ConnectionError(
                 f"Failed to connect to Ollama at '{server_url or 'http://localhost:11434'}'. "
@@ -143,9 +149,9 @@ class OllamaPromptAdapter(AbstractLLMPromptAdapter):
         self,
         prompt: str,
         *,
-        model: Optional[str] = None,
+        model: str | None = None,
         temperature: float = 0.0,
-        max_tokens: Optional[int] = None,
+        max_tokens: int | None = None,
     ) -> str:
         options = {"temperature": temperature}
         if max_tokens is not None:
@@ -172,7 +178,11 @@ class OllamaPromptAdapter(AbstractLLMPromptAdapter):
             # the configured OLLAMA_SERVER_URL, instead of always checking the
             # default local Ollama regardless of where the adapter is configured
             # to talk to.
-            test_messages = [self._system_message] if self._system_message else [{"role": "user", "content": "test"}]
+            test_messages = (
+                [self._system_message]
+                if self._system_message
+                else [{"role": "user", "content": "test"}]
+            )
             # num_predict=1 keeps this a reachability probe: without a cap the
             # test request runs a full generation, which on a thinking model
             # can take minutes and stalls callers such as the workbench

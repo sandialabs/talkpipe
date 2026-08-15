@@ -1,17 +1,23 @@
-from typing import Optional, Annotated
 import re
-
-import numpy as np
+from collections.abc import Iterable
+from typing import Annotated, Any
 
 from talkpipe import AbstractSegment, register_segment
-from talkpipe.util.data_manipulation import extract_property
-from talkpipe.pipe import core
 from talkpipe.chatterlang import registry
+from talkpipe.pipe import core
+from talkpipe.util.data_manipulation import extract_property
 
 
 @registry.register_segment("regexReplace")
 @core.segment()
-def regex_replace(items: Annotated[object, "Input items to transform"], pattern: Annotated[str, "Regular expression pattern to match"], replacement: Annotated[str, "Replacement string for matched patterns"], field: Annotated[str, "Field to apply transformation to. Use '_' for entire item"] = "_"):
+def regex_replace(
+    items: Annotated[Iterable[Any], "Input items to transform"],
+    pattern: Annotated[str, "Regular expression pattern to match"],
+    replacement: Annotated[str, "Replacement string for matched patterns"],
+    field: Annotated[
+        str, "Field to apply transformation to. Use '_' for entire item"
+    ] = "_",
+):
     """Transform items by applying regex pattern replacement.
 
     This segment transforms items by applying a regex pattern replacement to either
@@ -26,13 +32,19 @@ def regex_replace(items: Annotated[object, "Input items to transform"], pattern:
     Examples:
         >>> list(regex_replace(["hello world"], r"world", "everyone"))
         ['hello everyone']
-        
-        >>> list(regex_replace([{"text": "hello world"}], r"world", "everyone", field="text"))
+
+        >>> list(
+        ...     regex_replace(
+        ...         [{"text": "hello world"}], r"world", "everyone", field="text"
+        ...     )
+        ... )
         [{'text': 'hello everyone'}]
     """
     for item in items:
         if "." in field:
-            raise ValueError("Nested fields are not supported for regex_replace because it cannot re-insert the changed value with a nested field.")
+            raise ValueError(
+                "Nested fields are not supported for regex_replace because it cannot re-insert the changed value with a nested field."
+            )
         extracted = extract_property(item, field)
         if not isinstance(extracted, str):
             raise TypeError(f"Expected a string, but got {type(extracted)} instead.")
@@ -43,12 +55,21 @@ def regex_replace(items: Annotated[object, "Input items to transform"], pattern:
             try:
                 item[field] = modified
                 yield item
-            except TypeError:
-                raise TypeError(f"Expected something assignable using square brackets, but got {type(item)} instead.")
+            except TypeError as e:
+                raise TypeError(
+                    f"Expected something assignable using square brackets, but got {type(item)} instead."
+                ) from e
+
 
 @registry.register_segment("fillNull")
 @core.segment()
-def fill_null(items: Annotated[object, "An iterable of dictionaries to process"], default: Annotated[str, "The default value to use for any None values not specified in kwargs"] = '', **kwargs):
+def fill_null(
+    items: Annotated[Iterable[Any], "An iterable of dictionaries to process"],
+    default: Annotated[
+        str, "The default value to use for any None values not specified in kwargs"
+    ] = "",
+    **kwargs,
+):
     """
     Fills null (None) values in a sequence of dictionaries with specified defaults.
 
@@ -63,11 +84,11 @@ def fill_null(items: Annotated[object, "An iterable of dictionaries to process"]
         TypeError: If any item doesn't support item assignment using square brackets.
 
     Examples:
-        >>> data = [{'a': None, 'b': 1}, {'a': 2, 'b': None}]
-        >>> list(fill_null(data, default='N/A'))
+        >>> data = [{"a": None, "b": 1}, {"a": 2, "b": None}]
+        >>> list(fill_null(data, default="N/A"))
         [{'a': 'N/A', 'b': 1}, {'a': 2, 'b': 'N/A'}]
-        
-        >>> list(fill_null(data, b='EMPTY'))
+
+        >>> list(fill_null(data, b="EMPTY"))
         [{'a': None, 'b': 1}, {'a': 2, 'b': 'EMPTY'}]
     """
     for item in items:
@@ -80,15 +101,32 @@ def fill_null(items: Annotated[object, "An iterable of dictionaries to process"]
             try:
                 if field not in item or item[field] is None:
                     item[field] = value
-            except TypeError:
-                raise TypeError(f"Expected something assignable using square brackets, but got {type(item)} instead.")
+            except TypeError as e:
+                raise TypeError(
+                    f"Expected something assignable using square brackets, but got {type(item)} instead."
+                ) from e
         yield item
 
 
 @register_segment("makeLists")
 class MakeLists(AbstractSegment):
-
-    def __init__(self, num_items: Annotated[Optional[int], "Number of items to collect per batch. If None, collect all items"] = None, cumulative: Annotated[bool, "If True, batches are cumulative (growing), if False, batches are fixed-size"] = False, field: Annotated[str, "Field to extract from each item. Use '_' for the entire item"] = "_", ignoreNone: Annotated[bool, "If True, skip items whose extracted value is None"] = False):
+    def __init__(
+        self,
+        num_items: Annotated[
+            int | None,
+            "Number of items to collect per batch. If None, collect all items",
+        ] = None,
+        cumulative: Annotated[
+            bool,
+            "If True, batches are cumulative (growing), if False, batches are fixed-size",
+        ] = False,
+        field: Annotated[
+            str, "Field to extract from each item. Use '_' for the entire item"
+        ] = "_",
+        ignoreNone: Annotated[
+            bool, "If True, skip items whose extracted value is None"
+        ] = False,
+    ):
         super().__init__()
         self.num_items = num_items
         self.cumulative = cumulative
@@ -126,10 +164,14 @@ class MakeLists(AbstractSegment):
                 continue
             accumulated.append(item)
 
-            if self.num_items is not None and len(accumulated)>0 and len(accumulated) % self.num_items == 0:
+            if (
+                self.num_items is not None
+                and len(accumulated) > 0
+                and len(accumulated) % self.num_items == 0
+            ):
                 ans = accumulated.copy()
                 if not self.cumulative:
                     accumulated = []
                 yield ans
-        if len(accumulated)>0:
+        if len(accumulated) > 0:
             yield accumulated.copy()

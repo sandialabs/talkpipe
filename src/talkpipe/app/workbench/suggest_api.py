@@ -12,7 +12,6 @@
 import json
 import logging
 import threading
-from typing import Optional
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
@@ -57,6 +56,7 @@ def api_suggest_stats():
 
 # --- Settings -------------------------------------------------------------------
 
+
 def _settings_path():
     return resolve_workspace_dir() / SETTINGS_FILENAME
 
@@ -84,18 +84,21 @@ def save_settings(settings: dict):
 def _resolved_status(settings: dict) -> dict:
     resolved, reason = suggest.resolve_llm_status(settings)
     if not resolved:
-        return {"available": False, "source": None, "model": None,
-                "reason": reason}
+        return {"available": False, "source": None, "model": None, "reason": reason}
     source, model = resolved
     available = suggest.check_availability(source, model)
-    return {"available": available, "source": source, "model": model,
-            "reason": None if available else suggest.unreachable_reason(source, model)}
+    return {
+        "available": available,
+        "source": source,
+        "model": model,
+        "reason": None if available else suggest.unreachable_reason(source, model),
+    }
 
 
 class SettingsUpdate(BaseModel):
-    suggest_source: Optional[str] = None
-    suggest_model: Optional[str] = None
-    auto_suggest: Optional[bool] = None
+    suggest_source: str | None = None
+    suggest_model: str | None = None
+    auto_suggest: bool | None = None
 
 
 def _settings_response(settings: dict) -> dict:
@@ -119,8 +122,10 @@ def api_put_settings(request: SettingsUpdate):
     if update.get("suggest_source") and update["suggest_source"] not in known_sources:
         raise HTTPException(
             status_code=422,
-            detail=(f"Unknown LLM source '{update['suggest_source']}'. "
-                    f"Known sources: {', '.join(known_sources)}"),
+            detail=(
+                f"Unknown LLM source '{update['suggest_source']}'. "
+                f"Known sources: {', '.join(known_sources)}"
+            ),
         )
     for key in SETTINGS_KEYS:
         if key in update:
@@ -131,6 +136,7 @@ def api_put_settings(request: SettingsUpdate):
 
 
 # --- LLM suggestions ----------------------------------------------------------------
+
 
 class SuggestRequest(BaseModel):
     script: str
