@@ -340,12 +340,12 @@ class LanceDBDocumentStore(DocumentStore, VectorAddable, VectorSearchable):
         self.path = parse_db_path(path)  # Resolve tmp:// and other URIs
         self.table_name = table_name
         self.vector_dim = vector_dim
-        self._db = None
-        self._table = None
+        self._db: lancedb.DBConnection | None = None
+        self._table: lancedb.table.Table | None = None
         self._id_index_ensured = False
         self.read_consistency_interval = read_consistency_interval
 
-    def _get_db(self):
+    def _get_db(self) -> lancedb.DBConnection:
         """Get or create database connection."""
         if self._db is None:
             # Convert integer seconds to timedelta if needed
