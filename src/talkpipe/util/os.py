@@ -56,7 +56,8 @@ def run_command(command: str):
             shell=False,  # Critical: never use shell=True
         )
 
-        assert process.stdout is not None  # stdout=PIPE guarantees a stream
+        if process.stdout is None:  # stdout=PIPE guarantees a stream
+            raise RuntimeError("Subprocess stdout was not captured")
         for line in process.stdout:
             logger.debug(f"Command output: {line.rstrip()}")
             yield line.rstrip()  # Remove trailing newline

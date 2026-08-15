@@ -25,7 +25,8 @@ class SearchResult(BaseModel):
         """
 
         document = self.document
-        assert document is not None, "SearchResult has no document to render"
+        if document is None:
+            raise ValueError("SearchResult has no document to render")
         ans = [
             f"{field.capitalize()}: {document[field]}"
             for field in priority_fields

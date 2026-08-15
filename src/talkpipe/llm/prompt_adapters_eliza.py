@@ -271,7 +271,8 @@ class ElizaPromptAdapter(AbstractLLMPromptAdapter):
         return f"You mentioned earlier that {self._facts[fact_index]}."
 
     def _build_structured_response(self, prompt: str) -> BaseModel:
-        assert self._output_format is not None
+        if self._output_format is None:
+            raise ValueError("Structured response requested without an output_format")
         output_format = self._output_format
         fields = set(output_format.model_fields)
         payload: dict[str, Any]

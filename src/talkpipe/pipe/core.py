@@ -882,7 +882,8 @@ class Pipeline(AbstractSegment):
         current_iter = input_iter
         for op in self.operations:
             current_iter = op() if isinstance(op, AbstractSource) else op(current_iter)
-        assert current_iter is not None
+        if current_iter is None:
+            raise TypeError("Nothing to iterate: no input and no producing operation")
         yield from current_iter
 
     def __or__(self, other: AbstractSource | AbstractSegment) -> "Pipeline":
@@ -955,7 +956,8 @@ class Script(AbstractSegment):
                     current_iter
                 )  # consume the iterator unless it is the last one.  Ensures the previous segment is fully executed
                 current_iter = None
-        assert current_iter is not None
+        if current_iter is None:
+            raise TypeError("Nothing to iterate: no input and no producing operation")
         yield from current_iter
 
 
@@ -1000,5 +1002,6 @@ class Loop(AbstractSegment):
             current_iter = self.script.transform(current_iter)
             if i < self.times - 1:
                 list(current_iter)
-        assert current_iter is not None
+        if current_iter is None:
+            raise TypeError("Nothing to iterate: no input and no producing operation")
         yield from current_iter

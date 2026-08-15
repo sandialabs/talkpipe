@@ -830,7 +830,8 @@ class ReadFile(AbstractFieldSegment):
                 raise Exception(f"File extension {extension} not supported")
         else:
             extractor = self._registry.get_extractor(file_path)
-            assert extractor is not None  # a registered extension always resolves
+            if extractor is None:  # a registered extension always resolves
+                raise RuntimeError(f"No extractor registered for {file_path}")
 
         logger.debug(f"Extracting content from file: {file_path}")
         try:

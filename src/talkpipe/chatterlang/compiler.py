@@ -473,7 +473,8 @@ def _(
             ans = next_transform
         else:
             ans |= next_transform
-    assert ans is not None
+    if ans is None:
+        raise ValueError("Cannot compile an empty pipeline")
     ans.runtime = runtime
     logger.debug("Completed pipeline compilation")
     return ans

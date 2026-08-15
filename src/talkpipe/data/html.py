@@ -337,7 +337,8 @@ def downloadURL(
         return None
 
     # Every attempt either set response or recorded an exception (handled above).
-    assert response is not None
+    if response is None:
+        raise RuntimeError(f"No response received from {url}")
     logger.debug(f"Received response with status code: {response.status_code}")
     if not 200 <= response.status_code < 300:
         error_message = (
