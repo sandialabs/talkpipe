@@ -1,5 +1,6 @@
 import pytest
 
+from talkpipe import AbstractSegment
 from talkpipe.pipelines.basic_rag import (
     AppendRAGSources,
     ConstructRAGPrompt,
@@ -480,6 +481,58 @@ def test_rag_to_text_memory_controls_passed_to_llm_prompt(monkeypatch):
     assert captured["context_token_trigger"] == 0.7
     assert captured["memory_size"] == 384
     assert captured["debug_messages"] is True
+
+
+class _FakeLLMPrompt(AbstractSegment):
+    """Stand-in for LLMPrompt: yields text, or the item with text assigned to set_as."""
+
+    def __init__(self, set_as=None, **kwargs):
+        super().__init__()
+        self.set_as = set_as
+
+    def transform(self, input_iter):
+        for item in input_iter:
+            if self.set_as is None:
+                yield "the answer"
+            else:
+                item[self.set_as] = "the answer"
+                yield item
+
+
+def test_rag_to_text_no_sources_no_set_as_yields_text(monkeypatch):
+    """With sources not appended and no set_as, the pipeline yields the raw answer text."""
+    from talkpipe.pipelines.basic_rag import RAGToText
+
+    monkeypatch.setattr("talkpipe.pipelines.basic_rag.LLMPrompt", _FakeLLMPrompt)
+
+    rag_segment = RAGToText(
+        path="tmp://rag_test",
+        content_field="query",
+        set_as=None,
+        append_sources_to_output=False,
+    )
+    completion = rag_segment.make_completion_segment()
+    results = list(completion([{"query": "q", "_background": []}]))
+
+    assert results == ["the answer"]
+
+
+def test_rag_to_text_no_sources_with_set_as_yields_item(monkeypatch):
+    """With sources not appended and set_as given, the answer lands in that field unchanged."""
+    from talkpipe.pipelines.basic_rag import RAGToText
+
+    monkeypatch.setattr("talkpipe.pipelines.basic_rag.LLMPrompt", _FakeLLMPrompt)
+
+    rag_segment = RAGToText(
+        path="tmp://rag_test",
+        content_field="query",
+        set_as="answer",
+        append_sources_to_output=False,
+    )
+    completion = rag_segment.make_completion_segment()
+    results = list(completion([{"query": "q", "_background": []}]))
+
+    assert results == [{"query": "q", "_background": [], "answer": "the answer"}]
 
 
 def test_rag_to_text_diagPrintOutput_in_pipeline(capsys):

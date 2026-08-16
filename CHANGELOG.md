@@ -2,6 +2,10 @@
 
 ## Unreleased 
 
+- Fixed `ragToText` failing on the first item when `append_sources_to_output`
+  is `False` and no `set_as` is given: the source-appending segment is now
+  omitted entirely when there is nothing to append, so the pipeline yields the
+  LLM answer directly (as text without `set_as`, or in that field with it).
 - Resolved the dependency vulnerabilities reported by the `safety` scan
   (149 findings, now zero) without changing behavior or adding dependencies:
   - Declared dependencies that were previously unbounded now carry a security

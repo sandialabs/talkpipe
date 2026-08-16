@@ -353,24 +353,27 @@ class RAGToText(AbstractRAGPipeline):
         self.append_sources_to_output = append_sources_to_output
 
     def make_completion_segment(self) -> AbstractSegment:
-        partial_answer_set_as = (
-            "_partial_rag_response" if self.append_sources_to_output else self.set_as
+        if not self.append_sources_to_output:
+            return self._make_llm_prompt(set_as=self.set_as)
+        partial_answer_field = "_partial_rag_response"
+        return self._make_llm_prompt(set_as=partial_answer_field) | AppendRAGSources(
+            partial_answer_field=partial_answer_field,
+            set_as=self.set_as,
         )
+
+    def _make_llm_prompt(self, set_as: str | None) -> LLMPrompt:
         return LLMPrompt(
             model=self.completion_model,
             source=self.completion_source,
             system_prompt=self.system_prompt,
             field="_ragprompt",
-            set_as=partial_answer_set_as,
+            set_as=set_as,
             role_map=self.role_map,
             memory_mode=self.memory_mode,
             unsummarized_message_count=self.unsummarized_message_count,
             context_token_trigger=self.context_token_trigger,
             memory_size=self.memory_size,
             debug_messages=self.debug_messages,
-        ) | AppendRAGSources(
-            partial_answer_field=partial_answer_set_as,  # type: ignore[arg-type]  # None when set_as is None and sources are not appended; the segment then fails on the first item (latent bug, not a typing issue)
-            set_as=self.set_as,
         )
 
 
