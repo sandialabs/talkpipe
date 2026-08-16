@@ -12,7 +12,7 @@ logger = logging.getLogger(__name__)
 
 
 class BloomFilter:
-    def __init__(self, capacity, error_rate):
+    def __init__(self, capacity: int, error_rate: float) -> None:
         """
         Initialize the Bloom Filter.
 
@@ -33,7 +33,7 @@ class BloomFilter:
         # Initialize the bit array with all bits set to False (0)
         self.bit_array = [False] * self.size
 
-    def _hashes(self, item):
+    def _hashes(self, item: Any) -> Iterator[int]:
         """
         Generate hash values for the given item using double hashing.
 
@@ -53,7 +53,7 @@ class BloomFilter:
         for i in range(self.hash_count):
             yield (hash1 + i * hash2) % self.size
 
-    def add(self, item):
+    def add(self, item: Any) -> None:
         """
         Add an item to the Bloom Filter.
 
@@ -62,7 +62,7 @@ class BloomFilter:
         for index in self._hashes(item):
             self.bit_array[index] = True
 
-    def __contains__(self, item):
+    def __contains__(self, item: Any) -> bool:
         """
         Check if an item is possibly in the Bloom Filter.
 

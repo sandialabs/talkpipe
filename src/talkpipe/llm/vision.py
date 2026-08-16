@@ -103,7 +103,7 @@ class LLMVisionPrompt(AbstractSegment):
             return None
         return str(value)
 
-    def _resolve_image(self, item):
+    def _resolve_image(self, item: Any) -> Any:
         value = extract_property(item, self.image_field)
         if value is None:
             raise ValueError(

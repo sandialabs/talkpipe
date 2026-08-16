@@ -46,14 +46,14 @@ class AbstractEmbeddingAdapter:
     def source(self) -> str:
         return self._source
 
-    def description(self):
+    def description(self) -> str:
         """Return a description of the embedding model, including the name and source."""
         return f"Embedding using {self.model_name} ({self._source})"
 
-    def __str__(self):
+    def __str__(self) -> str:
         return self.description()
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return self.__str__()
 
     def execute_one(self, text: str) -> list[float]:
@@ -98,13 +98,13 @@ class OllamaEmbedderAdapter(AbstractEmbeddingAdapter):
         super().__init__(model, "ollama")
         self._server_url = server_url
 
-    def _resolve_server_url(self):
+    def _resolve_server_url(self) -> str | None:
         server_url = self._server_url
         if not server_url:
             server_url = get_config().get(OLLAMA_SERVER_URL, None)
         return server_url
 
-    def _client(self):
+    def _client(self) -> Any:
         try:
             import ollama
         except ImportError as e:

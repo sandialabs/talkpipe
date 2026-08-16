@@ -236,7 +236,7 @@ def assign_property(data: Any, prop_name: str, value: Any) -> None:
         setattr(data, prop_name, value)
 
 
-def get_type_safely(type_name, module=None):
+def get_type_safely(type_name: str, module: str | None = None) -> Any:
     """Get a type by name, handling module imports."""
     if "." in type_name:
         module, type_name = type_name.rsplit(".", 1)

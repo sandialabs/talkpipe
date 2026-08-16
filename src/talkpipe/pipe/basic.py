@@ -119,15 +119,15 @@ def DiagPrint(
             output = get_config().get(output[len("config:") :].strip(), None)
         if output and output.lower() == "stderr":
 
-            def output_fn(msg):
+            def output_fn(msg: str) -> Any:
                 return print(msg, file=sys.stderr, flush=True)
         elif output and output.lower() == "stdout":
 
-            def output_fn(msg):
+            def output_fn(msg: str) -> Any:
                 return print(msg, file=sys.stdout, flush=True)
         else:
 
-            def output_fn(msg):
+            def output_fn(msg: str) -> Any:
                 return logging.getLogger(output).log(
                     msg=msg, level=logging.getLevelName(level.upper())
                 )
@@ -814,7 +814,7 @@ def everyN(
 
 @registry.register_segment("flatten")
 @field_segment(multi_emit=True)
-def flatten(item):
+def flatten(item: Any) -> Iterator[Any]:
     """Flatten a nested collection by emitting its individual elements.
 
     For dictionaries: yields key-value tuples (like .items())
@@ -1070,7 +1070,7 @@ class EvalExpression(AbstractFieldSegment):
         # Compile the expression into a lambda function
         self.lambda_function = compileLambda(expression)
 
-    def process_value(self, value):
+    def process_value(self, value: Any) -> Any:
         try:
             return self.lambda_function(value)
         except Exception as e:
@@ -1118,7 +1118,7 @@ class FilterExpression(AbstractSegment):
 
 @registry.register_segment("copy")
 @segment
-def copy_segment(items):
+def copy_segment(items: Iterable[Any]) -> Iterator[Any]:
     """Create shallow copies of each item in the pipeline.
 
     This segment creates a shallow copy of each item, suitable when you need to
@@ -1143,7 +1143,7 @@ def copy_segment(items):
 
 @registry.register_segment("deepCopy")
 @segment
-def deep_copy_segment(items):
+def deep_copy_segment(items: Iterable[Any]) -> Iterator[Any]:
     """Create complete independent deep copies of each item in the pipeline.
 
     This segment creates a deep copy of each item, recursively copying all nested
@@ -1194,7 +1194,7 @@ def Debounce(
     stop_event = threading.Event()
     input_done = threading.Event()
 
-    def add_pending(item):
+    def add_pending(item: Any) -> None:
         key = item.get(key_field) if isinstance(item, dict) else None
         if key is None:
             output_queue.put(item)
@@ -1202,7 +1202,7 @@ def Debounce(
         with lock:
             pending[key] = (item, time.time())
 
-    def input_consumer():
+    def input_consumer() -> None:
         try:
             for item in items:
                 if stop_event.is_set():
@@ -1211,7 +1211,7 @@ def Debounce(
         finally:
             input_done.set()
 
-    def checker():
+    def checker() -> None:
         while not stop_event.is_set():
             time.sleep(0.1)
             now = time.time()

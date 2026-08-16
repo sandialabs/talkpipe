@@ -1,7 +1,14 @@
+from collections.abc import Callable, Iterable, Iterator
+from typing import Any
+
 from greenlet import greenlet
 
 
-def bypass(iterable, should_bypass_handler, handler):
+def bypass(
+    iterable: Iterable[Any],
+    should_bypass_handler: Callable[[Any], bool],
+    handler: Callable[[Iterator[Any]], Iterable[Any]],
+) -> Iterator[Any]:
     """
     Interleaves items from an iterable with outputs from a handler, based on a predicate.
 
@@ -50,7 +57,7 @@ def bypass(iterable, should_bypass_handler, handler):
     outer_gl = greenlet.getcurrent()
 
     # Iterator that provides processable items to handler on demand
-    def processable():
+    def processable() -> Iterator[Any]:
         while True:
             # Request next processable item from outer
             msg, value = outer_gl.switch(("need_item", None))
@@ -62,7 +69,7 @@ def bypass(iterable, should_bypass_handler, handler):
                 raise RuntimeError(f"Unexpected message: {msg}")
 
     # Handler runs in its own greenlet
-    def run_handler():
+    def run_handler() -> None:
         for output in handler(processable()):
             outer_gl.switch(("output", output))
         outer_gl.switch(("done", None))

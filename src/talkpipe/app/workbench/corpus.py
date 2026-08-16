@@ -16,6 +16,7 @@ import logging
 import re
 from collections.abc import Iterable
 from pathlib import Path
+from typing import Any
 
 from parsy import ParseError
 
@@ -40,7 +41,7 @@ def _chains_from_parsed(parsed: ParsedScript) -> list[list[str]]:
     """Ordered component-name chains, one per pipeline (loops flattened)."""
     chains = []
 
-    def walk_pipeline(pipeline):
+    def walk_pipeline(pipeline: Any) -> None:
         if isinstance(pipeline, ParsedLoop):
             for inner in pipeline.pipelines:
                 walk_pipeline(inner)

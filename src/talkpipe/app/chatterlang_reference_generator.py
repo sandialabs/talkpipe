@@ -482,7 +482,7 @@ def main(html_file: str, text_file: str) -> None:
     print(f"Text documentation generated at {text_file}")
 
 
-def go():
+def go() -> None:
     parser = argparse.ArgumentParser(
         prog="chatterlang_reference_generator",
         description=(

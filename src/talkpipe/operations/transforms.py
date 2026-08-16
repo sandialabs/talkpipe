@@ -133,7 +133,7 @@ class MakeLists(AbstractSegment):
         self.field = field
         self.ignoreNone = ignoreNone
 
-    def transform(self, input_iter):
+    def transform(self, input_iter: Iterable[Any]) -> Iterator[Any]:
         """Collect items (or a field from each item) into lists (batches).
 
         Behavior:

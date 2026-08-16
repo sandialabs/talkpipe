@@ -243,13 +243,13 @@ class AbstractLLMPromptAdapter(PromptAdapterMemoryMixin, ABC):
     def source(self) -> str:
         return self._source
 
-    def description(self):
+    def description(self) -> str:
         return f"Chat with {self.model_name} ({self._source})"
 
-    def __str__(self):
+    def __str__(self) -> str:
         return f"Chat with {self.model_name} ({self._source})"
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return self.__str__()
 
     @abstractmethod

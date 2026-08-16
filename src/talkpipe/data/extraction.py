@@ -55,7 +55,7 @@ class ExtractorRegistry:
         _default_extractor: Optional callable used when no pattern matches.
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         self._extractors: dict[str, ExtractorFunc] = {}
         self._default_extractor: ExtractorFunc | None = None
 
@@ -461,7 +461,7 @@ def extract_pdf(file_path: str | Path) -> Iterator[ExtractionResult]:
         logger.error(f"Unsupported path type: {file_path}")
         raise FileNotFoundError(f"Unsupported path type: {file_path}")
 
-    def read_all_pages(path):
+    def read_all_pages(path: Path) -> str:
         reader = PdfReader(path)
         text_parts = []
         for page in reader.pages:

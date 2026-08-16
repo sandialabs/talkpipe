@@ -43,7 +43,7 @@ def sniff_mime_type(data: bytes) -> str:
     return "application/octet-stream"
 
 
-def _require_pillow():
+def _require_pillow() -> None:
     try:
         from PIL import Image  # noqa: F401
     except ImportError as exc:

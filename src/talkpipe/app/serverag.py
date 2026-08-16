@@ -23,7 +23,7 @@ from talkpipe.util.constants import (
 logger = logging.getLogger(__name__)
 
 
-def main():
+def main() -> None:
     """Start a Chatterlang server running a RAGToText pipeline."""
     parser = argparse.ArgumentParser(description="Serve a Talkpipe RAG pipeline.")
 

@@ -17,11 +17,11 @@ router = APIRouter(prefix="/api")
 _change_listeners: list[Callable[..., Any]] = []
 
 
-def on_workspace_change(callback):
+def on_workspace_change(callback: Callable[..., Any]) -> None:
     _change_listeners.append(callback)
 
 
-def _notify_change():
+def _notify_change() -> None:
     for callback in _change_listeners:
         try:
             callback()
@@ -46,7 +46,7 @@ class PipelineRename(BaseModel):
     new_name: str
 
 
-def _run(operation):
+def _run(operation: Callable[[], Any]) -> Any:
     try:
         return operation()
     except WorkspaceError as e:
@@ -54,7 +54,7 @@ def _run(operation):
 
 
 @router.get("/pipelines")
-def list_pipelines():
+def list_pipelines() -> dict[str, Any]:
     return {"pipelines": _run(lambda: get_store().list())}
 
 

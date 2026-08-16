@@ -48,13 +48,13 @@
     content-based encoding detection rather than the ISO-8859-1 fallback,
     fixing mojibake on undeclared-UTF-8 pages.
   - robots.txt fetches send the same identification headers as page fetches.
-- Tightened the mypy gate one step towards `strict`: `disallow_incomplete_defs`
-  is now on, so a function that is annotated at all must be annotated
-  completely. Every partially annotated function in `src/` (about 200,
-  concentrated in the built-in segments, the ChatterLang server, and the LLM
-  adapters) received its missing parameter and return annotations; no runtime
-  behavior changed. Fully unannotated functions are still permitted
-  (`disallow_untyped_defs` is the next step).
+- Tightened the mypy gate two steps towards `strict`: `disallow_incomplete_defs`
+  and `disallow_untyped_defs` are now on, so every function in `src/` must be
+  fully annotated (parameters and return). Roughly 430 functions across the
+  package -- the built-in segments, the ChatterLang parser/compiler and
+  server, the LLM adapters, and the data/search/util helpers -- received
+  their missing annotations; no runtime behavior changed. `warn_return_any`
+  and a `py.typed` marker are the next steps.
 
 ## 0.14.0
 

@@ -45,12 +45,12 @@ class TalkPipeDoc:
         self.parameters = parameters
 
     @property
-    def chatterlang_name(self):
+    def chatterlang_name(self) -> str:
         """Backward compatibility property."""
         return self.primary_name
 
     @property
-    def all_names_display(self):
+    def all_names_display(self) -> str:
         """Display string showing all names."""
         return ", ".join(self.chatterlang_names)
 
@@ -58,7 +58,7 @@ class TalkPipeDoc:
 class TalkPipeBrowser:
     """Interactive terminal browser for TalkPipe documentation."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.components: dict[str, TalkPipeDoc] = {}  # Maps primary name to component
         self.name_to_primary: dict[str, str] = {}  # Maps any name to primary name
         self.modules: dict[str, list[str]] = {}
@@ -68,7 +68,7 @@ class TalkPipeBrowser:
         """Extract parameter information from a class or function."""
         return extract_parameters_dict(cls)
 
-    def load_components(self):
+    def load_components(self) -> None:
         """Load all components from the plugin system, grouping multiple names for the same class."""
         load_plugins()  # Ensure plugins are loaded
 
@@ -197,7 +197,7 @@ class TalkPipeBrowser:
                 f"Warning: Failed to load component {component_info.chatterlang_name}: {e}"
             )
 
-    def run(self):
+    def run(self) -> None:
         """Run the interactive browser."""
         print("🔧 TalkPipe Documentation Browser")
         print("=" * 50)
@@ -250,7 +250,7 @@ class TalkPipeBrowser:
             except EOFError:
                 break
 
-    def _show_help(self):
+    def _show_help(self) -> None:
         """Show help information."""
         print("\nTalkPipe Documentation Browser Help")
         print("-" * 35)
@@ -266,7 +266,7 @@ class TalkPipeBrowser:
         print("  search mongodb")
         print()
 
-    def _list_modules(self):
+    def _list_modules(self) -> None:
         """List all available modules."""
         print(f"\nAvailable Modules ({len(self.modules)}):")
         print("-" * 30)
@@ -411,7 +411,7 @@ class TalkPipeBrowser:
             print()
 
 
-def main():
+def main() -> None:
 
     try:
         browser = TalkPipeBrowser()

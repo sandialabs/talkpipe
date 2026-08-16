@@ -16,7 +16,7 @@ from talkpipe.util.config import (
 logger = logging.getLogger(__name__)
 
 
-def main():
+def main() -> None:
     """Run a talkpipe script from command line arguments.
 
     This function parses command line arguments to execute a talkpipe script. The --script parameter

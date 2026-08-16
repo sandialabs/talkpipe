@@ -13,7 +13,7 @@ import numpy as np
 DEFAULT_MODEL = "minishlab/potion-retrieval-32M"
 
 
-def _require_model2vec():
+def _require_model2vec() -> Any:
     try:
         from model2vec import StaticModel
     except ImportError as exc:

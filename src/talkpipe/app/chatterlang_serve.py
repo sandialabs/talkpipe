@@ -13,7 +13,7 @@ import socket
 import sys
 import threading
 import uuid
-from collections.abc import AsyncIterator, Callable
+from collections.abc import AsyncIterator, Awaitable, Callable, Iterator
 from datetime import datetime, timedelta
 from pathlib import Path
 from queue import Empty, Queue
@@ -96,7 +96,7 @@ class UserSession:
                     f"Failed to add output to queue even after removing oldest item: {e2}"
                 )
 
-    def update_activity(self):
+    def update_activity(self) -> None:
         """Update last activity timestamp"""
         self.last_activity = datetime.now()
 
@@ -199,7 +199,7 @@ class ChatterlangServer:
 
         # Mount favicon.ico directly to root
         @self.app.get("/favicon.ico")
-        async def favicon():
+        async def favicon() -> FileResponse:
             favicon_path = Path(__file__).parent / "static" / "favicon.ico"
             if favicon_path.exists():
                 return FileResponse(favicon_path)
@@ -295,10 +295,10 @@ class ChatterlangServer:
         with self.session_lock:
             return self.sessions.get(session_id)
 
-    def _start_cleanup_task(self):
+    def _start_cleanup_task(self) -> None:
         """Start background task to cleanup expired sessions"""
 
-        def cleanup_worker():
+        def cleanup_worker() -> None:
             while True:
                 try:
                     self.cleanup_expired_sessions()
@@ -311,7 +311,7 @@ class ChatterlangServer:
         cleanup_thread.start()
         logger.info("Started session cleanup background task")
 
-    def _setup_middleware(self):
+    def _setup_middleware(self) -> None:
         """Configure CORS middleware with security restrictions"""
         # Define allowed origins - never use "*" in production
         allowed_origins = [
@@ -351,11 +351,13 @@ class ChatterlangServer:
             max_age=86400,  # Cache preflight requests for 24 hours
         )
 
-    def _setup_security_headers(self):
+    def _setup_security_headers(self) -> None:
         """Add security headers to all responses"""
 
         @self.app.middleware("http")
-        async def add_security_headers(request, call_next):
+        async def add_security_headers(
+            request: Request, call_next: Callable[[Request], Awaitable[Response]]
+        ) -> Response:
             response = await call_next(request)
 
             # Security headers
@@ -381,7 +383,7 @@ class ChatterlangServer:
 
             return response
 
-    def _setup_routes(self):
+    def _setup_routes(self) -> None:
         """Configure all API routes"""
 
         @self.app.get("/", response_class=HTMLResponse)
@@ -422,11 +424,11 @@ class ChatterlangServer:
             return self._clear_history(session)
 
         @self.app.get("/health")
-        async def health_check():
+        async def health_check() -> dict[str, Any]:
             return {"status": "healthy", "timestamp": datetime.now(), "port": self.port}
 
         @self.app.get("/form-config")
-        async def get_form_config():
+        async def get_form_config() -> dict[str, Any]:
             return self.form_config.model_dump()
 
         @self.app.get("/output-stream")
@@ -1862,7 +1864,7 @@ class ChatterlangServer:
         self.processor_function = func
         logger.info(f"Port {self.port}: Processor function set to: {func.__name__}")
 
-    def _check_port_available(self):
+    def _check_port_available(self) -> None:
         """Verify the host/port can be bound before announcing the server.
 
         uvicorn reports a failed bind as a logged ERROR and returns, which
@@ -1915,7 +1917,7 @@ class ChatterlangServer:
         else:
             uvicorn.run(self.app, host=self.host, port=self.port)
 
-    def stop(self):
+    def stop(self) -> None:
         """Stop the server (only works if started in background)"""
         if self.server_thread and self.server_thread.is_alive():
             logger.info(f"Port {self.port}: Stopping server...")
@@ -1964,7 +1966,10 @@ class ChatterlangServerSegment(AbstractSource):
         if isinstance(form_config, str):
             # Check if it's a config variable
             if form_config.startswith("$"):
-                config_data = get_config(form_config[1:])
+                # Latent bug: this passes the variable name as get_config's
+                # ``reload`` flag (cf. the CLI path, which indexes get_config()).
+                # Behavior is pinned by tests, so only the typing is patched here.
+                config_data: Any = get_config(form_config[1:])  # type: ignore[arg-type]  # pre-existing call; see comment above
                 if config_data:
                     form_config_dict = (
                         json.loads(config_data)
@@ -2002,7 +2007,9 @@ class ChatterlangServerSegment(AbstractSource):
         # Override the processor for each new session to use our queue
         original_get_or_create_session = self.receiver.get_or_create_session
 
-        def patched_get_or_create_session(request, response):
+        def patched_get_or_create_session(
+            request: Request, response: Response
+        ) -> UserSession:
             session = original_get_or_create_session(request, response)
             # Replace the compiled script with our custom processor
             session.compiled_script = lambda data: self.process_data(data)
@@ -2021,7 +2028,7 @@ class ChatterlangServerSegment(AbstractSource):
             logger.error(f"Error processing data: {e}")
             return f"Error processing data: {e!s}"
 
-    def generate(self):
+    def generate(self) -> Iterator[Any]:
         print("Starting ChatterlangServer generator...")
         while True:
             # Wait for data to be available in the queue
@@ -2030,7 +2037,7 @@ class ChatterlangServerSegment(AbstractSource):
             yield self.queue.get(block=True, timeout=None)
 
 
-def go():
+def go() -> None:
 
     parser = argparse.ArgumentParser(
         description="FastAPI JSON Data Receiver with Configurable Form"

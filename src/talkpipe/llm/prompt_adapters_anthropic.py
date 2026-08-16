@@ -153,7 +153,7 @@ class AnthropicPromptAdapter(AbstractLLMPromptAdapter):
         self._apply_temperature_if_explicit(request_params)
         return request_params
 
-    def _messages_create(self, **request_params):
+    def _messages_create(self, **request_params: Any) -> Any:
         try:
             return self.client.messages.create(**request_params)
         except Exception as exc:

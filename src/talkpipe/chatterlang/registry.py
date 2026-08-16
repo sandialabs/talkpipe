@@ -242,7 +242,7 @@ class HybridRegistry(Generic[T]):
         )
         return self._entry_points_cache
 
-    def _load_all_entry_points(self):
+    def _load_all_entry_points(self) -> None:
         """
         Discover and load all entry points.
 
@@ -373,7 +373,7 @@ class HybridRegistry(Generic[T]):
         names -= DEPRECATED_ALIASES
         return sorted(names)
 
-    def invalidate_cache(self):
+    def invalidate_cache(self) -> None:
         """
         Clear caches (useful for testing).
         """
@@ -494,7 +494,7 @@ def register_segment(
     return wrap
 
 
-def get_registry_stats():
+def get_registry_stats() -> dict[str, Any]:
     """
     Get statistics about both registries.
 
@@ -508,7 +508,7 @@ def get_registry_stats():
     }
 
 
-def enable_lazy_imports():
+def enable_lazy_imports() -> None:
     """Enable lazy import mode programmatically."""
     global LAZY_IMPORT_MODE
     LAZY_IMPORT_MODE = True
@@ -517,7 +517,7 @@ def enable_lazy_imports():
     logger.info("Enabled lazy import mode")
 
 
-def disable_lazy_imports():
+def disable_lazy_imports() -> None:
     """Disable lazy import mode (use eager loading) programmatically."""
     global LAZY_IMPORT_MODE
     LAZY_IMPORT_MODE = False

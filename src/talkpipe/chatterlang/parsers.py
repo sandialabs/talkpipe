@@ -5,6 +5,7 @@ representation that can then be processed by the compilers module
 into something that can then be executed.
 """
 
+from collections.abc import Iterator
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -21,7 +22,7 @@ class VariableName:
     """The name of the variable."""
 
     @property
-    def is_variable(self):
+    def is_variable(self) -> bool:
         return True
 
 
@@ -33,13 +34,13 @@ class Identifier:
     """The name of the identifier."""
 
     @property
-    def is_variable(self):
+    def is_variable(self) -> bool:
         return False
 
-    def __str__(self):
+    def __str__(self) -> str:
         return self.name
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return self.name
 
 
@@ -53,7 +54,7 @@ class InputNode:
     """The parameters for the input source.  Used when the handler is created."""
 
     @property
-    def is_variable(self):
+    def is_variable(self) -> bool:
         return not isinstance(self.source, str) and self.source.is_variable
 
 
@@ -66,7 +67,7 @@ class ParsedLoop:
     pipelines: list["ParsedPipeline"]
     """The pipelines to execute in the loop."""
 
-    def __iter__(self):
+    def __iter__(self) -> Iterator["ParsedPipeline"]:
         return iter(self.pipelines)
 
     @property
@@ -122,7 +123,7 @@ class ParsedScript:
     pipelines: list[ParsedPipeline | ParsedLoop]
     constants: dict[str, Any] = field(default_factory=dict)
 
-    def __iter__(self):
+    def __iter__(self) -> Iterator[ParsedPipeline | ParsedLoop]:
         return iter(self.pipelines)
 
     @property
@@ -136,7 +137,7 @@ class ParsedScript:
                 ans.extend(p.input_nodes)
         return ans
 
-    def input_nodes_contain(self, input_node_name):
+    def input_nodes_contain(self, input_node_name: str) -> bool:
         """Check if the input nodes contain a specific input node name."""
         for n in self.input_nodes:
             if n is not None and n.source == Identifier(name=input_node_name):
@@ -144,18 +145,18 @@ class ParsedScript:
         return False
 
 
-def whitespace_wrap(p):
+def whitespace_wrap(p: Any) -> Any:
     return whitespace.many() >> p << whitespace.many()
 
 
-def lexeme(s):
+def lexeme(s: str) -> Any:
     return whitespace_wrap(string(s))
 
 
 whitespace_or_newline = regex(r"[ \t\n\r]+")
 
 
-def fork_whitespace(p):
+def fork_whitespace(p: Any) -> Any:
     return whitespace_or_newline.many() >> p << whitespace_or_newline.many()
 
 
@@ -187,7 +188,7 @@ atomic_parameter = (
 
 
 @generate
-def array_parameter():
+def array_parameter() -> Any:
     """A parser for array parameters like [1, "str", MY_CONST].
 
     Arrays can contain any valid parameter type including nested arrays.
@@ -223,7 +224,7 @@ bracket_parser = (
 
 # New parser for constant definitions
 @generate
-def constant_definition():
+def constant_definition() -> Any:
     yield (lexeme("CONST") | lexeme("SET"))
     const_name = yield identifier
     yield lexeme("=")
@@ -271,7 +272,7 @@ segment = seq(operation=identifier, bracket_content=bracket_parser).map(
 
 
 @generate
-def fork_branch_pipeline():
+def fork_branch_pipeline() -> Any:
     """
     Parser for a pipeline fragment inside a fork branch.
     This can be either a full pipeline or just transform segments.
@@ -302,14 +303,14 @@ def fork_branch_pipeline():
 
 
 @generate
-def fork_branch():
+def fork_branch() -> Any:
     """Parser for a single branch within a fork."""
     branch = yield fork_branch_pipeline
     return branch
 
 
 @generate
-def fork_content():
+def fork_content() -> Any:
     """Parser for the content inside fork()."""
     yield whitespace.many()
     first_branch = yield fork_branch
@@ -321,7 +322,7 @@ def fork_content():
 
 
 @generate
-def fork_section():
+def fork_section() -> Any:
     """Parser for a complete fork section."""
     yield lexeme("fork")
     yield lexeme("(")
@@ -332,7 +333,7 @@ def fork_section():
 
 
 @generate
-def transforms_section():
+def transforms_section() -> Any:
     """A parser for the transforms section.  Transforms are separated by the '|' character."""
     # First transform may or may not have a leading pipe (optional to allow empty transforms)
     first_transform = yield (
@@ -360,7 +361,7 @@ arrow_fork_source = (identifier << lexeme("->")).map(lambda x: x.name)
 
 
 @generate
-def pipeline():
+def pipeline() -> Any:
     yield whitespace.many()
 
     # Check for fork source at the start: fork_name ->
@@ -382,7 +383,7 @@ def pipeline():
 
 
 @generate
-def loop():
+def loop() -> Any:
     yield lexeme("LOOP")
     iterations = yield number
     yield lexeme("TIMES")
@@ -399,7 +400,7 @@ pipeline_separator = lexeme(";")
 
 
 @generate
-def script_parser():
+def script_parser() -> Any:
     # First parse constants
     constants = yield constant_definition.sep_by(pipeline_separator)
     constants = dict(constants)

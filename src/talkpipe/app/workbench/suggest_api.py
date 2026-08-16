@@ -12,6 +12,7 @@
 import json
 import logging
 import threading
+from pathlib import Path
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
@@ -32,7 +33,7 @@ _stats_cache = None
 _stats_lock = threading.Lock()
 
 
-def invalidate_stats_cache():
+def invalidate_stats_cache() -> None:
     global _stats_cache
     _stats_cache = None
 
@@ -50,14 +51,14 @@ def get_stats() -> dict:
 
 
 @router.get("/suggest/stats")
-def api_suggest_stats():
+def api_suggest_stats() -> dict:
     return get_stats()
 
 
 # --- Settings -------------------------------------------------------------------
 
 
-def _settings_path():
+def _settings_path() -> Path:
     return resolve_workspace_dir() / SETTINGS_FILENAME
 
 
@@ -110,7 +111,7 @@ def _settings_response(settings: dict) -> dict:
 
 
 @router.get("/settings")
-def api_get_settings():
+def api_get_settings() -> dict:
     return _settings_response(load_settings())
 
 

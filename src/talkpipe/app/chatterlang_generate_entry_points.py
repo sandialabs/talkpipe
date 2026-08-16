@@ -25,7 +25,7 @@ class DecoratorFinder(ast.NodeVisitor):
         self.sources: list[tuple[str, str]] = []  # [(name, class_name)]
         self.segments: list[tuple[str, str]] = []  # [(name, class_name)]
 
-    def _process_decorators(self, node):
+    def _process_decorators(self, node: ast.ClassDef | ast.FunctionDef) -> None:
         """Process decorators on a class or function definition."""
         for decorator in node.decorator_list:
             # Handle @register_source("name") or @register_segment("name")
@@ -267,7 +267,7 @@ def generate_toml_section(
     return "\n".join(lines)
 
 
-def main():
+def main() -> None:
     parser = argparse.ArgumentParser(
         description="Generate pyproject.toml entry points from decorator usage"
     )

@@ -49,7 +49,7 @@ RETRYABLE_EXCEPTIONS = (
 MAX_RETRY_DELAY = 30.0
 
 
-def resolve_user_agent(user_agent=None):
+def resolve_user_agent(user_agent: str | None = None) -> str:
     """Return the User-Agent to send: explicit argument, then the
     "user_agent" config key, then the browser-like default."""
     if user_agent is not None:
@@ -57,7 +57,7 @@ def resolve_user_agent(user_agent=None):
     return get_config().get(USER_AGENT_KEY, DEFAULT_USER_AGENT)
 
 
-def htmlToText(html, cleanText=True):
+def htmlToText(html: str | None, cleanText: bool = True) -> str:
     """
     Extracts readable text from HTML content while preserving basic structure.
 
@@ -137,7 +137,7 @@ def htmlToTextSegment(
 
 
 @cache
-def get_robot_parser(domain, timeout=5):
+def get_robot_parser(domain: str, timeout: float = 5) -> RobotFileParser | None:
     """Retrieve or create a RobotFileParser for a given domain with a timeout."""
     robots_url = f"{domain}/robots.txt"
 
@@ -193,7 +193,7 @@ def get_robot_parser(domain, timeout=5):
     return rp
 
 
-def can_fetch(url, user_agent=None):
+def can_fetch(url: str, user_agent: str | None = None) -> bool:
     """Check if the URL is allowed to be fetched according to robots.txt."""
     parsed_url = urlparse(url)
     domain = f"{parsed_url.scheme}://{parsed_url.netloc}"
@@ -225,7 +225,9 @@ def can_fetch(url, user_agent=None):
         return True  # Assume allowed if there's an error during check
 
 
-def _retry_delay(prior_attempts, response, backoff_factor):
+def _retry_delay(
+    prior_attempts: int, response: requests.Response | None, backoff_factor: float
+) -> float:
     """Seconds to sleep before the next retry: exponential backoff, raised to
     the server's Retry-After when one was sent, capped at MAX_RETRY_DELAY."""
     delay = backoff_factor * (2**prior_attempts)
@@ -237,7 +239,7 @@ def _retry_delay(prior_attempts, response, backoff_factor):
     return min(delay, MAX_RETRY_DELAY)
 
 
-def _fix_encoding(response):
+def _fix_encoding(response: requests.Response) -> None:
     """Repair the charset guess before reading response.text.
 
     When a page declares no charset, requests falls back to ISO-8859-1 (the
@@ -253,8 +255,13 @@ def _fix_encoding(response):
 
 
 def downloadURL(
-    url, fail_on_error=True, user_agent=None, timeout=10, retries=2, backoff_factor=0.5
-):
+    url: str,
+    fail_on_error: bool = True,
+    user_agent: str | None = None,
+    timeout: float = 10,
+    retries: int = 2,
+    backoff_factor: float = 0.5,
+) -> str | None:
     """Downloads content from a specified URL with respect to robots.txt rules.
 
     This function attempts to download content from a given URL while checking robots.txt
