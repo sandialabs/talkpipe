@@ -162,10 +162,10 @@ def DiagPrint(
 @registry.register_segment("sleep")
 @segment()
 def sleep(
-    items,
+    items: Iterable[Any],
     seconds: Annotated[int, "The number of seconds to sleep after processing n items"],
     n: Annotated[int, "The number of items to process before sleeping"] = 1,
-):
+) -> Iterator[Any]:
     """Sleep for a specified number of seconds after each n items.
 
     This segment introduces a delay between processing each item in the pipeline.
@@ -183,7 +183,7 @@ def sleep(
 @registry.register_segment(name="progressTicks")
 @segment()
 def progressTicks(
-    items,
+    items: Iterable[Any],
     tick: Annotated[str, "The character to print as a tick mark."] = ".",
     tick_count: Annotated[
         int, "Number of items to process before printing a tick mark."
@@ -195,7 +195,7 @@ def progressTicks(
     print_count: Annotated[
         bool, "If True, prints the count of items processed at line ends."
     ] = False,
-):
+) -> Iterator[Any]:
     """Display progress indicators while processing items in the pipeline.
 
     Prints tick marks to stderr to visualize processing progress without interfering
@@ -223,7 +223,9 @@ def progressTicks(
 
 @registry.register_segment(name="firstN")
 @segment()
-def firstN(items, n: Annotated[int, "The number of items to yield."] = 1):
+def firstN(
+    items: Iterable[Any], n: Annotated[int, "The number of items to yield."] = 1
+) -> Iterator[Any]:
     """Yields the first n items from the input stream.
 
     Useful for sampling data, testing pipelines with limited data, or implementing
@@ -396,8 +398,8 @@ class FormattedItem(AbstractSegment):
 @registry.register_segment("setAs")
 @field_segment
 def setAs(
-    item, field_list: Annotated[str, "Comma-separated list of field:label pairs."]
-):
+    item: Any, field_list: Annotated[str, "Comma-separated list of field:label pairs."]
+) -> Any:
     """Appends the specified fields to the input item.
 
     Equivalent to toDict except that the item is modified with the new key/value pairs
@@ -415,8 +417,8 @@ def setAs(
 @registry.register_segment("extractProperty")
 @field_segment
 def extractProperty(
-    item, property: Annotated[str, "The property to extract from the input item."]
-):
+    item: Any, property: Annotated[str, "The property to extract from the input item."]
+) -> Any:
     """Extracts the specified property from the input item.
 
     Returns:
@@ -431,7 +433,7 @@ def assign(
     items: Annotated[Iterator[Any], "The input item to modify"],
     value: Annotated[Any, "The value to assign"],
     set_as: Annotated[str, "The field to assign the value to"],
-):
+) -> Iterator[Any]:
     """Set a field to a constant value on each item in the pipeline.
 
     This segment modifies each input item by setting a specified field to the same
@@ -502,14 +504,14 @@ def exec(command: Annotated[str, "The shell command to execute."]) -> Iterator:
 @registry.register_segment("concat")
 @segment(fields=None, delimiter="\n\n", set_as=None)
 def concat(
-    items,
+    items: Iterable[Any],
     fields: Annotated[str, "Comma-separated list of fields to concatenate."],
     delimiter: Annotated[str, "String to insert between concatenated fields."] = "\n\n",
     set_as: Annotated[
         str | None,
         "If specified, adds concatenated result as new field with this name.",
     ] = None,
-):
+) -> Iterator[Any]:
     """Concatenate specified fields from each item into a single string.
 
     This segment extracts multiple fields from each item, converts them to strings,
@@ -540,12 +542,12 @@ def concat(
 @registry.register_segment("slice")
 @field_segment()
 def slice(
-    item,
+    item: Any,
     range: Annotated[
         str | None,
         "String in format 'start:end' where both start and end are optional.",
     ] = None,
-):
+) -> Any:
     """Slices a sequence using start and end indices.
 
     This function takes a sequence and a range string in the format "start:end" to slice the sequence.
@@ -582,14 +584,14 @@ def slice(
 @registry.register_segment("longestStr")
 @segment()
 def longestStr(
-    items,
+    items: Iterable[Any],
     field_list: Annotated[
         str, "Comma-separated list of fields to check for longest string."
     ],
     set_as: Annotated[
         str | None, "If specified, adds longest string as new field with this name."
     ] = None,
-):
+) -> Iterator[Any]:
     """Find the longest string value among specified fields in each item.
 
     Compares the string representations of multiple fields and returns the one
@@ -620,7 +622,13 @@ def longestStr(
             yield longest
 
 
-def _bool_filter_transform(items, field, predicate, as_filter, set_as):
+def _bool_filter_transform(
+    items: Iterable[Any],
+    field: str,
+    predicate: Callable[[Any], bool],
+    as_filter: bool,
+    set_as: str | None,
+) -> Iterator[Any]:
     """Common logic for isIn, isNotIn, isTrue, isFalse segments."""
     for item in items:
         value = extract_property(item, field)
@@ -634,7 +642,7 @@ def _bool_filter_transform(items, field, predicate, as_filter, set_as):
             yield to_return
 
 
-def _is_truthy(value) -> bool:
+def _is_truthy(value: Any) -> bool:
     """Check if value is truthy (not None, False, 0, or empty string)."""
     return (
         bool(value)
@@ -646,7 +654,7 @@ def _is_truthy(value) -> bool:
 @registry.register_segment("isIn")
 @segment()
 def isIn(
-    items,
+    items: Iterable[Any],
     field: Annotated[str, "Field name to check for value"],
     value: Annotated[Any, "Value to check for in the field"],
     as_filter: Annotated[
@@ -656,7 +664,7 @@ def isIn(
     set_as: Annotated[
         str | None, "If specified, the result will be added to this field in the item."
     ] = None,
-):
+) -> Iterator[Any]:
     """Check if a field contains a value, optionally filtering items.
 
     Tests whether a specified value is contained in a field using Python's 'in' operator.
@@ -680,7 +688,7 @@ def isIn(
 @registry.register_segment("isNotIn")
 @segment()
 def isNotIn(
-    items,
+    items: Iterable[Any],
     field: Annotated[str, "Field name to check for value"],
     value: Annotated[Any, "Value to check for in the field"],
     as_filter: Annotated[
@@ -690,7 +698,7 @@ def isNotIn(
     set_as: Annotated[
         str | None, "If specified, the result will be added to this field in the item."
     ] = None,
-):
+) -> Iterator[Any]:
     """Check if a field does not contain a value, optionally filtering items.
 
     Tests whether a specified value is NOT contained in a field using Python's 'not in' operator.
@@ -714,7 +722,7 @@ def isNotIn(
 @registry.register_segment("isTrue")
 @segment()
 def isTrue(
-    items,
+    items: Iterable[Any],
     as_filter: Annotated[
         bool,
         "Whether to use this function as a filter. If false, only return True or False. If true, yield the item if the condition is true.",
@@ -726,7 +734,7 @@ def isTrue(
     set_as: Annotated[
         str | None, "If specified, the result will be added to this field in the item."
     ] = None,
-):
+) -> Iterator[Any]:
     """Check if a field is truthy, optionally filtering items.
 
     Tests whether the specified field is considered true. A value is considered false
@@ -748,7 +756,7 @@ def isTrue(
 @registry.register_segment("isFalse")
 @segment()
 def isFalse(
-    items,
+    items: Iterable[Any],
     as_filter: Annotated[
         bool,
         "Whether to use this function as a filter. If false, only return True or False. If true, yield the item if the condition is true.",
@@ -760,7 +768,7 @@ def isFalse(
     set_as: Annotated[
         str | None, "If specified, the result will be added to this field in the item."
     ] = None,
-):
+) -> Iterator[Any]:
     """Check if a field is falsy, optionally filtering items.
 
     Tests whether the specified field is considered false. A value is considered false
@@ -783,7 +791,10 @@ def isFalse(
 
 @registry.register_segment("everyN")
 @segment()
-def everyN(items, n: Annotated[int, "Number of items to skip between each yield"]):
+def everyN(
+    items: Iterable[Any],
+    n: Annotated[int, "Number of items to skip between each yield"],
+) -> Iterator[Any]:
     """Yield every nth item from the input stream, creating a sampling effect.
 
     This segment yields only items at positions that are multiples of n, effectively
@@ -867,7 +878,7 @@ class ConfigureLogger(AbstractSegment):
 
 
 def hash_data(
-    data,
+    data: Any,
     algorithm: Annotated[
         str,
         "Hash algorithm to use. Options include SHA1, SHA224, SHA256, SHA384, SHA512, SHA-3, and MD5.",
@@ -881,7 +892,7 @@ def hash_data(
     ] = True,
     fail_on_missing: Annotated[bool, "Whether to fail on missing fields"] = True,
     default: Annotated[Any, "Default value to use for missing fields"] = None,
-):
+) -> str:
     """Hash a single data item using the specified parameters.
 
     Returns:
@@ -978,11 +989,11 @@ class Hash(AbstractSegment):
 @registry.register_segment("fillTemplate")
 @field_segment
 def fillTemplate(
-    item,
+    item: Any,
     template: Annotated[str, "The template string with placeholders for values"],
     fail_on_missing: Annotated[bool, "Whether to fail on missing fields"] = True,
     default: Annotated[Any | None, "Default value to use for missing fields"] = "",
-):
+) -> str:
     """Fill a template string with values from the input `item`.
 
         Template writing guide:
@@ -1163,7 +1174,7 @@ def Debounce(
     debounce_seconds: Annotated[
         float, "Seconds to wait for stability before yielding"
     ] = 1.0,
-):
+) -> Iterator[Any]:
     """
     Segment that debounces events by a key field, waiting for stability before yielding.
 

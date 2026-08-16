@@ -20,9 +20,12 @@ no advisory mode. The rule set (`[tool.ruff]`) and the type-checking
 baseline (`[tool.mypy]`) live in `pyproject.toml`; `ruff check --fix . &&
 ruff format .` fixes most lint and format findings. `pre-commit install`
 (opt-in, per clone) runs the same three checks on every commit. mypy starts
-from a permissive baseline (untyped function bodies are checked, missing
-annotations are not yet errors) and is tightened towards `strict` over time
--- do not add `# type: ignore` without an error code and a reason.
+from a permissive baseline (untyped function bodies are checked, and a
+function that is annotated at all must be annotated completely, but fully
+unannotated functions are not yet errors) and is tightened towards `strict`
+over time -- do not add `# type: ignore` without an error code and a reason.
+When you touch a function, annotate all of it: partial annotations fail the
+build (`disallow_incomplete_defs`).
 
 ### Versioning
 

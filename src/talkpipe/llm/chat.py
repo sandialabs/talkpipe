@@ -7,8 +7,8 @@ concrete classes for chatting with models from Ollama.
 import inspect
 import logging
 from abc import abstractmethod
-from collections.abc import Iterable, Iterator
-from typing import Annotated
+from collections.abc import Callable, Iterable, Iterator
+from typing import Annotated, Any
 
 from pydantic import BaseModel
 
@@ -19,6 +19,7 @@ from talkpipe.util.constants import TALKPIPE_MODEL_NAME, TALKPIPE_SOURCE
 from talkpipe.util.data_manipulation import assign_property, extract_property
 
 from .config import getPromptAdapter, getPromptSources
+from .prompt_adapter_base import AbstractLLMPromptAdapter
 
 logger = logging.getLogger(__name__)
 
@@ -149,7 +150,12 @@ class LLMPrompt(AbstractSegment):
         self.field = field
         self.set_as = set_as
 
-    def _create_prompt_adapter(self, adapter_cls, source: str, adapter_kwargs: dict):
+    def _create_prompt_adapter(
+        self,
+        adapter_cls: Callable[..., AbstractLLMPromptAdapter],
+        source: str,
+        adapter_kwargs: dict,
+    ) -> AbstractLLMPromptAdapter:
         accepted_kwargs = self._supported_adapter_kwargs(adapter_cls, adapter_kwargs)
         unsupported_compat_kwargs = (
             set(PROMPT_ADAPTER_COMPAT_KWARG_DEFAULTS) - accepted_kwargs
@@ -180,7 +186,9 @@ class LLMPrompt(AbstractSegment):
 
         return adapter_cls(**adapter_kwargs)
 
-    def _supported_adapter_kwargs(self, adapter_cls, adapter_kwargs: dict) -> set[str]:
+    def _supported_adapter_kwargs(
+        self, adapter_cls: Callable[..., Any], adapter_kwargs: dict
+    ) -> set[str]:
         signature = inspect.signature(adapter_cls)
         parameters = signature.parameters.values()
         if any(

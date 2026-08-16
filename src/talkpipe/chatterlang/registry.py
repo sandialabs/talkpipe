@@ -16,6 +16,7 @@ while maintaining fast import times for applications that use lazy mode.
 """
 
 import logging
+from collections.abc import Callable
 from typing import Any, Generic, TypeVar
 
 logger = logging.getLogger(__name__)
@@ -405,7 +406,9 @@ segment_registry: HybridRegistry[Any] = HybridRegistry(
 )
 
 
-def register_source(*names: str, name: str | None = None):
+def register_source(
+    *names: str, name: str | None = None
+) -> Callable[[type[T]], type[T]]:
     """
     Decorator to register a source module with one or more names in the registry.
 
@@ -439,7 +442,7 @@ def register_source(*names: str, name: str | None = None):
     if not names:
         raise ValueError("At least one name must be provided")
 
-    def wrap(cls):
+    def wrap(cls: type[T]) -> type[T]:
         for source_name in names:
             input_registry.register(cls, name=source_name)
         return cls
@@ -447,7 +450,9 @@ def register_source(*names: str, name: str | None = None):
     return wrap
 
 
-def register_segment(*names: str, name: str | None = None):
+def register_segment(
+    *names: str, name: str | None = None
+) -> Callable[[type[T]], type[T]]:
     """
     Decorator to register a segment module with one or more names in the registry.
 
@@ -481,7 +486,7 @@ def register_segment(*names: str, name: str | None = None):
     if not names:
         raise ValueError("At least one name must be provided")
 
-    def wrap(cls):
+    def wrap(cls: type[T]) -> type[T]:
         for segment_name in names:
             segment_registry.register(cls, name=segment_name)
         return cls

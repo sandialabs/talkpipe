@@ -88,14 +88,14 @@ class LLMVisionPrompt(AbstractSegment):
         self.prompt_field = prompt_field
         self.set_as = set_as
 
-    def _resolve_prompt(self, item) -> str:
+    def _resolve_prompt(self, item: Any) -> str:
         if self.prompt_field:
             value = extract_property(item, self.prompt_field)
             if value is not None and str(value).strip():
                 return str(value)
         return self.prompt
 
-    def _resolve_context(self, item) -> str | None:
+    def _resolve_context(self, item: Any) -> str | None:
         if not self.context_field:
             return None
         value = extract_property(item, self.context_field)

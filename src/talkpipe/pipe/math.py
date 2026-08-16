@@ -41,7 +41,7 @@ def scale(
 def arange(
     lower: Annotated[int, "Lower bound of the range (inclusive)"],
     upper: Annotated[int, "Upper bound of the range (exclusive)"],
-):
+) -> Iterator[int]:
     """Generate a range of integers between lower (inclusive) and upper (exclusive)
 
     This segment wraps the built-in range function, allowing you to specify
@@ -73,7 +73,9 @@ class AbstractComparisonFilter(core.AbstractSegment):
                 yield item
 
 
-def _make_comparison_segment(name: str, op: Callable[[Any, Any], bool], docstring: str):
+def _make_comparison_segment(
+    name: str, op: Callable[[Any, Any], bool], docstring: str
+) -> type[AbstractComparisonFilter]:
     """Factory: create a registered comparison segment with given op and docstring."""
 
     @registry.register_segment(name=name)

@@ -1,3 +1,5 @@
+from typing import Any
+
 from pydantic import BaseModel
 
 from talkpipe.util.config import get_config
@@ -115,8 +117,12 @@ class OllamaPromptAdapter(AbstractLLMPromptAdapter):
         return result
 
     def _chat_completion(
-        self, model: str, messages: list, format_schema=None, options=None
-    ):
+        self,
+        model: str,
+        messages: list,
+        format_schema: Any = None,
+        options: Any = None,
+    ) -> Any:
         ollama = self._require_dependency("ollama", "Ollama", "ollama")
 
         server_url = self._server_url

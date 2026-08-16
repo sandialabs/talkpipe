@@ -59,12 +59,12 @@ def list_pipelines():
 
 
 @router.get("/pipelines/{pipeline_id}")
-def get_pipeline(pipeline_id: str):
+def get_pipeline(pipeline_id: str) -> Any:
     return _run(lambda: get_store().load(pipeline_id))
 
 
 @router.post("/pipelines", status_code=201)
-def create_pipeline(request: PipelineCreate):
+def create_pipeline(request: PipelineCreate) -> Any:
     record = _run(
         lambda: get_store().create(
             request.name,
@@ -78,7 +78,7 @@ def create_pipeline(request: PipelineCreate):
 
 
 @router.put("/pipelines/{pipeline_id}")
-def update_pipeline(pipeline_id: str, request: PipelineUpdate):
+def update_pipeline(pipeline_id: str, request: PipelineUpdate) -> Any:
     record = _run(
         lambda: get_store().update(
             pipeline_id,
@@ -92,14 +92,14 @@ def update_pipeline(pipeline_id: str, request: PipelineUpdate):
 
 
 @router.post("/pipelines/{pipeline_id}/rename")
-def rename_pipeline(pipeline_id: str, request: PipelineRename):
+def rename_pipeline(pipeline_id: str, request: PipelineRename) -> Any:
     record = _run(lambda: get_store().rename(pipeline_id, request.new_name))
     _notify_change()
     return record
 
 
 @router.delete("/pipelines/{pipeline_id}", status_code=204)
-def delete_pipeline(pipeline_id: str):
+def delete_pipeline(pipeline_id: str) -> Response:
     _run(lambda: get_store().delete(pipeline_id))
     _notify_change()
     return Response(status_code=204)

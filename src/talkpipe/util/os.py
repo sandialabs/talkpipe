@@ -4,6 +4,7 @@ import shlex
 import shutil
 import subprocess  # nosec B404 - Required for secure command execution with comprehensive validation
 import tempfile
+from collections.abc import Iterator
 from pathlib import Path
 
 logger = logging.getLogger(__name__)
@@ -13,7 +14,7 @@ class SecurityError(Exception):
     """Raised when a security violation is detected."""
 
 
-def run_command(command: str):
+def run_command(command: str) -> Iterator[str]:
     """
     Runs an external command and yields each line from stdout.
 
@@ -85,7 +86,7 @@ def run_command(command: str):
         raise SecurityError(f"Command execution failed: {e}") from e
 
 
-def _validate_command_security(command: str):
+def _validate_command_security(command: str) -> None:
     """
     Validate that the command does not contain dangerous patterns.
 
@@ -132,7 +133,7 @@ def _validate_command_security(command: str):
             )
 
 
-def _validate_base_command(base_command: str):
+def _validate_base_command(base_command: str) -> None:
     """
     Validate that the base command is from an allowed list.
 

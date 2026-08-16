@@ -172,10 +172,10 @@ def get_config(reload=False, path="~/.talkpipe.toml", ignore_env=False):
 
 def configure_logger(
     logger_levels: str | None = None,
-    base_level="WARNING",
+    base_level: str = "WARNING",
     logger_files: str | None = None,
-    transformers_to_debug=True,
-):
+    transformers_to_debug: bool = True,
+) -> None:
     """Configure logging levels and optional file handlers for loggers.
 
     Sets levels and handlers for loggers specified in ``logger_levels`` and

@@ -89,7 +89,7 @@ def is_metadata(obj: Any) -> bool:
     return isinstance(obj, Metadata)
 
 
-def create_metadata(**kwargs) -> Metadata:
+def create_metadata(**kwargs: Any) -> Metadata:
     """Create a Metadata object with the provided fields.
 
     This is a convenience function for creating metadata objects.
@@ -122,24 +122,24 @@ class RuntimeComponent:
     _variable_store: dict
     _const_store: dict
 
-    def __init__(self):
+    def __init__(self) -> None:
         self._variable_store = {}
         self._const_store = {}
 
     @property
-    def variable_store(self):
+    def variable_store(self) -> dict:
         return self._variable_store
 
     @variable_store.setter
-    def variable_store(self, value: dict):
+    def variable_store(self, value: dict) -> None:
         self._variable_store = value
 
     @property
-    def const_store(self):
+    def const_store(self) -> dict:
         return self._const_store
 
     @const_store.setter
-    def const_store(self, value: dict):
+    def const_store(self, value: dict) -> None:
         self._const_store = value
 
     def add_constants(
@@ -149,7 +149,7 @@ class RuntimeComponent:
             bool,
             "If True, new constants override existing ones. If False, existing constants are preserved.",
         ] = True,
-    ):
+    ) -> None:
         """Add constants to the const_store."""
         if override:
             self._const_store.update(constants)
@@ -165,11 +165,11 @@ class HasRuntimeComponent:
     _runtime: RuntimeComponent | None = None
 
     @property
-    def runtime(self):
+    def runtime(self) -> RuntimeComponent | None:
         return self._runtime
 
     @runtime.setter
-    def runtime(self, value: RuntimeComponent):
+    def runtime(self, value: RuntimeComponent) -> None:
         self._runtime = value
 
 
@@ -252,7 +252,7 @@ class AbstractSegment(ABC, HasRuntimeComponent, Generic[T, U]):
                     yield item * 2
         """
 
-    def registerUpstream(self, upstream: "AbstractSegment | AbstractSource"):
+    def registerUpstream(self, upstream: "AbstractSegment | AbstractSource") -> None:
         """Register an upstream segment.
 
         Used internally by the Pipe API to track dependencies when chaining segments.
@@ -263,7 +263,7 @@ class AbstractSegment(ABC, HasRuntimeComponent, Generic[T, U]):
         """
         self.upstream.append(upstream)
 
-    def registerDownstream(self, downstream: "AbstractSegment"):
+    def registerDownstream(self, downstream: "AbstractSegment") -> None:
         """Register a downstream segment.
 
         Used internally by the Pipe API to track dependencies when chaining segments.
@@ -400,10 +400,10 @@ class AbstractSource(ABC, HasRuntimeComponent, Generic[U]):
                     yield item
         """
 
-    def registerUpstream(self, upstream: "AbstractSegment"):
+    def registerUpstream(self, upstream: "AbstractSegment") -> None:
         raise RuntimeError("Cannot register an upstream segment for a source.")
 
-    def registerDownstream(self, downstream: "AbstractSegment"):
+    def registerDownstream(self, downstream: "AbstractSegment") -> None:
         """Register a downstream segment.
 
         Used internally by the Pipe API to track dependencies when chaining sources with segments.
@@ -431,7 +431,7 @@ class AbstractSource(ABC, HasRuntimeComponent, Generic[U]):
 def source(
     *decorator_args: Annotated[Any, "Positional arguments for the input generator"],
     **decorator_kwargs: Annotated[Any, "Keyword arguments for the input generator"],
-):
+) -> Any:
     """Decorator to convert a function into a source class with optional parameters.
 
     Sources are entry points for pipelines. They generate data without requiring input.
@@ -531,7 +531,7 @@ def source(
 def segment(
     *decorator_args: Annotated[Any, "Positional arguments for the operation"],
     **decorator_kwargs: Annotated[Any, "Keyword arguments for the operation"],
-):
+) -> Any:
     """Decorator to convert a function into a segment class with optional parameters.
 
     Segments are operations that transform data flowing through pipelines.

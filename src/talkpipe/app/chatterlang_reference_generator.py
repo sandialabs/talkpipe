@@ -346,7 +346,7 @@ def generate_html(analyzed_items: list[AnalyzedItem], output_file: str) -> None:
 
             if filtered_params:
 
-                def _one_line(text) -> str:
+                def _one_line(text: object) -> str:
                     if text is None:
                         return ""
                     s = str(text)
@@ -445,7 +445,7 @@ def generate_text(analyzed_items: list[AnalyzedItem], output_file: str) -> None:
 
             if filtered_params:
 
-                def _one_line(text) -> str:
+                def _one_line(text: object) -> str:
                     if text is None:
                         return ""
                     s = str(text)

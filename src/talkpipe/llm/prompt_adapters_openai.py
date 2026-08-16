@@ -100,7 +100,7 @@ class OpenAIPromptAdapter(AbstractLLMPromptAdapter):
         logger.debug(f"Returning response: {result}")
         return result
 
-    def _responses_request(self, parse: bool, **request_params):
+    def _responses_request(self, parse: bool, **request_params: Any) -> Any:
         # `parse=True` preserves guided-generation behavior when an output schema is provided.
         if parse:
             return self.client.responses.parse(**request_params)

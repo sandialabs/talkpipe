@@ -69,15 +69,17 @@ class ThreadedQueue:
         # A unique sentinel object for termination.
         self._sentinel = object()
 
-    def _register_consumer_queue(self, consumer_id: str, consumer_queue: queue.Queue):
+    def _register_consumer_queue(
+        self, consumer_id: str, consumer_queue: queue.Queue
+    ) -> None:
         with self._lock:
             self.consumer_queues[consumer_id] = consumer_queue
 
-    def _unregister_consumer_queue(self, consumer_id: str):
+    def _unregister_consumer_queue(self, consumer_id: str) -> None:
         with self._lock:
             self.consumer_queues.pop(consumer_id, None)
 
-    def _broadcast_item(self, item: Any):
+    def _broadcast_item(self, item: Any) -> None:
         with self._lock:
             for consumer_queue in self.consumer_queues.values():
                 consumer_queue.put(item)
@@ -100,7 +102,7 @@ class ThreadedQueue:
             self._pending_producers[producer_id] = generator
         return producer_id
 
-    def _start_producer(self, producer_id: str, generator: Iterator[Any]):
+    def _start_producer(self, producer_id: str, generator: Iterator[Any]) -> None:
         """
         Helper to start a producer in its own thread. Each item produced is
         broadcast to all registered consumer queues.
@@ -182,7 +184,7 @@ class ThreadedQueue:
 @core.segment()
 def threadedSegment(
     items: Annotated[Iterator, "Input stream to link to threaded queue system"],
-):
+) -> Iterator[Any]:
     """Links the input stream to a threaded queue system.
 
     This segment takes an input stream and links it to a threaded queue system.

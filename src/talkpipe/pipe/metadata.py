@@ -1,5 +1,6 @@
 import time
-from typing import Annotated
+from collections.abc import Iterable, Iterator
+from typing import Annotated, Any
 
 from talkpipe.chatterlang import register_segment, register_source
 
@@ -12,7 +13,9 @@ class Flush(Metadata):
 
 @register_segment("flushN")
 @segment()
-def flushN(items, n: Annotated[int, "Number of items between flush operations."]):
+def flushN(
+    items: Iterable[Any], n: Annotated[int, "Number of items between flush operations."]
+) -> Iterator[Any]:
     """Issues a flush operation every n items.
 
     Args:
@@ -30,8 +33,9 @@ def flushN(items, n: Annotated[int, "Number of items between flush operations."]
 @register_segment("flushT")
 @segment()
 def flushT(
-    items, t: Annotated[float, "Time interval in seconds between flush operations."]
-):
+    items: Iterable[Any],
+    t: Annotated[float, "Time interval in seconds between flush operations."],
+) -> Iterator[Any]:
     """Issues a flush operation every t seconds while processing items.
 
     The flush operation checks time after each item is processed and yields
@@ -56,7 +60,7 @@ def flushT(
 @source()
 def FlushTSource(
     t: Annotated[float, "Time interval in seconds between flush operations."],
-):
+) -> Iterator[Flush]:
     """Issues a flush operation every t seconds."""
     while True:
         yield Flush()
@@ -65,7 +69,7 @@ def FlushTSource(
 
 @register_segment("collectMetadata")
 @segment(process_metadata=True)
-def CollectMetadata(items):
+def CollectMetadata(items: Iterable[Any]) -> Iterator[str]:
     """Collects metadata objects from the input stream.
 
     Args:

@@ -1,12 +1,14 @@
 import json
 import logging
 from abc import ABC, abstractmethod
-from typing import Annotated
+from collections.abc import Callable
+from typing import Annotated, Any
 
 from pydantic import BaseModel
 
 from talkpipe.util.data_manipulation import parse_key_value_str
 
+from .content import UserTurn
 from .prompt_adapter_memory import PromptAdapterMemoryMixin
 
 # Keep the historical logger name for compatibility with existing monkeypatches.
@@ -106,7 +108,9 @@ class AbstractLLMPromptAdapter(PromptAdapterMemoryMixin, ABC):
         summary_messages = [self._summary_message] if self._summary_message else []
         return self._prefix_messages + summary_messages + self._messages
 
-    def _require_dependency(self, module_name: str, display_name: str, extra_name: str):
+    def _require_dependency(
+        self, module_name: str, display_name: str, extra_name: str
+    ) -> Any:
         try:
             return __import__(module_name)
         except ModuleNotFoundError as exc:
@@ -124,7 +128,9 @@ class AbstractLLMPromptAdapter(PromptAdapterMemoryMixin, ABC):
                 f"Check your environment for dependency conflicts."
             ) from exc
 
-    def _build_client(self, factory, display_name: str, api_key_env_var: str):
+    def _build_client(
+        self, factory: Callable[[], Any], display_name: str, api_key_env_var: str
+    ) -> Any:
         """Instantiate a provider SDK client with friendly credential errors.
 
         Cloud SDK clients raise a raw, provider-specific exception when no API
@@ -253,7 +259,7 @@ class AbstractLLMPromptAdapter(PromptAdapterMemoryMixin, ABC):
         This method is used to execute the chat model with a given input.
         """
 
-    def execute_turn(self, user_turn) -> str | BaseModel:
+    def execute_turn(self, user_turn: UserTurn) -> str | BaseModel:
         """Execute the chat model with a multimodal user turn."""
         raise NotImplementedError(
             f"{self.__class__.__name__} must implement execute_turn() for multimodal prompts."

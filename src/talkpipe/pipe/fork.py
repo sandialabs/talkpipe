@@ -58,7 +58,7 @@ class ForkSegment(AbstractSegment):
         branch: AbstractSegment | AbstractSource,
         input_queue: Queue,
         output_queue: Queue,
-    ):
+    ) -> None:
         """Run one branch: consume from input_queue, emit (branch_id, item) to output_queue."""
         try:
             if isinstance(branch, AbstractSegment):

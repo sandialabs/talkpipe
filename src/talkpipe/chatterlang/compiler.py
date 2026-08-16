@@ -59,7 +59,7 @@ class CompileError(Exception):
         self.bad_name = bad_name
 
 
-def _valid_param_names(component) -> list[str]:
+def _valid_param_names(component: Any) -> list[str]:
     """Best-effort list of accepted keyword parameters for a component class.
 
     Returns an empty list when the signature can't be introspected or only
@@ -75,7 +75,7 @@ def _valid_param_names(component) -> list[str]:
     ]
 
 
-def _bad_param_message(kind: str, name: str, component, error: TypeError) -> str:
+def _bad_param_message(kind: str, name: str, component: Any, error: TypeError) -> str:
     """Build a CompileError message for an invalid parameter on a component."""
     msg = f"{kind} '{name}' was given invalid parameters: {error}."
     valid = _valid_param_names(component)
@@ -84,7 +84,7 @@ def _bad_param_message(kind: str, name: str, component, error: TypeError) -> str
     return msg
 
 
-def _not_found_message(kind: str, name: str, reg) -> str:
+def _not_found_message(kind: str, name: str, reg: registry.HybridRegistry[Any]) -> str:
     """Build a CompileError message for an unknown segment/source name."""
     try:
         available = reg.available_names
@@ -136,7 +136,9 @@ def _not_found_message(kind: str, name: str, reg) -> str:
     return msg
 
 
-def parse_error_location(script: str, error: ParseError):
+def parse_error_location(
+    script: str, error: ParseError
+) -> tuple[int, int] | tuple[None, None]:
     """Return the 1-indexed (line, column) of a parsy ParseError.
 
     Returns (None, None) when the error carries no usable position.
@@ -160,6 +162,8 @@ def _format_parse_error(script: str, error: ParseError) -> str:
     before = stream[:index]
     line_start = before.rfind("\n") + 1
     line_no, col_no = parse_error_location(script, error)
+    if line_no is None or col_no is None:  # already excluded above; narrows for typing
+        return f"Could not parse ChatterLang script: {error}"
     line_end = stream.find("\n", index)
     if line_end == -1:
         line_end = len(stream)
@@ -626,6 +630,23 @@ class ArrowForkSegment:
         self._started = True
 
 
+def _variable_store(
+    component: AbstractSource | AbstractSegment,
+) -> dict[str, Any]:
+    """Return the variable store of the runtime attached to a compiled component.
+
+    Components that read or write ChatterLang variables are only meaningful once
+    the compiler has attached a runtime; fail clearly otherwise.
+    """
+    runtime = component.runtime
+    if runtime is None:
+        raise RuntimeError(
+            f"{type(component).__name__} is not attached to a runtime; "
+            "it must be created by compiling a ChatterLang script"
+        )
+    return runtime.variable_store
+
+
 class VariableSource(AbstractSource):
     """A source that gets a variable from the variable store and returns its
     contents item by item.
@@ -638,7 +659,7 @@ class VariableSource(AbstractSource):
         self.variable_name = variable_name
 
     def generate(self):
-        yield from self.runtime.variable_store[self.variable_name]
+        yield from _variable_store(self)[self.variable_name]
 
 
 class VariableSetSegment(io.AbstractSegment):
@@ -655,7 +676,7 @@ class VariableSetSegment(io.AbstractSegment):
 
     def transform(self, items):
         list_of_items = list(items)
-        self.runtime.variable_store[self.variable_name] = list_of_items
+        _variable_store(self)[self.variable_name] = list_of_items
         yield from list_of_items
 
 
@@ -684,8 +705,8 @@ class Accum(io.AbstractSegment):
         if self.reset:
             self.accumulator = []
 
-        if self.variable_name and self.variable_name not in self.runtime.variable_store:
-            self.runtime.variable_store[self.variable_name] = []
+        if self.variable_name and self.variable_name not in _variable_store(self):
+            _variable_store(self)[self.variable_name] = []
 
         for item in self.accumulator:
             yield item
@@ -693,7 +714,7 @@ class Accum(io.AbstractSegment):
         for item in items:
             self.accumulator.append(item)
             if self.variable_name:
-                self.runtime.variable_store[self.variable_name].append(item)
+                _variable_store(self)[self.variable_name].append(item)
             yield item
 
 

@@ -1,5 +1,5 @@
 import re
-from collections.abc import Iterable
+from collections.abc import Iterable, Iterator
 from typing import Annotated, Any
 
 from talkpipe import AbstractSegment, register_segment
@@ -17,7 +17,7 @@ def regex_replace(
     field: Annotated[
         str, "Field to apply transformation to. Use '_' for entire item"
     ] = "_",
-):
+) -> Iterator[Any]:
     """Transform items by applying regex pattern replacement.
 
     This segment transforms items by applying a regex pattern replacement to either
@@ -68,8 +68,8 @@ def fill_null(
     default: Annotated[
         str, "The default value to use for any None values not specified in kwargs"
     ] = "",
-    **kwargs,
-):
+    **kwargs: Any,
+) -> Iterator[Any]:
     """
     Fills null (None) values in a sequence of dictionaries with specified defaults.
 

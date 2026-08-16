@@ -262,7 +262,7 @@ def extract_parameters_dict(cls: type) -> dict[str, str]:
     """
     parameters = {}
 
-    def _process_parameter(param_name: str, param) -> str:
+    def _process_parameter(param_name: str, param: inspect.Parameter) -> str:
         """Format a single parameter as 'name: type = default  # description'."""
         param_str = param_name
         annotation_str = ""

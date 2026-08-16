@@ -1,4 +1,5 @@
 import json
+from typing import Any
 
 from pydantic import BaseModel
 
@@ -175,7 +176,7 @@ class AnthropicPromptAdapter(AbstractLLMPromptAdapter):
                 ) from exc
             raise
 
-    def _extract_anthropic_text(self, response) -> str:
+    def _extract_anthropic_text(self, response: Any) -> str:
         response_text = ""
         for block in response.content:
             if hasattr(block, "text"):

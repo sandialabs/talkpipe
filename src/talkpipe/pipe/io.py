@@ -103,7 +103,7 @@ class Print(AbstractSegment):
             int: Each element of the input iterable
         """
         for x in input_iter:
-            to_print = x
+            to_print: Any = x
             if self.field_list is not None:
                 to_print = data_manipulation.toDict(x, self.field_list)
             # flush so output stays in order with unbuffered/stderr progress
@@ -143,7 +143,7 @@ class Log(AbstractSegment):
             int: Each element of the input iterable
         """
         for x in input_iter:
-            to_log = x
+            to_log: Any = x
             if self.field_list is not None:
                 to_log = data_manipulation.toDict(x, self.field_list)
             self.logger.log(
@@ -208,7 +208,7 @@ def echo(
     data: Annotated[str, "The input string to split and generate items from"],
     delimiter: Annotated[str, "The delimiter to split the string on"],
     n: Annotated[int, "Number of times to emit the data"] = 1,
-):
+) -> Iterator[str]:
     """A source that generates input from a string.
 
     This source will generate input from a string, splitting it on a delimiter,
@@ -222,7 +222,7 @@ def echo(
 
 @register_segment("readJsonl")
 @field_segment(multi_emit=True)
-def readJsonl(item: Annotated[str, "The path to the jsonl file"]):
+def readJsonl(item: Annotated[str, "The path to the jsonl file"]) -> Iterator[Any]:
     """Reads each item from the input stream as a path to a jsonl file. Loads each line of
     each file as a json object and yields each individually.
 
@@ -234,7 +234,7 @@ def readJsonl(item: Annotated[str, "The path to the jsonl file"]):
 
 @register_segment("loadsJsonl")
 @segment()
-def loadsJsonl(data: Iterable[str]):
+def loadsJsonl(data: Iterable[str]) -> Iterator[Any]:
     """Deserialize JSONL (JSON Lines) strings from the input stream.
 
     JSON Lines is a format where each line is a valid JSON object. This segment
@@ -252,7 +252,7 @@ def loadsJsonl(data: Iterable[str]):
 
 @register_segment("dumpsJsonl")
 @segment()
-def dumpsJsonl(data: Iterable):
+def dumpsJsonl(data: Iterable) -> Iterator[str]:
     """Serialize items from the input stream as JSON Lines strings.
 
     JSON Lines is a format where each line is a valid JSON object. This segment
@@ -273,7 +273,7 @@ def dumpsJsonl(data: Iterable):
 @register_segment("writePickle")
 @segment()
 def writePickle(
-    data,
+    data: Iterable[Any],
     fname: Annotated[str, "The name of the file to write"],
     field: Annotated[
         str | None, "Field to extract from each item before writing"
@@ -281,7 +281,7 @@ def writePickle(
     first_only: Annotated[
         bool, "If True, only the first item in the input stream is written"
     ] = False,
-):
+) -> Iterator[Any]:
     """Write items to a pickle file while passing them through the pipeline.
 
     This segment is a passthrough - it writes to disk as a side effect but yields
@@ -324,7 +324,7 @@ def writePickle(
 @register_segment("writeString")
 @segment()
 def writeString(
-    data,
+    data: Iterable[Any],
     fname: Annotated[str, "The name of the file to write"],
     field: Annotated[
         str | None, "Field to extract from each item before writing"
@@ -335,7 +335,7 @@ def writeString(
     first_only: Annotated[
         bool, "If True, the segment will write only the first item in the input stream"
     ] = False,
-):
+) -> Iterator[Any]:
     """Write string representations of items to a text file while passing them through.
 
     This segment is a passthrough - it writes to disk as a side effect but yields
@@ -382,7 +382,7 @@ def writeString(
 def FileExistsFilter(
     items: Any,
     path_field: Annotated[str, "Field name containing the file path to check"] = "path",
-):
+) -> Iterator[Any]:
     """
     Segment that filters out items where the file path doesn't exist.
 
@@ -408,7 +408,7 @@ def DeleteFile(
     path_field: Annotated[
         str, "Field name containing the file path to delete"
     ] = "source",
-):
+) -> Iterator[Any]:
     """
     Segment that deletes source files after yielding items.
 

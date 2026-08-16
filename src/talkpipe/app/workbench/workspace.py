@@ -54,9 +54,9 @@ def slugify(name: str) -> str:
     return slug or "pipeline"
 
 
-def split_header(text: str):
+def split_header(text: str) -> tuple[dict[str, str], str]:
     """Split file content into (metadata dict, script body)."""
-    meta = {}
+    meta: dict[str, str] = {}
     lines = text.splitlines()
     body_start = 0
     for i, line in enumerate(lines):
@@ -198,7 +198,7 @@ class WorkspaceStore:
             path.unlink()
         return self._record(new_path, include_script=False)
 
-    def delete(self, pipeline_id: str):
+    def delete(self, pipeline_id: str) -> None:
         path = self._path_for(pipeline_id)
         if not path.is_file():
             raise WorkspaceError(f"Pipeline '{pipeline_id}' not found", status=404)
@@ -206,7 +206,7 @@ class WorkspaceStore:
 
     def _write(
         self, path: Path, name: str, description: str, created: str, script: str
-    ):
+    ) -> None:
         # Never nest headers if the incoming script still carries one.
         _, body = split_header(script)
         content = build_header(name, description, created) + body

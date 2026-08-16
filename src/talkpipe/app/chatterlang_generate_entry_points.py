@@ -41,17 +41,17 @@ class DecoratorFinder(ast.NodeVisitor):
                     for reg_name in registration_names:
                         self.segments.append((reg_name, node.name))
 
-    def visit_ClassDef(self, node: ast.ClassDef):
+    def visit_ClassDef(self, node: ast.ClassDef) -> None:
         """Visit class definitions and check for our decorators."""
         self._process_decorators(node)
         self.generic_visit(node)
 
-    def visit_FunctionDef(self, node: ast.FunctionDef):
+    def visit_FunctionDef(self, node: ast.FunctionDef) -> None:
         """Visit function definitions and check for our decorators."""
         self._process_decorators(node)
         self.generic_visit(node)
 
-    def _get_decorator_name(self, func_node) -> str | None:
+    def _get_decorator_name(self, func_node: ast.expr) -> str | None:
         """Extract decorator function name from AST node."""
         if isinstance(func_node, ast.Name):
             return func_node.id
@@ -97,7 +97,7 @@ class FactoryCallFinder(ast.NodeVisitor):
         self.module_path = module_path
         self.segments: list[tuple[str, str]] = []  # [(reg_name, object_name)]
 
-    def visit_Assign(self, node: ast.Assign):
+    def visit_Assign(self, node: ast.Assign) -> None:
         """Find VAR = factory_func("name", ...) patterns."""
         if len(node.targets) != 1:
             self.generic_visit(node)
@@ -129,7 +129,7 @@ class FactoryCallFinder(ast.NodeVisitor):
         self.segments.append((reg_name, object_name))
         self.generic_visit(node)
 
-    def _get_call_func_name(self, func_node) -> str | None:
+    def _get_call_func_name(self, func_node: ast.expr) -> str | None:
         """Get the function name from a call (handles local func or attr like module.func)."""
         if isinstance(func_node, ast.Name):
             return func_node.id

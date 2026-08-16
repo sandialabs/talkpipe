@@ -3,7 +3,7 @@ import os
 import shutil
 import time
 import uuid
-from collections.abc import Iterable
+from collections.abc import Iterable, Iterator
 from contextlib import contextmanager
 from typing import Annotated, Any
 
@@ -39,7 +39,7 @@ class WhooshFullTextIndex(DocumentStore, MutableDocumentStore, TextSearchable):
         self.fields: list[str] = fields if fields is not None else []
         self._initialize_index(fields)
 
-    def _initialize_index(self, fields: list[str] | None):
+    def _initialize_index(self, fields: list[str] | None) -> None:
         os.makedirs(self.index_path, exist_ok=True)
 
         if index.exists_in(self.index_path):
@@ -190,7 +190,7 @@ def WhooshWriter(
     fields: list[str] | None = None,
     overwrite: bool = False,
     commit_seconds: int = -1,
-):
+) -> Iterator[Any]:
     """Context manager for Whoosh index writer with optional periodic commit."""
     idx = WhooshFullTextIndex(index_path, fields)
     if overwrite:
@@ -276,7 +276,7 @@ def WhooshWriter(
 
 
 @contextmanager
-def WhooshSearcher(index_path: str, reload_seconds: int = -1):
+def WhooshSearcher(index_path: str, reload_seconds: int = -1) -> Iterator[Any]:
     """Context manager for Whoosh index searcher with optional periodic reload."""
 
     class SearcherWrapper:
@@ -337,7 +337,7 @@ def indexWhoosh(
         int,
         "If > 0, commit changes if it has been this many seconds since the last commit",
     ] = -1,
-):
+) -> Iterator[Any]:
     """Index documents using Whoosh full-text search engine.
 
     Creates a searchable full-text index from items. Each item is indexed with specified
@@ -425,7 +425,7 @@ def searchWhoosh(
     ] = 60,
     field: Annotated[str, "Field to extract query from"] = "_",
     set_as: Annotated[str | None, "Field name to set results on input items"] = None,
-):
+) -> Iterator[Any]:
     """Search a Whoosh full-text index for matching documents.
 
     Searches a previously indexed Whoosh index using text queries. Supports complex

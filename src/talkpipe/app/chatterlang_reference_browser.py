@@ -12,6 +12,7 @@ from typing import Any
 
 from talkpipe.chatterlang.registry import input_registry, segment_registry
 from talkpipe.util.doc_extraction import (
+    ComponentInfo,
     detect_component_type,
     extract_component_info,
     extract_parameters_dict,
@@ -101,7 +102,9 @@ class TalkPipeBrowser:
             if component_info:
                 self._load_component_from_info(component_info, names)
 
-    def _load_component_from_info(self, component_info, all_names: list[str]):
+    def _load_component_from_info(
+        self, component_info: ComponentInfo, all_names: list[str]
+    ) -> None:
         """Load a single component from ComponentInfo into the browser."""
         try:
             # Convert parameters from ParamSpec list to dict for browser compatibility
@@ -112,7 +115,7 @@ class TalkPipeBrowser:
             max_type_width = 0
             max_default_width = 0
 
-            def _one_line(text) -> str:
+            def _one_line(text: object) -> str:
                 """Convert any text to a single-line string for aligned display.
                 Collapses all whitespace (including newlines) to single spaces."""
                 if text is None:
@@ -271,7 +274,7 @@ class TalkPipeBrowser:
             print(f"📦 {module:<35} ({len(components)} components)")
         print()
 
-    def _list_module_components(self, module_name: str):
+    def _list_module_components(self, module_name: str) -> None:
         """List components in a specific module."""
         # Try exact match first
         if module_name not in self.modules:
@@ -304,7 +307,7 @@ class TalkPipeBrowser:
             print(f"{type_icon} {comp.all_names_display:<30} ({comp.name})")
         print()
 
-    def _show_component(self, component_name: str):
+    def _show_component(self, component_name: str) -> None:
         """Show detailed information about a component."""
         # Try exact match using name lookup
         primary_name = self.name_to_primary.get(component_name)
@@ -366,7 +369,7 @@ class TalkPipeBrowser:
 
         print()
 
-    def _search_components(self, search_term: str):
+    def _search_components(self, search_term: str) -> None:
         """Search for components by name or description."""
         search_lower = search_term.lower()
         matches = []

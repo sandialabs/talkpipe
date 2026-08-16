@@ -150,7 +150,9 @@ class ElizaPromptAdapter(AbstractLLMPromptAdapter):
             prompt = "(shared an image without text)"
         return self.execute(prompt)
 
-    def _messages_create(self, model: str, messages: list, output_format=None) -> dict:
+    def _messages_create(
+        self, model: str, messages: list, output_format: Any = None
+    ) -> dict:
         latest_user_text = ""
         for message in reversed(messages):
             if str(message.get("role", "")).lower() == "user":

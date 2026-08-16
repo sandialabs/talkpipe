@@ -24,6 +24,7 @@ from talkpipe.chatterlang.parsers import (
     ForkNode,
     ParsedLoop,
     ParsedPipeline,
+    ParsedScript,
     SegmentNode,
     script_parser,
 )
@@ -35,7 +36,7 @@ SEED_SCRIPTS_DIR = Path(__file__).parent.parent / "workbench_data" / "seed_scrip
 _KEYWORDS = {"INPUT", "FROM", "NEW", "CONST", "SET", "LOOP", "TIMES", "True", "False"}
 
 
-def _chains_from_parsed(parsed) -> list[list[str]]:
+def _chains_from_parsed(parsed: ParsedScript) -> list[list[str]]:
     """Ordered component-name chains, one per pipeline (loops flattened)."""
     chains = []
 

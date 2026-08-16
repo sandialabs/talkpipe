@@ -75,7 +75,7 @@ def load_settings() -> dict:
     return settings
 
 
-def save_settings(settings: dict):
+def save_settings(settings: dict) -> None:
     path = _settings_path()
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(settings, indent=2), encoding="utf-8")
@@ -115,7 +115,7 @@ def api_get_settings():
 
 
 @router.put("/settings")
-def api_put_settings(request: SettingsUpdate):
+def api_put_settings(request: SettingsUpdate) -> dict:
     settings = load_settings()
     update = request.model_dump(exclude_unset=True)
     known_sources = suggest.getPromptSources()
@@ -145,7 +145,7 @@ class SuggestRequest(BaseModel):
 
 
 @router.post("/suggest")
-def api_suggest(request: SuggestRequest):
+def api_suggest(request: SuggestRequest) -> dict:
     settings = load_settings()
     resolved = suggest.resolve_llm(settings)
     saved = []

@@ -1,7 +1,8 @@
 import hashlib
 import logging
 import math
-from typing import Annotated
+from collections.abc import Iterable, Iterator
+from typing import Annotated, Any
 
 from talkpipe.chatterlang import registry
 from talkpipe.pipe import core
@@ -74,7 +75,7 @@ class BloomFilter:
 @registry.register_segment("distinctBloomFilter")
 @core.segment()
 def distinctBloomFilter(
-    items,
+    items: Iterable[Any],
     capacity: Annotated[
         int, "Expected number of items to be added to the Bloom Filter"
     ],
@@ -84,7 +85,7 @@ def distinctBloomFilter(
     field_list: Annotated[
         str, "Dot-separated string of nested fields to use for distinctness check"
     ] = "_",
-):
+) -> Iterator[Any]:
     """
     Filter items using a Bloom Filter to yield only distinct elements based on specified fields.
 

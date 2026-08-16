@@ -33,13 +33,15 @@ ChatterLang syntax crib:
 """
 
 
-def _truthy(value, default=True) -> bool:
+def _truthy(value: object, default: bool = True) -> bool:
     if value is None:
         return default
     return str(value).strip().lower() not in ("false", "0", "no", "off", "")
 
 
-def resolve_llm_status(settings: dict | None = None):
+def resolve_llm_status(
+    settings: dict | None = None,
+) -> tuple[tuple[str, str] | None, str | None]:
     """Resolve the suggestion LLM.
 
     Returns ``((source, model), None)`` on success, or ``(None, reason)``
@@ -76,7 +78,7 @@ def resolve_llm_status(settings: dict | None = None):
     return (source, model), None
 
 
-def resolve_llm(settings: dict | None = None):
+def resolve_llm(settings: dict | None = None) -> tuple[str, str] | None:
     """Resolve (source, model) for suggestions, or None if unavailable."""
     resolved, _ = resolve_llm_status(settings)
     return resolved
@@ -353,7 +355,9 @@ def _rank_by_similarity(current: set, records: list[dict], limit: int) -> list[d
     return [record for _, record in scored[:limit]]
 
 
-def _similar_pipelines(script: str, saved: list[dict], limit: int = 3):
+def _similar_pipelines(
+    script: str, saved: list[dict], limit: int = 3
+) -> tuple[list[dict], list[dict]]:
     """(user_matches, builtin_fill): few-shot pipelines for the prompt.
 
     The user's own saved pipelines rank first (Jaccard similarity of

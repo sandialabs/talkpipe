@@ -1,7 +1,8 @@
 import logging
 import sqlite3
 import time
-from typing import Annotated
+from collections.abc import Iterator
+from typing import Annotated, Any
 
 import feedparser
 
@@ -12,7 +13,9 @@ from talkpipe.util.config import get_config
 logger = logging.getLogger(__name__)
 
 
-def rss_monitor(url: str, db_path: str = ":memory:", poll_interval_minutes: int = 60):
+def rss_monitor(
+    url: str, db_path: str = ":memory:", poll_interval_minutes: int = 60
+) -> Iterator[dict[str, Any]]:
     """Monitor an RSS feed URL and yield new items as they are published.
 
     This function continuously polls an RSS feed at specified intervals, tracks seen items
@@ -139,7 +142,7 @@ def rss_source(
     poll_interval_minutes: Annotated[
         int, "Number of minutes to wait between polling the RSS feed"
     ] = 10,
-):
+) -> Iterator[dict[str, Any]]:
     """
     Generator function that monitors and yields new entries from an RSS feed.
 

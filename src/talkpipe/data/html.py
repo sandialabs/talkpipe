@@ -119,7 +119,7 @@ def htmlToText(html, cleanText=True):
 def htmlToTextSegment(
     raw: Annotated[str, "The raw HTML content to be converted"],
     cleanText: Annotated[bool, "Whether to clean and normalize the output text"] = True,
-):
+) -> str:
     """
     Converts HTML content to text segment.
 
@@ -370,7 +370,7 @@ def downloadURLSegment(
         int,
         "How many additional attempts to make after a transient failure (connection error, timeout, HTTP 408/429/5xx)",
     ] = 2,
-):
+) -> str | None:
     """Download a URL segment and return its content.
 
     This function is a wrapper around downloadURL that specifically handles URL segments.

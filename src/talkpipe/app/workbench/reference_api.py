@@ -17,6 +17,7 @@ import inspect
 import logging
 import re
 import threading
+from collections.abc import Iterable
 from typing import Any
 
 from fastapi import APIRouter
@@ -59,7 +60,7 @@ def _first_line(docstring: str | None) -> str:
     return ""
 
 
-def _component_type(item) -> str:
+def _component_type(item: chatterlang_reference_generator.AnalyzedItem) -> str:
     if item.is_field_segment:
         return "field_segment"
     if item.is_source:
@@ -165,12 +166,12 @@ class LintRequest(BaseModel):
     mode: str = "parse"
 
 
-def _param_names(params) -> list[str]:
+def _param_names(params: Iterable[Any]) -> list[str]:
     # Param dict keys may be plain strings or Identifier nodes.
     return [k.name if hasattr(k, "name") else str(k) for k in params]
 
 
-def _component_params(cls, kind: str):
+def _component_params(cls: Any, kind: str) -> tuple[list[str], bool]:
     """Best-effort ``(param_names, accepts_kwargs)`` for a component.
 
     Class-based components expose their parameters on ``__init__``. Function
@@ -233,7 +234,7 @@ def _iter_component_uses(parsed):
         yield from walk_pipeline(pipeline)
 
 
-def _locate(script: str, name: str, used_offsets: set):
+def _locate(script: str, name: str, used_offsets: set[int]) -> tuple[int, int]:
     """Best-effort (line, column) of an identifier in the source text.
 
     The parser AST carries no positions, so occurrences are found by text
@@ -362,7 +363,7 @@ def _compile_error_diagnostics(script: str, e: CompileError) -> list[dict]:
 
 
 @router.post("/lint")
-def api_lint(request: LintRequest):
+def api_lint(request: LintRequest) -> dict[str, list[dict[str, Any]]]:
     if not request.script.strip():
         return {"diagnostics": []}
     if request.mode == "full":

@@ -2,6 +2,7 @@ import inspect
 import logging
 import re
 import textwrap
+from collections.abc import Callable
 from types import MappingProxyType
 from typing import Any
 
@@ -158,7 +159,7 @@ def get_all_attributes(
 
 
 def extract_property(
-    data: Any, prop_list: str, fail_on_missing=False, default=None
+    data: Any, prop_list: str, fail_on_missing: bool = False, default: Any = None
 ) -> Any:
     """Extract a property from a nested data structure using dot notation.
 
@@ -248,7 +249,9 @@ def get_type_safely(type_name, module=None):
         return None
 
 
-def toDict(data, field_list: str = "_", fail_on_missing: bool = True):
+def toDict(
+    data: Any, field_list: str = "_", fail_on_missing: bool = True
+) -> dict[str, Any]:
     """Convert each item in the input string into a dictionary based on the provided parameter list.
 
     Args:
@@ -273,7 +276,7 @@ def dict_to_text(
     wrap_width: int = 80,
     field_name_separator: str = ": ",
     field_separator: str = "\n",
-    item_suffix="",
+    item_suffix: str = "",
 ) -> str:
     """
     Convert a dictionary to a formatted string. Each field is separated by the specified field_separator, and
@@ -373,7 +376,7 @@ def fill_template(template: str, values: dict) -> str:
     return result.replace(temp_open, "{").replace(temp_close, "}")
 
 
-def compileLambda(expression: str):
+def compileLambda(expression: str) -> Callable[[Any], Any]:
     """Compile a Python expression into a callable that evaluates safely with a single item parameter.
 
     Args:

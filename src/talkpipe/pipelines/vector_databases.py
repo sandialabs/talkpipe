@@ -1,7 +1,7 @@
 import logging
-from collections.abc import Callable
+from collections.abc import Callable, Iterable, Iterator
 from dataclasses import dataclass, field
-from typing import Annotated, Literal
+from typing import Annotated, Any, Literal
 
 from talkpipe import AbstractSegment, register_segment, segment
 from talkpipe.data.extraction import ReadFile, listFiles
@@ -306,7 +306,7 @@ class _IngestTally:
 
 
 @segment()
-def _tally_extracted_chunks(items, tally: _IngestTally):
+def _tally_extracted_chunks(items: Iterable[Any], tally: _IngestTally) -> Iterator[Any]:
     """Pass chunks through unchanged, counting them as they enter the embedder."""
     for item in items:
         tally.chunks_extracted += 1
@@ -314,7 +314,11 @@ def _tally_extracted_chunks(items, tally: _IngestTally):
 
 
 @segment()
-def _tally_stored_chunks(items, tally: _IngestTally, progress=None):
+def _tally_stored_chunks(
+    items: Iterable[Any],
+    tally: _IngestTally,
+    progress: Callable[[int, int, str], None] | None = None,
+) -> Iterator[Any]:
     """Pass stored chunks through, tracking skips, files, and progress.
 
     Expects the dict items produced by ProcessDocumentsSegment (a "source"
@@ -339,7 +343,7 @@ def _tally_stored_chunks(items, tally: _IngestTally, progress=None):
 
 
 def build_rag_database(
-    source_pattern,
+    source_pattern: str | Iterable[str],
     path: str,
     embedding_model: str | None = None,
     embedding_source: str | None = None,

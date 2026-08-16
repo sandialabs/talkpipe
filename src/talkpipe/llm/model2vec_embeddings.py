@@ -5,6 +5,7 @@ from __future__ import annotations
 import threading
 from collections.abc import Sequence
 from pathlib import Path
+from typing import Any
 
 import numpy as np
 
@@ -68,11 +69,11 @@ _static_model_cache_lock = threading.Lock()
 
 
 def _load_static_model(
-    StaticModel,
+    StaticModel: Any,
     model_name: str,
     revision: str | None,
     cache_folder: str | Path | None,
-):
+) -> Any:
     """Load a StaticModel, reusing a previously loaded instance when possible.
 
     Hub resolution (snapshot download / revision pinning) only happens on a
@@ -130,12 +131,12 @@ class Model2VecEmbedder:
     def embed(
         self,
         texts: str | Sequence[str],
-        **encode_kwargs,
+        **encode_kwargs: Any,
     ) -> np.ndarray:
         """Encode one string or many."""
         return self.model.encode(texts, **encode_kwargs)
 
-    def embed_one(self, text: str, **encode_kwargs) -> list[float]:
+    def embed_one(self, text: str, **encode_kwargs: Any) -> list[float]:
         """Encode a single string and return a JSON-serializable list of floats."""
         vec = self.embed(text, **encode_kwargs)
         return np.asarray(vec, dtype=float).tolist()

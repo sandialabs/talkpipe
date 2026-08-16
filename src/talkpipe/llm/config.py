@@ -26,7 +26,9 @@ _promptAdapter: dict[str, Callable[..., AbstractLLMPromptAdapter]] = {
 }
 
 
-def registerPromptAdapter(name: str, promptAdapter: type[AbstractLLMPromptAdapter]):
+def registerPromptAdapter(
+    name: str, promptAdapter: type[AbstractLLMPromptAdapter]
+) -> None:
     _promptAdapter[name] = promptAdapter
 
 
@@ -47,7 +49,7 @@ _embeddingAdapter: dict[str, Callable[..., AbstractEmbeddingAdapter]] = {
 
 def registerEmbeddingAdapter(
     name: str, embeddingAdapter: type[AbstractEmbeddingAdapter]
-):
+) -> None:
     _embeddingAdapter[name] = embeddingAdapter
 
 

@@ -1,4 +1,4 @@
-from typing import Annotated
+from typing import Annotated, Any
 
 import numpy as np
 from sklearn.manifold import TSNE
@@ -33,7 +33,7 @@ class ReduceTSNE(AbstractSegment):
         ] = 1000,
         metric: Annotated[str, "Distance metric for t-SNE"] = "euclidean",
         random_state: Annotated[int | None, "Random state for reproducibility"] = None,
-        **tsne_kwargs,
+        **tsne_kwargs: Any,
     ):
         super().__init__()
         self.n_components = n_components

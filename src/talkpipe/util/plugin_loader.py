@@ -28,7 +28,7 @@ class PluginLoader:
         except Exception as e:
             logger.error(f"Error during plugin discovery: {e}")
 
-    def _load_plugin(self, entry_point) -> None:
+    def _load_plugin(self, entry_point: metadata.EntryPoint) -> None:
         """Load a single plugin from an entry point."""
         try:
             logger.debug(f"Loading plugin: {entry_point.name}")

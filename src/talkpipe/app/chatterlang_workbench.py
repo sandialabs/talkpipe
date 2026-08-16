@@ -4,6 +4,7 @@ import queue
 import uuid
 from contextlib import asynccontextmanager
 from pathlib import Path
+from typing import Any
 
 import uvicorn
 from fastapi import FastAPI, HTTPException
@@ -284,7 +285,7 @@ async def get_logs():
 
 
 @app.post("/compile")
-def compile_script(request: ScriptRequest):
+def compile_script(request: ScriptRequest) -> dict[str, Any]:
     if not request.script:
         logger.error("Empty script submitted")
         raise HTTPException(status_code=400, detail="Script content is required")
@@ -339,7 +340,7 @@ def compile_script(request: ScriptRequest):
 
 
 @app.post("/go")
-def interactive_go(request: InteractiveRequest):
+def interactive_go(request: InteractiveRequest) -> StreamingResponse:
     script_info = compiled_scripts.get(request.id)
     if not script_info:
         logger.error(f"Script not found: {request.id}")

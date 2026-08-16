@@ -13,7 +13,7 @@ import socket
 import sys
 import threading
 import uuid
-from collections.abc import Callable
+from collections.abc import AsyncIterator, Callable
 from datetime import datetime, timedelta
 from pathlib import Path
 from queue import Empty, Queue
@@ -61,7 +61,7 @@ class UserSession:
         if script_content:
             self.compile_script(script_content)
 
-    def compile_script(self, script_content: str):
+    def compile_script(self, script_content: str) -> None:
         """Compile a Chatterlang script for this session"""
         # Compile script - configuration values are accessible via $key syntax
         self.compiled_script = compile(script_content)
@@ -70,13 +70,13 @@ class UserSession:
         )
         logger.info(f"Session {self.session_id}: Script compiled successfully")
 
-    def add_to_history(self, entry: dict):
+    def add_to_history(self, entry: dict[str, Any]) -> None:
         """Add entry to session history"""
         self.history.append(entry)
         if len(self.history) > self.history_length:
             self.history = self.history[-self.history_length :]
 
-    def add_output(self, output: str, message_type: str = "response"):
+    def add_output(self, output: str, message_type: str = "response") -> None:
         """Add output to session's output queue"""
         try:
             timestamped_output = {
@@ -275,7 +275,7 @@ class ChatterlangServer:
             logger.info(f"Created new session: {session_id}")
             return session
 
-    def cleanup_expired_sessions(self, max_age_hours: int = 24):
+    def cleanup_expired_sessions(self, max_age_hours: int = 24) -> None:
         """Clean up sessions that haven't been active for max_age_hours"""
         cutoff_time = datetime.now() - timedelta(hours=max_age_hours)
 
@@ -385,11 +385,11 @@ class ChatterlangServer:
         """Configure all API routes"""
 
         @self.app.get("/", response_class=HTMLResponse)
-        async def root(request: Request, response: Response):
+        async def root(request: Request, response: Response) -> Any:
             return self._get_html_interface()
 
         @self.app.get("/stream", response_class=HTMLResponse)
-        async def stream_page(request: Request, response: Response):
+        async def stream_page(request: Request, response: Response) -> Any:
             return self._get_stream_interface()
 
         @self.app.post("/process", response_model=DataResponse)
@@ -398,7 +398,7 @@ class ChatterlangServer:
             request: Request,
             response: Response,
             api_key: str = Depends(self._verify_api_key),
-        ):
+        ) -> DataResponse:
             session = self.get_or_create_session(request, response)
             return await self._process_json(data, session)
 
@@ -408,7 +408,7 @@ class ChatterlangServer:
             response: Response,
             limit: int = 50,
             api_key: str = Depends(self._verify_api_key),
-        ):
+        ) -> DataHistory:
             session = self.get_or_create_session(request, response)
             return self._get_history(limit, session)
 
@@ -417,7 +417,7 @@ class ChatterlangServer:
             request: Request,
             response: Response,
             api_key: str = Depends(self._verify_api_key),
-        ):
+        ) -> dict[str, str]:
             session = self.get_or_create_session(request, response)
             return self._clear_history(session)
 
@@ -434,7 +434,7 @@ class ChatterlangServer:
             request: Request,
             response: Response,
             api_key: str = Depends(self._verify_api_key),
-        ):
+        ) -> StreamingResponse:
             """Server-Sent Events endpoint for streaming output"""
             session = self.get_or_create_session(request, response)
             return StreamingResponse(
@@ -447,7 +447,7 @@ class ChatterlangServer:
                 },
             )
 
-    async def _verify_api_key(self, x_api_key: str | None = Header(None)):
+    async def _verify_api_key(self, x_api_key: str | None = Header(None)) -> str | None:
         """Dependency for API key validation"""
         if self.require_auth and x_api_key != self.api_key:
             raise HTTPException(status_code=403, detail="Invalid API key")
@@ -465,7 +465,7 @@ class ChatterlangServer:
         )
         return f"Data received: {data}"
 
-    async def _generate_output_stream(self, session: UserSession):
+    async def _generate_output_stream(self, session: UserSession) -> AsyncIterator[str]:
         """Generate Server-Sent Events stream for a specific session"""
         while True:
             try:
@@ -547,7 +547,7 @@ class ChatterlangServer:
         entries = session.history[-limit:] if limit > 0 else session.history
         return DataHistory(entries=entries, count=len(entries))
 
-    def _clear_history(self, session: UserSession):
+    def _clear_history(self, session: UserSession) -> dict[str, str]:
         """Clear processing history for a session"""
         session.history.clear()
         logger.info(f"Port {self.port} Session {session.session_id}: History cleared")
@@ -1857,7 +1857,7 @@ class ChatterlangServer:
         </html>
         """  # nosec B608
 
-    def set_processor_function(self, func: Callable[..., Any]):
+    def set_processor_function(self, func: Callable[..., Any]) -> None:
         """Set the function used to process incoming JSON data"""
         self.processor_function = func
         logger.info(f"Port {self.port}: Processor function set to: {func.__name__}")
@@ -1887,7 +1887,7 @@ class ChatterlangServer:
                     f"already in use, or blocked? Try a different port."
                 ) from exc
 
-    def start(self, background: bool = False):
+    def start(self, background: bool = False) -> None:
         """Start the FastAPI server"""
         self._check_port_available()
         print(f"\n{'=' * 60}")

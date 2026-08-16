@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import warnings
 from collections.abc import Sequence
-from typing import overload
+from typing import Any, overload
 
 import numpy as np
 
@@ -10,11 +10,11 @@ from talkpipe.util.config import get_config
 from talkpipe.util.constants import OLLAMA_SERVER_URL
 
 
-def _vector_to_list(vec) -> list[float]:
+def _vector_to_list(vec: Any) -> list[float]:
     return np.asarray(vec, dtype=float).tolist()
 
 
-def _vectors_to_lists(arr) -> list[list[float]]:
+def _vectors_to_lists(arr: Any) -> list[list[float]]:
     a = np.asarray(arr, dtype=float)
     if a.size == 0:
         return []

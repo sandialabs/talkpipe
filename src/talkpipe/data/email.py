@@ -5,6 +5,7 @@ import imaplib
 import logging
 import smtplib
 import time
+from collections.abc import Iterable, Iterator
 from email.header import decode_header
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
@@ -159,7 +160,7 @@ def item_to_text(item, body_fields):
     subject_field=None, body_fields=None, sender_email=None, recipient_email=None
 )
 def sendEmail(
-    items,
+    items: Iterable[Any],
     subject_field: Annotated[str, "Field name in the item to use as email subject"],
     body_fields: Annotated[
         str, "Comma-separated list of field names to include in email body"
@@ -172,7 +173,7 @@ def sendEmail(
         str | None, "SMTP server address. Defaults to 'smtp.gmail.com'"
     ] = None,
     port: Annotated[int, "SMTP server port"] = 587,
-):
+) -> Iterator[Any]:
     """Send emails for each item in the input iterable using SMTP.
 
     This function processes a list of items and sends an email for each one, using the specified
@@ -452,7 +453,7 @@ def readEmail(
     ] = None,
     email_address: Annotated[str | None, "Email address. If None, uses config"] = None,
     password: Annotated[str | None, "Password. If None, uses config"] = None,
-):
+) -> Iterator[dict[str, Any]]:
     """A source that monitors an email inbox and yields new unread emails.
 
     This source periodically checks for new unread emails, marks them as read,

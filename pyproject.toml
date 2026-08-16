@@ -297,11 +297,13 @@ docstring-code-format = true
 python_version = "3.12"
 files = ["src"]
 # Baseline that gates from day one on a codebase that was not written with
-# types in mind: bodies of untyped functions are still checked, but missing
-# annotations are not yet errors. Tightening towards `strict` (first
-# disallow_incomplete_defs, then disallow_untyped_defs) is tracked as a
-# follow-up.
+# types in mind: bodies of untyped functions are still checked, and a function
+# that is annotated at all must be annotated completely, but fully unannotated
+# functions are not yet errors. Tightening towards `strict` continues as a
+# follow-up (next: disallow_untyped_defs, then warn_return_any). Never loosen
+# a flag here to get green.
 check_untyped_defs = true
+disallow_incomplete_defs = true
 no_implicit_optional = true
 strict_equality = true
 warn_unused_configs = true

@@ -520,7 +520,9 @@ global_extractor_registry = get_default_registry()
 
 @register_segment("readtxt")
 @field_segment(multi_emit=True)
-def readtxt(file_path: Annotated[str, "Path to the text file to read"]):
+def readtxt(
+    file_path: Annotated[str, "Path to the text file to read"],
+) -> Iterator[ExtractionResult]:
     """
     Reads text files from given file paths or directories and yields their contents.
 
@@ -536,7 +538,9 @@ def readtxt(file_path: Annotated[str, "Path to the text file to read"]):
 
 @register_segment("readhtml")
 @field_segment(multi_emit=True)
-def readhtml(file_path: Annotated[str, "Path to the HTML file to read"]):
+def readhtml(
+    file_path: Annotated[str, "Path to the HTML file to read"],
+) -> Iterator[ExtractionResult]:
     """Read and extract readable text from HTML files.
 
     Yields:
@@ -552,7 +556,9 @@ def readhtml(file_path: Annotated[str, "Path to the HTML file to read"]):
 
 @register_segment("readjson")
 @field_segment(multi_emit=True)
-def readjson(file_path: Annotated[str, "Path to the JSON file to read"]):
+def readjson(
+    file_path: Annotated[str, "Path to the JSON file to read"],
+) -> Iterator[ExtractionResult]:
     """Read and extract content from a JSON file.
 
     Yields:
@@ -568,7 +574,9 @@ def readjson(file_path: Annotated[str, "Path to the JSON file to read"]):
 
 @register_segment("readtsv")
 @field_segment(multi_emit=True)
-def readtsv(file_path: Annotated[str, "Path to the TSV file to read"]):
+def readtsv(
+    file_path: Annotated[str, "Path to the TSV file to read"],
+) -> Iterator[ExtractionResult]:
     """Read and extract rows from a TSV (tab-separated) file.
 
     Each row is emitted as an ExtractionResult, following the same logic
@@ -585,7 +593,9 @@ def readtsv(file_path: Annotated[str, "Path to the TSV file to read"]):
 
 @register_segment("readdocx")
 @field_segment(multi_emit=True)
-def readdocx(file_path: Annotated[str, "Path to the .docx file to read"]):
+def readdocx(
+    file_path: Annotated[str, "Path to the .docx file to read"],
+) -> Iterator[ExtractionResult]:
     """Read and extract text from Microsoft Word (.docx) files.
 
     Yields:
@@ -601,7 +611,9 @@ def readdocx(file_path: Annotated[str, "Path to the .docx file to read"]):
 
 @register_segment("readpdf")
 @field_segment(multi_emit=True)
-def readpdf(file_path: Annotated[str, "Path to the PDF file to read"]):
+def readpdf(
+    file_path: Annotated[str, "Path to the PDF file to read"],
+) -> Iterator[ExtractionResult]:
     """Read and extract text from PDF files.
 
     Requires the pypdf package. Install with: pip install talkpipe[pypdf]
@@ -618,7 +630,9 @@ def readpdf(file_path: Annotated[str, "Path to the PDF file to read"]):
 
 @register_segment("readcsv")
 @field_segment(multi_emit=True)
-def readcsv(file_path: Annotated[str, "Path to the CSV file to read"]):
+def readcsv(
+    file_path: Annotated[str, "Path to the CSV file to read"],
+) -> Iterator[ExtractionResult]:
     """Read and extract rows from a CSV file.
 
     Each row is emitted as an ExtractionResult. If a CSV column name matches
@@ -641,7 +655,9 @@ def readcsv(file_path: Annotated[str, "Path to the CSV file to read"]):
 
 @register_segment("readjsonl")
 @field_segment(multi_emit=True)
-def readjsonl(file_path: Annotated[str, "Path to the JSONL file to read"]):
+def readjsonl(
+    file_path: Annotated[str, "Path to the JSONL file to read"],
+) -> Iterator[ExtractionResult]:
     """Read and extract lines from a JSONL file.
 
     Each non-empty line is emitted as an ExtractionResult. If the JSON value is
@@ -678,7 +694,7 @@ def listFiles(
     files_only: Annotated[
         bool, "Whether to include only files (excluding directories)"
     ] = False,
-):
+) -> Iterator[str]:
     """List files matching given glob patterns and yield their paths.
 
     Takes file patterns (supporting standard glob wildcards) and yields matching file
@@ -791,7 +807,7 @@ class ReadFile(AbstractFieldSegment):
         else:
             self._registry = global_extractor_registry
 
-    def register_extractor(self, file_extension: str, extractor: ExtractorFunc):
+    def register_extractor(self, file_extension: str, extractor: ExtractorFunc) -> None:
         """
         Register a new file extractor for a specific extension.
 

@@ -1,6 +1,6 @@
 import logging
 import uuid
-from collections.abc import Iterable
+from collections.abc import Iterable, Iterator
 from datetime import timedelta
 from typing import Annotated, Any
 
@@ -88,7 +88,7 @@ def search_lancedb(
     read_consistency_interval: Annotated[
         int, "Read consistency interval in seconds"
     ] = 10,
-):
+) -> Iterator[Any]:
     """Search for similar vectors in a LanceDB vector database.
 
     Searches a vector database created with addToLanceDB using vector similarity search.
@@ -166,7 +166,7 @@ def add_to_lancedb(
         bool,
         "If true, skip items whose vector has zero magnitude instead of indexing them",
     ] = True,
-):
+) -> Iterator[Any]:
     """Add vectors and documents to a LanceDB vector database.
 
     Builds a searchable vector index from items containing embeddings (vectors).
@@ -402,7 +402,7 @@ class LanceDBDocumentStore(DocumentStore, VectorAddable, VectorSearchable):
             )
         self._id_index_ensured = True
 
-    def optimize(self, cleanup_older_than_seconds: float | None = 120.0):
+    def optimize(self, cleanup_older_than_seconds: float | None = 120.0) -> None:
         """Compact small fragments, update indices, and prune old table versions.
 
         Every write commits a new table version and fragment. During a long ingest
