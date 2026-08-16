@@ -15,6 +15,7 @@ from typing import (
     Generic,
     ParamSpec,
     TypeVar,
+    overload,
 )
 
 from pydantic import BaseModel, ConfigDict
@@ -428,6 +429,16 @@ class AbstractSource(ABC, HasRuntimeComponent, Generic[U]):
         return ans
 
 
+@overload
+def source(func: Callable[[], Iterable[U]], /) -> type[AbstractSource[U]]: ...
+
+
+@overload
+def source(
+    *decorator_args: Any, **decorator_kwargs: Any
+) -> Callable[[Callable[P, Iterable[U]]], Callable[P, AbstractSource[U]]]: ...
+
+
 def source(
     *decorator_args: Annotated[Any, "Positional arguments for the input generator"],
     **decorator_kwargs: Annotated[Any, "Keyword arguments for the input generator"],
@@ -526,6 +537,21 @@ def source(
         return ParameterizedSource
 
     return decorator
+
+
+@overload
+def segment(
+    func: Callable[[Iterable[T]], Iterable[U]], /
+) -> type[AbstractSegment[T, U]]: ...
+
+
+@overload
+def segment(
+    *decorator_args: Any, **decorator_kwargs: Any
+) -> Callable[
+    [Callable[Concatenate[Iterable[T], P], Iterable[U]]],
+    Callable[P, AbstractSegment[T, U]],
+]: ...
 
 
 def segment(
@@ -629,6 +655,20 @@ def segment(
         return ParameterizedSegment
 
     return decorator
+
+
+@overload
+def field_segment(
+    func: Callable[..., Any], /
+) -> "Callable[..., AbstractFieldSegment[Any, Any]]": ...
+
+
+@overload
+def field_segment(
+    *decorator_args: Any, **decorator_kwargs: Any
+) -> (
+    "Callable[[Callable[..., Any]], Callable[..., AbstractFieldSegment[Any, Any]]]"
+): ...
 
 
 def field_segment(

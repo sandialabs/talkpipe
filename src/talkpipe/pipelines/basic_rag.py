@@ -179,7 +179,9 @@ class AbstractRAGPipeline(AbstractSegment):
         read_consistency_interval: Annotated[
             int, "Read consistency interval in seconds"
         ] = 10,
-        diagPrintOutput: Annotated[bool | None, "Diagnostic Print Parameter"] = None,
+        diagPrintOutput: Annotated[
+            str | None, "DiagPrint output target (stdout, stderr, or a logger name)"
+        ] = None,
         logging_level: Annotated[int, "Logging level for the pipeline"] = logging.DEBUG,
         role_map: Annotated[
             str | None, "Initial conversation context as 'role:message,role:message'"
@@ -302,7 +304,7 @@ class RAGToText(AbstractRAGPipeline):
             int, "Read consistency interval in seconds"
         ] = 10,
         diagPrintOutput: Annotated[
-            bool | None, "If true, print diagnostic output"
+            str | None, "DiagPrint output target (stdout, stderr, or a logger name)"
         ] = None,
         logging_level: Annotated[int, "Logging level for the pipeline"] = logging.DEBUG,
         role_map: Annotated[
@@ -421,7 +423,7 @@ class RAGToBinaryAnswer(AbstractRAGPipeline):
             int, "Read consistency interval in seconds"
         ] = 10,
         diagPrintOutput: Annotated[
-            bool | None, "If true, print diagnostic output"
+            str | None, "DiagPrint output target (stdout, stderr, or a logger name)"
         ] = None,
         logging_level: Annotated[int, "Logging level for the pipeline"] = logging.DEBUG,
         role_map: Annotated[
@@ -527,7 +529,7 @@ class RAGToScore(AbstractRAGPipeline):
             int, "Read consistency interval in seconds"
         ] = 10,
         diagPrintOutput: Annotated[
-            bool | None, "If true, print diagnostic output"
+            str | None, "DiagPrint output target (stdout, stderr, or a logger name)"
         ] = None,
         logging_level: Annotated[int, "Logging level for the pipeline"] = logging.DEBUG,
         role_map: Annotated[

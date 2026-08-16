@@ -51,6 +51,9 @@ def _get_lazy_import_setting() -> bool:
 LAZY_IMPORT_MODE = _get_lazy_import_setting()
 
 T = TypeVar("T")
+# Anything a registration decorator can wrap: a Source/Segment class or the
+# factory returned by @source()/@segment()/@field_segment(). It is returned as-is.
+Registrable = TypeVar("Registrable")
 
 
 class HybridRegistry(Generic[T]):
@@ -78,7 +81,7 @@ class HybridRegistry(Generic[T]):
             lazy_import: Force lazy import mode. If None, respects configuration setting.
                         True = lazy loading, False = eager loading.
         """
-        self._registry: dict[str, type[T]] = {}
+        self._registry: dict[str, T] = {}
         self._entry_point_group = entry_point_group
         self._entry_points_cache: dict | None = None
         self._attempted_loads: set[str] = set()
@@ -104,7 +107,7 @@ class HybridRegistry(Generic[T]):
                 f"(will load all entry points when accessed)"
             )
 
-    def register(self, cls: type[T], name: str) -> None:
+    def register(self, cls: T, name: str) -> None:
         """
         Register a component (called by decorators when modules are imported).
 
@@ -121,9 +124,12 @@ class HybridRegistry(Generic[T]):
                 )
 
         self._registry[name] = cls
-        logger.debug(f"Registered '{name}' → {cls.__module__}.{cls.__name__}")
+        logger.debug(
+            f"Registered '{name}' → "
+            f"{getattr(cls, '__module__', '?')}.{getattr(cls, '__name__', cls)}"
+        )
 
-    def get(self, name: str) -> type[T]:
+    def get(self, name: str) -> T:
         """
         Get a component by name, using entry points as fallback.
 
@@ -320,7 +326,7 @@ class HybridRegistry(Generic[T]):
         return self._load_errors.get(name)
 
     @property
-    def all(self) -> dict[str, type[T]]:
+    def all(self) -> dict[str, T]:
         """
         Get all registered components, loading from entry points if needed.
 
@@ -408,7 +414,7 @@ segment_registry: HybridRegistry[Any] = HybridRegistry(
 
 def register_source(
     *names: str, name: str | None = None
-) -> Callable[[type[T]], type[T]]:
+) -> Callable[[Registrable], Registrable]:
     """
     Decorator to register a source module with one or more names in the registry.
 
@@ -442,7 +448,7 @@ def register_source(
     if not names:
         raise ValueError("At least one name must be provided")
 
-    def wrap(cls: type[T]) -> type[T]:
+    def wrap(cls: Registrable) -> Registrable:
         for source_name in names:
             input_registry.register(cls, name=source_name)
         return cls
@@ -452,7 +458,7 @@ def register_source(
 
 def register_segment(
     *names: str, name: str | None = None
-) -> Callable[[type[T]], type[T]]:
+) -> Callable[[Registrable], Registrable]:
     """
     Decorator to register a segment module with one or more names in the registry.
 
@@ -486,7 +492,7 @@ def register_segment(
     if not names:
         raise ValueError("At least one name must be provided")
 
-    def wrap(cls: type[T]) -> type[T]:
+    def wrap(cls: Registrable) -> Registrable:
         for segment_name in names:
             segment_registry.register(cls, name=segment_name)
         return cls

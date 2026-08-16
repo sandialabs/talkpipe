@@ -1,7 +1,7 @@
 import queue
 import threading
 import uuid
-from collections.abc import Iterator
+from collections.abc import Iterable, Iterator
 from typing import Annotated, Any
 
 from talkpipe.chatterlang import registry
@@ -183,7 +183,7 @@ class ThreadedQueue:
 @registry.register_segment(name="threaded")
 @core.segment()
 def threadedSegment(
-    items: Annotated[Iterator, "Input stream to link to threaded queue system"],
+    items: Annotated[Iterable[Any], "Input stream to link to threaded queue system"],
 ) -> Iterator[Any]:
     """Links the input stream to a threaded queue system.
 
@@ -194,7 +194,7 @@ def threadedSegment(
     """
 
     queue_system = ThreadedQueue()
-    queue_system.register_producer(items)
+    queue_system.register_producer(iter(items))
     consumer = queue_system.register_consumer()
     queue_system.start()
     yield from consumer

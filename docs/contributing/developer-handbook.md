@@ -30,6 +30,17 @@ build. Where a value comes from an untyped library (`json.load`, numpy's
 `tolist()`, a stubless client), give it a typed local (`values: list[float] =
 ...`) or convert it (`int(...)`, `str(...)`) before returning it.
 
+The package ships a PEP 561 `py.typed` marker, so these annotations are the
+public typing contract: a consumer's type checker sees talkpipe's real types
+rather than `Any`. In particular `@source`, `@segment`, and `@field_segment`
+are typed decorators -- `@segment()` on `def f(items: Iterable[int], n: int)
+-> Iterator[str]` yields a factory typed `(n: int) -> AbstractSegment[int,
+str]` -- so downstream projects can enable mypy's
+`disallow_untyped_decorators`. Keep parameter annotations on segments and
+sources honest (`str | None` if `None` is accepted, defaults in the function
+signature rather than only in the decorator), because they are now what
+consumers are checked against.
+
 ### Versioning
 
 This codebase will use [semantic versioning](https://semver.org/) with the additional convention that during the 0.x.y development that each MINOR version will mostly maintain backward compatibility and PATCH versions will include substantial new capability.  So, for example, every 0.2.x version will be mostly backward compatible, but 0.3.0 might contain code reorganization.

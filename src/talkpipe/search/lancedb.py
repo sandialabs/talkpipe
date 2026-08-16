@@ -76,7 +76,7 @@ def parse_db_path(path: str) -> str:
 def search_lancedb(
     items: Annotated[Iterable[Any], "Items with the query vectors"],
     path: Annotated[
-        str,
+        str | None,
         "Path to the LanceDB database. Supports file paths or 'tmp://name' for process-scoped temp (auto-cleanup)",
     ],
     table_name: Annotated[str, "Table name in the LanceDB database"],

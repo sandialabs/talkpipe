@@ -120,6 +120,9 @@ where = ["src"]
 # Add package data to include .ico files
 [tool.setuptools.package-data]
 "*" = ["*.ico"]
+# PEP 561 marker: the package ships inline type information, so consumers'
+# type checkers use talkpipe's own annotations instead of treating it as Any.
+"talkpipe" = ["py.typed"]
 "talkpipe.app.static" = ["*.html", "*.txt"]
 "talkpipe.app" = [
     "static/*.html", "static/*.txt", "static/*.png", "static/*.ico",
@@ -298,9 +301,10 @@ python_version = "3.12"
 files = ["src"]
 # Every function in src/ must be fully annotated (parameters and return);
 # untyped defs and partially typed defs are both errors, and a typed function
-# may not leak an untyped (Any) value through its return. Tightening towards
-# `strict` continues as a follow-up (next: a py.typed marker, then strict).
-# Never loosen a flag here to get green.
+# may not leak an untyped (Any) value through its return. The package ships a
+# py.typed marker, so these annotations are the public typing contract for
+# consumers. Tightening towards `strict` continues as a follow-up. Never loosen
+# a flag here to get green.
 check_untyped_defs = true
 disallow_incomplete_defs = true
 disallow_untyped_defs = true

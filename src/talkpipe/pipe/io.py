@@ -212,7 +212,9 @@ class Prompt(AbstractSource):
 @source(delimiter=",", n=1)
 def echo(
     data: Annotated[str, "The input string to split and generate items from"],
-    delimiter: Annotated[str, "The delimiter to split the string on"],
+    delimiter: Annotated[
+        str | None, "The delimiter to split the string on; None emits the whole string"
+    ] = ",",
     n: Annotated[int, "Number of times to emit the data"] = 1,
 ) -> Iterator[str]:
     """A source that generates input from a string.

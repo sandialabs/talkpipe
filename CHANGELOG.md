@@ -62,7 +62,22 @@
   is on as well, so a typed function cannot leak an untyped value from a
   stubless library through its return; the handful of such sites (numpy
   `tolist()`, `json.load`, config lookups, SDK responses) now type or convert
-  the value explicitly. A `py.typed` marker is the next step.
+  the value explicitly.
+- talkpipe now ships a PEP 561 `py.typed` marker, so type checkers in
+  downstream projects use its annotations instead of treating the package as
+  untyped. To make that useful, `@source`, `@segment`, and `@field_segment` are
+  typed decorators: `@segment()` on a function `(items: Iterable[T], ...params)
+  -> Iterable[U]` yields a factory typed `(...params) -> AbstractSegment[T, U]`,
+  and `@register_source` / `@register_segment` accept and return whatever they
+  wrap unchanged. Consumers can therefore turn on mypy's
+  `disallow_untyped_decorators`. Exposing the real types surfaced a few
+  annotations that were narrower than the code (all corrected, no behavior
+  change): `diagPrint`'s `output` accepts `None` and `level` accepts a numeric
+  level as well as a name; the RAG pipelines' `diagPrintOutput` is a `str |
+  None` output target, not a bool; `echo`'s `delimiter` defaults to `","` in the
+  function signature and accepts `None`; `searchLanceDB`'s `path` is `str |
+  None` (it already raised a clear error on `None`); segments declared to take
+  an `Iterator` now take any `Iterable`.
 
 ## 0.14.0
 

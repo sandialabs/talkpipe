@@ -65,7 +65,7 @@ def _validate_hash_algorithm(algorithm: str) -> None:
 @registry.register_segment("diagPrint")
 @segment()
 def DiagPrint(
-    items: Iterator[Any],
+    items: Iterable[Any],
     field_list: Annotated[
         str,
         "Comma-separated fields to extract in form 'field[:new_name],...' where _ means the whole item",
@@ -78,10 +78,12 @@ def DiagPrint(
         "A Python expression using 'item' as the variable (e.g., 'item * 2')",
     ] = None,
     output: Annotated[
-        str,
+        str | None,
         "If 'stderr', output to stderr.  If 'stdout', output to stdout.  Otherwise write to a logger with this name.  If None or the string 'None', do not write output.",
     ] = "stdout",
-    level: Annotated[str, "Logging level if output is to a logger."] = "DEBUG",
+    level: Annotated[
+        str | int, "Logging level (name or number) if output is to a logger."
+    ] = "DEBUG",
 ) -> Iterator[Any]:
     """
     Print pass-through diagnostics for each item in a stream.
@@ -129,7 +131,10 @@ def DiagPrint(
 
             def output_fn(msg: str) -> Any:
                 return logging.getLogger(output).log(
-                    msg=msg, level=logging.getLevelName(level.upper())
+                    msg=msg,
+                    level=logging.getLevelName(level.upper())
+                    if isinstance(level, str)
+                    else level,
                 )
 
     if expression:
@@ -430,7 +435,7 @@ def extractProperty(
 @registry.register_segment("set")
 @segment()
 def assign(
-    items: Annotated[Iterator[Any], "The input item to modify"],
+    items: Annotated[Iterable[Any], "The input item to modify"],
     value: Annotated[Any, "The value to assign"],
     set_as: Annotated[str, "The field to assign the value to"],
 ) -> Iterator[Any]:
