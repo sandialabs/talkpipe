@@ -8,7 +8,7 @@ from talkpipe import AbstractSegment, register_segment
 
 
 @register_segment("reduceTSNE")
-class ReduceTSNE(AbstractSegment):
+class ReduceTSNE(AbstractSegment[Any, Any]):
     """Use t-SNE to reduce dimensionality of provided matrix.
 
     This segment reduces the dimensionality of the provided matrix using t-SNE

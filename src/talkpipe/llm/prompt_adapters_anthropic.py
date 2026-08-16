@@ -126,7 +126,7 @@ class AnthropicPromptAdapter(AbstractLLMPromptAdapter):
         logger.debug(f"Returning response: {result}")
         return result
 
-    def _build_messages_request_params(self) -> dict:
+    def _build_messages_request_params(self) -> dict[str, Any]:
         non_system_prefix = [
             msg for msg in self._prefix_messages if msg["role"].lower() != "system"
         ]

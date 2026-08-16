@@ -27,7 +27,7 @@ class ForkMode(Enum):
     BROADCAST = "broadcast"  # Send all items to all branches
 
 
-def _poison_filter(queue: Queue) -> Iterator[Any]:
+def _poison_filter(queue: Queue[Any]) -> Iterator[Any]:
     """Iterator over queue items until _poison_pill is seen."""
     while True:
         item = queue.get()
@@ -36,12 +36,12 @@ def _poison_filter(queue: Queue) -> Iterator[Any]:
         yield item
 
 
-class ForkSegment(AbstractSegment):
+class ForkSegment(AbstractSegment[Any, Any]):
     """Forks the input stream into multiple downstream pipelines in parallel."""
 
     def __init__(
         self,
-        branches: list[AbstractSegment | AbstractSource],
+        branches: list[AbstractSegment[Any, Any] | AbstractSource[Any]],
         mode: ForkMode = ForkMode.BROADCAST,
         max_queue_size: int = 100,
         num_threads: int | None = None,
@@ -55,9 +55,9 @@ class ForkSegment(AbstractSegment):
     def process_branch(
         self,
         branch_id: int,
-        branch: AbstractSegment | AbstractSource,
-        input_queue: Queue,
-        output_queue: Queue,
+        branch: AbstractSegment[Any, Any] | AbstractSource[Any],
+        input_queue: Queue[Any],
+        output_queue: Queue[Any],
     ) -> None:
         """Run one branch: consume from input_queue, emit (branch_id, item) to output_queue."""
         try:
@@ -127,7 +127,7 @@ class ForkSegment(AbstractSegment):
 
 
 def fork(
-    *branches: AbstractSegment,
+    *branches: AbstractSegment[Any, Any],
     mode: ForkMode = ForkMode.ROUND_ROBIN,
     max_queue_size: int = 100,
     num_threads: int | None = None,

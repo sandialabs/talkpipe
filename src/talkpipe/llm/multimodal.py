@@ -8,7 +8,7 @@ from typing import Any
 from .content import ImagePart, TextPart, UserTurn
 
 
-def to_ollama_user_message(user_turn: UserTurn) -> dict:
+def to_ollama_user_message(user_turn: UserTurn) -> dict[str, Any]:
     text = "\n".join(
         part.text for part in user_turn.parts if isinstance(part, TextPart)
     )
@@ -23,7 +23,7 @@ def to_ollama_user_message(user_turn: UserTurn) -> dict:
     return message
 
 
-def to_openai_user_message(user_turn: UserTurn) -> dict:
+def to_openai_user_message(user_turn: UserTurn) -> dict[str, Any]:
     content: list[dict[str, Any]] = []
     for part in user_turn.parts:
         if isinstance(part, TextPart):
@@ -39,7 +39,7 @@ def to_openai_user_message(user_turn: UserTurn) -> dict:
     return {"role": "user", "content": content}
 
 
-def to_anthropic_user_message(user_turn: UserTurn) -> dict:
+def to_anthropic_user_message(user_turn: UserTurn) -> dict[str, Any]:
     content: list[dict[str, Any]] = []
     for part in user_turn.parts:
         if isinstance(part, TextPart):

@@ -39,10 +39,10 @@ class ComponentInfo:
     base_classes: list[str]
     docstring: str
     parameters: list[ParamSpec]
-    original_function: Callable | None = None
+    original_function: Callable[..., Any] | None = None
 
 
-def extract_function_info(func: Callable) -> dict[str, Any]:
+def extract_function_info(func: Callable[..., Any]) -> dict[str, Any]:
     """Extract docstring and parameters from a callable via inspect.
 
     Skips ``self``, ``items``, and ``item``. For Annotated[T, "desc"] types,

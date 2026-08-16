@@ -26,7 +26,7 @@ _OVERFLOW_TRUNCATE: Literal["truncate"] = "truncate"
 
 
 @register_segment("processDocuments")
-class ProcessDocumentsSegment(AbstractSegment):
+class ProcessDocumentsSegment(AbstractSegment[Any, Any]):
     """Segment to read files, split, shingle, and prepare documents for vector DB ingestion."""
 
     def __init__(
@@ -75,7 +75,7 @@ class ProcessDocumentsSegment(AbstractSegment):
 
 
 @register_segment("makeVectorDatabase")
-class MakeVectorDatabaseSegment(AbstractSegment):
+class MakeVectorDatabaseSegment(AbstractSegment[Any, Any]):
     """Segment to create a vector database in LanceDB.
 
     This segment expects dictionary inputs representing documents.
@@ -148,7 +148,7 @@ class MakeVectorDatabaseSegment(AbstractSegment):
 
 
 @register_segment("searchVectorDatabase")
-class SearchVectorDatabaseSegment(AbstractSegment):
+class SearchVectorDatabaseSegment(AbstractSegment[Any, Any]):
     """Segment to search a vector database in LanceDB.
 
     This segment can accept either strings or dictionaries as input.
@@ -302,7 +302,7 @@ class _IngestTally:
     chunks_indexed: int = 0
     chunks_skipped: int = 0
     extracted_at_last_store: int = 0
-    seen_sources: set = field(default_factory=set)
+    seen_sources: set[str] = field(default_factory=set)
 
 
 @segment()

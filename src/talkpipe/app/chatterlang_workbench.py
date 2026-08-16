@@ -95,7 +95,7 @@ logging.getLogger().addHandler(queue_handler)
 logging.getLogger().setLevel(logging.INFO)
 
 # Global in-memory store for compiled script instances
-compiled_scripts: dict[str, dict] = {}
+compiled_scripts: dict[str, dict[str, Any]] = {}
 
 # Define example scripts to display in the UI
 EXAMPLE_SCRIPTS = {

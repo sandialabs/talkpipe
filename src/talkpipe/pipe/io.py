@@ -82,7 +82,7 @@ class ErrorResilientPromptPipeline(Pipeline):
 
 
 @registry.register_segment(name="print")
-class Print(AbstractSegment):
+class Print(AbstractSegment[Any, Any]):
     """
     An operation prints and passes on each item from the input stream.
     """
@@ -119,7 +119,7 @@ class Print(AbstractSegment):
 
 
 @registry.register_segment(name="log")
-class Log(AbstractSegment):
+class Log(AbstractSegment[Any, Any]):
     """
     An operation that logs each item from the input stream.
     """
@@ -159,7 +159,7 @@ class Log(AbstractSegment):
 
 
 @register_source("prompt")
-class Prompt(AbstractSource):
+class Prompt(AbstractSource[str]):
     """A source that generates input from a prompt.
 
     This source will generate input from a prompt until the user enters an EOF.
@@ -260,7 +260,7 @@ def loadsJsonl(data: Iterable[str]) -> Iterator[Any]:
 
 @register_segment("dumpsJsonl")
 @segment()
-def dumpsJsonl(data: Iterable) -> Iterator[str]:
+def dumpsJsonl(data: Iterable[Any]) -> Iterator[str]:
     """Serialize items from the input stream as JSON Lines strings.
 
     JSON Lines is a format where each line is a valid JSON object. This segment

@@ -119,7 +119,7 @@ class OllamaPromptAdapter(AbstractLLMPromptAdapter):
     def _chat_completion(
         self,
         model: str,
-        messages: list,
+        messages: list[dict[str, Any]],
         format_schema: Any = None,
         options: Any = None,
     ) -> Any:

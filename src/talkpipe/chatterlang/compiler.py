@@ -196,7 +196,9 @@ def _format_parse_error(script: str, error: ParseError) -> str:
 
 
 @singledispatch
-def compile(script: Any, runtime: RuntimeComponent | None = None) -> AbstractSegment:
+def compile(
+    script: Any, runtime: RuntimeComponent | None = None
+) -> AbstractSegment[Any, Any]:
     """Compile a parsed script into a callable function
 
     Args:
@@ -289,7 +291,7 @@ def compile(script: Any, runtime: RuntimeComponent | None = None) -> AbstractSeg
                         consumer = fork_segment.register_consumer(compiled_pipeline)
 
                         # Create a wrapper segment that reads from the consumer and feeds into the pipeline
-                        class ForkConsumerWrapper(AbstractSegment):
+                        class ForkConsumerWrapper(AbstractSegment[Any, Any]):
                             def __init__(
                                 self,
                                 consumer_iter: Iterable[Any],
@@ -364,7 +366,7 @@ def compile(script: Any, runtime: RuntimeComponent | None = None) -> AbstractSeg
     # 2. Standalone pipelines (no fork connections)
     # Producer-only pipelines are handled by forks and don't need to be in final_pipelines
     # Pipelines that are both consumers and producers are handled by forks (as producers in background threads)
-    final_pipelines: list[AbstractSegment] = []
+    final_pipelines: list[AbstractSegment[Any, Any]] = []
     for idx, pipeline in enumerate(script.pipelines):
         if isinstance(pipeline, ParsedPipeline):
             if pipeline.fork_source and not pipeline.fork_target:
@@ -410,7 +412,7 @@ def _resolve_params(
 @compile.register(ParsedPipeline)
 def _(
     pipeline: ParsedPipeline, runtime: RuntimeComponent
-) -> AbstractSource | AbstractSegment:
+) -> AbstractSource[Any] | AbstractSegment[Any, Any]:
     """Compile a parsed pipeline into a Pipeline object
 
     Args:
@@ -418,7 +420,7 @@ def _(
         v_store (VariableStore): The variable store to use
     """
     logger.debug("Starting pipeline compilation")
-    ans: AbstractSource | AbstractSegment | None = None
+    ans: AbstractSource[Any] | AbstractSegment[Any, Any] | None = None
     if pipeline.input_node is not None:
         input_source = pipeline.input_node.source
         logger.debug(f"Processing input node of type {type(input_source)}")
@@ -453,7 +455,7 @@ def _(
 
     logger.debug(f"Processing {len(pipeline.transforms)} transforms")
     for transform in pipeline.transforms:
-        next_transform: AbstractSegment
+        next_transform: AbstractSegment[Any, Any]
         if isinstance(transform, VariableName):
             next_transform = VariableSetSegment(transform.name)
             logger.debug(f"Created variable set segment for {transform.name}")
@@ -507,7 +509,7 @@ def _(fork: ForkNode, runtime: RuntimeComponent) -> ForkSegment:
         v_store (VariableStore): The variable store to use
     """
     logger.debug("Starting fork compilation")
-    pipelines: list[AbstractSegment | AbstractSource] = [
+    pipelines: list[AbstractSegment[Any, Any] | AbstractSource[Any]] = [
         compile(pipeline, runtime) for pipeline in fork.branches
     ]
     logger.debug("Completed fork compilation")
@@ -561,7 +563,9 @@ def remove_comments(text: str) -> str:
 
 
 @compile.register(str)
-def _(script: str, runtime: RuntimeComponent | None = None) -> AbstractSegment:
+def _(
+    script: str, runtime: RuntimeComponent | None = None
+) -> AbstractSegment[Any, Any]:
     """Compile a script into a callable function
 
     Args:
@@ -645,7 +649,7 @@ class ArrowForkSegment:
 
 
 def _variable_store(
-    component: AbstractSource | AbstractSegment,
+    component: AbstractSource[Any] | AbstractSegment[Any, Any],
 ) -> dict[str, Any]:
     """Return the variable store of the runtime attached to a compiled component.
 
@@ -661,7 +665,7 @@ def _variable_store(
     return runtime.variable_store
 
 
-class VariableSource(AbstractSource):
+class VariableSource(AbstractSource[Any]):
     """A source that gets a variable from the variable store and returns its
     contents item by item.
 
@@ -676,7 +680,7 @@ class VariableSource(AbstractSource):
         yield from _variable_store(self)[self.variable_name]
 
 
-class VariableSetSegment(io.AbstractSegment):
+class VariableSetSegment(AbstractSegment[Any, Any]):
     """A segment that sets a variable in the variable store.
 
     It trains its input stream, stores the result as a list and then
@@ -695,7 +699,7 @@ class VariableSetSegment(io.AbstractSegment):
 
 
 @registry.register_segment(name="accum")
-class Accum(io.AbstractSegment):
+class Accum(AbstractSegment[Any, Any]):
     """Accumulates items from the input stream both in an internal buffer and in the specified variable.
     This is useful for accumulating the results of running the pipeline multiple times.
 
@@ -733,7 +737,7 @@ class Accum(io.AbstractSegment):
 
 
 @registry.register_segment(name="snippet")
-class Snippet(io.AbstractSegment):
+class Snippet(AbstractSegment[Any, Any]):
     """A segment that loads a chatterlang script from a file and compiles it, after which it
     functions as a normal segment that can be integrated into a pipeline.
 
@@ -745,7 +749,7 @@ class Snippet(io.AbstractSegment):
     def __init__(self, script_source: str):
         super().__init__()
         self.script_source = script_source
-        self.script: AbstractSegment | None = None
+        self.script: AbstractSegment[Any, Any] | None = None
 
     def transform(self, items: Iterable[Any]) -> Iterator[Any]:
         if self.script is None:

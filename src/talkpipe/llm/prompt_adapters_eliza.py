@@ -151,8 +151,8 @@ class ElizaPromptAdapter(AbstractLLMPromptAdapter):
         return self.execute(prompt)
 
     def _messages_create(
-        self, model: str, messages: list, output_format: Any = None
-    ) -> dict:
+        self, model: str, messages: list[dict[str, Any]], output_format: Any = None
+    ) -> dict[str, Any]:
         latest_user_text = ""
         for message in reversed(messages):
             if str(message.get("role", "")).lower() == "user":

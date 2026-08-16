@@ -83,7 +83,7 @@ class HybridRegistry(Generic[T]):
         """
         self._registry: dict[str, T] = {}
         self._entry_point_group = entry_point_group
-        self._entry_points_cache: dict | None = None
+        self._entry_points_cache: dict[str, Any] | None = None
         self._attempted_loads: set[str] = set()
         self._loaded_modules: set[str] = set()
         self._load_errors: dict[str, str] = {}

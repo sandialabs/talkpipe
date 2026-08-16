@@ -15,7 +15,7 @@ from talkpipe.util.data_manipulation import assign_property, extract_property
 logger = logging.getLogger(__name__)
 
 
-def _extract_source_paths(background: list) -> list[str]:
+def _extract_source_paths(background: list[Any]) -> list[str]:
     """Extract unique source paths (or titles) from search results for citation."""
     seen = set()
     paths = []
@@ -73,7 +73,7 @@ def construct_background(
 
 
 @register_segment("constructRagPrompt")
-class ConstructRAGPrompt(AbstractSegment):
+class ConstructRAGPrompt(AbstractSegment[Any, Any]):
     def __init__(
         self,
         content_field: Annotated[Any, "Field to evaluate relevance on"],
@@ -103,7 +103,7 @@ class ConstructRAGPrompt(AbstractSegment):
 
 
 @register_segment("appendRagSources")
-class AppendRAGSources(AbstractSegment):
+class AppendRAGSources(AbstractSegment[Any, Any]):
     """Appends source file paths from _background to the RAG response in _rag_response, storing the result in set_as while preserving the item structure."""
 
     def __init__(
@@ -138,7 +138,7 @@ class AppendRAGSources(AbstractSegment):
                 yield item
 
 
-class AbstractRAGPipeline(AbstractSegment):
+class AbstractRAGPipeline(AbstractSegment[Any, Any]):
     """Convenience segment that runs a RAG pipeline from search to prompt creation to LLM completion.
 
     Path supports multiple URI schemes:
@@ -229,11 +229,11 @@ class AbstractRAGPipeline(AbstractSegment):
         self.debug_messages = debug_messages
 
     @abstractmethod
-    def make_completion_segment(self) -> AbstractSegment:
+    def make_completion_segment(self) -> AbstractSegment[Any, Any]:
         """Create the segment that performs the completion over the RAG prompt."""
 
-    def make_pipeline(self) -> AbstractSegment:
-        pipeline: AbstractSegment = (
+    def make_pipeline(self) -> AbstractSegment[Any, Any]:
+        pipeline: AbstractSegment[Any, Any] = (
             SearchVectorDatabaseSegment(
                 embedding_model=self.embedding_model,
                 embedding_source=self.embedding_source,
@@ -356,7 +356,7 @@ class RAGToText(AbstractRAGPipeline):
         )
         self.append_sources_to_output = append_sources_to_output
 
-    def make_completion_segment(self) -> AbstractSegment:
+    def make_completion_segment(self) -> AbstractSegment[Any, Any]:
         if not self.append_sources_to_output:
             return self._make_llm_prompt(set_as=self.set_as)
         partial_answer_field = "_partial_rag_response"
@@ -471,7 +471,7 @@ class RAGToBinaryAnswer(AbstractRAGPipeline):
             debug_messages=debug_messages,
         )
 
-    def make_completion_segment(self) -> AbstractSegment:
+    def make_completion_segment(self) -> AbstractSegment[Any, Any]:
         return LlmBinaryAnswer(
             system_prompt=self.system_prompt,
             model=self.completion_model,
@@ -577,7 +577,7 @@ class RAGToScore(AbstractRAGPipeline):
             debug_messages=debug_messages,
         )
 
-    def make_completion_segment(self) -> AbstractSegment:
+    def make_completion_segment(self) -> AbstractSegment[Any, Any]:
         return LlmScore(
             system_prompt=self.system_prompt,
             model=self.completion_model,

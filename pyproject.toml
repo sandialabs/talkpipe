@@ -299,21 +299,16 @@ docstring-code-format = true
 # statements); the package itself still supports Python 3.11.
 python_version = "3.12"
 files = ["src"]
-# Every function in src/ must be fully annotated (parameters and return);
-# untyped defs and partially typed defs are both errors, and a typed function
-# may not leak an untyped (Any) value through its return. The package ships a
-# py.typed marker, so these annotations are the public typing contract for
-# consumers. Tightening towards `strict` continues as a follow-up. Never loosen
-# a flag here to get green.
-check_untyped_defs = true
-disallow_incomplete_defs = true
-disallow_untyped_defs = true
-warn_return_any = true
-no_implicit_optional = true
-strict_equality = true
-warn_unused_configs = true
-warn_redundant_casts = true
-warn_unused_ignores = true
+# `strict` is the whole mypy strict bundle (disallow_untyped_defs,
+# disallow_incomplete_defs, disallow_untyped_calls, disallow_untyped_decorators,
+# disallow_any_generics, no_implicit_reexport, warn_return_any, strict_equality,
+# extra_checks, ...). Every function in src/ is fully annotated, generics carry
+# their type parameters, and a typed function may not leak an untyped (Any)
+# value through its return. The package ships a py.typed marker, so these
+# annotations are the public typing contract for consumers. Never loosen a
+# flag here to get green.
+strict = true
+# Beyond the strict bundle:
 warn_unreachable = true
 warn_no_return = true
 show_error_codes = true

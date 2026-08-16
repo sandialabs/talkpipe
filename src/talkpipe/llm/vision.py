@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 
 
 @register_segment("llmVisionPrompt")
-class LLMVisionPrompt(AbstractSegment):
+class LLMVisionPrompt(AbstractSegment[Any, Any]):
     """Send a multimodal prompt (text plus image) to a vision-capable LLM.
 
     Reads context, prompt, and image fields from each input item and returns the
@@ -111,7 +111,7 @@ class LLMVisionPrompt(AbstractSegment):
             )
         return value
 
-    def transform(self, input_iter: Iterable) -> Iterator:
+    def transform(self, input_iter: Iterable[Any]) -> Iterator[Any]:
         for item in input_iter:
             user_turn = user_turn_from_fields(
                 prompt=self._resolve_prompt(item),

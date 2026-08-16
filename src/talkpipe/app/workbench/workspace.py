@@ -19,6 +19,7 @@ import builtins
 import re
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import Any
 
 from talkpipe.util.config import get_config
 
@@ -95,7 +96,7 @@ class WorkspaceStore:
             raise WorkspaceError(f"Invalid pipeline id: {pipeline_id!r}")
         return path
 
-    def _record(self, path: Path, include_script: bool) -> dict:
+    def _record(self, path: Path, include_script: bool) -> dict[str, Any]:
         text = path.read_text(encoding="utf-8")
         meta, body = split_header(text)
         record = {
@@ -111,7 +112,7 @@ class WorkspaceStore:
             record["script"] = body
         return record
 
-    def list(self) -> list[dict]:
+    def list(self) -> list[dict[str, Any]]:
         if not self.root.is_dir():
             return []
         records = [
@@ -121,7 +122,7 @@ class WorkspaceStore:
         records.sort(key=lambda r: r["name"].lower())
         return records
 
-    def load(self, pipeline_id: str) -> dict:
+    def load(self, pipeline_id: str) -> dict[str, Any]:
         path = self._path_for(pipeline_id)
         if not path.is_file():
             raise WorkspaceError(f"Pipeline '{pipeline_id}' not found", status=404)
@@ -138,7 +139,7 @@ class WorkspaceStore:
 
     def create(
         self, name: str, description: str, script: str, overwrite: bool = False
-    ) -> dict:
+    ) -> dict[str, Any]:
         if not name.strip():
             raise WorkspaceError("Pipeline name is required")
         self._ensure_root()
@@ -158,7 +159,7 @@ class WorkspaceStore:
         name: str | None = None,
         description: str | None = None,
         script: str | None = None,
-    ) -> dict:
+    ) -> dict[str, Any]:
         path = self._path_for(pipeline_id)
         if not path.is_file():
             raise WorkspaceError(f"Pipeline '{pipeline_id}' not found", status=404)
@@ -174,7 +175,7 @@ class WorkspaceStore:
         )
         return self._record(path, include_script=False)
 
-    def rename(self, pipeline_id: str, new_name: str) -> dict:
+    def rename(self, pipeline_id: str, new_name: str) -> dict[str, Any]:
         if not new_name.strip():
             raise WorkspaceError("New name is required")
         path = self._path_for(pipeline_id)

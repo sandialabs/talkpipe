@@ -65,6 +65,7 @@ def regex_replace(
 @core.segment()
 def fill_null(
     items: Annotated[Iterable[Any], "An iterable of dictionaries to process"],
+    /,
     default: Annotated[
         str, "The default value to use for any None values not specified in kwargs"
     ] = "",
@@ -109,7 +110,7 @@ def fill_null(
 
 
 @register_segment("makeLists")
-class MakeLists(AbstractSegment):
+class MakeLists(AbstractSegment[Any, Any]):
     def __init__(
         self,
         num_items: Annotated[

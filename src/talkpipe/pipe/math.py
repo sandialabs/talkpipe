@@ -51,7 +51,7 @@ def arange(
     yield from list(range(lower, upper))
 
 
-class AbstractComparisonFilter(core.AbstractSegment):
+class AbstractComparisonFilter(core.AbstractSegment[Any, Any]):
     """Base for comparison segments: filter items where field value op threshold."""
 
     def __init__(
@@ -65,7 +65,7 @@ class AbstractComparisonFilter(core.AbstractSegment):
         self.n = n
         self.comparator = comparator
 
-    def transform(self, items: Iterable) -> Iterator:
+    def transform(self, items: Iterable[Any]) -> Iterator[Any]:
         """Yield items whose field value satisfies the comparator."""
         for item in items:
             value = extract_property(item, self.field, fail_on_missing=True)

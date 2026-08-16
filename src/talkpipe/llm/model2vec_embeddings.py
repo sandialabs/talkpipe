@@ -64,7 +64,7 @@ def _resolve_snapshot(
 # Hub every time (a network round-trip per pipeline rebuild). Keyed by the
 # loader class as well as the model spec so a monkeypatched loader never
 # hands its models to code using a different loader.
-_static_model_cache: dict = {}
+_static_model_cache: dict[tuple[Any, str, str | None, str | None], Any] = {}
 _static_model_cache_lock = threading.Lock()
 
 
@@ -149,7 +149,7 @@ def precache_model(
     *,
     revision: str | None = None,
     cache_dir: str | Path | None = None,
-) -> dict:
+) -> dict[str, Any]:
     """Download and load a model2vec model into the local HF cache.
 
     Designed to be called at container-build time so the resulting image can

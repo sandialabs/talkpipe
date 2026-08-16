@@ -78,6 +78,17 @@
   function signature and accepts `None`; `searchLanceDB`'s `path` is `str |
   None` (it already raised a clear error on `None`); segments declared to take
   an `Iterator` now take any `Iterable`.
+- mypy now runs in `strict` mode on `src/`, completing the tightening
+  roadmap: every generic type carries its parameters (`dict[str, Any]`,
+  `AbstractSegment[Any, Any]`, ...), calls into untyped code and untyped
+  decorators are errors, and re-exports are explicit. Two things are visible
+  from outside: `field_segment` factories are typed via a small
+  `FieldSegmentFactory` protocol, and imports that relied on implicit
+  re-exports (`talkpipe.pipe.io.AbstractSegment`,
+  `talkpipe.util.data_manipulation.parse_key_value_str`) now come from their
+  defining modules -- the public re-exports in `talkpipe`, `talkpipe.pipe`,
+  `talkpipe.llm`, and `talkpipe.chatterlang` already declare `__all__` and are
+  unchanged.
 
 ## 0.14.0
 

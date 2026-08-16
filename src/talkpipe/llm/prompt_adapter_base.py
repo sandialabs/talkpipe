@@ -6,7 +6,7 @@ from typing import Annotated, Any
 
 from pydantic import BaseModel
 
-from talkpipe.util.data_manipulation import parse_key_value_str
+from talkpipe.util.config import parse_key_value_str
 
 from .content import UserTurn
 from .prompt_adapter_memory import PromptAdapterMemoryMixin
@@ -24,9 +24,9 @@ class AbstractLLMPromptAdapter(PromptAdapterMemoryMixin, ABC):
 
     _model_name: str
     _source: str
-    _system_message: dict | None
-    _summary_message: dict | None
-    _messages: list
+    _system_message: dict[str, Any] | None
+    _summary_message: dict[str, Any] | None
+    _messages: list[dict[str, Any]]
     _multi_turn: bool
 
     def __init__(
@@ -103,7 +103,7 @@ class AbstractLLMPromptAdapter(PromptAdapterMemoryMixin, ABC):
             self._system_message = {"role": "system", "content": system_prompt}
             self._prefix_messages = [self._system_message]
 
-    def _request_messages(self) -> list:
+    def _request_messages(self) -> list[dict[str, Any]]:
         # Providers consume the same assembled order: static prefix, rolling summary, then live turns.
         summary_messages = [self._summary_message] if self._summary_message else []
         return self._prefix_messages + summary_messages + self._messages
@@ -154,7 +154,7 @@ class AbstractLLMPromptAdapter(PromptAdapterMemoryMixin, ABC):
                 f"See https://github.com/sandialabs/talkpipe/blob/main/docs/guides/model-and-source-configuration.md."
             ) from exc
 
-    def _apply_temperature_if_explicit(self, request_params: dict) -> None:
+    def _apply_temperature_if_explicit(self, request_params: dict[str, Any]) -> None:
         if self._temperature_explicit:
             request_params["temperature"] = self._temperature
 
@@ -170,7 +170,9 @@ class AbstractLLMPromptAdapter(PromptAdapterMemoryMixin, ABC):
             self._messages = []
             self._summary_message = None
 
-    def _log_message_payload(self, payload_name: str, messages: list) -> None:
+    def _log_message_payload(
+        self, payload_name: str, messages: list[dict[str, Any]]
+    ) -> None:
         if not self._debug_messages:
             return
         sanitized = [self._format_message_for_debug(message) for message in messages]
@@ -182,7 +184,7 @@ class AbstractLLMPromptAdapter(PromptAdapterMemoryMixin, ABC):
             json.dumps(sanitized, ensure_ascii=True),
         )
 
-    def _format_message_for_debug(self, message: dict) -> dict:
+    def _format_message_for_debug(self, message: dict[str, Any]) -> dict[str, Any]:
         role = message.get("role", "unknown")
         if message.get("images"):
             content = str(message.get("content", ""))

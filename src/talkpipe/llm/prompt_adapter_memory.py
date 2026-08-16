@@ -1,4 +1,5 @@
 import logging
+from typing import Any
 
 from talkpipe.data.text.englishnormalize import summarize
 
@@ -16,8 +17,8 @@ class PromptAdapterMemoryMixin:
     # State owned by the host class.
     _model_name: str
     _source: str
-    _messages: list
-    _summary_message: dict | None
+    _messages: list[dict[str, Any]]
+    _summary_message: dict[str, Any] | None
     _memory_mode: str
     _summarization_mode: str
     _summary_strategy: str
@@ -29,10 +30,12 @@ class PromptAdapterMemoryMixin:
     _summary_model: str | None
 
     # Helpers implemented by the host class.
-    def _request_messages(self) -> list:
+    def _request_messages(self) -> list[dict[str, Any]]:
         raise NotImplementedError
 
-    def _log_message_payload(self, payload_name: str, messages: list) -> None:
+    def _log_message_payload(
+        self, payload_name: str, messages: list[dict[str, Any]]
+    ) -> None:
         raise NotImplementedError
 
     def _clip_debug_text(self, text: str | None, limit: int = 1200) -> str:
@@ -48,7 +51,7 @@ class PromptAdapterMemoryMixin:
     ) -> str:
         raise NotImplementedError
 
-    def _estimate_tokens(self, messages: list) -> int:
+    def _estimate_tokens(self, messages: list[dict[str, Any]]) -> int:
         # Provider-agnostic approximation to stay lightweight and deterministic.
         content_size = sum(len(str(message.get("content", ""))) for message in messages)
         return (content_size // 4) + (6 * len(messages))
@@ -94,7 +97,7 @@ class PromptAdapterMemoryMixin:
             return int(trigger)
         return None
 
-    def _messages_to_summary_text(self, messages: list) -> str:
+    def _messages_to_summary_text(self, messages: list[dict[str, Any]]) -> str:
         lines: list[str] = []
         for message in messages:
             role = str(message.get("role", "unknown")).upper()
@@ -103,7 +106,7 @@ class PromptAdapterMemoryMixin:
         return "\n".join(lines)
 
     def _build_summary_prompt(
-        self, previous_summary: str, archived_messages: list
+        self, previous_summary: str, archived_messages: list[dict[str, Any]]
     ) -> str:
         history_text = self._messages_to_summary_text(archived_messages)
         return (
@@ -115,7 +118,7 @@ class PromptAdapterMemoryMixin:
         )
 
     def _summarize_deterministic(
-        self, previous_summary: str, archived_messages: list
+        self, previous_summary: str, archived_messages: list[dict[str, Any]]
     ) -> str:
         history_text = self._messages_to_summary_text(archived_messages)
         combined = (
@@ -132,7 +135,7 @@ class PromptAdapterMemoryMixin:
         return f"Conversation memory (deterministic fallback):\n{summary}"
 
     def _summarize_truncate(
-        self, previous_summary: str, archived_messages: list
+        self, previous_summary: str, archived_messages: list[dict[str, Any]]
     ) -> str:
         history_text = self._messages_to_summary_text(archived_messages)
         combined = (
@@ -145,7 +148,7 @@ class PromptAdapterMemoryMixin:
         return combined.strip()[-self._summary_max_chars :]
 
     def _summarize_with_llm(
-        self, previous_summary: str, archived_messages: list
+        self, previous_summary: str, archived_messages: list[dict[str, Any]]
     ) -> str:
         summary_model = self._summary_model or self._model_name
         summary_prompt = self._build_summary_prompt(previous_summary, archived_messages)
@@ -156,7 +159,9 @@ class PromptAdapterMemoryMixin:
             max_tokens=self._summary_max_tokens,
         ).strip()
 
-    def _summarize_history(self, previous_summary: str, archived_messages: list) -> str:
+    def _summarize_history(
+        self, previous_summary: str, archived_messages: list[dict[str, Any]]
+    ) -> str:
         # Strategy order is intentional: requested strategy first, then deterministic, then truncate.
         if self._summary_strategy == "deterministic":
             return self._summarize_deterministic(previous_summary, archived_messages)

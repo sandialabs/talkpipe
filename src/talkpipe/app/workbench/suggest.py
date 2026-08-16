@@ -16,9 +16,14 @@ import json
 import logging
 import re
 import time
+from typing import Any
 
 from talkpipe.chatterlang import registry
-from talkpipe.llm.config import getPromptAdapter, getPromptSources
+from talkpipe.llm.config import getPromptAdapter
+
+# Explicit re-export: suggest_api reads (and tests monkeypatch) this through
+# the suggest module.
+from talkpipe.llm.config import getPromptSources as getPromptSources
 from talkpipe.util.config import get_config
 from talkpipe.util.constants import TALKPIPE_MODEL_NAME, TALKPIPE_SOURCE
 
@@ -40,7 +45,7 @@ def _truthy(value: object, default: bool = True) -> bool:
 
 
 def resolve_llm_status(
-    settings: dict | None = None,
+    settings: dict[str, Any] | None = None,
 ) -> tuple[tuple[str, str] | None, str | None]:
     """Resolve the suggestion LLM.
 
@@ -78,7 +83,7 @@ def resolve_llm_status(
     return (source, model), None
 
 
-def resolve_llm(settings: dict | None = None) -> tuple[str, str] | None:
+def resolve_llm(settings: dict[str, Any] | None = None) -> tuple[str, str] | None:
     """Resolve (source, model) for suggestions, or None if unavailable."""
     resolved, _ = resolve_llm_status(settings)
     return resolved
@@ -140,7 +145,7 @@ def invalidate_availability_cache() -> None:
     _availability_cause.clear()
 
 
-def _registered_names() -> set:
+def _registered_names() -> set[str]:
     return set(registry.input_registry.available_names) | set(
         registry.segment_registry.available_names
     )
@@ -172,7 +177,7 @@ def _previous_component(stmt: str) -> str | None:
     return None
 
 
-def classify_cursor(script: str, cursor_offset: int) -> dict:
+def classify_cursor(script: str, cursor_offset: int) -> dict[str, Any]:
     """Grammatical position of the cursor within its statement.
 
     Returns ``{"context", "enclosing", "prev"}`` where context is one of:
@@ -255,7 +260,7 @@ _CONTEXT_INSTRUCTIONS = {
 }
 
 
-def _valid_types_for(context: str) -> set:
+def _valid_types_for(context: str) -> set[str]:
     if context == "source_position":
         return {"source"}
     if context in ("pipe_stage", "after_stage"):
@@ -272,7 +277,7 @@ def _component_type_of(name: str) -> str | None:
 
 
 def insert_text_for(
-    context_info: dict, name: str, params_hint: str, comp_type: str | None
+    context_info: dict[str, Any], name: str, params_hint: str, comp_type: str | None
 ) -> str:
     """The exact text to insert at the cursor for a suggestion."""
     params = f"[{params_hint}]" if params_hint else ""
@@ -290,7 +295,7 @@ def insert_text_for(
     return f"{name}{params}"  # pipe_stage
 
 
-def _component_lines(reference: dict) -> str:
+def _component_lines(reference: dict[str, Any]) -> str:
     lines = []
     for comp in reference["components"]:
         if comp.get("error"):
@@ -300,10 +305,10 @@ def _component_lines(reference: dict) -> str:
     return "\n".join(lines)
 
 
-_builtin_records_cache: list[dict] | None = None
+_builtin_records_cache: list[dict[str, Any]] | None = None
 
 
-def builtin_pipeline_records() -> list[dict]:
+def builtin_pipeline_records() -> list[dict[str, Any]]:
     """The built-in examples and seed scripts as pipeline records.
 
     Used as few-shot material when the user's workspace is empty or has
@@ -337,7 +342,9 @@ def builtin_pipeline_records() -> list[dict]:
     return records
 
 
-def _rank_by_similarity(current: set, records: list[dict], limit: int) -> list[dict]:
+def _rank_by_similarity(
+    current: set[str], records: list[dict[str, Any]], limit: int
+) -> list[dict[str, Any]]:
     from talkpipe.app.workbench.corpus import mine_script
 
     scored = []
@@ -356,8 +363,8 @@ def _rank_by_similarity(current: set, records: list[dict], limit: int) -> list[d
 
 
 def _similar_pipelines(
-    script: str, saved: list[dict], limit: int = 3
-) -> tuple[list[dict], list[dict]]:
+    script: str, saved: list[dict[str, Any]], limit: int = 3
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     """(user_matches, builtin_fill): few-shot pipelines for the prompt.
 
     The user's own saved pipelines rank first (Jaccard similarity of
@@ -377,7 +384,7 @@ def _similar_pipelines(
     return user_matches, builtin_fill
 
 
-def _signature_line(comp: dict) -> str:
+def _signature_line(comp: dict[str, Any]) -> str:
     """A compact full signature for one component."""
     params = "; ".join(
         f"{p['name']}: {p.get('type') or 'any'}"
@@ -392,7 +399,10 @@ def _signature_line(comp: dict) -> str:
 
 
 def _candidate_signatures(
-    reference: dict, context_info: dict, stats: dict | None, limit: int = 8
+    reference: dict[str, Any],
+    context_info: dict[str, Any],
+    stats: dict[str, Any] | None,
+    limit: int = 8,
 ) -> list[str]:
     """Full signatures for the components most plausible at the cursor.
 
@@ -439,11 +449,11 @@ def _candidate_signatures(
 def build_prompt(
     script: str,
     cursor_offset: int,
-    reference: dict,
-    saved: list[dict],
+    reference: dict[str, Any],
+    saved: list[dict[str, Any]],
     max_suggestions: int,
-    stats: dict | None = None,
-    context_info: dict | None = None,
+    stats: dict[str, Any] | None = None,
+    context_info: dict[str, Any] | None = None,
 ) -> str:
     cursor_offset = max(0, min(cursor_offset, len(script)))
     marked = script[:cursor_offset] + "<CURSOR>" + script[cursor_offset:]
@@ -503,8 +513,8 @@ def build_prompt(
 
 
 def parse_suggestions(
-    raw: str, max_suggestions: int, context_info: dict | None = None
-) -> list[dict]:
+    raw: str, max_suggestions: int, context_info: dict[str, Any] | None = None
+) -> list[dict[str, Any]]:
     """Extract and validate the JSON array from the model output.
 
     Suggestions are dropped when the name isn't registered (hallucination)
@@ -566,12 +576,12 @@ def parse_suggestions(
 def suggest(
     script: str,
     cursor_offset: int,
-    reference: dict,
-    saved: list[dict],
-    settings: dict | None = None,
+    reference: dict[str, Any],
+    saved: list[dict[str, Any]],
+    settings: dict[str, Any] | None = None,
     max_suggestions: int = 4,
-    stats: dict | None = None,
-) -> dict:
+    stats: dict[str, Any] | None = None,
+) -> dict[str, Any]:
     """Produce the /api/suggest response payload."""
     resolved, reason = resolve_llm_status(settings)
     if not resolved:

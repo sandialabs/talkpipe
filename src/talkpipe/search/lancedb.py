@@ -480,7 +480,11 @@ class LanceDBDocumentStore(DocumentStore, VectorAddable, VectorSearchable):
     ) -> DocID:
         return self.add_vectors([(vector, document, doc_id)])[0]
 
-    def add_vectors(self, documents: list[tuple], upsert: bool = True) -> list[DocID]:
+    def add_vectors(
+        self,
+        documents: list[tuple[VectorLike, Document, DocID | None]],
+        upsert: bool = True,
+    ) -> list[DocID]:
         """Add multiple vectors to the store in a batch operation.
 
         Args:

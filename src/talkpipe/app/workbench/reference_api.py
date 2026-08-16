@@ -69,7 +69,7 @@ def _component_type(item: chatterlang_reference_generator.AnalyzedItem) -> str:
     return "segment"
 
 
-def _build_reference() -> dict:
+def _build_reference() -> dict[str, Any]:
     items = chatterlang_reference_generator.analyze_registered_items()
     components: list[dict[str, Any]] = []
     seen_names: set[str] = set()
@@ -125,7 +125,7 @@ def _build_reference() -> dict:
     return {"components": components}
 
 
-def get_reference() -> dict:
+def get_reference() -> dict[str, Any]:
     """The cached reference document, building it on first use."""
     global _reference_cache
     if _reference_cache is None:
@@ -154,7 +154,7 @@ def warm_reference_cache_async() -> None:
 
 
 @router.get("/reference")
-def api_reference() -> dict:
+def api_reference() -> dict[str, Any]:
     return get_reference()
 
 
@@ -252,7 +252,7 @@ def _locate(script: str, name: str, used_offsets: set[int]) -> tuple[int, int]:
     return 1, 1
 
 
-def _parse_mode_diagnostics(script: str) -> list[dict]:
+def _parse_mode_diagnostics(script: str) -> list[dict[str, Any]]:
     preprocessed = remove_comments(script)
     try:
         parsed = script_parser.parse(preprocessed)
@@ -326,7 +326,7 @@ def _parse_mode_diagnostics(script: str) -> list[dict]:
     return diagnostics
 
 
-def _full_mode_diagnostics(script: str) -> list[dict]:
+def _full_mode_diagnostics(script: str) -> list[dict[str, Any]]:
     try:
         chatterlang_compiler.compile(script)
     except CompileError as e:
@@ -347,7 +347,7 @@ def _full_mode_diagnostics(script: str) -> list[dict]:
     return _parse_mode_diagnostics(script)
 
 
-def _compile_error_diagnostics(script: str, e: CompileError) -> list[dict]:
+def _compile_error_diagnostics(script: str, e: CompileError) -> list[dict[str, Any]]:
     used: set[int] = set()
     line, column = e.line, e.column
     if line is None and e.bad_name:

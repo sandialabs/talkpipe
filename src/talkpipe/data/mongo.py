@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
 
 
 @registry.register_segment("mongoInsert")
-class MongoInsert(core.AbstractSegment):
+class MongoInsert(core.AbstractSegment[Any, Any]):
     """Insert items from the input stream into a MongoDB collection.
 
     For each item received, this segment inserts it into the specified MongoDB collection
@@ -87,7 +87,7 @@ class MongoInsert(core.AbstractSegment):
         self._db: Database[Any] | None = None
         self._collection: Collection[Any] | None = None
 
-    def _ensure_connection(self) -> Collection:
+    def _ensure_connection(self) -> Collection[Any]:
         """Ensure MongoDB connection is established and return the collection."""
         if self._collection is None:
             logger.debug(f"Connecting to MongoDB: {self.connection_string}")
@@ -188,7 +188,7 @@ class MongoInsert(core.AbstractSegment):
 
 
 @registry.register_segment("mongoSearch")
-class MongoSearch(core.AbstractSegment):
+class MongoSearch(core.AbstractSegment[Any, Any]):
     """Search a MongoDB collection and yield results.
 
     This segment performs a query against a MongoDB collection and yields
@@ -246,7 +246,7 @@ class MongoSearch(core.AbstractSegment):
         self._db: Database[Any] | None = None
         self._collection: Collection[Any] | None = None
 
-    def _ensure_connection(self) -> Collection:
+    def _ensure_connection(self) -> Collection[Any]:
         """Ensure MongoDB connection is established and return the collection."""
         if self._collection is None:
             logger.debug(f"Connecting to MongoDB: {self.connection_string}")

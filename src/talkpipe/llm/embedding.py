@@ -79,7 +79,7 @@ class EmbeddingTokenOverflowError(RuntimeError):
 
 
 @register_segment("llmEmbed")
-class LLMEmbed(AbstractFieldSegment):
+class LLMEmbed(AbstractFieldSegment[Any, Any]):
     """Create embeddings from text using an embedding model.
 
     Accepts one stream item at a time and yields one output per item (a vector, or

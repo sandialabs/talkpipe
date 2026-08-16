@@ -110,7 +110,7 @@ class DataResponse(BaseModel):
 
 
 class DataHistory(BaseModel):
-    entries: list[dict]
+    entries: list[dict[str, Any]]
     count: int
 
 
@@ -1943,7 +1943,7 @@ def load_form_config(config_path: str) -> dict[str, Any]:
 
 
 @register_source("chatterlangServer")
-class ChatterlangServerSegment(AbstractSource):
+class ChatterlangServerSegment(AbstractSource[Any]):
     """Segment for receiving JSON data via FastAPI with configurable form"""
 
     def __init__(

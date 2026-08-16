@@ -14,6 +14,7 @@ from typing import (
     Concatenate,
     Generic,
     ParamSpec,
+    Protocol,
     TypeVar,
     overload,
 )
@@ -120,32 +121,32 @@ class RuntimeComponent:
     segments and sources for pipelines compiled from a chatterlang script.
     """
 
-    _variable_store: dict
-    _const_store: dict
+    _variable_store: dict[str, Any]
+    _const_store: dict[str, Any]
 
     def __init__(self) -> None:
         self._variable_store = {}
         self._const_store = {}
 
     @property
-    def variable_store(self) -> dict:
+    def variable_store(self) -> dict[str, Any]:
         return self._variable_store
 
     @variable_store.setter
-    def variable_store(self, value: dict) -> None:
+    def variable_store(self, value: dict[str, Any]) -> None:
         self._variable_store = value
 
     @property
-    def const_store(self) -> dict:
+    def const_store(self) -> dict[str, Any]:
         return self._const_store
 
     @const_store.setter
-    def const_store(self, value: dict) -> None:
+    def const_store(self, value: dict[str, Any]) -> None:
         self._const_store = value
 
     def add_constants(
         self,
-        constants: Annotated[dict, "Dictionary of constants to add"],
+        constants: Annotated[dict[str, Any], "Dictionary of constants to add"],
         override: Annotated[
             bool,
             "If True, new constants override existing ones. If False, existing constants are preserved.",
@@ -211,8 +212,8 @@ class AbstractSegment(ABC, HasRuntimeComponent, Generic[T, U]):
             "If True, metadata objects will be passed to transform(). If False, metadata is automatically passed through.",
         ] = False,
     ):
-        self.upstream: list[AbstractSegment | AbstractSource] = []
-        self.downstream: list[AbstractSegment] = []
+        self.upstream: list[AbstractSegment[Any, Any] | AbstractSource[Any]] = []
+        self.downstream: list[AbstractSegment[Any, Any]] = []
         self.process_metadata = process_metadata
 
     @abstractmethod
@@ -253,7 +254,9 @@ class AbstractSegment(ABC, HasRuntimeComponent, Generic[T, U]):
                     yield item * 2
         """
 
-    def registerUpstream(self, upstream: "AbstractSegment | AbstractSource") -> None:
+    def registerUpstream(
+        self, upstream: "AbstractSegment[Any, Any] | AbstractSource[Any]"
+    ) -> None:
         """Register an upstream segment.
 
         Used internally by the Pipe API to track dependencies when chaining segments.
@@ -264,7 +267,7 @@ class AbstractSegment(ABC, HasRuntimeComponent, Generic[T, U]):
         """
         self.upstream.append(upstream)
 
-    def registerDownstream(self, downstream: "AbstractSegment") -> None:
+    def registerDownstream(self, downstream: "AbstractSegment[Any, Any]") -> None:
         """Register a downstream segment.
 
         Used internally by the Pipe API to track dependencies when chaining segments.
@@ -308,7 +311,7 @@ class AbstractSegment(ABC, HasRuntimeComponent, Generic[T, U]):
         single_out: Annotated[
             bool, "If True, the function will return a single output."
         ] = False,
-    ) -> Callable:
+    ) -> Callable[..., Any]:
         """Convert the segment to a callable function.
 
         By default, the function will expect and return an iterable.
@@ -360,8 +363,8 @@ class AbstractSource(ABC, HasRuntimeComponent, Generic[U]):
             bool, "Not used for sources, but included for API consistency"
         ] = False,
     ):
-        self.upstream: list[AbstractSegment | AbstractSource] = []
-        self.downstream: list[AbstractSegment] = []
+        self.upstream: list[AbstractSegment[Any, Any] | AbstractSource[Any]] = []
+        self.downstream: list[AbstractSegment[Any, Any]] = []
         self.process_metadata = process_metadata
 
     @abstractmethod
@@ -401,10 +404,10 @@ class AbstractSource(ABC, HasRuntimeComponent, Generic[U]):
                     yield item
         """
 
-    def registerUpstream(self, upstream: "AbstractSegment") -> None:
+    def registerUpstream(self, upstream: "AbstractSegment[Any, Any]") -> None:
         raise RuntimeError("Cannot register an upstream segment for a source.")
 
-    def registerDownstream(self, downstream: "AbstractSegment") -> None:
+    def registerDownstream(self, downstream: "AbstractSegment[Any, Any]") -> None:
         """Register a downstream segment.
 
         Used internally by the Pipe API to track dependencies when chaining sources with segments.
@@ -521,7 +524,9 @@ def source(
                 }
 
                 # Bind arguments to the function
-                self._func = lambda: func(*init_args, **merged_kwargs)
+                self._func: Callable[[], Iterable[U]] = lambda: func(
+                    *init_args, **merged_kwargs
+                )
                 # Store reference to original function for documentation access
                 self._original_func = func
 
@@ -640,7 +645,9 @@ def segment(
                 }
 
                 # Bind arguments to the function
-                self._func = lambda x: func(x, *init_args, **merged_kwargs)
+                self._func: Callable[[Iterable[T]], Iterable[U]] = lambda x: func(
+                    x, *init_args, **merged_kwargs
+                )
                 # Store reference to original function for documentation access
                 self._original_func = func
 
@@ -657,18 +664,23 @@ def segment(
     return decorator
 
 
+class FieldSegmentFactory(Protocol):
+    """What ``@field_segment`` produces: call it with the segment's own
+    parameters plus ``field``/``set_as``/``multi_emit`` to get a segment."""
+
+    def __call__(
+        self, *args: Any, **kwargs: Any
+    ) -> "AbstractFieldSegment[Any, Any]": ...
+
+
 @overload
-def field_segment(
-    func: Callable[..., Any], /
-) -> "Callable[..., AbstractFieldSegment[Any, Any]]": ...
+def field_segment(func: Callable[..., Any], /) -> FieldSegmentFactory: ...
 
 
 @overload
 def field_segment(
     *decorator_args: Any, **decorator_kwargs: Any
-) -> (
-    "Callable[[Callable[..., Any]], Callable[..., AbstractFieldSegment[Any, Any]]]"
-): ...
+) -> Callable[[Callable[..., Any]], FieldSegmentFactory]: ...
 
 
 def field_segment(
@@ -731,7 +743,9 @@ def field_segment(
                     multi_emit=multi_emit,
                     process_metadata=process_metadata,
                 )
-                self._func = lambda x: func(x, *init_args, **merged_kwargs)
+                self._func: Callable[[Any], Any] = lambda x: func(
+                    x, *init_args, **merged_kwargs
+                )
                 # Store reference to original function for documentation access
                 self._original_func = func
 
@@ -874,7 +888,7 @@ class AbstractFieldSegment(AbstractSegment[T, U]):
                     yield result
 
 
-class Pipeline(AbstractSegment):
+class Pipeline(AbstractSegment[Any, Any]):
     """A pipeline is a sequence of operations chained together for data processing.
 
     Each operation in the pipeline draws from the output of the previous operation.
@@ -903,7 +917,7 @@ class Pipeline(AbstractSegment):
 
     def __init__(
         self,
-        *operations: AbstractSource | AbstractSegment,
+        *operations: AbstractSource[Any] | AbstractSegment[Any, Any],
         process_metadata: bool = True,
     ):
         # Pipeline defaults to process_metadata=True so metadata flows through to operations
@@ -930,7 +944,9 @@ class Pipeline(AbstractSegment):
             raise TypeError("Nothing to iterate: no input and no producing operation")
         yield from current_iter
 
-    def __or__(self, other: AbstractSource | AbstractSegment) -> "Pipeline":
+    def __or__(
+        self, other: AbstractSource[Any] | AbstractSegment[Any, Any]
+    ) -> "Pipeline":
         """Chain another operation onto this pipeline using the | operator.
 
         Args:
@@ -942,7 +958,7 @@ class Pipeline(AbstractSegment):
         return Pipeline(*self.operations, other)
 
 
-class Script(AbstractSegment):
+class Script(AbstractSegment[Any, Any]):
     """A script is a sequence of segments that execute fully before the next segment begins.
 
     The difference between a Script and a Pipeline is timing:
@@ -967,7 +983,7 @@ class Script(AbstractSegment):
         results = list(script())
     """
 
-    def __init__(self, segments: list[AbstractSegment]):
+    def __init__(self, segments: list[AbstractSegment[Any, Any]]):
         super().__init__()
         self.segments = segments
 
@@ -1005,7 +1021,7 @@ class Script(AbstractSegment):
         yield from current_iter
 
 
-class Loop(AbstractSegment):
+class Loop(AbstractSegment[Any, Any]):
     """A loop segment that executes a script multiple times over input data.
 
     This segment is useful for iterative processing where the same series of

@@ -34,7 +34,7 @@ PROMPT_ADAPTER_COMPAT_KWARG_DEFAULTS = {
 
 
 @register_segment("llmPrompt")
-class LLMPrompt(AbstractSegment):
+class LLMPrompt(AbstractSegment[Any, Any]):
     """Interactive, optionally multi-turn, chat with an llm.
 
     Reads prompts from the input stream and emits responses from the llm.
@@ -154,7 +154,7 @@ class LLMPrompt(AbstractSegment):
         self,
         adapter_cls: Callable[..., AbstractLLMPromptAdapter],
         source: str,
-        adapter_kwargs: dict,
+        adapter_kwargs: dict[str, Any],
     ) -> AbstractLLMPromptAdapter:
         accepted_kwargs = self._supported_adapter_kwargs(adapter_cls, adapter_kwargs)
         unsupported_compat_kwargs = (
@@ -187,7 +187,7 @@ class LLMPrompt(AbstractSegment):
         return adapter_cls(**adapter_kwargs)
 
     def _supported_adapter_kwargs(
-        self, adapter_cls: Callable[..., Any], adapter_kwargs: dict
+        self, adapter_cls: Callable[..., Any], adapter_kwargs: dict[str, Any]
     ) -> set[str]:
         signature = inspect.signature(adapter_cls)
         parameters = signature.parameters.values()
@@ -197,7 +197,7 @@ class LLMPrompt(AbstractSegment):
             return set(adapter_kwargs)
         return {name for name in adapter_kwargs if name in signature.parameters}
 
-    def transform(self, input_iter: Iterable) -> Iterator:
+    def transform(self, input_iter: Iterable[Any]) -> Iterator[Any]:
         for item in input_iter:
             logger.debug(f"Processing input item: {item}")
             if self.field is not None:

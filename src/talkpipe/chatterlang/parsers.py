@@ -5,13 +5,18 @@ representation that can then be processed by the compilers module
 into something that can then be executed.
 """
 
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from dataclasses import dataclass, field
 from typing import Any
 
-from parsy import generate, line_info, regex, seq, string, whitespace
+from parsy import generate as _parsy_generate
+from parsy import line_info, regex, seq, string, whitespace
 
 from talkpipe.util.config import get_config
+
+# parsy ships no type information; give its @generate decorator an explicit
+# signature so the parser functions below are not "untyped" to mypy.
+generate: Callable[[Callable[..., Any]], Any] = _parsy_generate
 
 
 @dataclass(frozen=True)

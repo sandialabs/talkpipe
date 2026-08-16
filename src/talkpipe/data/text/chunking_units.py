@@ -36,7 +36,7 @@ def splitText(
 
 
 @register_segment("shingleText")
-class ShingleText(AbstractSegment):
+class ShingleText(AbstractSegment[Any, Any]):
     """Segments text into overlapping shingles of a specified size.
 
     Args:

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Annotated
+from typing import Annotated, Any
 
 from pydantic import BaseModel, ConfigDict
 
@@ -54,7 +54,7 @@ def user_turn_from_fields(
     *,
     prompt: str = DEFAULT_VISION_PROMPT,
     context: str | None = None,
-    images: ImageResult | bytes | str | ImagePart | list | None = None,
+    images: ImageResult | bytes | str | ImagePart | list[Any] | None = None,
 ) -> UserTurn:
     """Build a UserTurn from vision segment field values."""
     parts: list[TextPart | ImagePart] = []

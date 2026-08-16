@@ -102,7 +102,7 @@ def mine_script(script: str) -> list[list[str]]:
         return _chains_from_regex(script)
 
 
-def build_tables(weighted_scripts: Iterable[tuple]) -> dict:
+def build_tables(weighted_scripts: Iterable[tuple[str, int]]) -> dict[str, Any]:
     """Aggregate (script_text, weight) pairs into suggestion tables."""
     starts: dict[str, int] = {}
     bigrams: dict[str, dict[str, int]] = {}
@@ -140,7 +140,7 @@ def _seed_scripts() -> list[str]:
 
 def build_corpus_tables(
     workspace_scripts: list[str], workspace_weight: int = 3
-) -> dict:
+) -> dict[str, Any]:
     """The full suggestion tables: examples + seed scripts + user pipelines.
 
     The user's own pipelines are weighted higher so their habits dominate

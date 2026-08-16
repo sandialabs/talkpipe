@@ -249,20 +249,20 @@ def firstN(
 
 
 @registry.register_segment(name="describe")
-class DescribeData(AbstractSegment):
+class DescribeData(AbstractSegment[Any, Any]):
     """Returns a dictionary of all attributes of the input data.
 
     This is useful mostly for debugging and understanding the
     structure of the data.
     """
 
-    def transform(self, input_iter: Iterable) -> Iterator:
+    def transform(self, input_iter: Iterable[Any]) -> Iterator[Any]:
         for data in input_iter:
             yield get_all_attributes(data)
 
 
 @registry.register_segment(name="cast")
-class Cast(AbstractSegment):
+class Cast(AbstractSegment[Any, Any]):
     """Casts the input data to a specified type.
 
     The type can be specified by passing a type object or a string representation of the type.
@@ -309,7 +309,7 @@ class Cast(AbstractSegment):
             self.cast_type = resolved
         self.fail_silently = fail_silently
 
-    def transform(self, input_iter: Iterable) -> Iterator:
+    def transform(self, input_iter: Iterable[Any]) -> Iterator[Any]:
         """Cast each item in the input stream to the specified type.
 
         Args:
@@ -326,7 +326,7 @@ class Cast(AbstractSegment):
 
 
 @registry.register_segment(name="toDict")
-class ToDict(AbstractSegment):
+class ToDict(AbstractSegment[Any, Any]):
     """Creates a dictionary from the input data."""
 
     def __init__(
@@ -344,14 +344,14 @@ class ToDict(AbstractSegment):
         self.field_list = field_list
         self.fail_on_missing = fail_on_missing
 
-    def transform(self, input_iter: Iterable) -> Iterator:
+    def transform(self, input_iter: Iterable[Any]) -> Iterator[Any]:
         for data in input_iter:
             ans = toDict(data, self.field_list, self.fail_on_missing)
             yield ans
 
 
 @registry.register_segment("formatItem")
-class FormattedItem(AbstractSegment):
+class FormattedItem(AbstractSegment[Any, Any]):
     """
     Generate formatted output for specified fields in "Property: Value" format.
 
@@ -383,7 +383,7 @@ class FormattedItem(AbstractSegment):
         self.field_separator = field_separator
         self.item_suffix = item_suffix
 
-    def transform(self, input_iter: Iterable) -> Iterator:
+    def transform(self, input_iter: Iterable[Any]) -> Iterator[Any]:
         """Transform each input item into a single formatted string"""
         for item in input_iter:
             d = toDict(item, self.field_list, self.fail_on_missing)
@@ -457,14 +457,14 @@ def assign(
 
 
 @registry.register_segment(name="toDataFrame")
-class ToDataFrame(AbstractSegment):
+class ToDataFrame(AbstractSegment[Any, Any]):
     """Drain all items from the input stream and emit a single DataFrame.
 
     The input data stream should be composed of dictionaries, where each
     dictionary represents a row in the DataFrame.
     """
 
-    def transform(self, input_iter: Iterable) -> Iterator:
+    def transform(self, input_iter: Iterable[Any]) -> Iterator[Any]:
         """Create a DataFrame from the input data.
 
         This segment empties the generator before creating the DataFrame.
@@ -478,16 +478,16 @@ class ToDataFrame(AbstractSegment):
 
 
 @registry.register_segment(name="toList")
-class ToList(AbstractSegment):
+class ToList(AbstractSegment[Any, Any]):
     """Drains the input stream and emits a list of all items."""
 
-    def transform(self, input_iter: Iterable) -> Iterator:
+    def transform(self, input_iter: Iterable[Any]) -> Iterator[Any]:
         yield list(input_iter)
 
 
 @registry.register_source(name="exec")
 @source()
-def exec(command: Annotated[str, "The shell command to execute."]) -> Iterator:
+def exec(command: Annotated[str, "The shell command to execute."]) -> Iterator[str]:
     """Execute a shell command and yield each line from stdout as a data item.
 
     This source allows you to integrate shell commands into TalkPipe pipelines,
@@ -844,7 +844,7 @@ def flatten(item: Any) -> Iterator[Any]:
 
 
 @registry.register_segment("configureLogger")
-class ConfigureLogger(AbstractSegment):
+class ConfigureLogger(AbstractSegment[Any, Any]):
     """Configures loggers based on the provided logger levels and files.
 
     This segment configures loggers based on the provided logger levels and files.
@@ -873,7 +873,7 @@ class ConfigureLogger(AbstractSegment):
         self.logger_files = logger_files
         configure_logger(self.logger_levels, logger_files=self.logger_files)
 
-    def transform(self, input_iter: Iterable) -> Iterator:
+    def transform(self, input_iter: Iterable[Any]) -> Iterator[Any]:
         """Configure loggers based on the provided logger levels and files.
 
         Args:
@@ -940,7 +940,7 @@ def hash_data(
 
 
 @registry.register_segment("hash")
-class Hash(AbstractSegment):
+class Hash(AbstractSegment[Any, Any]):
     """Hashes the input data using the specified algorithm.
 
     This segment hashes the input data using the specified algorithm.
@@ -970,7 +970,7 @@ class Hash(AbstractSegment):
         self.fail_on_missing = fail_on_missing
         self.set_as = set_as
 
-    def transform(self, input_iter: Iterable) -> Iterator:
+    def transform(self, input_iter: Iterable[Any]) -> Iterator[Any]:
         """Hash the input data using the specified algorithm.
 
         Args:
@@ -1045,7 +1045,7 @@ def fillTemplate(
 
 
 @registry.register_segment("lambda")
-class EvalExpression(AbstractFieldSegment):
+class EvalExpression(AbstractFieldSegment[Any, Any]):
     """Evaluate a Python expression on each item in the input stream.
 
     This segment pre-compiles the expression during initialization for efficiency
@@ -1086,7 +1086,7 @@ class EvalExpression(AbstractFieldSegment):
 
 
 @registry.register_segment("lambdaFilter")
-class FilterExpression(AbstractSegment):
+class FilterExpression(AbstractSegment[Any, Any]):
     """Filter items from the input stream based on a Python expression.
 
     This segment pre-compiles the expression during initialization for efficiency

@@ -20,11 +20,11 @@ logger = logging.getLogger(__name__)
 
 def get_all_attributes(
     obj: Any,
-    skip_packages: tuple = ("pydantic",),
-    visited: set | None = None,
+    skip_packages: tuple[str, ...] = ("pydantic",),
+    visited: set[int] | None = None,
     depth: int = 0,
     max_depth: int = 10,
-) -> list | str:
+) -> list[Any] | str:
     """
     Recursively get all non-hidden attributes of an object, including dictionary keys
     and list lengths.
@@ -272,7 +272,7 @@ def toDict(
 
 
 def dict_to_text(
-    data: dict,
+    data: dict[str, Any],
     wrap_width: int = 80,
     field_name_separator: str = ": ",
     field_separator: str = "\n",
@@ -300,7 +300,7 @@ def dict_to_text(
     return field_separator.join(output_lines) + item_suffix
 
 
-def extract_template_field_names(template: str) -> list:
+def extract_template_field_names(template: str) -> list[str]:
     """
     Extract field names from a template string.
 
@@ -335,7 +335,7 @@ def extract_template_field_names(template: str) -> list:
     return list(set(matches))
 
 
-def fill_template(template: str, values: dict) -> str:
+def fill_template(template: str, values: dict[str, Any]) -> str:
     """
     Fill a template string with values from a dictionary.
 

@@ -59,7 +59,7 @@ class ThreadedQueue:
     """
 
     def __init__(self, maxsize: int = 0):
-        self.consumer_queues: dict[str, queue.Queue] = {}
+        self.consumer_queues: dict[str, queue.Queue[Any]] = {}
         self._active_producers: dict[str, threading.Thread | None] = {}
         self._pending_producers: dict[str, Iterator[Any]] = {}
         self._started = False  # Flag indicating that start() has been called.
@@ -70,7 +70,7 @@ class ThreadedQueue:
         self._sentinel = object()
 
     def _register_consumer_queue(
-        self, consumer_id: str, consumer_queue: queue.Queue
+        self, consumer_id: str, consumer_queue: queue.Queue[Any]
     ) -> None:
         with self._lock:
             self.consumer_queues[consumer_id] = consumer_queue

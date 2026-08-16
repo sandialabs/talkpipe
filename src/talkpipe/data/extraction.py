@@ -9,7 +9,7 @@ import os
 from collections.abc import Callable, Iterable, Iterator
 from functools import partial
 from pathlib import Path, PosixPath
-from typing import Annotated
+from typing import Annotated, Any
 
 from docx import Document
 from pydantic import BaseModel, ConfigDict
@@ -405,8 +405,8 @@ def extract_json(file_path: str | Path) -> Iterator[ExtractionResult]:
     with p.open("r", encoding="utf-8") as f:
         data = json.load(f)
 
-    result_fields: dict = {}
-    extra_fields: dict = {}
+    result_fields: dict[str, Any] = {}
+    extra_fields: dict[str, Any] = {}
 
     if isinstance(data, dict):
         result_fields["content"] = (
@@ -747,7 +747,7 @@ def listFiles(
 
 
 @register_segment("readFile", "fileToText")
-class ReadFile(AbstractFieldSegment):
+class ReadFile(AbstractFieldSegment[Any, Any]):
     """
     A segment for extracting text content from different file types.
 
