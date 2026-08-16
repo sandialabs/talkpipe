@@ -1932,11 +1932,14 @@ def load_form_config(config_path: str) -> dict[str, Any]:
         raise FileNotFoundError(f"Configuration file not found: {config_path}")
 
     with open(path) as f:
+        config: dict[str, Any]
         if path.suffix in [".yaml", ".yml"]:
-            return yaml.safe_load(f)
-        if path.suffix == ".json":
-            return json.load(f)
-        raise ValueError(f"Unsupported configuration file format: {path.suffix}")
+            config = yaml.safe_load(f)
+        elif path.suffix == ".json":
+            config = json.load(f)
+        else:
+            raise ValueError(f"Unsupported configuration file format: {path.suffix}")
+    return config
 
 
 @register_source("chatterlangServer")

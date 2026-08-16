@@ -21,11 +21,14 @@ baseline (`[tool.mypy]`) live in `pyproject.toml`; `ruff check --fix . &&
 ruff format .` fixes most lint and format findings. `pre-commit install`
 (opt-in, per clone) runs the same three checks on every commit. mypy
 requires every function in `src/` to be fully annotated
-(`disallow_untyped_defs`, `disallow_incomplete_defs`) and is being tightened
-towards `strict` over time -- do not add `# type: ignore` without an error
-code and a reason. When you add or touch a function, annotate all of its
+(`disallow_untyped_defs`, `disallow_incomplete_defs`) and to return a value of
+its declared type rather than an untyped `Any` (`warn_return_any`); it is being
+tightened towards `strict` over time -- do not add `# type: ignore` without an
+error code and a reason. When you add or touch a function, annotate all of its
 parameters and its return type; a missing or partial annotation fails the
-build.
+build. Where a value comes from an untyped library (`json.load`, numpy's
+`tolist()`, a stubless client), give it a typed local (`values: list[float] =
+...`) or convert it (`int(...)`, `str(...)`) before returning it.
 
 ### Versioning
 

@@ -580,7 +580,8 @@ def segment(
                 self._original_func = func
 
             def transform(self, input_iter: Iterable[T]) -> Iterator[U]:
-                return func(input_iter)
+                result: Iterator[U] = func(input_iter)
+                return result
 
         # Set the name of the class to match the original function
         FunctionSegment.__name__ = f"{func.__name__}Operation"

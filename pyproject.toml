@@ -297,12 +297,14 @@ docstring-code-format = true
 python_version = "3.12"
 files = ["src"]
 # Every function in src/ must be fully annotated (parameters and return);
-# untyped defs and partially typed defs are both errors. Tightening towards
-# `strict` continues as a follow-up (next: warn_return_any, then a py.typed
-# marker, then strict). Never loosen a flag here to get green.
+# untyped defs and partially typed defs are both errors, and a typed function
+# may not leak an untyped (Any) value through its return. Tightening towards
+# `strict` continues as a follow-up (next: a py.typed marker, then strict).
+# Never loosen a flag here to get green.
 check_untyped_defs = true
 disallow_incomplete_defs = true
 disallow_untyped_defs = true
+warn_return_any = true
 no_implicit_optional = true
 strict_equality = true
 warn_unused_configs = true

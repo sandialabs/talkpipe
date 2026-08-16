@@ -414,7 +414,7 @@ def load_script(script_input: str) -> str:
                 raise OSError(error_message) from e
 
         # If not a file, return the config value as-is
-        return config_value
+        return str(config_value)
 
     # 3. Treat as inline script
     return script_input

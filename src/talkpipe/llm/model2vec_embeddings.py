@@ -121,7 +121,7 @@ class Model2VecEmbedder:
     @property
     def dimension(self) -> int:
         """Output embedding dimension."""
-        return self.model.dim
+        return int(self.model.dim)
 
     @property
     def normalize(self) -> bool:
@@ -134,12 +134,14 @@ class Model2VecEmbedder:
         **encode_kwargs: Any,
     ) -> np.ndarray:
         """Encode one string or many."""
-        return self.model.encode(texts, **encode_kwargs)
+        encoded: np.ndarray = self.model.encode(texts, **encode_kwargs)
+        return encoded
 
     def embed_one(self, text: str, **encode_kwargs: Any) -> list[float]:
         """Encode a single string and return a JSON-serializable list of floats."""
         vec = self.embed(text, **encode_kwargs)
-        return np.asarray(vec, dtype=float).tolist()
+        values: list[float] = np.asarray(vec, dtype=float).tolist()
+        return values
 
 
 def precache_model(

@@ -244,7 +244,8 @@ class LLMEmbed(AbstractFieldSegment):
         norm = float(np.linalg.norm(pooled))
         if norm > 0:
             pooled = pooled / norm
-        return pooled.tolist()
+        values: list[float] = pooled.tolist()
+        return values
 
     def _wrap_token_overflow(
         self,

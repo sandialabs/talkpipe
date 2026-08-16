@@ -70,7 +70,9 @@ class OpenAIPromptAdapter(AbstractLLMPromptAdapter):
 
         self._record_assistant_response(response.output_text)
 
-        result = response.output_parsed if self._output_format else response.output_text
+        result: str | BaseModel = (
+            response.output_parsed if self._output_format else response.output_text
+        )
         logger.debug(f"Returning response: {result}")
         return result
 
@@ -96,7 +98,9 @@ class OpenAIPromptAdapter(AbstractLLMPromptAdapter):
         response = self._responses_request(parse=True, **request_params)
 
         self._record_assistant_response(response.output_text)
-        result = response.output_parsed if self._output_format else response.output_text
+        result: str | BaseModel = (
+            response.output_parsed if self._output_format else response.output_text
+        )
         logger.debug(f"Returning response: {result}")
         return result
 

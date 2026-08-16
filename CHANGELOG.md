@@ -59,7 +59,10 @@
   package -- the built-in segments, the ChatterLang parser/compiler and
   server, the LLM adapters, and the data/search/util helpers -- received
   their missing annotations; no runtime behavior changed. `warn_return_any`
-  and a `py.typed` marker are the next steps.
+  is on as well, so a typed function cannot leak an untyped value from a
+  stubless library through its return; the handful of such sites (numpy
+  `tolist()`, `json.load`, config lookups, SDK responses) now type or convert
+  the value explicitly. A `py.typed` marker is the next step.
 
 ## 0.14.0
 

@@ -11,7 +11,8 @@ from talkpipe.util.constants import OLLAMA_SERVER_URL
 
 
 def _vector_to_list(vec: Any) -> list[float]:
-    return np.asarray(vec, dtype=float).tolist()
+    values: list[float] = np.asarray(vec, dtype=float).tolist()
+    return values
 
 
 def _vectors_to_lists(arr: Any) -> list[list[float]]:

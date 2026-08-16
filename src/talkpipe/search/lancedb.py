@@ -446,7 +446,8 @@ class LanceDBDocumentStore(DocumentStore, VectorAddable, VectorSearchable):
                 f"Vector dimension {len(vec_array)} doesn't match expected {self.vector_dim}"
             )
 
-        return vec_array.tolist()
+        values: list[float] = vec_array.tolist()
+        return values
 
     def _serialize_document(self, document: Document) -> str:
         """Serialize document to JSON string for storage."""
@@ -458,7 +459,8 @@ class LanceDBDocumentStore(DocumentStore, VectorAddable, VectorSearchable):
         """Deserialize document from JSON string."""
         import json
 
-        return json.loads(document_str)
+        document: Document = json.loads(document_str)
+        return document
 
     # DocumentStore protocol implementation
     def get_document(self, doc_id: DocID) -> Document | None:
@@ -604,7 +606,7 @@ class LanceDBDocumentStore(DocumentStore, VectorAddable, VectorSearchable):
             table, _created_and_updated = self._get_table()
             # Use count_rows method if available, otherwise fallback to counting all results
             if hasattr(table, "count_rows"):
-                return table.count_rows()
+                return int(table.count_rows())
             return len(table.search().to_list())
         except Exception:
             return 0

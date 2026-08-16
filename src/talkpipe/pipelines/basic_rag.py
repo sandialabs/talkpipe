@@ -231,7 +231,7 @@ class AbstractRAGPipeline(AbstractSegment):
         """Create the segment that performs the completion over the RAG prompt."""
 
     def make_pipeline(self) -> AbstractSegment:
-        return (
+        pipeline: AbstractSegment = (
             SearchVectorDatabaseSegment(
                 embedding_model=self.embedding_model,
                 embedding_source=self.embedding_source,
@@ -252,6 +252,7 @@ class AbstractRAGPipeline(AbstractSegment):
             | DiagPrint(output=self.diagPrintOutput, level=self.logging_level)
             | self.make_completion_segment()
         )
+        return pipeline
 
     def transform(self, input_iter: Iterable[Any]) -> Iterator[Any]:
         pipeline = self.make_pipeline()

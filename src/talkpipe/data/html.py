@@ -54,7 +54,7 @@ def resolve_user_agent(user_agent: str | None = None) -> str:
     "user_agent" config key, then the browser-like default."""
     if user_agent is not None:
         return user_agent
-    return get_config().get(USER_AGENT_KEY, DEFAULT_USER_AGENT)
+    return str(get_config().get(USER_AGENT_KEY, DEFAULT_USER_AGENT))
 
 
 def htmlToText(html: str | None, cleanText: bool = True) -> str:
@@ -236,7 +236,7 @@ def _retry_delay(
         # Retry-After can be an HTTP-date; backoff alone is fine then
         with contextlib.suppress(TypeError, ValueError):
             delay = max(delay, float(retry_after))
-    return min(delay, MAX_RETRY_DELAY)
+    return float(min(delay, MAX_RETRY_DELAY))
 
 
 def _fix_encoding(response: requests.Response) -> None:

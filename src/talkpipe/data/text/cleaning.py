@@ -20,7 +20,7 @@ _DATA_URI_RE = re.compile(r"data:[\w.+-]+/[\w.+-]+;\s*base64,\s*[A-Za-z0-9+/=]+"
 
 
 @lru_cache(maxsize=8)
-def _base64_run_re(min_run: int) -> re.Pattern:
+def _base64_run_re(min_run: int) -> re.Pattern[str]:
     return re.compile(rf"[A-Za-z0-9+/]{{{min_run},}}={{0,2}}")
 
 
