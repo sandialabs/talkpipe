@@ -1,5 +1,6 @@
 import datetime
 import email
+import email.message
 import email.utils
 import imaplib
 import logging
@@ -24,15 +25,15 @@ logger = logging.getLogger(__name__)
 
 
 def send_email(
-    sender_email,
-    sender_password,
-    recipient_email,
-    subject,
-    body,
-    html_body=None,
-    smtp_server="smtp.gmail.com",
-    port=587,
-):
+    sender_email: str,
+    sender_password: str,
+    recipient_email: str,
+    subject: str,
+    body: str,
+    html_body: str | None = None,
+    smtp_server: str = "smtp.gmail.com",
+    port: int = 587,
+) -> None:
     """
     Send an email using SMTP protocol.
     This function sends an email using SMTP protocol with support for both plain text
@@ -93,7 +94,7 @@ def send_email(
         raise
 
 
-def item_to_html(item, body_fields):
+def item_to_html(item: Any, body_fields: str) -> str:
     """
     Convert an item's fields into HTML format.
 
@@ -125,7 +126,7 @@ def item_to_html(item, body_fields):
     return html
 
 
-def item_to_text(item, body_fields):
+def item_to_text(item: Any, body_fields: str) -> str:
     """
     Convert an item's specified fields into formatted text.
 
@@ -240,7 +241,7 @@ def sendEmail(
 ##############################################################################
 
 
-def get_email_content(msg):
+def get_email_content(msg: email.message.Message) -> tuple[str | None, str | None]:
     """
     Extract the content from an email message.
 
@@ -267,7 +268,7 @@ def get_email_content(msg):
             # Get the payload
             try:
                 payload = part.get_payload(decode=True)
-                if payload:
+                if isinstance(payload, bytes) and payload:
                     charset = part.get_content_charset() or "utf-8"
                     decoded_content = payload.decode(charset, errors="replace")
 
@@ -280,7 +281,7 @@ def get_email_content(msg):
     else:
         # Not multipart - get content directly
         payload = msg.get_payload(decode=True)
-        if payload:
+        if isinstance(payload, bytes) and payload:
             charset = msg.get_content_charset() or "utf-8"
             decoded_content = payload.decode(charset, errors="replace")
 
@@ -293,7 +294,7 @@ def get_email_content(msg):
     return plain_text, html_content
 
 
-def decode_email_header(header_value):
+def decode_email_header(header_value: str | None) -> str:
     """
     Decode an email header which might be encoded.
 
@@ -319,14 +320,14 @@ def decode_email_header(header_value):
 
 
 def fetch_emails(
-    imap_server,
-    email_address,
-    password,
-    folder="INBOX",
-    unseen_only=True,
-    mark_as_read=True,
-    limit=100,
-):
+    imap_server: str,
+    email_address: str,
+    password: str,
+    folder: str = "INBOX",
+    unseen_only: bool = True,
+    mark_as_read: bool = True,
+    limit: int = 100,
+) -> Iterator[dict[str, Any]]:
     """
     Fetch unread emails from the specified IMAP server.
 

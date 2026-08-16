@@ -10,7 +10,7 @@ logger = logging.getLogger(__name__)
 class PluginLoader:
     """Manages loading of TalkPipe plugins via entry points."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.loaded_plugins: dict[str, Any] = {}
         self.failed_plugins: list[str] = []
 

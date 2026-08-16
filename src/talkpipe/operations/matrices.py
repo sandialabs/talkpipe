@@ -1,3 +1,4 @@
+from collections.abc import Iterable, Iterator
 from typing import Annotated, Any
 
 import numpy as np
@@ -45,7 +46,7 @@ class ReduceTSNE(AbstractSegment):
         self.random_state = random_state
         self.tsne_kwargs = tsne_kwargs
 
-    def transform(self, items):
+    def transform(self, items: Iterable[Any]) -> Iterator[Any]:
         # Process each item (potentially a batch of vectors)
         for item in items:
             # Convert items to numpy array

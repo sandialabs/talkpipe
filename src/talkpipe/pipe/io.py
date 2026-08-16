@@ -34,11 +34,15 @@ class ErrorResilientPromptPipeline(Pipeline):
     displays the error, and continues processing the next item from the prompt.
     """
 
-    def __init__(self, prompt_source, *operations):
+    def __init__(
+        self,
+        prompt_source: AbstractSource[Any],
+        *operations: AbstractSource[Any] | AbstractSegment[Any, Any],
+    ) -> None:
         super().__init__(prompt_source, *operations)
         self.prompt_source = prompt_source
 
-    def transform(self, input_iter=None):
+    def transform(self, input_iter: Iterable[Any] | None = None) -> Iterator[Any]:
         """Execute pipeline with error resilience for prompt-based workflows."""
         # Get the prompt generator
         prompt_iter = self.prompt_source()
@@ -67,7 +71,9 @@ class ErrorResilientPromptPipeline(Pipeline):
                 traceback.print_exc()
                 # Don't yield anything for this failed input, just continue to next prompt
 
-    def __or__(self, other):
+    def __or__(
+        self, other: AbstractSource[Any] | AbstractSegment[Any, Any]
+    ) -> "ErrorResilientPromptPipeline":
         """Support chaining additional operations to the error-resilient pipeline."""
         # Add the new operation to our operations list
         return ErrorResilientPromptPipeline(
@@ -189,7 +195,7 @@ class Prompt(AbstractSource):
                 print("\nInterrupted. Press Ctrl+D to exit or continue entering input.")
                 continue
 
-    def __or__(self, other):
+    def __or__(self, other: AbstractSegment[Any, Any]) -> Pipeline:
         """Override to add error handling when chaining with other segments."""
         if self.error_resilient:
             # Register the downstream relationship

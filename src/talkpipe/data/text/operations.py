@@ -33,7 +33,7 @@ def shingle_generator(
     paragraph_counter = 0
     has_yielded_for_key = False
 
-    def is_shingle_complete():
+    def is_shingle_complete() -> bool:
         """Check if current shingle meets size threshold."""
         if size_mode == "length":
             return len(delimiter.join(shingles)) >= shingle_size

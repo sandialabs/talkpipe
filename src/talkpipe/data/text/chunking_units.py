@@ -1,5 +1,5 @@
 import logging
-from collections.abc import Iterator
+from collections.abc import Iterable, Iterator
 from typing import Annotated, Any
 
 from talkpipe.chatterlang import register_segment
@@ -87,7 +87,7 @@ class ShingleText(AbstractSegment):
         self.size_mode = size_mode
         self.emit_detail = emit_detail
 
-    def transform(self, input_iter):
+    def transform(self, input_iter: Iterable[Any]) -> Iterator[Any]:
         """Transforms the input iterator by segmenting text into shingles."""
 
         for result in shingle_generator(

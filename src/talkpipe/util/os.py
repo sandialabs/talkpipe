@@ -279,7 +279,7 @@ def get_process_temp_dir(name: str) -> str:
     return str(temp_dir)
 
 
-def _cleanup_process_temp_dirs():
+def _cleanup_process_temp_dirs() -> None:
     """
     Clean up all process temporary directories.
 

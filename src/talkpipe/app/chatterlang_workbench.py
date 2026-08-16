@@ -2,6 +2,7 @@ import argparse
 import logging
 import queue
 import uuid
+from collections.abc import AsyncIterator, Iterator
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any
@@ -29,7 +30,7 @@ from talkpipe.util.config import add_config_values, load_module_file, parse_unkn
 logger = logging.getLogger(__name__)
 
 
-def _load_configured_modules():
+def _load_configured_modules() -> None:
     """Import custom module files listed in the workbench configuration.
 
     ``main()`` records ``--load-module`` paths in the
@@ -51,7 +52,7 @@ def _load_configured_modules():
 
 
 @asynccontextmanager
-async def _lifespan(app):
+async def _lifespan(app: FastAPI) -> AsyncIterator[None]:
     _load_configured_modules()
     # Building the component reference imports every registered component
     # (seconds); do it in the background so the first browser fetch is fast.
@@ -81,7 +82,7 @@ log_handler.setFormatter(formatter)
 
 # Custom handler to capture logs
 class QueueHandler(logging.Handler):
-    def emit(self, record):
+    def emit(self, record: logging.LogRecord) -> None:
         log_entry = self.format(record)
         log_queue.put(log_entry)
 
@@ -169,13 +170,13 @@ class InteractiveRequest(BaseModel):
 
 
 @app.get("/examples")
-def get_examples():
+def get_examples() -> JSONResponse:
     """Endpoint to return all example scripts"""
     return JSONResponse(content={"examples": EXAMPLE_SCRIPTS})
 
 
 @app.get("/docs/html")
-def get_docs_html():
+def get_docs_html() -> HTMLResponse:
     """Generate and return HTML documentation using live introspection"""
     import os
     import tempfile
@@ -211,7 +212,7 @@ def get_docs_html():
 
 
 @app.get("/docs/text", response_class=HTMLResponse)
-def get_docs_text():
+def get_docs_text() -> HTMLResponse:
     """Generate and return text documentation using live introspection"""
     import html
     import os
@@ -274,7 +275,7 @@ def get_docs_text():
 
 
 @app.get("/logs")
-async def get_logs():
+async def get_logs() -> JSONResponse:
     logs = []
     while not log_queue.empty():
         try:
@@ -358,7 +359,7 @@ def interactive_go(request: InteractiveRequest) -> StreamingResponse:
     # and the browser reports a meaningless "network error". Instead, catch it and
     # yield the real, actionable message into the stream body so it shows up in the
     # output pane (mirroring the /compile error text).
-    def ensure_serializable():
+    def ensure_serializable() -> Iterator[str]:
         try:
             output_iterator = script_info["instance"]([request.user_input])
             for item in output_iterator:
@@ -380,12 +381,12 @@ def interactive_go(request: InteractiveRequest) -> StreamingResponse:
 
 
 @app.get("/", response_class=HTMLResponse)
-def get_ui():
+def get_ui() -> FileResponse:
     """Serve the workbench UI (static files under static/workbench/)."""
     return FileResponse(WORKBENCH_STATIC_DIR / "index.html", media_type="text/html")
 
 
-def main():
+def main() -> None:
     parser = argparse.ArgumentParser(
         description="Start the ChatterLang Workbench, a browser-based IDE "
         "for developing and testing ChatterLang pipelines."

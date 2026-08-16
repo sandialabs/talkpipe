@@ -1,9 +1,10 @@
 from collections.abc import Sequence
+from typing import Any
 
 from .embedding_adapters import AbstractEmbeddingAdapter
 
 
-def _require_openai():
+def _require_openai() -> Any:
     try:
         import openai
     except ImportError as exc:

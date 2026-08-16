@@ -24,10 +24,10 @@ class QueueConsumer:
         # Register with the parent queue.
         self.parent._register_consumer_queue(self.consumer_id, self.personal_queue)
 
-    def __iter__(self):
+    def __iter__(self) -> "QueueConsumer":
         return self
 
-    def __next__(self):
+    def __next__(self) -> Any:
         if not self.active:
             raise StopIteration
 
@@ -41,7 +41,7 @@ class QueueConsumer:
         self.personal_queue.task_done()
         return item
 
-    def close(self):
+    def close(self) -> None:
         """Stop consuming and unregister from the parent queue."""
         self.active = False
         self.parent._unregister_consumer_queue(self.consumer_id)
@@ -84,7 +84,7 @@ class ThreadedQueue:
             for consumer_queue in self.consumer_queues.values():
                 consumer_queue.put(item)
 
-    def _broadcast_termination(self):
+    def _broadcast_termination(self) -> None:
         with self._lock:
             for consumer_queue in self.consumer_queues.values():
                 consumer_queue.put(self._sentinel)
@@ -108,7 +108,7 @@ class ThreadedQueue:
         broadcast to all registered consumer queues.
         """
 
-        def producer_worker():
+        def producer_worker() -> None:
             try:
                 for item in generator:
                     if not self.active.is_set():
@@ -137,7 +137,7 @@ class ThreadedQueue:
                 raise RuntimeError("Cannot register consumers after start() is called")
             return QueueConsumer(self)
 
-    def start(self):
+    def start(self) -> None:
         """
         Start processing all pending producers. This call marks the end of
         the registration phase. Once start() is called, no new producers or
@@ -165,7 +165,7 @@ class ThreadedQueue:
         with self._lock:
             return bool(self._active_producers or self._pending_producers)
 
-    def shutdown(self):
+    def shutdown(self) -> None:
         """
         Gracefully shut down the queue system by clearing the active flag,
         enqueuing the termination sentinel for all consumers, and waiting for

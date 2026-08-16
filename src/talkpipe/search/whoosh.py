@@ -169,7 +169,7 @@ class WhooshFullTextIndex(DocumentStore, MutableDocumentStore, TextSearchable):
 
         return doc_id
 
-    def close(self):
+    def close(self) -> None:
         """Close the index."""
         if hasattr(self, "ix") and self.ix is not None:
             try:
@@ -177,10 +177,10 @@ class WhooshFullTextIndex(DocumentStore, MutableDocumentStore, TextSearchable):
             except Exception as e:
                 logger.warning(f"Failed to close index: {e}")
 
-    def __enter__(self):
+    def __enter__(self) -> "WhooshFullTextIndex":
         return self
 
-    def __exit__(self, exc_type, exc_val, exc_tb):
+    def __exit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
         self.close()
 
 
@@ -208,7 +208,9 @@ def WhooshWriter(
         # the merging it avoids.
         MERGE_EVERY = 20
 
-        def __init__(self, idx, writer, commit_seconds):
+        def __init__(
+            self, idx: WhooshFullTextIndex, writer: Any, commit_seconds: int
+        ) -> None:
             self.idx = idx
             self.writer = writer
             self.commit_seconds = commit_seconds
@@ -216,7 +218,9 @@ def WhooshWriter(
             self._commits_since_merge = 0
             self._upserted_since_merge = False
 
-        def add_document(self, doc, doc_id=None, upsert=True):
+        def add_document(
+            self, doc: Document, doc_id: DocID | None = None, upsert: bool = True
+        ) -> DocID:
             # Check if we need to commit
             if (
                 self.commit_seconds >= 0
@@ -241,7 +245,7 @@ def WhooshWriter(
                 self.writer.add_document(doc_id=doc_id, **doc_fields)
             return doc_id
 
-        def commit(self):
+        def commit(self) -> None:
             """Commit the current writer and create a new one."""
             self._commits_since_merge += 1
             if (
@@ -257,7 +261,7 @@ def WhooshWriter(
             self.last_commit = time.time()
             logger.debug("Index commit performed")
 
-        def __getattr__(self, name):
+        def __getattr__(self, name: str) -> Any:
             # Delegate other attributes to the index
             return getattr(self.idx, name)
 
@@ -280,13 +284,13 @@ def WhooshSearcher(index_path: str, reload_seconds: int = -1) -> Iterator[Any]:
     """Context manager for Whoosh index searcher with optional periodic reload."""
 
     class SearcherWrapper:
-        def __init__(self, index_path, reload_seconds):
+        def __init__(self, index_path: str, reload_seconds: int) -> None:
             self.index_path = index_path
             self.reload_seconds = reload_seconds
             self.idx = WhooshFullTextIndex(index_path)
             self.last_reload = time.time()
 
-        def text_search(self, query, limit=10):
+        def text_search(self, query: str, limit: int = 10) -> list[SearchResult]:
             # Check if we need to reload
             if (
                 self.reload_seconds >= 0
@@ -296,18 +300,18 @@ def WhooshSearcher(index_path: str, reload_seconds: int = -1) -> Iterator[Any]:
 
             return self.idx.text_search(query, limit=limit)
 
-        def reload(self):
+        def reload(self) -> None:
             """Reload the index to pick up any changes."""
             self.idx.close()
             self.idx = WhooshFullTextIndex(self.index_path)
             self.last_reload = time.time()
             logger.debug("Index reloaded")
 
-        def __getattr__(self, name):
+        def __getattr__(self, name: str) -> Any:
             # Delegate other attributes to the index
             return getattr(self.idx, name)
 
-        def close(self):
+        def close(self) -> None:
             if self.idx:
                 self.idx.close()
 

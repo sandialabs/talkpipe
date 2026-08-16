@@ -2,6 +2,7 @@
 
 import logging
 from abc import abstractmethod
+from collections.abc import Iterable, Iterator
 from typing import Annotated, Any
 
 from talkpipe import AbstractSegment, register_segment
@@ -86,7 +87,7 @@ class ConstructRAGPrompt(AbstractSegment):
         self.set_as = set_as
         self.prompt_directive = prompt_directive
 
-    def transform(self, input_iter):
+    def transform(self, input_iter: Iterable[Any]) -> Iterator[Any]:
         for item in input_iter:
             background = construct_background(
                 extract_property(item, self.background_field)
@@ -116,7 +117,7 @@ class AppendRAGSources(AbstractSegment):
         self.set_as = set_as
         self.partial_answer_field = partial_answer_field
 
-    def transform(self, input_iter):
+    def transform(self, input_iter: Iterable[Any]) -> Iterator[Any]:
         for item in input_iter:
             response = extract_property(
                 item, self.partial_answer_field, fail_on_missing=False
@@ -229,7 +230,7 @@ class AbstractRAGPipeline(AbstractSegment):
     def make_completion_segment(self) -> AbstractSegment:
         """Create the segment that performs the completion over the RAG prompt."""
 
-    def make_pipeline(self):
+    def make_pipeline(self) -> AbstractSegment:
         return (
             SearchVectorDatabaseSegment(
                 embedding_model=self.embedding_model,
@@ -252,7 +253,7 @@ class AbstractRAGPipeline(AbstractSegment):
             | self.make_completion_segment()
         )
 
-    def transform(self, input_iter):
+    def transform(self, input_iter: Iterable[Any]) -> Iterator[Any]:
         pipeline = self.make_pipeline()
         yield from pipeline(input_iter)
 

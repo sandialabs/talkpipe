@@ -296,14 +296,13 @@ docstring-code-format = true
 # statements); the package itself still supports Python 3.11.
 python_version = "3.12"
 files = ["src"]
-# Baseline that gates from day one on a codebase that was not written with
-# types in mind: bodies of untyped functions are still checked, and a function
-# that is annotated at all must be annotated completely, but fully unannotated
-# functions are not yet errors. Tightening towards `strict` continues as a
-# follow-up (next: disallow_untyped_defs, then warn_return_any). Never loosen
-# a flag here to get green.
+# Every function in src/ must be fully annotated (parameters and return);
+# untyped defs and partially typed defs are both errors. Tightening towards
+# `strict` continues as a follow-up (next: warn_return_any, then a py.typed
+# marker, then strict). Never loosen a flag here to get green.
 check_untyped_defs = true
 disallow_incomplete_defs = true
+disallow_untyped_defs = true
 no_implicit_optional = true
 strict_equality = true
 warn_unused_configs = true

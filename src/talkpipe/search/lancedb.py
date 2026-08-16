@@ -356,7 +356,9 @@ class LanceDBDocumentStore(DocumentStore, VectorAddable, VectorSearchable):
             self._db = lancedb.connect(self.path, read_consistency_interval=interval)
         return self._db
 
-    def _get_table(self, schema_if_missing=None):
+    def _get_table(
+        self, schema_if_missing: list[dict[str, Any]] | None = None
+    ) -> tuple[Any, bool]:
         """Get or create table with provided schema."""
         created_and_updated = False
         if self._table is None:
@@ -374,7 +376,7 @@ class LanceDBDocumentStore(DocumentStore, VectorAddable, VectorSearchable):
                     ) from None
         return self._table, created_and_updated
 
-    def _ensure_id_index(self):
+    def _ensure_id_index(self) -> None:
         """Ensure a BTree scalar index exists on the 'id' column.
 
         merge_insert has to scan every row not covered by an index on its join key,

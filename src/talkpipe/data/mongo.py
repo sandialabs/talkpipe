@@ -105,7 +105,7 @@ class MongoInsert(core.AbstractSegment):
 
         return self._collection
 
-    def _close_connection(self):
+    def _close_connection(self) -> None:
         """Clean up MongoDB client connection when the segment is destroyed."""
         if self._client:
             logger.debug("Closing MongoDB connection")
@@ -256,7 +256,7 @@ class MongoSearch(core.AbstractSegment):
 
         return self._collection
 
-    def _close_connection(self):
+    def _close_connection(self) -> None:
         if self._client is not None:
             self._client.close()
             self._client = None

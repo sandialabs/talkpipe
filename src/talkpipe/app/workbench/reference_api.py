@@ -17,7 +17,7 @@ import inspect
 import logging
 import re
 import threading
-from collections.abc import Iterable
+from collections.abc import Iterable, Iterator
 from typing import Any
 
 from fastapi import APIRouter
@@ -36,6 +36,7 @@ from talkpipe.chatterlang.parsers import (
     ForkNode,
     ParsedLoop,
     ParsedPipeline,
+    ParsedScript,
     SegmentNode,
     script_parser,
 )
@@ -134,15 +135,15 @@ def get_reference() -> dict:
     return _reference_cache
 
 
-def invalidate_reference_cache():
+def invalidate_reference_cache() -> None:
     global _reference_cache
     _reference_cache = None
 
 
-def warm_reference_cache_async():
+def warm_reference_cache_async() -> None:
     """Build the reference cache in a background thread (server startup)."""
 
-    def _warm():
+    def _warm() -> None:
         try:
             get_reference()
             logger.info("Workbench reference cache warmed")
@@ -153,7 +154,7 @@ def warm_reference_cache_async():
 
 
 @router.get("/reference")
-def api_reference():
+def api_reference() -> dict:
     return get_reference()
 
 
@@ -182,7 +183,7 @@ def _component_params(cls: Any, kind: str) -> tuple[list[str], bool]:
     configuration parameter.
     """
 
-    def introspect(target, drop_first=False):
+    def introspect(target: Any, drop_first: bool = False) -> tuple[list[str], bool]:
         params = list(inspect.signature(target).parameters.values())
         names = [
             p.name
@@ -202,10 +203,10 @@ def _component_params(cls: Any, kind: str) -> tuple[list[str], bool]:
     return names, var_kw
 
 
-def _iter_component_uses(parsed):
+def _iter_component_uses(parsed: ParsedScript) -> Iterator[tuple[str, str, list[str]]]:
     """Yield (kind, name, param_names) for every component in the AST."""
 
-    def walk_pipeline(pipeline):
+    def walk_pipeline(pipeline: Any) -> Iterator[tuple[str, str, list[str]]]:
         if isinstance(pipeline, ParsedLoop):
             for inner in pipeline.pipelines:
                 yield from walk_pipeline(inner)

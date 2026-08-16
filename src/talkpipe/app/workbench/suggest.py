@@ -135,7 +135,7 @@ def check_availability(source: str, model: str) -> bool:
     return available
 
 
-def invalidate_availability_cache():
+def invalidate_availability_cache() -> None:
     _availability_cache.clear()
     _availability_cause.clear()
 

@@ -27,7 +27,7 @@ from talkpipe.chatterlang.parsers import (
     VariableName,
     script_parser,
 )
-from talkpipe.operations.thread_ops import ThreadedQueue
+from talkpipe.operations.thread_ops import QueueConsumer, ThreadedQueue
 from talkpipe.pipe import io
 from talkpipe.pipe.core import (
     AbstractSegment,
@@ -51,7 +51,15 @@ class CompileError(Exception):
     "bad_param"), and ``bad_name`` (the offending segment/source name).
     """
 
-    def __init__(self, message="", *, line=None, column=None, kind=None, bad_name=None):
+    def __init__(
+        self,
+        message: str = "",
+        *,
+        line: int | None = None,
+        column: int | None = None,
+        kind: str | None = None,
+        bad_name: str | None = None,
+    ) -> None:
         super().__init__(message)
         self.line = line
         self.column = column
@@ -282,7 +290,11 @@ def compile(script: Any, runtime: RuntimeComponent | None = None) -> AbstractSeg
 
                         # Create a wrapper segment that reads from the consumer and feeds into the pipeline
                         class ForkConsumerWrapper(AbstractSegment):
-                            def __init__(self, consumer_iter, downstream_pipeline):
+                            def __init__(
+                                self,
+                                consumer_iter: Iterable[Any],
+                                downstream_pipeline: Any,
+                            ) -> None:
                                 super().__init__()
                                 self.consumer_iter = consumer_iter
                                 self.downstream_pipeline = downstream_pipeline
@@ -330,8 +342,8 @@ def compile(script: Any, runtime: RuntimeComponent | None = None) -> AbstractSeg
                             # Register a producer that executes the wrapper
                             # This will run in a background thread, so it can block waiting for source fork
                             # We create a generator function that will be called in start()
-                            def make_producer(w):
-                                def producer():
+                            def make_producer(w: Any) -> Any:
+                                def producer() -> Iterator[Any]:
                                     # Execute wrapper - it will consume from source fork and produce items
                                     yield from w()
 
@@ -379,7 +391,7 @@ def compile(script: Any, runtime: RuntimeComponent | None = None) -> AbstractSeg
     return Script(final_pipelines)
 
 
-def _resolve_value(value, runtime):
+def _resolve_value(value: Any, runtime: RuntimeComponent) -> Any:
     """Resolve a single parameter value, handling constants and arrays recursively."""
     if isinstance(value, Identifier):
         return runtime.const_store[value.name]
@@ -388,7 +400,9 @@ def _resolve_value(value, runtime):
     return value
 
 
-def _resolve_params(params, runtime):
+def _resolve_params(
+    params: dict[Any, Any], runtime: RuntimeComponent
+) -> dict[str, Any]:
     """Resolve the parameters for a segment"""
     return {k: _resolve_value(params[k], runtime) for k in params}
 
@@ -587,7 +601,7 @@ class ArrowForkSegment:
         self.consumer_pipelines: list[Any] = []
         self._started = False
 
-    def register_producer(self, pipeline):
+    def register_producer(self, pipeline: Any) -> None:
         """Register a pipeline as a producer to this fork.
 
         The pipeline will be executed using __call__() to ensure
@@ -600,7 +614,7 @@ class ArrowForkSegment:
             )
         self.producer_pipelines.append(pipeline)
 
-    def register_consumer(self, pipeline):
+    def register_consumer(self, pipeline: Any) -> QueueConsumer:
         """Register a pipeline as a consumer from this fork.
 
         Returns a consumer iterator that yields items from the queue.
@@ -614,7 +628,7 @@ class ArrowForkSegment:
         self.consumer_pipelines.append(pipeline)
         return self.queue_system.register_consumer()
 
-    def start(self):
+    def start(self) -> None:
         """Start the fork by registering all producers and starting the queue system."""
         if self._started:
             return
@@ -658,7 +672,7 @@ class VariableSource(AbstractSource):
         super().__init__()
         self.variable_name = variable_name
 
-    def generate(self):
+    def generate(self) -> Iterator[Any]:
         yield from _variable_store(self)[self.variable_name]
 
 
@@ -674,7 +688,7 @@ class VariableSetSegment(io.AbstractSegment):
         super().__init__()
         self.variable_name = variable_name
 
-    def transform(self, items):
+    def transform(self, items: Iterable[Any]) -> Iterator[Any]:
         list_of_items = list(items)
         _variable_store(self)[self.variable_name] = list_of_items
         yield from list_of_items
@@ -701,7 +715,7 @@ class Accum(io.AbstractSegment):
         self.reset = reset
         self.accumulator: list[Any] = []
 
-    def transform(self, items):
+    def transform(self, items: Iterable[Any]) -> Iterator[Any]:
         if self.reset:
             self.accumulator = []
 
@@ -733,7 +747,7 @@ class Snippet(io.AbstractSegment):
         self.script_source = script_source
         self.script: AbstractSegment | None = None
 
-    def transform(self, items):
+    def transform(self, items: Iterable[Any]) -> Iterator[Any]:
         if self.script is None:
             try:
                 with open(self.script_source) as f:

@@ -20,7 +20,7 @@ from talkpipe.util.os import limit_malloc_arenas
 logger = logging.getLogger(__name__)
 
 
-def main():
+def main() -> None:
     """Create a vector database using the Talkpipe document pipeline."""
     # Before LanceDB's worker threads exist: keep long ingestion memory flat.
     limit_malloc_arenas()

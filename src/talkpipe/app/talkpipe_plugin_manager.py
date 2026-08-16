@@ -13,7 +13,7 @@ from talkpipe.util.plugin_loader import (
 )
 
 
-def main():
+def main() -> None:
     parser = argparse.ArgumentParser(description="Manage TalkPipe plugins")
     parser.add_argument("--list", action="store_true", help="List all plugins")
     parser.add_argument("--reload", type=str, help="Reload a specific plugin")

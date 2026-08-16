@@ -2,7 +2,7 @@
 
 import logging
 import re
-from collections.abc import Iterator
+from collections.abc import Iterable, Iterator
 from typing import Annotated, Any, Literal
 
 import numpy as np
@@ -371,7 +371,7 @@ class LLMEmbed(AbstractFieldSegment):
             logger.info(f"Error during batch embedding: {e}")
             yield from self._embed_items_pair(items, texts)
 
-    def transform(self, input_iter):
+    def transform(self, input_iter: Iterable[Any]) -> Iterator[Any]:
         """Transform one stream item at a time; batching is internal only."""
         buffer_items: list[Any] = []
         buffer_texts: list[str] = []

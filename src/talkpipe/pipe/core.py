@@ -314,7 +314,7 @@ class AbstractSegment(ABC, HasRuntimeComponent, Generic[T, U]):
         single_in and single_out can be set to True to expect a single input and return a single output.
         """
 
-        def func(item=None):
+        def func(item: Any = None) -> Any:
             results = list(self([item] if single_in else item))
             if single_out:
                 if len(results) != 1:
@@ -491,7 +491,7 @@ def source(
     # Called with arguments, return a decorator
     def decorator(func: Callable[P, Iterable[U]]) -> type[AbstractSource[U]]:
         class ParameterizedSource(AbstractSource[U]):
-            def __init__(self, *init_args, **init_kwargs):
+            def __init__(self, *init_args: Any, **init_kwargs: Any) -> None:
                 """
                 Initialize the input generator with constructor arguments.
                 Combines decorator-level and constructor-level arguments.
@@ -594,7 +594,7 @@ def segment(
         func: Callable[Concatenate[Iterable[T], P], Iterable[U]],
     ) -> type[AbstractSegment[T, U]]:
         class ParameterizedSegment(AbstractSegment[T, U]):
-            def __init__(self, *init_args, **init_kwargs):
+            def __init__(self, *init_args: Any, **init_kwargs: Any) -> None:
                 """
                 Initialize the operation with constructor arguments.
                 Combines decorator-level and constructor-level arguments.
@@ -630,7 +630,10 @@ def segment(
     return decorator
 
 
-def field_segment(*decorator_args, **decorator_kwargs):
+def field_segment(
+    *decorator_args: Annotated[Any, "Positional arguments for the operation"],
+    **decorator_kwargs: Annotated[Any, "Keyword arguments for the operation"],
+) -> Any:
     """Decorator that creates a segment for processing a single field per item.
 
     Field segments are specialized segments designed to extract a field from items,
@@ -673,9 +676,9 @@ def field_segment(*decorator_args, **decorator_kwargs):
         # Output: [{'email': 'user@example.com', 'domain': 'example.com'}]
     """
 
-    def decorator(func):
-        class FieldSegment(AbstractFieldSegment):
-            def __init__(self, *init_args, **init_kwargs):
+    def decorator(func: Callable[..., Any]) -> type[AbstractFieldSegment[Any, Any]]:
+        class FieldSegment(AbstractFieldSegment[Any, Any]):
+            def __init__(self, *init_args: Any, **init_kwargs: Any) -> None:
                 merged_kwargs = {**decorator_kwargs, **init_kwargs}
                 field = merged_kwargs.pop("field", None)
                 set_as = merged_kwargs.pop("set_as", None)
@@ -691,7 +694,7 @@ def field_segment(*decorator_args, **decorator_kwargs):
                 # Store reference to original function for documentation access
                 self._original_func = func
 
-            def process_value(self, value):
+            def process_value(self, value: Any) -> Any:
                 return self._func(value)
 
         FieldSegment.__name__ = f"{func.__name__}FieldSegment"

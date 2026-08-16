@@ -29,7 +29,7 @@ logger = logging.getLogger(__name__)
 _config: "_CaseInsensitiveDict | None" = None
 
 
-class _CaseInsensitiveDict(dict):
+class _CaseInsensitiveDict(dict[Any, Any]):
     """Dict whose string keys are matched case-insensitively.
 
     Config keys arrive from two places that disagree on case: TOML files
@@ -41,23 +41,23 @@ class _CaseInsensitiveDict(dict):
     rather than creating a second entry.
     """
 
-    def _find_key(self, key):
+    def _find_key(self, key: Any) -> Any:
         if isinstance(key, str):
             for existing in dict.keys(self):
                 if isinstance(existing, str) and existing.lower() == key.lower():
                     return existing
         return key
 
-    def __setitem__(self, key, value):
+    def __setitem__(self, key: Any, value: Any) -> None:
         dict.__setitem__(self, self._find_key(key), value)
 
-    def __getitem__(self, key):
+    def __getitem__(self, key: Any) -> Any:
         return dict.__getitem__(self, self._find_key(key))
 
-    def __contains__(self, key):
+    def __contains__(self, key: object) -> bool:
         return dict.__contains__(self, self._find_key(key))
 
-    def get(self, key, default=None):
+    def get(self, key: Any, default: Any = None) -> Any:
         try:
             return self[key]
         except KeyError:
@@ -96,13 +96,13 @@ def parse_key_value_str(field_list: str, require_value: bool = False) -> dict[st
     return result
 
 
-def reset_config():
+def reset_config() -> None:
     """Clear the cached config so the next get_config() reloads from disk and env."""
     global _config
     _config = None
 
 
-def add_config_values(values_dict, override=True):
+def add_config_values(values_dict: dict[str, Any], override: bool = True) -> None:
     """Merge additional values into the current configuration.
 
     Loads config if not yet loaded. Useful for injecting command-line
@@ -122,7 +122,9 @@ def add_config_values(values_dict, override=True):
             logger.debug(f"Added config value: {key} = {value}")
 
 
-def get_config(reload=False, path="~/.talkpipe.toml", ignore_env=False):
+def get_config(
+    reload: bool = False, path: str = "~/.talkpipe.toml", ignore_env: bool = False
+) -> _CaseInsensitiveDict:
     """Load and return configuration from TOML file and environment variables.
 
     Reads from a TOML file at the given path. Environment variables prefixed
@@ -302,7 +304,7 @@ def load_module_file(fname: str, fail_on_missing: bool = False) -> Any | None:
         raise ImportError(f"Error loading module file: {e!s}") from e
 
 
-def parse_unknown_args(unknown_args):
+def parse_unknown_args(unknown_args: list[str]) -> dict[str, Any]:
     """Parse ``--key value`` and ``--flag`` style args into a dict.
 
     Values are parsed as bool (true/false), int, float, or str. Flags
@@ -314,7 +316,7 @@ def parse_unknown_args(unknown_args):
     Returns:
         Dict mapping names (without ``--``) to parsed values.
     """
-    constants = {}
+    constants: dict[str, Any] = {}
     i = 0
     while i < len(unknown_args):
         if unknown_args[i].startswith("--"):

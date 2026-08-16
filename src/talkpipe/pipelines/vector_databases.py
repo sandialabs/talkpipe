@@ -70,7 +70,7 @@ class ProcessDocumentsSegment(AbstractSegment):
             | progressTicks(tick=".", tick_count=1, eol_count=50)
         )
 
-    def transform(self, input_iter):
+    def transform(self, input_iter: Iterable[Any]) -> Iterator[Any]:
         yield from self.pipeline.transform(input_iter)
 
 
@@ -143,7 +143,7 @@ class MakeVectorDatabaseSegment(AbstractSegment):
             optimize_every=optimize_every,
         )
 
-    def transform(self, input_iter):
+    def transform(self, input_iter: Iterable[Any]) -> Iterator[Any]:
         yield from self.pipeline.transform(input_iter)
 
 
@@ -246,7 +246,7 @@ class SearchVectorDatabaseSegment(AbstractSegment):
                     read_consistency_interval=self.read_consistency_interval,
                 )
 
-    def transform(self, input_iter):
+    def transform(self, input_iter: Iterable[Any]) -> Iterator[Any]:
         yield from self.pipeline.transform(input_iter)
 
 

@@ -30,12 +30,12 @@ _workspace_override: Path | None = None
 
 
 class WorkspaceError(Exception):
-    def __init__(self, message, status=400):
+    def __init__(self, message: str, status: int = 400):
         super().__init__(message)
         self.status = status
 
 
-def set_workspace_dir(path):
+def set_workspace_dir(path: str | Path | None) -> None:
     """Explicitly set the workspace directory (CLI/tests). None resets."""
     global _workspace_override
     _workspace_override = Path(path).expanduser() if path else None
@@ -84,7 +84,7 @@ class WorkspaceStore:
     def __init__(self, root: Path):
         self.root = Path(root).expanduser()
 
-    def _ensure_root(self):
+    def _ensure_root(self) -> None:
         self.root.mkdir(parents=True, exist_ok=True)
 
     def _path_for(self, pipeline_id: str) -> Path:
