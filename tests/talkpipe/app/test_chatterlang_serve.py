@@ -734,11 +734,34 @@ class TestChatterlangServerSegment:
     def test_init_with_form_config_variable(self, mock_server_class, mock_get_config):
         """Test segment initialization with form config from variable."""
         form_config_data = {"title": "Config Form"}
-        mock_get_config.return_value = json.dumps(form_config_data)
+        mock_get_config.return_value = {
+            "FORM_CONFIG": json.dumps(form_config_data),
+            "OTHER": "unrelated",
+        }
 
         ChatterlangServerSegment(form_config="$FORM_CONFIG")
 
-        mock_get_config.assert_called_once_with("FORM_CONFIG")
+        # The variable name must be looked up in the config, not passed as
+        # get_config's ``reload`` flag.
+        mock_get_config.assert_called_once_with()
+        call_args = mock_server_class.call_args[1]
+        assert call_args["form_config"] == form_config_data
+
+    @patch("talkpipe.app.chatterlang_serve.load_form_config")
+    @patch("talkpipe.app.chatterlang_serve.get_config")
+    @patch("talkpipe.app.chatterlang_serve.ChatterlangServer")
+    def test_init_with_unset_form_config_variable_falls_back_to_file(
+        self, mock_server_class, mock_get_config, mock_load_form_config
+    ):
+        """An unset $VAR falls back to treating the name as a file path."""
+        mock_get_config.return_value = {"OTHER": "unrelated"}
+        mock_load_form_config.return_value = {"title": "File Form"}
+
+        ChatterlangServerSegment(form_config="$form.yaml")
+
+        mock_load_form_config.assert_called_once_with("form.yaml")
+        call_args = mock_server_class.call_args[1]
+        assert call_args["form_config"] == {"title": "File Form"}
 
     def test_process_data(self):
         """Test processing incoming data."""

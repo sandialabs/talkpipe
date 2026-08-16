@@ -2,6 +2,11 @@
 
 ## Unreleased 
 
+- Fixed the `chatterlangServer` segment's `$VAR` form of `form_config`, which
+  passed the variable name to `get_config` as its `reload` flag and so used the
+  entire config as the form definition. The named variable is now looked up in
+  the config, matching the `chatterlang_serve` CLI; an unset variable still
+  falls back to treating the name as a file path.
 - Fixed `ragToText` failing on the first item when `append_sources_to_output`
   is `False` and no `set_as` is given: the source-appending segment is now
   omitted entirely when there is nothing to append, so the pipeline yields the

@@ -1966,10 +1966,8 @@ class ChatterlangServerSegment(AbstractSource):
         if isinstance(form_config, str):
             # Check if it's a config variable
             if form_config.startswith("$"):
-                # Latent bug: this passes the variable name as get_config's
-                # ``reload`` flag (cf. the CLI path, which indexes get_config()).
-                # Behavior is pinned by tests, so only the typing is patched here.
-                config_data: Any = get_config(form_config[1:])  # type: ignore[arg-type]  # pre-existing call; see comment above
+                # Look up the named config variable (cf. the CLI path below).
+                config_data: Any = get_config().get(form_config[1:])
                 if config_data:
                     form_config_dict = (
                         json.loads(config_data)
