@@ -172,8 +172,7 @@ class ChatterlangServer:
             api_key = secrets.token_urlsafe(32)
             logger.warning(
                 "require_auth is set but no API key was given; generated one "
-                "for this run. Send it as X-API-Key: %s",
-                api_key,
+                "for this run. Provide it securely to clients as X-API-Key."
             )
         self.api_key = api_key
         self.secure_cookies = secure_cookies
