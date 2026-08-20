@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- The API key that `chatterlang_serve` generates when `--require-auth` is set
+  without a key is no longer written to the log (clear-text logging of a
+  credential). Since that leaves a CLI operator with no way to learn the key,
+  the command now refuses to start in that state and says how to supply a
+  key; the `ChatterlangServer` class still generates an unlogged random key,
+  readable from its `api_key` attribute.
 - The container image no longer ships pip: it is removed after installing the
   application, along with the pip self-upgrade that would have left a second
   copy behind. pip's vendored-code SBOM was being reported by image scanners

@@ -160,8 +160,12 @@ class ChatterlangServer:
         """Create the server.
 
         ``api_key`` has no default: when ``require_auth`` is set and no key is
-        given, a random one is generated and logged once at startup so the
-        server never runs behind a guessable, published default.
+        given, a random one is generated so the server never runs behind a
+        guessable, published default. The generated key is deliberately not
+        logged (clear-text logging of a credential); an embedding application
+        can read it from ``self.api_key`` and distribute it out of band. The
+        CLI (``go``) refuses to start in this state instead, since its
+        operator would have no way to learn the key.
         ``secure_cookies`` marks the session cookie ``Secure`` (HTTPS only);
         leave it off for plain-HTTP localhost use.
         """
@@ -171,8 +175,10 @@ class ChatterlangServer:
         if require_auth and not api_key:
             api_key = secrets.token_urlsafe(32)
             logger.warning(
-                "require_auth is set but no API key was given; generated one "
-                "for this run. Provide it securely to clients as X-API-Key."
+                "require_auth is set but no API key was given; generated a "
+                "random one for this run. It is deliberately not logged: read "
+                "it from this server's api_key attribute and provide it to "
+                "clients as X-API-Key."
             )
         self.api_key = api_key
         self.secure_cookies = secure_cookies
@@ -2114,8 +2120,8 @@ def go() -> None:
     parser.add_argument(
         "--require-auth",
         action="store_true",
-        help="Require API key authentication (a key is generated and printed "
-        "if --api-key is not given and no API_KEY is configured)",
+        help="Require API key authentication; supply the key with --api-key "
+        "or the TALKPIPE_API_KEY configuration",
     )
     parser.add_argument(
         "--secure-cookies",
@@ -2180,6 +2186,19 @@ def go() -> None:
     api_key = args.api_key
     if api_key is None:
         api_key = get_config().get(API_KEY)
+    if args.require_auth and not api_key:
+        # ChatterlangServer would generate a random key, but it is
+        # deliberately never logged or printed (clear-text logging of a
+        # credential), so a server started this way could not be
+        # authenticated to by anyone. Refuse to start instead of silently
+        # locking the operator out.
+        print(
+            "ERROR: --require-auth needs an API key. Pass --api-key or set "
+            "TALKPIPE_API_KEY; generate one with e.g.\n"
+            "  python3 -c 'import secrets; print(secrets.token_urlsafe(32))'",
+            file=sys.stderr,
+        )
+        sys.exit(1)
 
     script_content = None
     if args.script:

@@ -135,9 +135,12 @@ plus the usual web-service concerns:
 
 - Authentication is optional and off by default. Turn it on with
   `--require-auth` and `--api-key <token>` (or the `API_KEY` configuration
-  value); clients send the token as `X-API-Key`. If `--require-auth` is given
-  without a key, a random one is generated and logged once at startup. There
-  is no built-in default key.
+  value); clients send the token as `X-API-Key`. The CLI refuses to start if
+  `--require-auth` is given without a key: a generated key is deliberately
+  never logged or printed, so the operator could not learn it. (The
+  `ChatterlangServer` class does generate an unlogged random key in that
+  case, readable from its `api_key` attribute, so it never runs behind a
+  guessable default.) There is no built-in default key.
 - CORS is an explicit allow-list (never `*`): the server's own
   `localhost`/`127.0.0.1` origins plus whatever you list in the
   `TALKPIPE_ALLOWED_ORIGINS` environment variable (comma-separated).

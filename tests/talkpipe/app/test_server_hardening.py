@@ -21,7 +21,33 @@ class TestServeApiKey:
             server = ChatterlangServer(require_auth=True)
         assert server.api_key
         assert len(server.api_key) >= 32
-        assert server.api_key in caplog.text
+        # The event is logged, but never the key itself (clear-text logging
+        # of a credential); it is read from the api_key attribute instead.
+        assert "generated" in caplog.text
+        assert server.api_key not in caplog.text
+
+    def test_cli_require_auth_without_key_refuses_to_start(
+        self, monkeypatch, capsys, tmp_path
+    ):
+        # The CLI has no way to hand the operator a generated key (it is
+        # never logged or printed), so starting with --require-auth and no
+        # key would be a lockout; it must fail fast with guidance instead.
+        import sys as _sys
+
+        from talkpipe.app import chatterlang_serve
+        from talkpipe.util.config import reset_config
+
+        monkeypatch.setenv("HOME", str(tmp_path))
+        monkeypatch.delenv("TALKPIPE_API_KEY", raising=False)
+        reset_config()
+        monkeypatch.setattr(_sys, "argv", ["chatterlang_serve", "--require-auth"])
+        with pytest.raises(SystemExit) as excinfo:
+            chatterlang_serve.go()
+        assert excinfo.value.code == 1
+        err = capsys.readouterr().err
+        assert "--api-key" in err
+        assert "TALKPIPE_API_KEY" in err
+        reset_config()
 
     def test_explicit_key_is_kept(self):
         server = ChatterlangServer(require_auth=True, api_key="abc")
