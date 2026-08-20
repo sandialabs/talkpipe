@@ -181,13 +181,37 @@ def _strip_comments(text: str) -> str:
     )
 
 
+def _trailing_name(text: str) -> str | None:
+    """The identifier (``[A-Za-z_]\\w*``) ending ``text``, ignoring trailing
+    whitespace — a linear scan rather than an unanchored ``...\\s*$`` regex,
+    which backtracks polynomially on adversarial input.
+    """
+    text = text.rstrip()
+    start = len(text)
+    while start > 0 and (text[start - 1] == "_" or text[start - 1].isalnum()):
+        start -= 1
+    run = text[start:]
+    for i, ch in enumerate(run):
+        if ch == "_" or ch.isalpha():
+            return run[i:]
+    return None
+
+
+def _drop_partial_word(text: str) -> str:
+    """Remove a trailing run of ``@``/word characters (a word mid-typing)."""
+    end = len(text)
+    while end > 0 and (text[end - 1] in "@_" or text[end - 1].isalnum()):
+        end -= 1
+    return text[:end]
+
+
 def _previous_component(stmt: str) -> str | None:
     no_brackets = re.sub(r"\[[^\]]*\]?", "", stmt)
     stages = no_brackets.split("|")
     for stage in reversed(stages):
-        match = re.search(r"([A-Za-z_]\w*)\s*$", stage.strip())
-        if match and match.group(1) not in _KEYWORDS:
-            return match.group(1)
+        name = _trailing_name(stage)
+        if name and name not in _KEYWORDS:
+            return name
     return None
 
 
@@ -205,7 +229,7 @@ def classify_cursor(script: str, cursor_offset: int) -> dict[str, Any]:
     cursor_offset = max(0, min(cursor_offset, len(script)))
     stmt = _strip_comments(script[:cursor_offset]).split(";")[-1]
     # Drop any partial word the user is mid-typing at the cursor.
-    stmt = re.sub(r"[@\w]*$", "", stmt)
+    stmt = _drop_partial_word(stmt)
 
     depth = 0
     bracket_idx = -1
@@ -220,10 +244,9 @@ def classify_cursor(script: str, cursor_offset: int) -> dict[str, Any]:
             if depth == 0:
                 bracket_idx = -1
     if depth > 0:
-        match = re.search(r"([A-Za-z_]\w*)\s*$", stmt[:bracket_idx])
         return {
             "context": "brackets",
-            "enclosing": match.group(1) if match else None,
+            "enclosing": _trailing_name(stmt[:bracket_idx]),
             "prev": None,
         }
 
