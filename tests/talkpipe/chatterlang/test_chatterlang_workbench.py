@@ -117,13 +117,15 @@ def test_interactive_go(client):
 def test_interactive_go_streams_error_instead_of_aborting(client, monkeypatch):
     # A pipeline that fails lazily (e.g. an unreachable LLM model) raises while
     # the response is already streaming, so we cannot switch to an error status.
-    # The real message must be written into the stream body rather than dropped
-    # (which the browser would render as a meaningless "network error").
+    # An error line must be written into the stream body rather than dropped
+    # (which the browser would render as a meaningless "network error") — but
+    # only the exception class name, never the exception text, which can carry
+    # paths and URLs (information exposure through an exception).
     def failing_compile(script):
         def compiled_instance(inputs):
             def gen():
                 raise ValueError(
-                    "Model 'no-such' is not available. Run `ollama pull no-such`."
+                    "refused by http://internal-host:11434 (/home/user/.secrets)"
                 )
                 yield  # pragma: no cover - makes this function a generator
 
@@ -141,8 +143,11 @@ def test_interactive_go_streams_error_instead_of_aborting(client, monkeypatch):
     go_response = client.post("/go", json={"id": script_id, "user_input": "hi"})
     assert go_response.status_code == 200
     output = "".join(list(go_response.iter_text()))
-    assert "Model 'no-such' is not available" in output
-    assert "ollama pull no-such" in output
+    assert "Error" in output
+    assert "ValueError" in output
+    assert "server log" in output
+    assert "internal-host" not in output
+    assert ".secrets" not in output
 
 
 def test_interactive_go_not_found(client):

@@ -168,6 +168,22 @@ def test_suggest_unavailable_adapter(with_fake_llm):
     assert data["available"] is False
 
 
+def test_suggest_llm_failure_does_not_echo_exception(with_fake_llm, monkeypatch):
+    # The raw exception can carry URLs and library internals (information
+    # exposure through an exception); the client gets the provider/model it
+    # configured, the exception class, and a pointer to the server log.
+    def boom(self, prompt, **kwargs):
+        raise ConnectionError("refused by http://internal-host:11434/secret")
+
+    monkeypatch.setattr(FakeAdapter, "complete_text_without_context", boom)
+    data = with_fake_llm.post("/api/suggest", json={"script": "| x"}).json()
+    assert data["available"] is True
+    assert data["suggestions"] == []
+    assert "internal-host" not in data["error"]
+    assert "ConnectionError" in data["error"]
+    assert "test-model" in data["error"]
+
+
 def test_suggest_includes_similar_saved_pipelines(with_fake_llm):
     with_fake_llm.post(
         "/api/pipelines",
@@ -275,8 +291,7 @@ def test_resolved_reason_surfaces_missing_dependency(with_fake_llm, monkeypatch)
 
         def is_available(self):
             raise ImportError(
-                "Ollama is not installed. Please install it with: "
-                "pip install talkpipe[ollama]"
+                "No module named 'ollama' (/home/user/.venv/lib/broken.so)"
             )
 
     monkeypatch.setattr(suggest, "getPromptAdapter", lambda name: MissingDepAdapter)
@@ -284,7 +299,10 @@ def test_resolved_reason_surfaces_missing_dependency(with_fake_llm, monkeypatch)
 
     resolved = with_fake_llm.get("/api/settings").json()["resolved"]
     assert resolved["available"] is False
+    # The hint is rebuilt from the configured source, never echoed from the
+    # exception (information exposure through an exception).
     assert "pip install talkpipe[ollama]" in resolved["reason"]
+    assert ".venv" not in resolved["reason"]
     assert "not reachable" not in resolved["reason"]
     assert "TALKPIPE_OLLAMA_SERVER_URL" not in resolved["reason"]
 

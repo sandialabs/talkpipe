@@ -99,15 +99,21 @@ def resolve_llm(settings: dict[str, Any] | None = None) -> tuple[str, str] | Non
 def unreachable_reason(source: str, model: str) -> str:
     """An actionable message for a configured-but-unreachable model."""
     # A missing or broken provider dependency surfaces as an ImportError from
-    # the adapter's is_available() (e.g. "Ollama is not installed. Please install
-    # it with: pip install talkpipe[ollama]"). That is a different problem than
-    # connectivity — and its message already tells the user exactly what to do —
-    # so surface it verbatim instead of the misleading "not reachable" text, which
-    # would send them chasing TALKPIPE_OLLAMA_SERVER_URL / `ollama pull`.
+    # the adapter's is_available(). That is a different problem than
+    # connectivity, so give the install hint instead of the misleading "not
+    # reachable" text, which would send the user chasing
+    # TALKPIPE_OLLAMA_SERVER_URL / `ollama pull`. The hint is rebuilt from the
+    # configured source name rather than echoing the exception, whose text can
+    # carry module paths (information exposure); the verbatim error is in the
+    # server log via check_availability.
     with _availability_lock:
         cause = _availability_cause.get((source, model))
     if isinstance(cause, ImportError):
-        return str(cause)
+        return (
+            f"the '{source}' provider's package is not installed in the "
+            f"workbench environment — try: pip install talkpipe[{source}] "
+            "(the exact import error is in the workbench server log)"
+        )
     if source == "ollama":
         from talkpipe.util.constants import OLLAMA_SERVER_URL
 
@@ -657,13 +663,20 @@ def suggest(
             prompt, temperature=0.2, max_tokens=2500
         )
     except Exception as e:
-        logger.error(f"Suggestion LLM call failed: {e}")
+        # The exception text is logged, not returned: adapter/network errors
+        # can carry URLs and library internals (information exposure).
+        logger.exception(f"Suggestion LLM call failed ({source}/{model})")
         return {
             "available": True,
             "source": source,
             "model": model,
             "suggestions": [],
-            "error": str(e),
+            "error": (
+                f"the request to {source} model '{model}' failed "
+                f"({type(e).__name__}) — check that the provider is running "
+                "and the model name is correct; the full error is in the "
+                "workbench server log"
+            ),
         }
     try:
         suggestions = parse_suggestions(raw, max_suggestions, context_info)
