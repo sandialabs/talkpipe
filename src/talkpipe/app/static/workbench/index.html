@@ -130,6 +130,34 @@
     </form>
   </dialog>
 
+  <script>
+    // Optional token auth: when the server was started with --api-key, every
+    // API call must carry it as X-API-Key. Open the page once with ?key=<token>;
+    // the token is kept in sessionStorage (this tab only) and the URL is cleaned.
+    (function () {
+      var params = new URLSearchParams(location.search);
+      var fromUrl = params.get("key");
+      if (fromUrl) {
+        sessionStorage.setItem("talkpipe_api_key", fromUrl);
+        params.delete("key");
+        var clean = location.pathname + (params.toString() ? "?" + params : "") + location.hash;
+        history.replaceState(null, "", clean);
+      }
+      var origFetch = window.fetch;
+      window.fetch = function (input, init) {
+        var key = sessionStorage.getItem("talkpipe_api_key");
+        var url = typeof input === "string" ? input : (input && input.url) || "";
+        var sameOrigin = url.startsWith("/") || url.startsWith(location.origin);
+        if (key && sameOrigin) {
+          init = init || {};
+          var headers = new Headers(init.headers || (input && input.headers) || undefined);
+          headers.set("X-API-Key", key);
+          init.headers = headers;
+        }
+        return origFetch.call(this, input, init);
+      };
+    })();
+  </script>
   <script type="module" src="/static/workbench/app.js"></script>
 </body>
 </html>

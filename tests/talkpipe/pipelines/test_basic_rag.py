@@ -1,14 +1,16 @@
 import pytest
+
+from talkpipe import AbstractSegment
 from talkpipe.pipelines.basic_rag import (
-    ConstructRAGPrompt,
     AppendRAGSources,
-    construct_background,
+    ConstructRAGPrompt,
     _extract_source_paths,
+    construct_background,
 )
 from talkpipe.search.abstract import SearchResult
 
-
 # Tests for construct_background helper function
+
 
 def test_construct_background_with_single_string():
     """Test construct_background with a single string input."""
@@ -37,12 +39,16 @@ def test_construct_background_with_search_results():
     search_result1 = SearchResult(
         score=0.95,
         doc_id="doc1",
-        document={"title": "Document 1", "text": "Content of document 1"}
+        document={"title": "Document 1", "text": "Content of document 1"},
     )
     search_result2 = SearchResult(
         score=0.85,
         doc_id="doc2",
-        document={"title": "Document 2", "text": "Content of document 2", "author": "John Doe"}
+        document={
+            "title": "Document 2",
+            "text": "Content of document 2",
+            "author": "John Doe",
+        },
     )
 
     background = [search_result1, search_result2]
@@ -63,8 +69,8 @@ def test_construct_background_includes_title_and_source_for_citation():
         document={
             "title": "My Document",
             "source": "/path/to/my-document.md",
-            "content": "Relevant excerpt from the document."
-        }
+            "content": "Relevant excerpt from the document.",
+        },
     )
     result = construct_background([search_result])
 
@@ -78,7 +84,7 @@ def test_construct_background_with_mixed_types():
     search_result = SearchResult(
         score=0.9,
         doc_id="doc1",
-        document={"title": "A Document", "content": "Some content"}
+        document={"title": "A Document", "content": "Some content"},
     )
     background = ["Plain text item", search_result, "Another plain text"]
 
@@ -108,9 +114,15 @@ def test_construct_background_empty_list():
 def test_extract_source_paths():
     """Test _extract_source_paths extracts unique paths from search results."""
     results = [
-        SearchResult(score=0.9, doc_id="1", document={"source": "/path/to/a.md", "title": "A"}),
-        SearchResult(score=0.8, doc_id="2", document={"source": "/path/to/b.md", "title": "B"}),
-        SearchResult(score=0.7, doc_id="3", document={"source": "/path/to/a.md", "title": "A"}),  # duplicate
+        SearchResult(
+            score=0.9, doc_id="1", document={"source": "/path/to/a.md", "title": "A"}
+        ),
+        SearchResult(
+            score=0.8, doc_id="2", document={"source": "/path/to/b.md", "title": "B"}
+        ),
+        SearchResult(
+            score=0.7, doc_id="3", document={"source": "/path/to/a.md", "title": "A"}
+        ),  # duplicate
     ]
     paths = _extract_source_paths(results)
     assert paths == ["/path/to/a.md", "/path/to/b.md"]
@@ -133,8 +145,16 @@ def test_append_rag_sources_appends_file_paths():
         "id": "q1",
         "_rag_response": "The answer is 42.",
         "_background": [
-            SearchResult(score=0.9, doc_id="1", document={"source": "/docs/readme.md", "title": "Readme"}),
-            SearchResult(score=0.8, doc_id="2", document={"source": "/docs/guide.md", "title": "Guide"}),
+            SearchResult(
+                score=0.9,
+                doc_id="1",
+                document={"source": "/docs/readme.md", "title": "Readme"},
+            ),
+            SearchResult(
+                score=0.8,
+                doc_id="2",
+                document={"source": "/docs/guide.md", "title": "Guide"},
+            ),
         ],
     }
     results = list(segment.transform([item]))
@@ -151,6 +171,7 @@ def test_append_rag_sources_appends_file_paths():
 
 # Tests for ConstructRAGPrompt segment
 
+
 @pytest.fixture
 def sample_items():
     """Sample data items for testing."""
@@ -158,13 +179,13 @@ def sample_items():
         {
             "background": ["Context 1", "Context 2"],
             "content": "What is the main point?",
-            "id": "item1"
+            "id": "item1",
         },
         {
             "background": "Single context string",
             "content": "Explain this concept.",
-            "id": "item2"
-        }
+            "id": "item2",
+        },
     ]
 
 
@@ -174,13 +195,13 @@ def sample_items_with_search_results():
     search_result = SearchResult(
         score=0.9,
         doc_id="doc1",
-        document={"title": "Relevant Doc", "text": "Important information"}
+        document={"title": "Relevant Doc", "text": "Important information"},
     )
     return [
         {
             "background_info": [search_result, "Additional context"],
             "query": "What should I know?",
-            "metadata": {"user": "test_user"}
+            "metadata": {"user": "test_user"},
         }
     ]
 
@@ -191,7 +212,7 @@ def test_construct_rag_prompt_basic_with_set_as(sample_items):
         prompt_directive="Answer the following question based on the background information.",
         background_field="background",
         content_field="content",
-        set_as="prompt"
+        set_as="prompt",
     )
 
     results = list(segment.transform([sample_items[0]]))
@@ -208,7 +229,10 @@ def test_construct_rag_prompt_basic_with_set_as(sample_items):
     # Prompt field should be added
     assert "prompt" in result
     assert isinstance(result["prompt"], str)
-    assert "Answer the following question based on the background information." in result["prompt"]
+    assert (
+        "Answer the following question based on the background information."
+        in result["prompt"]
+    )
     assert "Background:" in result["prompt"]
     assert "Context 1" in result["prompt"]
     assert "Context 2" in result["prompt"]
@@ -222,7 +246,7 @@ def test_construct_rag_prompt_without_set_as(sample_items):
         prompt_directive="Summarize based on context:",
         background_field="background",
         content_field="content",
-        set_as=None
+        set_as=None,
     )
 
     results = list(segment.transform([sample_items[1]]))
@@ -246,7 +270,7 @@ def test_construct_rag_prompt_with_search_results(sample_items_with_search_resul
         prompt_directive="Answer using the provided sources:",
         background_field="background_info",
         content_field="query",
-        set_as="final_prompt"
+        set_as="final_prompt",
     )
 
     results = list(segment.transform(sample_items_with_search_results))
@@ -272,7 +296,7 @@ def test_construct_rag_prompt_multiple_items(sample_items):
         prompt_directive="Process this:",
         background_field="background",
         content_field="content",
-        set_as="prompt"
+        set_as="prompt",
     )
 
     results = list(segment.transform(sample_items))
@@ -295,9 +319,7 @@ def test_construct_rag_prompt_nested_field_access():
     item = {
         "data": {
             "background": ["Nested context"],
-            "question": {
-                "text": "What is the answer?"
-            }
+            "question": {"text": "What is the answer?"},
         }
     }
 
@@ -305,7 +327,7 @@ def test_construct_rag_prompt_nested_field_access():
         prompt_directive="Answer:",
         background_field="data.background",
         content_field="data.question.text",
-        set_as="result"
+        set_as="result",
     )
 
     results = list(segment.transform([item]))
@@ -318,23 +340,20 @@ def test_construct_rag_prompt_nested_field_access():
 
 def test_construct_rag_prompt_format_structure():
     """Test that the prompt has the correct structure and formatting."""
-    item = {
-        "bg": "Background text",
-        "q": "Question text"
-    }
+    item = {"bg": "Background text", "q": "Question text"}
 
     segment = ConstructRAGPrompt(
         prompt_directive="Directive here",
         background_field="bg",
         content_field="q",
-        set_as=None
+        set_as=None,
     )
 
     results = list(segment.transform([item]))
     prompt = results[0]
 
     # Check the structure: directive, then background, then content
-    lines = prompt.split('\n')
+    prompt.split("\n")
 
     # Find positions of key markers
     directive_pos = prompt.find("Directive here")
@@ -352,16 +371,13 @@ def test_construct_rag_prompt_format_structure():
 
 def test_construct_rag_prompt_empty_background():
     """Test ConstructRAGPrompt with empty background list."""
-    item = {
-        "background": [],
-        "content": "Just content"
-    }
+    item = {"background": [], "content": "Just content"}
 
     segment = ConstructRAGPrompt(
         prompt_directive="Process:",
         background_field="background",
         content_field="content",
-        set_as=None
+        set_as=None,
     )
 
     results = list(segment.transform([item]))
@@ -380,14 +396,14 @@ def test_construct_rag_prompt_preserves_all_original_fields():
         "content": "Question",
         "field1": "value1",
         "field2": {"nested": "value2"},
-        "field3": [1, 2, 3]
+        "field3": [1, 2, 3],
     }
 
     segment = ConstructRAGPrompt(
         prompt_directive="Directive",
         background_field="background",
         content_field="content",
-        set_as="prompt"
+        set_as="prompt",
     )
 
     results = list(segment.transform([item]))
@@ -405,31 +421,26 @@ def test_construct_rag_prompt_preserves_all_original_fields():
 
 # Tests for RAGToText segment
 
+
 def test_rag_to_text_diagPrintOutput_parameter_stored():
     """Test that diagPrintOutput parameter is correctly stored in RAGToText."""
     from talkpipe.pipelines.basic_rag import RAGToText
 
     # Test with diagPrintOutput=None (default, suppresses output)
     rag_segment = RAGToText(
-        path="tmp://rag_test",
-        content_field="query",
-        diagPrintOutput=None
+        path="tmp://rag_test", content_field="query", diagPrintOutput=None
     )
     assert rag_segment.diagPrintOutput is None
 
     # Test with diagPrintOutput="stdout"
     rag_segment_stdout = RAGToText(
-        path="tmp://rag_test",
-        content_field="query",
-        diagPrintOutput="stdout"
+        path="tmp://rag_test", content_field="query", diagPrintOutput="stdout"
     )
     assert rag_segment_stdout.diagPrintOutput == "stdout"
 
     # Test with diagPrintOutput="stderr"
     rag_segment_stderr = RAGToText(
-        path="tmp://rag_test",
-        content_field="query",
-        diagPrintOutput="stderr"
+        path="tmp://rag_test", content_field="query", diagPrintOutput="stderr"
     )
     assert rag_segment_stderr.diagPrintOutput == "stderr"
 
@@ -472,21 +483,72 @@ def test_rag_to_text_memory_controls_passed_to_llm_prompt(monkeypatch):
     assert captured["debug_messages"] is True
 
 
-def test_rag_to_text_diagPrintOutput_in_pipeline(capsys):
-    """Test that diagPrintOutput parameter correctly controls DiagPrint output in the pipeline."""
-    from talkpipe.pipelines.basic_rag import RAGToText
-    from unittest.mock import patch, MagicMock
+class _FakeLLMPrompt(AbstractSegment):
+    """Stand-in for LLMPrompt: yields text, or the item with text assigned to set_as."""
 
-    # Create RAGToText with diagPrintOutput="stdout"
+    def __init__(self, set_as=None, **kwargs):
+        super().__init__()
+        self.set_as = set_as
+
+    def transform(self, input_iter):
+        for item in input_iter:
+            if self.set_as is None:
+                yield "the answer"
+            else:
+                item[self.set_as] = "the answer"
+                yield item
+
+
+def test_rag_to_text_no_sources_no_set_as_yields_text(monkeypatch):
+    """With sources not appended and no set_as, the pipeline yields the raw answer text."""
+    from talkpipe.pipelines.basic_rag import RAGToText
+
+    monkeypatch.setattr("talkpipe.pipelines.basic_rag.LLMPrompt", _FakeLLMPrompt)
+
     rag_segment = RAGToText(
         path="tmp://rag_test",
         content_field="query",
-        diagPrintOutput="stdout"
+        set_as=None,
+        append_sources_to_output=False,
+    )
+    completion = rag_segment.make_completion_segment()
+    results = list(completion([{"query": "q", "_background": []}]))
+
+    assert results == ["the answer"]
+
+
+def test_rag_to_text_no_sources_with_set_as_yields_item(monkeypatch):
+    """With sources not appended and set_as given, the answer lands in that field unchanged."""
+    from talkpipe.pipelines.basic_rag import RAGToText
+
+    monkeypatch.setattr("talkpipe.pipelines.basic_rag.LLMPrompt", _FakeLLMPrompt)
+
+    rag_segment = RAGToText(
+        path="tmp://rag_test",
+        content_field="query",
+        set_as="answer",
+        append_sources_to_output=False,
+    )
+    completion = rag_segment.make_completion_segment()
+    results = list(completion([{"query": "q", "_background": []}]))
+
+    assert results == [{"query": "q", "_background": [], "answer": "the answer"}]
+
+
+def test_rag_to_text_diagPrintOutput_in_pipeline(capsys):
+    """Test that diagPrintOutput parameter correctly controls DiagPrint output in the pipeline."""
+    from unittest.mock import MagicMock, patch
+
+    from talkpipe.pipelines.basic_rag import RAGToText
+
+    # Create RAGToText with diagPrintOutput="stdout"
+    rag_segment = RAGToText(
+        path="tmp://rag_test", content_field="query", diagPrintOutput="stdout"
     )
 
     # Get the pipeline and verify DiagPrint segments have correct output setting
     # We need to mock the vector database search to avoid needing actual embeddings
-    with patch.object(rag_segment, 'make_pipeline') as mock_make_pipeline:
+    with patch.object(rag_segment, "make_pipeline") as mock_make_pipeline:
         # Create a mock pipeline that yields test data
         mock_pipeline = MagicMock()
         mock_pipeline.return_value = iter([{"query": "test", "answer": "mocked"}])
@@ -498,14 +560,12 @@ def test_rag_to_text_diagPrintOutput_in_pipeline(capsys):
 
 def test_rag_to_text_diagPrintOutput_none_suppresses_output(capsys):
     """Test that diagPrintOutput=None suppresses DiagPrint output in RAGToText pipeline."""
-    from talkpipe.pipelines.basic_rag import RAGToText
     from talkpipe.pipe.basic import DiagPrint
+    from talkpipe.pipelines.basic_rag import RAGToText
 
     # Create RAGToText with diagPrintOutput=None (should suppress output)
     rag_segment = RAGToText(
-        path="tmp://rag_test",
-        content_field="query",
-        diagPrintOutput=None
+        path="tmp://rag_test", content_field="query", diagPrintOutput=None
     )
 
     # Verify the DiagPrint segment with output=None doesn't produce output
@@ -525,8 +585,9 @@ def test_rag_to_text_diagPrintOutput_none_suppresses_output(capsys):
 @pytest.fixture
 def temp_vector_db_path():
     """Create a temporary directory for the vector database."""
-    import tempfile
     import os
+    import tempfile
+
     with tempfile.TemporaryDirectory() as temp_dir:
         yield os.path.join(temp_dir, "test_rag_db")
 
@@ -538,30 +599,32 @@ def sample_knowledge_base():
         {
             "text": "Python is a high-level programming language known for its simplicity and readability. It was created by Guido van Rossum.",
             "title": "Python Programming",
-            "id": "doc1"
+            "id": "doc1",
         },
         {
             "text": "Machine learning is a subset of artificial intelligence that enables systems to learn from data without explicit programming.",
             "title": "Machine Learning Basics",
-            "id": "doc2"
+            "id": "doc2",
         },
         {
             "text": "The pandas library is a powerful data manipulation tool in Python, widely used for data analysis and preprocessing.",
             "title": "Pandas Library",
-            "id": "doc3"
+            "id": "doc3",
         },
         {
             "text": "Neural networks are computing systems inspired by biological neural networks. They consist of interconnected nodes called neurons.",
             "title": "Neural Networks",
-            "id": "doc4"
-        }
+            "id": "doc4",
+        },
     ]
 
 
-def test_rag_to_text_diagPrintOutput_stdout(requires_ollama, temp_vector_db_path, sample_knowledge_base, capsys):
+def test_rag_to_text_diagPrintOutput_stdout(
+    requires_ollama, temp_vector_db_path, sample_knowledge_base, capsys
+):
     """Test that diagPrintOutput='stdout' produces diagnostic output in RAGToText pipeline."""
-    from talkpipe.pipelines.vector_databases import MakeVectorDatabaseSegment
     from talkpipe.pipelines.basic_rag import RAGToText
+    from talkpipe.pipelines.vector_databases import MakeVectorDatabaseSegment
 
     # First, create and populate the vector database
     make_db_segment = MakeVectorDatabaseSegment(
@@ -570,7 +633,7 @@ def test_rag_to_text_diagPrintOutput_stdout(requires_ollama, temp_vector_db_path
         embedding_source="ollama",
         path=temp_vector_db_path,
         doc_id_field="id",
-        overwrite=True
+        overwrite=True,
     )
     list(make_db_segment.transform(sample_knowledge_base))
 
@@ -584,7 +647,7 @@ def test_rag_to_text_diagPrintOutput_stdout(requires_ollama, temp_vector_db_path
         content_field="query",
         set_as="answer",
         limit=2,
-        diagPrintOutput="stdout"
+        diagPrintOutput="stdout",
     )
 
     query_items = [{"query": "What is Python?", "id": "q1"}]
@@ -601,10 +664,12 @@ def test_rag_to_text_diagPrintOutput_stdout(requires_ollama, temp_vector_db_path
     assert captured.err == ""
 
 
-def test_rag_to_text_diagPrintOutput_none_no_output(requires_ollama, temp_vector_db_path, sample_knowledge_base, capsys):
+def test_rag_to_text_diagPrintOutput_none_no_output(
+    requires_ollama, temp_vector_db_path, sample_knowledge_base, capsys
+):
     """Test that diagPrintOutput=None suppresses diagnostic output in RAGToText pipeline."""
-    from talkpipe.pipelines.vector_databases import MakeVectorDatabaseSegment
     from talkpipe.pipelines.basic_rag import RAGToText
+    from talkpipe.pipelines.vector_databases import MakeVectorDatabaseSegment
 
     # First, create and populate the vector database
     make_db_segment = MakeVectorDatabaseSegment(
@@ -613,7 +678,7 @@ def test_rag_to_text_diagPrintOutput_none_no_output(requires_ollama, temp_vector
         embedding_source="ollama",
         path=temp_vector_db_path,
         doc_id_field="id",
-        overwrite=True
+        overwrite=True,
     )
     list(make_db_segment.transform(sample_knowledge_base))
 
@@ -627,7 +692,7 @@ def test_rag_to_text_diagPrintOutput_none_no_output(requires_ollama, temp_vector
         content_field="query",
         set_as="answer",
         limit=2,
-        diagPrintOutput=None
+        diagPrintOutput=None,
     )
 
     query_items = [{"query": "What is Python?", "id": "q1"}]
@@ -644,10 +709,12 @@ def test_rag_to_text_diagPrintOutput_none_no_output(requires_ollama, temp_vector
     assert "================================" not in captured.err
 
 
-def test_rag_to_text_basic_functionality(requires_ollama, temp_vector_db_path, sample_knowledge_base):
+def test_rag_to_text_basic_functionality(
+    requires_ollama, temp_vector_db_path, sample_knowledge_base
+):
     """Test basic end-to-end functionality of RAGToText segment."""
-    from talkpipe.pipelines.vector_databases import MakeVectorDatabaseSegment
     from talkpipe.pipelines.basic_rag import RAGToText
+    from talkpipe.pipelines.vector_databases import MakeVectorDatabaseSegment
 
     # First, create and populate the vector database
     make_db_segment = MakeVectorDatabaseSegment(
@@ -656,7 +723,7 @@ def test_rag_to_text_basic_functionality(requires_ollama, temp_vector_db_path, s
         embedding_source="ollama",
         path=temp_vector_db_path,
         doc_id_field="id",
-        overwrite=True
+        overwrite=True,
     )
     list(make_db_segment.transform(sample_knowledge_base))
 
@@ -670,7 +737,7 @@ def test_rag_to_text_basic_functionality(requires_ollama, temp_vector_db_path, s
         content_field="query",
         prompt_directive="Answer the question based on the background information provided. Be concise.",
         set_as="answer",
-        limit=3
+        limit=3,
     )
 
     # Query about Python
@@ -694,10 +761,12 @@ def test_rag_to_text_basic_functionality(requires_ollama, temp_vector_db_path, s
     assert "guido" in result["answer"].lower() or "rossum" in result["answer"].lower()
 
 
-def test_rag_to_text_without_set_as(requires_ollama, temp_vector_db_path, sample_knowledge_base):
+def test_rag_to_text_without_set_as(
+    requires_ollama, temp_vector_db_path, sample_knowledge_base
+):
     """Test RAGToText when set_as is None (uses 'answer' as default field, yields dict)."""
-    from talkpipe.pipelines.vector_databases import MakeVectorDatabaseSegment
     from talkpipe.pipelines.basic_rag import RAGToText
+    from talkpipe.pipelines.vector_databases import MakeVectorDatabaseSegment
 
     # Create and populate the vector database
     make_db_segment = MakeVectorDatabaseSegment(
@@ -706,7 +775,7 @@ def test_rag_to_text_without_set_as(requires_ollama, temp_vector_db_path, sample
         embedding_source="ollama",
         path=temp_vector_db_path,
         doc_id_field="id",
-        overwrite=True
+        overwrite=True,
     )
     list(make_db_segment.transform(sample_knowledge_base))
 
@@ -719,7 +788,7 @@ def test_rag_to_text_without_set_as(requires_ollama, temp_vector_db_path, sample
         path=temp_vector_db_path,
         content_field="query",
         set_as=None,
-        limit=2
+        limit=2,
     )
 
     query_items = [{"query": "What is machine learning?"}]
@@ -734,10 +803,12 @@ def test_rag_to_text_without_set_as(requires_ollama, temp_vector_db_path, sample
     assert "learn" in result or "data" in result
 
 
-def test_rag_to_text_with_different_limit(requires_ollama, temp_vector_db_path, sample_knowledge_base):
+def test_rag_to_text_with_different_limit(
+    requires_ollama, temp_vector_db_path, sample_knowledge_base
+):
     """Test RAGToText with different limit values for search results."""
-    from talkpipe.pipelines.vector_databases import MakeVectorDatabaseSegment
     from talkpipe.pipelines.basic_rag import RAGToText
+    from talkpipe.pipelines.vector_databases import MakeVectorDatabaseSegment
 
     # Create and populate the vector database
     make_db_segment = MakeVectorDatabaseSegment(
@@ -746,7 +817,7 @@ def test_rag_to_text_with_different_limit(requires_ollama, temp_vector_db_path, 
         embedding_source="ollama",
         path=temp_vector_db_path,
         doc_id_field="id",
-        overwrite=True
+        overwrite=True,
     )
     list(make_db_segment.transform(sample_knowledge_base))
 
@@ -759,7 +830,7 @@ def test_rag_to_text_with_different_limit(requires_ollama, temp_vector_db_path, 
         path=temp_vector_db_path,
         content_field="query",
         set_as="answer",
-        limit=1
+        limit=1,
     )
 
     query_items = [{"query": "Tell me about neural networks"}]
@@ -770,10 +841,12 @@ def test_rag_to_text_with_different_limit(requires_ollama, temp_vector_db_path, 
     assert isinstance(results[0]["answer"], str)
 
 
-def test_rag_to_text_custom_prompt_directive(requires_ollama, temp_vector_db_path, sample_knowledge_base):
+def test_rag_to_text_custom_prompt_directive(
+    requires_ollama, temp_vector_db_path, sample_knowledge_base
+):
     """Test RAGToText with a custom prompt directive and system prompt."""
-    from talkpipe.pipelines.vector_databases import MakeVectorDatabaseSegment
     from talkpipe.pipelines.basic_rag import RAGToText
+    from talkpipe.pipelines.vector_databases import MakeVectorDatabaseSegment
 
     # Create and populate the vector database
     make_db_segment = MakeVectorDatabaseSegment(
@@ -782,7 +855,7 @@ def test_rag_to_text_custom_prompt_directive(requires_ollama, temp_vector_db_pat
         embedding_source="ollama",
         path=temp_vector_db_path,
         doc_id_field="id",
-        overwrite=True
+        overwrite=True,
     )
     list(make_db_segment.transform(sample_knowledge_base))
 
@@ -800,7 +873,7 @@ def test_rag_to_text_custom_prompt_directive(requires_ollama, temp_vector_db_pat
         prompt_directive=custom_directive,
         system_prompt=custom_system_prompt,
         set_as="detailed_answer",
-        limit=3
+        limit=3,
     )
 
     # Verify system_prompt was stored
@@ -816,10 +889,12 @@ def test_rag_to_text_custom_prompt_directive(requires_ollama, temp_vector_db_pat
     assert len(result["detailed_answer"]) > 0
 
 
-def test_rag_to_text_system_prompt_affects_output(requires_ollama, temp_vector_db_path, sample_knowledge_base):
+def test_rag_to_text_system_prompt_affects_output(
+    requires_ollama, temp_vector_db_path, sample_knowledge_base
+):
     """Test that custom system_prompt actually affects LLM output."""
-    from talkpipe.pipelines.vector_databases import MakeVectorDatabaseSegment
     from talkpipe.pipelines.basic_rag import RAGToText
+    from talkpipe.pipelines.vector_databases import MakeVectorDatabaseSegment
 
     # Create and populate the vector database
     make_db_segment = MakeVectorDatabaseSegment(
@@ -828,12 +903,14 @@ def test_rag_to_text_system_prompt_affects_output(requires_ollama, temp_vector_d
         embedding_source="ollama",
         path=temp_vector_db_path,
         doc_id_field="id",
-        overwrite=True
+        overwrite=True,
     )
     list(make_db_segment.transform(sample_knowledge_base))
 
     # Use a system prompt that forces a specific output format
-    pirate_system_prompt = "Talk like a pirate. Always start your answer with 'ANSWER:' on its own line."
+    pirate_system_prompt = (
+        "Talk like a pirate. Always start your answer with 'ANSWER:' on its own line."
+    )
 
     rag_segment = RAGToText(
         embedding_model="mxbai-embed-large",
@@ -844,7 +921,7 @@ def test_rag_to_text_system_prompt_affects_output(requires_ollama, temp_vector_d
         content_field="query",
         system_prompt=pirate_system_prompt,
         set_as="answer",
-        limit=3
+        limit=3,
     )
 
     query_items = [{"query": "Who created Python?"}]
@@ -856,13 +933,17 @@ def test_rag_to_text_system_prompt_affects_output(requires_ollama, temp_vector_d
     answer = result["answer"]
 
     # Verify the system prompt affected the output - should start with ANSWER:
-    assert answer.strip().startswith("ANSWER:"), f"Expected answer to start with 'ANSWER:', got: {answer[:100]}"
+    assert answer.strip().startswith("ANSWER:"), (
+        f"Expected answer to start with 'ANSWER:', got: {answer[:100]}"
+    )
 
 
-def test_rag_to_text_multiple_queries(requires_ollama, temp_vector_db_path, sample_knowledge_base):
+def test_rag_to_text_multiple_queries(
+    requires_ollama, temp_vector_db_path, sample_knowledge_base
+):
     """Test RAGToText processing multiple queries."""
-    from talkpipe.pipelines.vector_databases import MakeVectorDatabaseSegment
     from talkpipe.pipelines.basic_rag import RAGToText
+    from talkpipe.pipelines.vector_databases import MakeVectorDatabaseSegment
 
     # Create and populate the vector database
     make_db_segment = MakeVectorDatabaseSegment(
@@ -871,7 +952,7 @@ def test_rag_to_text_multiple_queries(requires_ollama, temp_vector_db_path, samp
         embedding_source="ollama",
         path=temp_vector_db_path,
         doc_id_field="id",
-        overwrite=True
+        overwrite=True,
     )
     list(make_db_segment.transform(sample_knowledge_base))
 
@@ -884,13 +965,13 @@ def test_rag_to_text_multiple_queries(requires_ollama, temp_vector_db_path, samp
         path=temp_vector_db_path,
         content_field="query",
         set_as="answer",
-        limit=2
+        limit=2,
     )
 
     query_items = [
         {"query": "What is Python?", "id": "q1"},
         {"query": "What is machine learning?", "id": "q2"},
-        {"query": "What is pandas?", "id": "q3"}
+        {"query": "What is pandas?", "id": "q3"},
     ]
 
     results = list(rag_segment.transform(query_items))
@@ -907,10 +988,12 @@ def test_rag_to_text_multiple_queries(requires_ollama, temp_vector_db_path, samp
         assert len(result["answer"]) > 0
 
 
-def test_rag_to_text_no_relevant_info(requires_ollama, temp_vector_db_path, sample_knowledge_base):
+def test_rag_to_text_no_relevant_info(
+    requires_ollama, temp_vector_db_path, sample_knowledge_base
+):
     """Test RAGToText with a query that has no relevant information in the database."""
-    from talkpipe.pipelines.vector_databases import MakeVectorDatabaseSegment
     from talkpipe.pipelines.basic_rag import RAGToText
+    from talkpipe.pipelines.vector_databases import MakeVectorDatabaseSegment
 
     # Create and populate the vector database with tech-related documents
     make_db_segment = MakeVectorDatabaseSegment(
@@ -919,7 +1002,7 @@ def test_rag_to_text_no_relevant_info(requires_ollama, temp_vector_db_path, samp
         embedding_source="ollama",
         path=temp_vector_db_path,
         doc_id_field="id",
-        overwrite=True
+        overwrite=True,
     )
     list(make_db_segment.transform(sample_knowledge_base))
 
@@ -932,7 +1015,7 @@ def test_rag_to_text_no_relevant_info(requires_ollama, temp_vector_db_path, samp
         path=temp_vector_db_path,
         content_field="query",
         set_as="answer",
-        limit=2
+        limit=2,
     )
 
     # Ask about something completely unrelated (cooking, not tech)
@@ -947,10 +1030,12 @@ def test_rag_to_text_no_relevant_info(requires_ollama, temp_vector_db_path, samp
     # but the LLM might still try to be helpful or acknowledge lack of relevant info
 
 
-def test_rag_to_text_nested_content_field(requires_ollama, temp_vector_db_path, sample_knowledge_base):
+def test_rag_to_text_nested_content_field(
+    requires_ollama, temp_vector_db_path, sample_knowledge_base
+):
     """Test RAGToText with nested field access for content."""
-    from talkpipe.pipelines.vector_databases import MakeVectorDatabaseSegment
     from talkpipe.pipelines.basic_rag import RAGToText
+    from talkpipe.pipelines.vector_databases import MakeVectorDatabaseSegment
 
     # Create and populate the vector database
     make_db_segment = MakeVectorDatabaseSegment(
@@ -959,7 +1044,7 @@ def test_rag_to_text_nested_content_field(requires_ollama, temp_vector_db_path, 
         embedding_source="ollama",
         path=temp_vector_db_path,
         doc_id_field="id",
-        overwrite=True
+        overwrite=True,
     )
     list(make_db_segment.transform(sample_knowledge_base))
 
@@ -972,7 +1057,7 @@ def test_rag_to_text_nested_content_field(requires_ollama, temp_vector_db_path, 
         path=temp_vector_db_path,
         content_field="user.question",
         set_as="answer",
-        limit=2
+        limit=2,
     )
 
     query_items = [{"user": {"question": "What is Python?"}, "id": "q1"}]
@@ -987,10 +1072,13 @@ def test_rag_to_text_nested_content_field(requires_ollama, temp_vector_db_path, 
 
 # Tests for RAGToBinaryAnswer segment
 
-def test_rag_to_binary_answer_basic_functionality(requires_ollama, temp_vector_db_path, sample_knowledge_base):
+
+def test_rag_to_binary_answer_basic_functionality(
+    requires_ollama, temp_vector_db_path, sample_knowledge_base
+):
     """Test basic end-to-end functionality of RAGToBinaryAnswer segment."""
-    from talkpipe.pipelines.vector_databases import MakeVectorDatabaseSegment
     from talkpipe.pipelines.basic_rag import RAGToBinaryAnswer
+    from talkpipe.pipelines.vector_databases import MakeVectorDatabaseSegment
 
     # First, create and populate the vector database
     make_db_segment = MakeVectorDatabaseSegment(
@@ -999,7 +1087,7 @@ def test_rag_to_binary_answer_basic_functionality(requires_ollama, temp_vector_d
         embedding_source="ollama",
         path=temp_vector_db_path,
         doc_id_field="id",
-        overwrite=True
+        overwrite=True,
     )
     list(make_db_segment.transform(sample_knowledge_base))
 
@@ -1013,7 +1101,7 @@ def test_rag_to_binary_answer_basic_functionality(requires_ollama, temp_vector_d
         content_field="query",
         prompt_directive="Based on the background information, answer YES or NO: Is Python mentioned as a programming language?",
         set_as="answer",
-        limit=3
+        limit=3,
     )
 
     # Query about Python
@@ -1038,10 +1126,12 @@ def test_rag_to_binary_answer_basic_functionality(requires_ollama, temp_vector_d
     assert isinstance(answer_obj.explanation, str)
 
 
-def test_rag_to_binary_answer_without_set_as(requires_ollama, temp_vector_db_path, sample_knowledge_base):
+def test_rag_to_binary_answer_without_set_as(
+    requires_ollama, temp_vector_db_path, sample_knowledge_base
+):
     """Test RAGToBinaryAnswer when set_as is None (yields binary answer directly)."""
-    from talkpipe.pipelines.vector_databases import MakeVectorDatabaseSegment
     from talkpipe.pipelines.basic_rag import RAGToBinaryAnswer
+    from talkpipe.pipelines.vector_databases import MakeVectorDatabaseSegment
 
     # Create and populate the vector database
     make_db_segment = MakeVectorDatabaseSegment(
@@ -1050,7 +1140,7 @@ def test_rag_to_binary_answer_without_set_as(requires_ollama, temp_vector_db_pat
         embedding_source="ollama",
         path=temp_vector_db_path,
         doc_id_field="id",
-        overwrite=True
+        overwrite=True,
     )
     list(make_db_segment.transform(sample_knowledge_base))
 
@@ -1064,7 +1154,7 @@ def test_rag_to_binary_answer_without_set_as(requires_ollama, temp_vector_db_pat
         content_field="query",
         prompt_directive="Based on the background, answer YES or NO: Is this about technology?",
         set_as=None,
-        limit=2
+        limit=2,
     )
 
     query_items = [{"query": "Is machine learning related to technology?"}]
@@ -1081,10 +1171,12 @@ def test_rag_to_binary_answer_without_set_as(requires_ollama, temp_vector_db_pat
     assert isinstance(result.explanation, str)
 
 
-def test_rag_to_binary_answer_with_different_limit(requires_ollama, temp_vector_db_path, sample_knowledge_base):
+def test_rag_to_binary_answer_with_different_limit(
+    requires_ollama, temp_vector_db_path, sample_knowledge_base
+):
     """Test RAGToBinaryAnswer with different limit values for search results."""
-    from talkpipe.pipelines.vector_databases import MakeVectorDatabaseSegment
     from talkpipe.pipelines.basic_rag import RAGToBinaryAnswer
+    from talkpipe.pipelines.vector_databases import MakeVectorDatabaseSegment
 
     # Create and populate the vector database
     make_db_segment = MakeVectorDatabaseSegment(
@@ -1093,7 +1185,7 @@ def test_rag_to_binary_answer_with_different_limit(requires_ollama, temp_vector_
         embedding_source="ollama",
         path=temp_vector_db_path,
         doc_id_field="id",
-        overwrite=True
+        overwrite=True,
     )
     list(make_db_segment.transform(sample_knowledge_base))
 
@@ -1107,7 +1199,7 @@ def test_rag_to_binary_answer_with_different_limit(requires_ollama, temp_vector_
         content_field="query",
         prompt_directive="Answer YES or NO: Does the background mention neural networks?",
         set_as="answer",
-        limit=1
+        limit=1,
     )
 
     query_items = [{"query": "Are neural networks discussed?"}]
@@ -1120,10 +1212,12 @@ def test_rag_to_binary_answer_with_different_limit(requires_ollama, temp_vector_
     assert isinstance(answer_obj.answer, bool)
 
 
-def test_rag_to_binary_answer_multiple_queries(requires_ollama, temp_vector_db_path, sample_knowledge_base):
+def test_rag_to_binary_answer_multiple_queries(
+    requires_ollama, temp_vector_db_path, sample_knowledge_base
+):
     """Test RAGToBinaryAnswer processing multiple queries."""
-    from talkpipe.pipelines.vector_databases import MakeVectorDatabaseSegment
     from talkpipe.pipelines.basic_rag import RAGToBinaryAnswer
+    from talkpipe.pipelines.vector_databases import MakeVectorDatabaseSegment
 
     # Create and populate the vector database
     make_db_segment = MakeVectorDatabaseSegment(
@@ -1132,7 +1226,7 @@ def test_rag_to_binary_answer_multiple_queries(requires_ollama, temp_vector_db_p
         embedding_source="ollama",
         path=temp_vector_db_path,
         doc_id_field="id",
-        overwrite=True
+        overwrite=True,
     )
     list(make_db_segment.transform(sample_knowledge_base))
 
@@ -1146,13 +1240,13 @@ def test_rag_to_binary_answer_multiple_queries(requires_ollama, temp_vector_db_p
         content_field="query",
         prompt_directive="Answer YES or NO based on the background information.",
         set_as="answer",
-        limit=2
+        limit=2,
     )
 
     query_items = [
         {"query": "Is Python discussed?", "id": "q1"},
         {"query": "Is Java discussed?", "id": "q2"},
-        {"query": "Is pandas discussed?", "id": "q3"}
+        {"query": "Is pandas discussed?", "id": "q3"},
     ]
 
     results = list(rag_segment.transform(query_items))
@@ -1172,10 +1266,12 @@ def test_rag_to_binary_answer_multiple_queries(requires_ollama, temp_vector_db_p
         assert isinstance(answer_obj.explanation, str)
 
 
-def test_rag_to_binary_answer_nested_content_field(requires_ollama, temp_vector_db_path, sample_knowledge_base):
+def test_rag_to_binary_answer_nested_content_field(
+    requires_ollama, temp_vector_db_path, sample_knowledge_base
+):
     """Test RAGToBinaryAnswer with nested field access for content."""
-    from talkpipe.pipelines.vector_databases import MakeVectorDatabaseSegment
     from talkpipe.pipelines.basic_rag import RAGToBinaryAnswer
+    from talkpipe.pipelines.vector_databases import MakeVectorDatabaseSegment
 
     # Create and populate the vector database
     make_db_segment = MakeVectorDatabaseSegment(
@@ -1184,7 +1280,7 @@ def test_rag_to_binary_answer_nested_content_field(requires_ollama, temp_vector_
         embedding_source="ollama",
         path=temp_vector_db_path,
         doc_id_field="id",
-        overwrite=True
+        overwrite=True,
     )
     list(make_db_segment.transform(sample_knowledge_base))
 
@@ -1198,7 +1294,7 @@ def test_rag_to_binary_answer_nested_content_field(requires_ollama, temp_vector_
         content_field="user.question",
         prompt_directive="Answer YES or NO based on the background.",
         set_as="answer",
-        limit=2
+        limit=2,
     )
 
     query_items = [{"user": {"question": "Is Python mentioned?"}, "id": "q1"}]
@@ -1215,10 +1311,13 @@ def test_rag_to_binary_answer_nested_content_field(requires_ollama, temp_vector_
 
 # Tests for RAGToScore segment
 
-def test_rag_to_score_basic_functionality(requires_ollama, temp_vector_db_path, sample_knowledge_base):
+
+def test_rag_to_score_basic_functionality(
+    requires_ollama, temp_vector_db_path, sample_knowledge_base
+):
     """Test basic end-to-end functionality of RAGToScore segment."""
-    from talkpipe.pipelines.vector_databases import MakeVectorDatabaseSegment
     from talkpipe.pipelines.basic_rag import RAGToScore
+    from talkpipe.pipelines.vector_databases import MakeVectorDatabaseSegment
 
     # First, create and populate the vector database
     make_db_segment = MakeVectorDatabaseSegment(
@@ -1227,7 +1326,7 @@ def test_rag_to_score_basic_functionality(requires_ollama, temp_vector_db_path, 
         embedding_source="ollama",
         path=temp_vector_db_path,
         doc_id_field="id",
-        overwrite=True
+        overwrite=True,
     )
     list(make_db_segment.transform(sample_knowledge_base))
 
@@ -1241,7 +1340,7 @@ def test_rag_to_score_basic_functionality(requires_ollama, temp_vector_db_path, 
         content_field="query",
         prompt_directive="Based on the background information, rate from 0-100 how relevant the background is to the query (0=not relevant, 100=highly relevant).",
         set_as="score_result",
-        limit=3
+        limit=3,
     )
 
     # Query about Python
@@ -1268,10 +1367,12 @@ def test_rag_to_score_basic_functionality(requires_ollama, temp_vector_db_path, 
     assert 0 <= score_obj.score <= 100
 
 
-def test_rag_to_score_without_set_as(requires_ollama, temp_vector_db_path, sample_knowledge_base):
+def test_rag_to_score_without_set_as(
+    requires_ollama, temp_vector_db_path, sample_knowledge_base
+):
     """Test RAGToScore when set_as is None (yields score directly)."""
-    from talkpipe.pipelines.vector_databases import MakeVectorDatabaseSegment
     from talkpipe.pipelines.basic_rag import RAGToScore
+    from talkpipe.pipelines.vector_databases import MakeVectorDatabaseSegment
 
     # Create and populate the vector database
     make_db_segment = MakeVectorDatabaseSegment(
@@ -1280,7 +1381,7 @@ def test_rag_to_score_without_set_as(requires_ollama, temp_vector_db_path, sampl
         embedding_source="ollama",
         path=temp_vector_db_path,
         doc_id_field="id",
-        overwrite=True
+        overwrite=True,
     )
     list(make_db_segment.transform(sample_knowledge_base))
 
@@ -1294,7 +1395,7 @@ def test_rag_to_score_without_set_as(requires_ollama, temp_vector_db_path, sampl
         content_field="query",
         prompt_directive="Rate 0-100 how relevant the background is to machine learning.",
         set_as=None,
-        limit=2
+        limit=2,
     )
 
     query_items = [{"query": "What is machine learning?"}]
@@ -1312,10 +1413,12 @@ def test_rag_to_score_without_set_as(requires_ollama, temp_vector_db_path, sampl
     assert 0 <= result.score <= 100
 
 
-def test_rag_to_score_with_different_limit(requires_ollama, temp_vector_db_path, sample_knowledge_base):
+def test_rag_to_score_with_different_limit(
+    requires_ollama, temp_vector_db_path, sample_knowledge_base
+):
     """Test RAGToScore with different limit values for search results."""
-    from talkpipe.pipelines.vector_databases import MakeVectorDatabaseSegment
     from talkpipe.pipelines.basic_rag import RAGToScore
+    from talkpipe.pipelines.vector_databases import MakeVectorDatabaseSegment
 
     # Create and populate the vector database
     make_db_segment = MakeVectorDatabaseSegment(
@@ -1324,7 +1427,7 @@ def test_rag_to_score_with_different_limit(requires_ollama, temp_vector_db_path,
         embedding_source="ollama",
         path=temp_vector_db_path,
         doc_id_field="id",
-        overwrite=True
+        overwrite=True,
     )
     list(make_db_segment.transform(sample_knowledge_base))
 
@@ -1338,7 +1441,7 @@ def test_rag_to_score_with_different_limit(requires_ollama, temp_vector_db_path,
         content_field="query",
         prompt_directive="Rate 0-100 the relevance of the background to neural networks.",
         set_as="score_result",
-        limit=1
+        limit=1,
     )
 
     query_items = [{"query": "Tell me about neural networks"}]
@@ -1352,10 +1455,12 @@ def test_rag_to_score_with_different_limit(requires_ollama, temp_vector_db_path,
     assert 0 <= score_obj.score <= 100
 
 
-def test_rag_to_score_custom_prompt_directive(requires_ollama, temp_vector_db_path, sample_knowledge_base):
+def test_rag_to_score_custom_prompt_directive(
+    requires_ollama, temp_vector_db_path, sample_knowledge_base
+):
     """Test RAGToScore with a custom prompt directive and scoring scale."""
-    from talkpipe.pipelines.vector_databases import MakeVectorDatabaseSegment
     from talkpipe.pipelines.basic_rag import RAGToScore
+    from talkpipe.pipelines.vector_databases import MakeVectorDatabaseSegment
 
     # Create and populate the vector database
     make_db_segment = MakeVectorDatabaseSegment(
@@ -1364,7 +1469,7 @@ def test_rag_to_score_custom_prompt_directive(requires_ollama, temp_vector_db_pa
         embedding_source="ollama",
         path=temp_vector_db_path,
         doc_id_field="id",
-        overwrite=True
+        overwrite=True,
     )
     list(make_db_segment.transform(sample_knowledge_base))
 
@@ -1380,7 +1485,7 @@ def test_rag_to_score_custom_prompt_directive(requires_ollama, temp_vector_db_pa
         content_field="query",
         prompt_directive=custom_directive,
         set_as="quality_score",
-        limit=3
+        limit=3,
     )
 
     query_items = [{"query": "Python programming language information"}]
@@ -1396,10 +1501,12 @@ def test_rag_to_score_custom_prompt_directive(requires_ollama, temp_vector_db_pa
     assert 0 <= score_obj.score <= 100
 
 
-def test_rag_to_score_multiple_queries(requires_ollama, temp_vector_db_path, sample_knowledge_base):
+def test_rag_to_score_multiple_queries(
+    requires_ollama, temp_vector_db_path, sample_knowledge_base
+):
     """Test RAGToScore processing multiple queries."""
-    from talkpipe.pipelines.vector_databases import MakeVectorDatabaseSegment
     from talkpipe.pipelines.basic_rag import RAGToScore
+    from talkpipe.pipelines.vector_databases import MakeVectorDatabaseSegment
 
     # Create and populate the vector database
     make_db_segment = MakeVectorDatabaseSegment(
@@ -1408,7 +1515,7 @@ def test_rag_to_score_multiple_queries(requires_ollama, temp_vector_db_path, sam
         embedding_source="ollama",
         path=temp_vector_db_path,
         doc_id_field="id",
-        overwrite=True
+        overwrite=True,
     )
     list(make_db_segment.transform(sample_knowledge_base))
 
@@ -1422,13 +1529,13 @@ def test_rag_to_score_multiple_queries(requires_ollama, temp_vector_db_path, sam
         content_field="query",
         prompt_directive="Rate 0-100 how relevant the background is to the query.",
         set_as="relevance_score",
-        limit=2
+        limit=2,
     )
 
     query_items = [
         {"query": "Python programming", "id": "q1"},
         {"query": "Machine learning concepts", "id": "q2"},
-        {"query": "Data analysis with pandas", "id": "q3"}
+        {"query": "Data analysis with pandas", "id": "q3"},
     ]
 
     results = list(rag_segment.transform(query_items))
@@ -1449,10 +1556,12 @@ def test_rag_to_score_multiple_queries(requires_ollama, temp_vector_db_path, sam
         assert 0 <= score_obj.score <= 100
 
 
-def test_rag_to_score_nested_content_field(requires_ollama, temp_vector_db_path, sample_knowledge_base):
+def test_rag_to_score_nested_content_field(
+    requires_ollama, temp_vector_db_path, sample_knowledge_base
+):
     """Test RAGToScore with nested field access for content."""
-    from talkpipe.pipelines.vector_databases import MakeVectorDatabaseSegment
     from talkpipe.pipelines.basic_rag import RAGToScore
+    from talkpipe.pipelines.vector_databases import MakeVectorDatabaseSegment
 
     # Create and populate the vector database
     make_db_segment = MakeVectorDatabaseSegment(
@@ -1461,7 +1570,7 @@ def test_rag_to_score_nested_content_field(requires_ollama, temp_vector_db_path,
         embedding_source="ollama",
         path=temp_vector_db_path,
         doc_id_field="id",
-        overwrite=True
+        overwrite=True,
     )
     list(make_db_segment.transform(sample_knowledge_base))
 
@@ -1475,7 +1584,7 @@ def test_rag_to_score_nested_content_field(requires_ollama, temp_vector_db_path,
         content_field="user.question",
         prompt_directive="Rate 0-100 the relevance of the background.",
         set_as="score_result",
-        limit=2
+        limit=2,
     )
 
     query_items = [{"user": {"question": "Python information"}, "id": "q1"}]
@@ -1491,10 +1600,12 @@ def test_rag_to_score_nested_content_field(requires_ollama, temp_vector_db_path,
     assert 0 <= score_obj.score <= 100
 
 
-def test_rag_to_score_low_relevance_query(requires_ollama, temp_vector_db_path, sample_knowledge_base):
+def test_rag_to_score_low_relevance_query(
+    requires_ollama, temp_vector_db_path, sample_knowledge_base
+):
     """Test RAGToScore with a query that should get a low relevance score."""
-    from talkpipe.pipelines.vector_databases import MakeVectorDatabaseSegment
     from talkpipe.pipelines.basic_rag import RAGToScore
+    from talkpipe.pipelines.vector_databases import MakeVectorDatabaseSegment
 
     # Create and populate the vector database with tech-related documents
     make_db_segment = MakeVectorDatabaseSegment(
@@ -1503,7 +1614,7 @@ def test_rag_to_score_low_relevance_query(requires_ollama, temp_vector_db_path, 
         embedding_source="ollama",
         path=temp_vector_db_path,
         doc_id_field="id",
-        overwrite=True
+        overwrite=True,
     )
     list(make_db_segment.transform(sample_knowledge_base))
 
@@ -1517,7 +1628,7 @@ def test_rag_to_score_low_relevance_query(requires_ollama, temp_vector_db_path, 
         content_field="query",
         prompt_directive="Rate 0-100 how relevant the background is to the query (0=not relevant, 100=highly relevant).",
         set_as="score_result",
-        limit=2
+        limit=2,
     )
 
     # Ask about something completely unrelated (cooking, not tech)
@@ -1537,10 +1648,13 @@ def test_rag_to_score_low_relevance_query(requires_ollama, temp_vector_db_path, 
 
 # Tests for table_name parameter
 
-def test_rag_to_text_custom_table_name(requires_ollama, temp_vector_db_path, sample_knowledge_base):
+
+def test_rag_to_text_custom_table_name(
+    requires_ollama, temp_vector_db_path, sample_knowledge_base
+):
     """Test RAGToText with a custom table name."""
-    from talkpipe.pipelines.vector_databases import MakeVectorDatabaseSegment
     from talkpipe.pipelines.basic_rag import RAGToText
+    from talkpipe.pipelines.vector_databases import MakeVectorDatabaseSegment
 
     # Create and populate the vector database with a custom table name
     custom_table = "custom_knowledge_table"
@@ -1551,7 +1665,7 @@ def test_rag_to_text_custom_table_name(requires_ollama, temp_vector_db_path, sam
         path=temp_vector_db_path,
         table_name=custom_table,
         doc_id_field="id",
-        overwrite=True
+        overwrite=True,
     )
     list(make_db_segment.transform(sample_knowledge_base))
 
@@ -1565,7 +1679,7 @@ def test_rag_to_text_custom_table_name(requires_ollama, temp_vector_db_path, sam
         table_name=custom_table,
         content_field="query",
         set_as="answer",
-        limit=3
+        limit=3,
     )
 
     # Query should work with the custom table
@@ -1580,10 +1694,12 @@ def test_rag_to_text_custom_table_name(requires_ollama, temp_vector_db_path, sam
     assert len(result["answer"]) > 0
 
 
-def test_rag_to_binary_answer_custom_table_name(requires_ollama, temp_vector_db_path, sample_knowledge_base):
+def test_rag_to_binary_answer_custom_table_name(
+    requires_ollama, temp_vector_db_path, sample_knowledge_base
+):
     """Test RAGToBinaryAnswer with a custom table name."""
-    from talkpipe.pipelines.vector_databases import MakeVectorDatabaseSegment
     from talkpipe.pipelines.basic_rag import RAGToBinaryAnswer
+    from talkpipe.pipelines.vector_databases import MakeVectorDatabaseSegment
 
     # Create and populate the vector database with a custom table name
     custom_table = "binary_answer_table"
@@ -1594,7 +1710,7 @@ def test_rag_to_binary_answer_custom_table_name(requires_ollama, temp_vector_db_
         path=temp_vector_db_path,
         table_name=custom_table,
         doc_id_field="id",
-        overwrite=True
+        overwrite=True,
     )
     list(make_db_segment.transform(sample_knowledge_base))
 
@@ -1608,7 +1724,7 @@ def test_rag_to_binary_answer_custom_table_name(requires_ollama, temp_vector_db_
         table_name=custom_table,
         content_field="query",
         set_as="answer",
-        limit=3
+        limit=3,
     )
 
     # Query should work with the custom table
@@ -1624,10 +1740,12 @@ def test_rag_to_binary_answer_custom_table_name(requires_ollama, temp_vector_db_
     assert isinstance(answer_obj.answer, bool)
 
 
-def test_rag_to_score_custom_table_name(requires_ollama, temp_vector_db_path, sample_knowledge_base):
+def test_rag_to_score_custom_table_name(
+    requires_ollama, temp_vector_db_path, sample_knowledge_base
+):
     """Test RAGToScore with a custom table name."""
-    from talkpipe.pipelines.vector_databases import MakeVectorDatabaseSegment
     from talkpipe.pipelines.basic_rag import RAGToScore
+    from talkpipe.pipelines.vector_databases import MakeVectorDatabaseSegment
 
     # Create and populate the vector database with a custom table name
     custom_table = "score_table"
@@ -1638,7 +1756,7 @@ def test_rag_to_score_custom_table_name(requires_ollama, temp_vector_db_path, sa
         path=temp_vector_db_path,
         table_name=custom_table,
         doc_id_field="id",
-        overwrite=True
+        overwrite=True,
     )
     list(make_db_segment.transform(sample_knowledge_base))
 
@@ -1652,7 +1770,7 @@ def test_rag_to_score_custom_table_name(requires_ollama, temp_vector_db_path, sa
         table_name=custom_table,
         content_field="query",
         set_as="score_result",
-        limit=3
+        limit=3,
     )
 
     # Query should work with the custom table

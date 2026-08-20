@@ -7,9 +7,9 @@ from .prompt_adapters_openai import OpenAIPromptAdapter
 # Compatibility facade: keep legacy import path stable while internals live in split modules.
 __all__ = [
     "AbstractLLMPromptAdapter",
-    "OllamaPromptAdapter",
     "AnthropicPromptAdapter",
-    "OpenAIPromptAdapter",
     "ElizaPromptAdapter",
+    "OllamaPromptAdapter",
+    "OpenAIPromptAdapter",
     "logger",
 ]

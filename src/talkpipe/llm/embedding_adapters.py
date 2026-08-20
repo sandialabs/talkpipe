@@ -1,19 +1,21 @@
 from __future__ import annotations
 
 import warnings
-from typing import List, overload, Sequence, Union
+from collections.abc import Sequence
+from typing import Any, overload
 
 import numpy as np
 
-from talkpipe.util.config import get_config
-from talkpipe.util.constants import OLLAMA_SERVER_URL
+from talkpipe.util.config import get_config, resolve_timeout
+from talkpipe.util.constants import DEFAULT_LLM_TIMEOUT, LLM_TIMEOUT, OLLAMA_SERVER_URL
 
 
-def _vector_to_list(vec) -> List[float]:
-    return np.asarray(vec, dtype=float).tolist()
+def _vector_to_list(vec: Any) -> list[float]:
+    values: list[float] = np.asarray(vec, dtype=float).tolist()
+    return values
 
 
-def _vectors_to_lists(arr) -> List[List[float]]:
+def _vectors_to_lists(arr: Any) -> list[list[float]]:
     a = np.asarray(arr, dtype=float)
     if a.size == 0:
         return []
@@ -45,48 +47,46 @@ class AbstractEmbeddingAdapter:
     def source(self) -> str:
         return self._source
 
-    def description(self):
+    def description(self) -> str:
         """Return a description of the embedding model, including the name and source."""
         return f"Embedding using {self.model_name} ({self._source})"
 
-    def __str__(self):
+    def __str__(self) -> str:
         return self.description()
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return self.__str__()
 
-    def execute_one(self, text: str) -> List[float]:
+    def execute_one(self, text: str) -> list[float]:
         raise NotImplementedError("Subclasses must implement execute_one.")
 
-    def execute_batch(self, texts: Sequence[str]) -> List[List[float]]:
+    def execute_batch(self, texts: Sequence[str]) -> list[list[float]]:
         if not texts:
             return []
         return [self.execute_one(t) for t in texts]
 
-    def execute(self, text: str) -> List[float]:
+    def execute(self, text: str) -> list[float]:
         """Embed a single string (deprecated).
 
         .. deprecated::
             Use :meth:`execute_one` or :meth:`execute_batch` instead.
-            ``execute`` will be removed in TalkPipe 1.0.
+            ``execute`` will be removed in TalkPipe 2.0.
         """
         warnings.warn(
             "EmbeddingAdapter.execute() is deprecated and will be removed in "
-            "TalkPipe 1.0. Use execute_one() or execute_batch() instead.",
+            "TalkPipe 2.0. Use execute_one() or execute_batch() instead.",
             DeprecationWarning,
             stacklevel=2,
         )
         return self.execute_one(text)
 
     @overload
-    def __call__(self, text: str) -> List[float]: ...
+    def __call__(self, text: str) -> list[float]: ...  # type: ignore[overload-overlap]  # str is itself a Sequence[str]; runtime dispatches on isinstance
 
     @overload
-    def __call__(self, text: Sequence[str]) -> List[List[float]]: ...
+    def __call__(self, text: Sequence[str]) -> list[list[float]]: ...
 
-    def __call__(
-        self, text: Union[str, Sequence[str]]
-    ) -> Union[List[float], List[List[float]]]:
+    def __call__(self, text: str | Sequence[str]) -> list[float] | list[list[float]]:
         if isinstance(text, str):
             return self.execute_one(text)
         return self.execute_batch(list(text))
@@ -95,27 +95,38 @@ class AbstractEmbeddingAdapter:
 class OllamaEmbedderAdapter(AbstractEmbeddingAdapter):
     """Embedding adapter for Ollama"""
 
-    def __init__(self, model: str, server_url: str = None):
+    def __init__(
+        self,
+        model: str,
+        server_url: str | None = None,
+        timeout: float | None = None,
+    ):
         super().__init__(model, "ollama")
         self._server_url = server_url
+        self._timeout = resolve_timeout(timeout, LLM_TIMEOUT, DEFAULT_LLM_TIMEOUT)
 
-    def _resolve_server_url(self):
+    def _resolve_server_url(self) -> str | None:
         server_url = self._server_url
         if not server_url:
             server_url = get_config().get(OLLAMA_SERVER_URL, None)
         return server_url
 
-    def _client(self):
+    def _import_ollama(self) -> Any:
         try:
             import ollama
-        except ImportError:
+        except ImportError as e:
             raise ImportError(
                 "Ollama is not installed. Please install it with: pip install talkpipe[ollama]"
-            )
-        server_url = self._resolve_server_url()
-        return ollama.Client(server_url) if server_url else ollama
+            ) from e
+        return ollama
 
-    def execute_batch(self, texts: Sequence[str]) -> List[List[float]]:
+    def _client(self) -> Any:
+        ollama = self._import_ollama()
+        server_url = self._resolve_server_url()
+        # Always a Client (never the module default) so the timeout applies.
+        return ollama.Client(host=server_url or None, timeout=self._timeout)
+
+    def execute_batch(self, texts: Sequence[str]) -> list[list[float]]:
         if not texts:
             return []
         client = self._client()
@@ -132,5 +143,5 @@ class OllamaEmbedderAdapter(AbstractEmbeddingAdapter):
             ) from exc
         return _vectors_to_lists(response["embeddings"])
 
-    def execute_one(self, text: str) -> List[float]:
+    def execute_one(self, text: str) -> list[float]:
         return self.execute_batch([text])[0]

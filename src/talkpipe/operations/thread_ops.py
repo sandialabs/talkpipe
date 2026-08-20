@@ -1,9 +1,13 @@
-from typing import Iterator, Any, Dict, Annotated
-import threading
+import contextlib
 import queue
+import threading
 import uuid
-from talkpipe.pipe import core
+from collections.abc import Iterable, Iterator
+from typing import Annotated, Any
+
 from talkpipe.chatterlang import registry
+from talkpipe.pipe import core
+
 
 class QueueConsumer:
     """
@@ -11,8 +15,9 @@ class QueueConsumer:
     It blocks waiting for new items; when it receives a termination sentinel,
     iteration stops.
     """
-    def __init__(self, parent_queue: 'ThreadedQueue', maxsize: int = 100):
-        self.personal_queue = queue.Queue(maxsize=maxsize)
+
+    def __init__(self, parent_queue: "ThreadedQueue", maxsize: int = 100):
+        self.personal_queue: queue.Queue[Any] = queue.Queue(maxsize=maxsize)
         self.parent = parent_queue
         self.consumer_id = str(uuid.uuid4())
         self.active = True
@@ -20,14 +25,23 @@ class QueueConsumer:
         # Register with the parent queue.
         self.parent._register_consumer_queue(self.consumer_id, self.personal_queue)
 
-    def __iter__(self):
+    def __iter__(self) -> "QueueConsumer":
         return self
 
-    def __next__(self):
+    def __next__(self) -> Any:
         if not self.active:
             raise StopIteration
 
-        item = self.personal_queue.get()
+        while True:
+            try:
+                item = self.personal_queue.get(timeout=0.5)
+                break
+            except queue.Empty:
+                if not self.parent.active.is_set():
+                    # The queue system was shut down while we were waiting.
+                    self.active = False
+                    self.parent._unregister_consumer_queue(self.consumer_id)
+                    raise StopIteration from None
         if item is self.parent._sentinel:
             # Termination sentinel received: unregister and stop iteration.
             self.active = False
@@ -37,7 +51,7 @@ class QueueConsumer:
         self.personal_queue.task_done()
         return item
 
-    def close(self):
+    def close(self) -> None:
         """Stop consuming and unregister from the parent queue."""
         self.active = False
         self.parent._unregister_consumer_queue(self.consumer_id)
@@ -53,10 +67,15 @@ class ThreadedQueue:
     When the last producer finishes (or if there are no producers), a termination sentinel
     is broadcast so that consumers stop.
     """
-    def __init__(self, maxsize: int = 0):
-        self.consumer_queues: Dict[str, queue.Queue] = {}
-        self._active_producers: Dict[str, threading.Thread] = {}
-        self._pending_producers: Dict[str, Iterator[Any]] = {}
+
+    def __init__(self, maxsize: int = 100):
+        # Bound for each consumer's personal queue. A slow (or abandoned)
+        # consumer therefore applies back-pressure to producers instead of
+        # letting the whole upstream be drained into memory.
+        self.maxsize = maxsize
+        self.consumer_queues: dict[str, queue.Queue[Any]] = {}
+        self._active_producers: dict[str, threading.Thread | None] = {}
+        self._pending_producers: dict[str, Iterator[Any]] = {}
         self._started = False  # Flag indicating that start() has been called.
         self.active = threading.Event()
         self.active.set()
@@ -64,20 +83,31 @@ class ThreadedQueue:
         # A unique sentinel object for termination.
         self._sentinel = object()
 
-    def _register_consumer_queue(self, consumer_id: str, consumer_queue: queue.Queue):
+    def _register_consumer_queue(
+        self, consumer_id: str, consumer_queue: queue.Queue[Any]
+    ) -> None:
         with self._lock:
             self.consumer_queues[consumer_id] = consumer_queue
 
-    def _unregister_consumer_queue(self, consumer_id: str):
+    def _unregister_consumer_queue(self, consumer_id: str) -> None:
         with self._lock:
             self.consumer_queues.pop(consumer_id, None)
 
-    def _broadcast_item(self, item: Any):
+    def _broadcast_item(self, item: Any) -> None:
+        # Snapshot the consumers under the lock, but never block on a full
+        # queue while holding it: a stalled consumer must not freeze
+        # registration/termination for everyone else.
         with self._lock:
-            for consumer_queue in self.consumer_queues.values():
-                consumer_queue.put(item)
+            consumer_queues = list(self.consumer_queues.values())
+        for consumer_queue in consumer_queues:
+            while self.active.is_set():
+                try:
+                    consumer_queue.put(item, timeout=0.5)
+                    break
+                except queue.Full:
+                    continue
 
-    def _broadcast_termination(self):
+    def _broadcast_termination(self) -> None:
         with self._lock:
             for consumer_queue in self.consumer_queues.values():
                 consumer_queue.put(self._sentinel)
@@ -95,12 +125,13 @@ class ThreadedQueue:
             self._pending_producers[producer_id] = generator
         return producer_id
 
-    def _start_producer(self, producer_id: str, generator: Iterator[Any]):
+    def _start_producer(self, producer_id: str, generator: Iterator[Any]) -> None:
         """
         Helper to start a producer in its own thread. Each item produced is
         broadcast to all registered consumer queues.
         """
-        def producer_worker():
+
+        def producer_worker() -> None:
             try:
                 for item in generator:
                     if not self.active.is_set():
@@ -127,10 +158,9 @@ class ThreadedQueue:
         with self._lock:
             if self._started:
                 raise RuntimeError("Cannot register consumers after start() is called")
-            consumer = QueueConsumer(self)
-        return consumer
+            return QueueConsumer(self, maxsize=self.maxsize)
 
-    def start(self):
+    def start(self) -> None:
         """
         Start processing all pending producers. This call marks the end of
         the registration phase. Once start() is called, no new producers or
@@ -158,7 +188,7 @@ class ThreadedQueue:
         with self._lock:
             return bool(self._active_producers or self._pending_producers)
 
-    def shutdown(self):
+    def shutdown(self) -> None:
         """
         Gracefully shut down the queue system by clearing the active flag,
         enqueuing the termination sentinel for all consumers, and waiting for
@@ -167,7 +197,10 @@ class ThreadedQueue:
         self.active.clear()
         with self._lock:
             for consumer_queue in self.consumer_queues.values():
-                consumer_queue.put(self._sentinel)
+                # Best effort: a consumer whose queue is full notices the
+                # cleared active flag on its next timed get instead.
+                with contextlib.suppress(queue.Full):
+                    consumer_queue.put_nowait(self._sentinel)
         for thread in list(self._active_producers.values()):
             if thread is not None:
                 thread.join(timeout=1.0)
@@ -175,18 +208,27 @@ class ThreadedQueue:
 
 @registry.register_segment(name="threaded")
 @core.segment()
-def threadedSegment(items: Annotated[Iterator, "Input stream to link to threaded queue system"]):
+def threadedSegment(
+    items: Annotated[Iterable[Any], "Input stream to link to threaded queue system"],
+    maxsize: Annotated[
+        int, "Maximum number of buffered items before the producer waits"
+    ] = 100,
+) -> Iterator[Any]:
     """Links the input stream to a threaded queue system.
 
     This segment takes an input stream and links it to a threaded queue system.
     It starts the queue system and then starts yielding from the queue.  That way
-    the upstream units don't have to wait for the downstream segments to draw 
+    the upstream units don't have to wait for the downstream segments to draw
     from them.
     """
 
-    queue_system = ThreadedQueue()
-    queue_system.register_producer(items)
+    queue_system = ThreadedQueue(maxsize=maxsize)
+    queue_system.register_producer(iter(items))
     consumer = queue_system.register_consumer()
     queue_system.start()
-    yield from consumer
-
+    try:
+        yield from consumer
+    finally:
+        # Stop the producer thread if the consumer stops early (e.g. firstN)
+        # so it does not keep draining the upstream into the buffer.
+        queue_system.shutdown()

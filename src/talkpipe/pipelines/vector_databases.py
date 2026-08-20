@@ -1,35 +1,44 @@
 import logging
+from collections.abc import Callable, Iterable, Iterator
 from dataclasses import dataclass, field
-from typing import Optional, Annotated, Callable
+from typing import Annotated, Any, Literal
+
 from talkpipe import AbstractSegment, register_segment, segment
-from talkpipe.search.lancedb import add_to_lancedb, search_lancedb
-from talkpipe.llm.embedding import LLMEmbed
-from talkpipe.data.extraction import listFiles, ReadFile
-from talkpipe.pipe.io import Print
-from talkpipe.pipe.basic import progressTicks, setAs, ToDict
+from talkpipe.data.extraction import ReadFile, listFiles
 from talkpipe.data.text.chunking_units import ShingleText, splitText
 from talkpipe.data.text.cleaning import stripBase64
+from talkpipe.llm.embedding import LLMEmbed
+from talkpipe.pipe.basic import ToDict, progressTicks, setAs
+from talkpipe.pipe.io import Print
+from talkpipe.search.lancedb import add_to_lancedb, search_lancedb
 from talkpipe.util.config import get_config
-from talkpipe.util.constants import TALKPIPE_EMBEDDING_MODEL_NAME, TALKPIPE_EMBEDDING_MODEL_SOURCE
+from talkpipe.util.constants import (
+    TALKPIPE_EMBEDDING_MODEL_NAME,
+    TALKPIPE_EMBEDDING_MODEL_SOURCE,
+)
 
 logger = logging.getLogger(__name__)
 
 # on_token_overflow mode strings (constants as defaults avoid Bandit B105/B107
 # false positives on the "token" in the parameter name)
-_OVERFLOW_ERROR = "error"
-_OVERFLOW_TRUNCATE = "truncate"
+_OVERFLOW_ERROR: Literal["error"] = "error"
+_OVERFLOW_TRUNCATE: Literal["truncate"] = "truncate"
 
 
 @register_segment("processDocuments")
-class ProcessDocumentsSegment(AbstractSegment):
+class ProcessDocumentsSegment(AbstractSegment[Any, Any]):
     """Segment to read files, split, shingle, and prepare documents for vector DB ingestion."""
 
-    def __init__(self,
-                 chunk_size: Annotated[int, "Size threshold for text chunking"] = 300,
-                 shingle_size: Annotated[int, "Size threshold for text chunking shingles"] = 3,
-                 overlap: Annotated[int, "Overlap threshold for text chunking shingles"] = 1,
-                 strip_base64: Annotated[bool, "If true, strip base64 payloads (e.g. embedded images) from content before chunking"] = True,
-                 ):
+    def __init__(
+        self,
+        chunk_size: Annotated[int, "Size threshold for text chunking"] = 300,
+        shingle_size: Annotated[int, "Size threshold for text chunking shingles"] = 3,
+        overlap: Annotated[int, "Overlap threshold for text chunking shingles"] = 1,
+        strip_base64: Annotated[
+            bool,
+            "If true, strip base64 payloads (e.g. embedded images) from content before chunking",
+        ] = True,
+    ):
         super().__init__()
         self.chunk_size = chunk_size
         self.shingle_size = shingle_size
@@ -41,28 +50,32 @@ class ProcessDocumentsSegment(AbstractSegment):
         # text that was embedded, not just the final split chunk in the shingle.
         # Base64 payloads are stripped before chunking: they embed to degenerate
         # vectors that outrank real content for every query.
-        source = (
-            listFiles(full_path=True, files_only=True)
-            | Print()
-            | ReadFile()
-        )
+        source = listFiles(full_path=True, files_only=True) | Print() | ReadFile()
         if self.strip_base64:
-            source = source | stripBase64(field='content', set_as='content')
+            source = source | stripBase64(field="content", set_as="content")
         self.pipeline = (
             source
-            | splitText(field='content', set_as='content', criteria=self.chunk_size)
-            | ShingleText(field='content', set_as='shingle_text', key='source', shingle_size=self.shingle_size, overlap=self.overlap, size_mode='count', delimiter=' ')
+            | splitText(field="content", set_as="content", criteria=self.chunk_size)
+            | ShingleText(
+                field="content",
+                set_as="shingle_text",
+                key="source",
+                shingle_size=self.shingle_size,
+                overlap=self.overlap,
+                size_mode="count",
+                delimiter=" ",
+            )
             | ToDict(field_list="content,source,id,title,shingle_text")
             | setAs(field_list="shingle_text:content")
             | progressTicks(tick=".", tick_count=1, eol_count=50)
         )
 
-    def transform(self, input_iter):
+    def transform(self, input_iter: Iterable[Any]) -> Iterator[Any]:
         yield from self.pipeline.transform(input_iter)
 
 
 @register_segment("makeVectorDatabase")
-class MakeVectorDatabaseSegment(AbstractSegment):
+class MakeVectorDatabaseSegment(AbstractSegment[Any, Any]):
     """Segment to create a vector database in LanceDB.
 
     This segment expects dictionary inputs representing documents.
@@ -73,20 +86,36 @@ class MakeVectorDatabaseSegment(AbstractSegment):
     - Temp: "tmp://name" - Process-scoped temporary database (shared by name, auto-cleanup on exit)
     """
 
-    def __init__(self,
-                 embedding_field: Annotated[str, "Field to use for embeddings"],
-                 embedding_model: Annotated[str, "Embedding model to use"],
-                 embedding_source: Annotated[str, "Source of text to embed"],
-                 path: Annotated[str, "Path to LanceDB database. Supports file paths or 'tmp://name'"],
-                 table_name: Annotated[str, "Name of the table in the database"] = "docs",
-                 doc_id_field: Annotated[Optional[str], "Field containing document ID"] = None,
-                 overwrite: Annotated[bool, "If true, overwrite existing table"] = False,
-                 fail_on_error: Annotated[bool, "If true, fail on error instead of logging"] = True,
-                 batch_size: Annotated[int, "Batch size for committing in the vector database"] = 100,
-                 optimize_on_batch: Annotated[bool, "If true, optimize the table after each batch.  Otherwise optimize after last batch."]=False,
-                 optimize_every: Annotated[int, "Optimize the table after at least this many rows have been added since the last optimization. 0 disables periodic optimization."]=5000,
-                 on_token_overflow: Annotated[str, "When embedding fails as too long: error, truncate (shrink and retry), or chunk_pool"]=_OVERFLOW_ERROR,
-                 ):
+    def __init__(
+        self,
+        embedding_field: Annotated[str, "Field to use for embeddings"],
+        embedding_model: Annotated[str, "Embedding model to use"],
+        embedding_source: Annotated[str, "Source of text to embed"],
+        path: Annotated[
+            str, "Path to LanceDB database. Supports file paths or 'tmp://name'"
+        ],
+        table_name: Annotated[str, "Name of the table in the database"] = "docs",
+        doc_id_field: Annotated[str | None, "Field containing document ID"] = None,
+        overwrite: Annotated[bool, "If true, overwrite existing table"] = False,
+        fail_on_error: Annotated[
+            bool, "If true, fail on error instead of logging"
+        ] = True,
+        batch_size: Annotated[
+            int, "Batch size for committing in the vector database"
+        ] = 100,
+        optimize_on_batch: Annotated[
+            bool,
+            "If true, optimize the table after each batch.  Otherwise optimize after last batch.",
+        ] = False,
+        optimize_every: Annotated[
+            int,
+            "Optimize the table after at least this many rows have been added since the last optimization. 0 disables periodic optimization.",
+        ] = 5000,
+        on_token_overflow: Annotated[
+            Literal["error", "truncate", "chunk_pool"],
+            "When embedding fails as too long: error, truncate (shrink and retry), or chunk_pool",
+        ] = _OVERFLOW_ERROR,
+    ):
         super().__init__()
         self.embedding_model = embedding_model
         self.embedding_source = embedding_source
@@ -97,27 +126,29 @@ class MakeVectorDatabaseSegment(AbstractSegment):
         self.overwrite = overwrite
         self.fail_on_error = fail_on_error
 
-        self.pipeline = LLMEmbed(model=self.embedding_model,
-                                source=self.embedding_source,
-                                field=self.embedding_field,
-                                set_as="vector",
-                                fail_on_error=self.fail_on_error,
-                                on_token_overflow=on_token_overflow) | \
-                        add_to_lancedb(path=self.path,
-                                       table_name=self.table_name,
-                                       doc_id_field=self.doc_id_field,
-                                       overwrite=self.overwrite,
-                                       batch_size=batch_size,
-                                       optimize_on_batch=optimize_on_batch,
-                                       optimize_every=optimize_every,
-                                       )
+        self.pipeline = LLMEmbed(
+            model=self.embedding_model,
+            source=self.embedding_source,
+            field=self.embedding_field,
+            set_as="vector",
+            fail_on_error=self.fail_on_error,
+            on_token_overflow=on_token_overflow,
+        ) | add_to_lancedb(
+            path=self.path,
+            table_name=self.table_name,
+            doc_id_field=self.doc_id_field,
+            overwrite=self.overwrite,
+            batch_size=batch_size,
+            optimize_on_batch=optimize_on_batch,
+            optimize_every=optimize_every,
+        )
 
-    def transform(self, input_iter):
+    def transform(self, input_iter: Iterable[Any]) -> Iterator[Any]:
         yield from self.pipeline.transform(input_iter)
 
 
 @register_segment("searchVectorDatabase")
-class SearchVectorDatabaseSegment(AbstractSegment):
+class SearchVectorDatabaseSegment(AbstractSegment[Any, Any]):
     """Segment to search a vector database in LanceDB.
 
     This segment can accept either strings or dictionaries as input.
@@ -131,16 +162,28 @@ class SearchVectorDatabaseSegment(AbstractSegment):
     - Temp: "tmp://name" - Process-scoped temporary database (shared by name, auto-cleanup on exit)
     """
 
-    def __init__(self,
-                 embedding_model: Annotated[str, "Embedding model to use"]=None,
-                 embedding_source: Annotated[str, "Source of text to embed"]=None,
-                 path: Annotated[str, "Path to LanceDB database. Supports file paths or 'tmp://name' for process-scoped temp (auto-cleanup)"]=None,
-                 table_name: Annotated[str, "Name of the table in the database"] = "docs",
-                 query_field: Annotated[Optional[str], "Field containing the query text to embed. If None, expects string inputs."] = None,
-                 limit: Annotated[int, "Number of search results to return"] = 10,
-                 set_as: Annotated[Optional[str], "Field name to store search results. If None, yields results directly. Must be None if query_field is None."] = None,
-                 read_consistency_interval: Annotated[int, "Read consistency interval in seconds"] = 10,
-                 ):
+    def __init__(
+        self,
+        embedding_model: Annotated[str | None, "Embedding model to use"] = None,
+        embedding_source: Annotated[str | None, "Source of text to embed"] = None,
+        path: Annotated[
+            str | None,
+            "Path to LanceDB database. Supports file paths or 'tmp://name' for process-scoped temp (auto-cleanup)",
+        ] = None,
+        table_name: Annotated[str, "Name of the table in the database"] = "docs",
+        query_field: Annotated[
+            str | None,
+            "Field containing the query text to embed. If None, expects string inputs.",
+        ] = None,
+        limit: Annotated[int, "Number of search results to return"] = 10,
+        set_as: Annotated[
+            str | None,
+            "Field name to store search results. If None, yields results directly. Must be None if query_field is None.",
+        ] = None,
+        read_consistency_interval: Annotated[
+            int, "Read consistency interval in seconds"
+        ] = 10,
+    ):
         super().__init__()
         self.query_field = query_field
         self.embedding_model = embedding_model
@@ -153,49 +196,59 @@ class SearchVectorDatabaseSegment(AbstractSegment):
 
         # Validate: if query_field is None (string inputs), set_as must also be None
         if self.query_field is None and self.set_as is not None:
-            raise ValueError("set_as must be None when query_field is None (string inputs cannot have fields attached)")
+            raise ValueError(
+                "set_as must be None when query_field is None (string inputs cannot have fields attached)"
+            )
 
         # Build pipeline based on input type
         if self.query_field is None:
             # String inputs: embed directly, yield search results
-            self.pipeline = LLMEmbed(model=self.embedding_model,
-                                    source=self.embedding_source,
-                                    field=None) | \
-                            search_lancedb(path=self.path,
-                                          table_name=self.table_name,
-                                          field=None,
-                                          all_results_at_once=True,
-                                          limit=self.limit,
-                                          read_consistency_interval=self.read_consistency_interval)
+            self.pipeline = LLMEmbed(
+                model=self.embedding_model, source=self.embedding_source, field=None
+            ) | search_lancedb(
+                path=self.path,
+                table_name=self.table_name,
+                field=None,
+                all_results_at_once=True,
+                limit=self.limit,
+                read_consistency_interval=self.read_consistency_interval,
+            )
         else:
             # Dictionary inputs: embed field
             if self.set_as is not None:
                 # Attach search results to input item
-                self.pipeline = LLMEmbed(model=self.embedding_model,
-                                        source=self.embedding_source,
-                                        field=self.query_field,
-                                        set_as="vector") | \
-                                search_lancedb(path=self.path,
-                                              table_name=self.table_name,
-                                              field="vector",
-                                              all_results_at_once=True,
-                                              set_as=self.set_as,
-                                              limit=self.limit,
-                                              read_consistency_interval=self.read_consistency_interval)
+                self.pipeline = LLMEmbed(
+                    model=self.embedding_model,
+                    source=self.embedding_source,
+                    field=self.query_field,
+                    set_as="vector",
+                ) | search_lancedb(
+                    path=self.path,
+                    table_name=self.table_name,
+                    field="vector",
+                    all_results_at_once=True,
+                    set_as=self.set_as,
+                    limit=self.limit,
+                    read_consistency_interval=self.read_consistency_interval,
+                )
             else:
                 # Yield search results directly
-                self.pipeline = LLMEmbed(model=self.embedding_model,
-                                        source=self.embedding_source,
-                                        field=self.query_field) | \
-                                search_lancedb(path=self.path,
-                                              table_name=self.table_name,
-                                              field=None,
-                                              all_results_at_once=True,
-                                              limit=self.limit,
-                                              read_consistency_interval=self.read_consistency_interval)
+                self.pipeline = LLMEmbed(
+                    model=self.embedding_model,
+                    source=self.embedding_source,
+                    field=self.query_field,
+                ) | search_lancedb(
+                    path=self.path,
+                    table_name=self.table_name,
+                    field=None,
+                    all_results_at_once=True,
+                    limit=self.limit,
+                    read_consistency_interval=self.read_consistency_interval,
+                )
 
-    def transform(self, input_iter):
+    def transform(self, input_iter: Iterable[Any]) -> Iterator[Any]:
         yield from self.pipeline.transform(input_iter)
+
 
 class RagIngestError(RuntimeError):
     """A RAG database build failed for a reason the caller should surface."""
@@ -232,7 +285,7 @@ class RagIngestResult:
     files_indexed: int
     embedding_source: str
     embedding_model: str
-    dimension: Optional[int]
+    dimension: int | None
 
 
 @dataclass
@@ -249,11 +302,11 @@ class _IngestTally:
     chunks_indexed: int = 0
     chunks_skipped: int = 0
     extracted_at_last_store: int = 0
-    seen_sources: set = field(default_factory=set)
+    seen_sources: set[str] = field(default_factory=set)
 
 
 @segment()
-def _tally_extracted_chunks(items, tally: _IngestTally):
+def _tally_extracted_chunks(items: Iterable[Any], tally: _IngestTally) -> Iterator[Any]:
     """Pass chunks through unchanged, counting them as they enter the embedder."""
     for item in items:
         tally.chunks_extracted += 1
@@ -261,7 +314,11 @@ def _tally_extracted_chunks(items, tally: _IngestTally):
 
 
 @segment()
-def _tally_stored_chunks(items, tally: _IngestTally, progress=None):
+def _tally_stored_chunks(
+    items: Iterable[Any],
+    tally: _IngestTally,
+    progress: Callable[[int, int, str], None] | None = None,
+) -> Iterator[Any]:
     """Pass stored chunks through, tracking skips, files, and progress.
 
     Expects the dict items produced by ProcessDocumentsSegment (a "source"
@@ -273,7 +330,9 @@ def _tally_stored_chunks(items, tally: _IngestTally, progress=None):
         tally.chunks_indexed += 1
         # Chunks consumed since the last stored one, minus this one, failed
         # to embed and were dropped by LLMEmbed when fail_on_error is false.
-        tally.chunks_skipped += tally.chunks_extracted - tally.extracted_at_last_store - 1
+        tally.chunks_skipped += (
+            tally.chunks_extracted - tally.extracted_at_last_store - 1
+        )
         tally.extracted_at_last_store = tally.chunks_extracted
         source = str(item.get("source") or "") if isinstance(item, dict) else ""
         if source:
@@ -284,24 +343,24 @@ def _tally_stored_chunks(items, tally: _IngestTally, progress=None):
 
 
 def build_rag_database(
-    source_pattern,
+    source_pattern: str | Iterable[str],
     path: str,
-    embedding_model: Optional[str] = None,
-    embedding_source: Optional[str] = None,
+    embedding_model: str | None = None,
+    embedding_source: str | None = None,
     *,
     table_name: str = "docs",
     embedding_field: str = "shingle_text",
     chunk_size: int = 300,
     shingle_size: int = 3,
     overlap: int = 1,
-    doc_id_field: Optional[str] = None,
+    doc_id_field: str | None = None,
     overwrite: bool = False,
     batch_size: int = 100,
     fail_on_error: bool = False,
-    on_token_overflow: str = _OVERFLOW_TRUNCATE,
-    expected_dimension: Optional[int] = None,
+    on_token_overflow: Literal["error", "truncate", "chunk_pool"] = _OVERFLOW_TRUNCATE,
+    expected_dimension: int | None = None,
     preflight: bool = True,
-    progress: Optional[Callable[[int, int, str], None]] = None,
+    progress: Callable[[int, int, str], None] | None = None,
 ) -> RagIngestResult:
     """Build a RAG vector database from documents matching a glob pattern.
 
@@ -343,7 +402,7 @@ def build_rag_database(
         on_token_overflow=on_token_overflow,
     )
 
-    dimension: Optional[int] = None
+    dimension: int | None = None
     if preflight:
         try:
             vector = embed_segment.embedder.execute_one("talkpipe embedder preflight")
@@ -385,7 +444,9 @@ def build_rag_database(
         | _tally_stored_chunks(tally=tally, progress=progress)
     )
 
-    patterns = [source_pattern] if isinstance(source_pattern, str) else list(source_pattern)
+    patterns = (
+        [source_pattern] if isinstance(source_pattern, str) else list(source_pattern)
+    )
     for _ in pipeline.transform(patterns):
         pass
     # Chunks consumed after the last stored one also failed to embed.

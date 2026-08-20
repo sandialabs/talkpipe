@@ -1,13 +1,12 @@
 from pydantic import BaseModel
 
-from talkpipe.llm.config import getPromptAdapter, getPromptSources
-from talkpipe.llm.prompt_adapters import ElizaPromptAdapter
-
 from prompt_adapter_contract_suite import (
     PromptAdapterSpec,
     run_shared_live_contract_checks,
     run_shared_offline_contract_checks,
 )
+from talkpipe.llm.config import getPromptAdapter, getPromptSources
+from talkpipe.llm.prompt_adapters import ElizaPromptAdapter
 
 
 def _patch_eliza_constructor(_monkeypatch):
@@ -19,7 +18,11 @@ def _patch_eliza_execute(monkeypatch, adapter, response_text: str):
     monkeypatch.setattr(
         adapter,
         "_messages_create",
-        lambda **_kwargs: {"model": adapter.model_name, "text": response_text, "structured": None},
+        lambda **_kwargs: {
+            "model": adapter.model_name,
+            "text": response_text,
+            "structured": None,
+        },
     )
 
 
@@ -62,7 +65,9 @@ class ScoreShape(BaseModel):
 
 
 def test_eliza_guided_score_response_is_reasonable_shape():
-    adapter = ElizaPromptAdapter("Dr. Eliza", output_format=ScoreShape, multi_turn=False)
+    adapter = ElizaPromptAdapter(
+        "Dr. Eliza", output_format=ScoreShape, multi_turn=False
+    )
     result = adapter.execute("This response is clear, specific, and relevant.")
 
     assert isinstance(result, ScoreShape)

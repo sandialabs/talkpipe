@@ -1,4 +1,5 @@
 import pytest
+
 from talkpipe.data.text import chunking_units as ch
 
 
@@ -22,7 +23,9 @@ def test_shingleText_set_as_parameter():
     items = [{"key": 1, "text": word} for word in ["The", "quick", "brown", "fox"]]
 
     # Test set_as parameter - should return modified items with shingle field
-    shingler = ch.ShingleText(field="text", key="key", set_as="shingle", shingle_size=2, overlap=0)
+    shingler = ch.ShingleText(
+        field="text", key="key", set_as="shingle", shingle_size=2, overlap=0
+    )
     shingler = shingler.as_function()
     result = list(shingler(items))
 
@@ -44,7 +47,9 @@ def test_shingleText_size_mode_parameter():
     items = [{"text": word} for word in ["The", "quick", "brown", "fox", "jumps"]]
 
     # Test size_mode="length" - minimum character length
-    shingler = ch.ShingleText(field="text", shingle_size=10, overlap=0, size_mode="length")
+    shingler = ch.ShingleText(
+        field="text", shingle_size=10, overlap=0, size_mode="length"
+    )
     shingler = shingler.as_function()
     result = list(shingler(items))
 
@@ -72,32 +77,66 @@ def test_splitText():
     criteria_str = " "
     splitter = ch.splitText(criteria=criteria_str)
     result_str = list(splitter([text]))
-    expected_str = ["Hello", "world!", "This", "is", "a", "test.", "Let's", "split", "this", "text."]
+    expected_str = [
+        "Hello",
+        "world!",
+        "This",
+        "is",
+        "a",
+        "test.",
+        "Let's",
+        "split",
+        "this",
+        "text.",
+    ]
     assert result_str == expected_str, f"Expected {expected_str}, got {result_str}"
 
     # Test splitting by integer
     criteria_int = 10
     splitter = ch.splitText(criteria=criteria_int)
     result_int = list(splitter([text]))
-    expected_int = ["Hello worl", "d! This is", " a test. L", "et's split", " this text", "."]
+    expected_int = [
+        "Hello worl",
+        "d! This is",
+        " a test. L",
+        "et's split",
+        " this text",
+        ".",
+    ]
     assert result_int == expected_int, f"Expected {expected_int}, got {result_int}"
 
     # Test invalid criteria
+    splitter = ch.splitText(criteria=3.5)
     with pytest.raises(ValueError):
-        splitter = ch.splitText(criteria=3.5)
         list(splitter([text]))
 
-    items = [{"text": "Hello world! This is a test.", "id": 1},
-             {"text": "Another sentence here.", "id": 2}]
+    items = [
+        {"text": "Hello world! This is a test.", "id": 1},
+        {"text": "Another sentence here.", "id": 2},
+    ]
     splitter = ch.splitText(criteria=" ", field="text")
     result_field = list(splitter(items))
-    expected_field = ["Hello", "world!", "This", "is", "a", "test.", "Another", "sentence", "here."]
-    assert result_field == expected_field, f"Expected {expected_field}, got {result_field}"
+    expected_field = [
+        "Hello",
+        "world!",
+        "This",
+        "is",
+        "a",
+        "test.",
+        "Another",
+        "sentence",
+        "here.",
+    ]
+    assert result_field == expected_field, (
+        f"Expected {expected_field}, got {result_field}"
+    )
 
 
 def test_shingleText_emit_detail_without_set_as():
     """Test that ShingleText with emit_detail=True returns dictionaries with paragraph details."""
-    items = [{"text": word} for word in ["The", "quick", "brown", "fox", "jumps", "over"]]
+    items = [
+        {"text": word} for word in ["The", "quick", "brown", "fox", "jumps", "over"]
+    ]
 
     # Test with emit_detail but no set_as - should return detail dicts directly
     shingler = ch.ShingleText(field="text", shingle_size=3, overlap=1, emit_detail=True)
@@ -127,8 +166,14 @@ def test_shingleText_emit_detail_with_set_as():
     items = [{"key": 1, "text": word} for word in ["The", "quick", "brown", "fox"]]
 
     # Test with emit_detail and set_as - should attach detail dict to items
-    shingler = ch.ShingleText(field="text", key="key", set_as="shingle_detail",
-                             shingle_size=2, overlap=0, emit_detail=True)
+    shingler = ch.ShingleText(
+        field="text",
+        key="key",
+        set_as="shingle_detail",
+        shingle_size=2,
+        overlap=0,
+        emit_detail=True,
+    )
     shingler = shingler.as_function()
     result = list(shingler(items))
 
@@ -164,6 +209,7 @@ def test_shingleText_emit_detail_false_unchanged():
     assert result[0] == "The quick"
     assert result[1] == "brown fox"
 
+
 def test_shingleText_single_incomplete_shingle():
     """Test that ShingleText handles single incomplete shingle correctly."""
     chunks = [{"chunk": f"Chunk_{i}", "path": "/test.txt"} for i in range(10)]
@@ -175,7 +221,7 @@ def test_shingleText_single_incomplete_shingle():
         overlap=1,
         set_as="shingle_detail",
         key="path",
-        emit_detail=True
+        emit_detail=True,
     )
 
     # Process

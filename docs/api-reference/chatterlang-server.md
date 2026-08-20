@@ -43,8 +43,9 @@ chatterlang_serve --form-config config.yaml
 | `--script` | ChatterLang script to process data. Can be an inline script, environment variable, or path to a file containing the script. | None, required |
 | `-p, --port` | Port to listen on | 2025 |
 | `-o, --host` | Host to bind to | localhost |
-| `--api-key` | Set API key for authentication | None |
-| `--require-auth` | Require API key authentication | False |
+| `--api-key` | API key clients must send as `X-API-Key`. Falls back to the `API_KEY` configuration value | None |
+| `--require-auth` | Require the API key. If no key is given or configured, a random one is generated and printed once at startup — there is no built-in default key | False |
+| `--secure-cookies` | Mark the session cookie `Secure` (sent over HTTPS only). Use behind a TLS-terminating proxy; leave off for plain-HTTP localhost | False |
 | `--title` | Title for the web interface | "JSON Data Receiver" |
 | `--form-config` | Path to form configuration file (YAML or JSON) or config variable ($VAR_NAME) | None (default: single text field named "prompt") |
 | `--load-module` | Path to custom module to import (can be specified multiple times) | None |

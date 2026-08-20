@@ -1,9 +1,7 @@
 import base64
 
-import pytest
-
-from talkpipe.llm.prompt_adapters import OllamaPromptAdapter
 from talkpipe.llm.content import DEFAULT_VISION_PROMPT, user_turn_from_fields
+from talkpipe.llm.prompt_adapters import OllamaPromptAdapter
 
 OLLAMA_VISION_MODEL = "gemma4:31b-cloud"
 OLLAMA_SOURCE = "ollama"
@@ -49,9 +47,13 @@ def test_ollama_execute_turn_sends_multimodal_message(monkeypatch):
 
     assert result == "A single red pixel."
     assert captured["model"] == OLLAMA_VISION_MODEL
-    user_messages = [message for message in captured["messages"] if message.get("role") == "user"]
+    user_messages = [
+        message for message in captured["messages"] if message.get("role") == "user"
+    ]
     assert user_messages[-1]["content"] == DEFAULT_VISION_PROMPT
-    assert user_messages[-1]["images"] == [base64.b64encode(MINIMAL_PNG).decode("ascii")]
+    assert user_messages[-1]["images"] == [
+        base64.b64encode(MINIMAL_PNG).decode("ascii")
+    ]
 
 
 def test_ollama_execute_turn_clears_history_when_single_turn(monkeypatch):
@@ -64,7 +66,9 @@ def test_ollama_execute_turn_clears_history_when_single_turn(monkeypatch):
     class DummyResponse:
         message = DummyMessage()
 
-    monkeypatch.setattr(adapter, "_chat_completion", lambda *_args, **_kwargs: DummyResponse())
+    monkeypatch.setattr(
+        adapter, "_chat_completion", lambda *_args, **_kwargs: DummyResponse()
+    )
 
     user_turn = user_turn_from_fields(images=MINIMAL_PNG)
     adapter.execute_turn(user_turn)

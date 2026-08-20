@@ -37,6 +37,7 @@ Deep technical documentation:
 - [ChatterLang](architecture/chatterlang.md) - External DSL language reference
 - [Extending TalkPipe](architecture/extending-talkpipe.md) - Creating custom components and plugins
 - [Configuration](architecture/configuration.md) - Configuring variables for scripts
+- [Security and trust model](architecture/security.md) - TalkPipe is a programming language with a security model analogous to Jupyter's: what that means, what is and is not a boundary, and running the servers safely
 
 ### 🧩 [Contributing / developer handbook](contributing/developer-handbook.md)
 Glossary, repository conventions, shared parameter semantics (`set_as`, `field`, `field_list`, …), and standard `~/.talkpipe.toml` keys—reference material for contributors and advanced users.

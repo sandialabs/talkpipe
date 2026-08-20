@@ -1,16 +1,18 @@
+import hashlib
 import logging
 import math
-import hashlib
-from typing import Annotated
+from collections.abc import Iterable, Iterator
+from typing import Annotated, Any
 
-from talkpipe.pipe import core
 from talkpipe.chatterlang import registry
+from talkpipe.pipe import core
 from talkpipe.util.data_manipulation import extract_property
 
 logger = logging.getLogger(__name__)
 
+
 class BloomFilter:
-    def __init__(self, capacity, error_rate):
+    def __init__(self, capacity: int, error_rate: float) -> None:
         """
         Initialize the Bloom Filter.
 
@@ -23,15 +25,15 @@ class BloomFilter:
         # Calculate the size of the bit array (m) using:
         # m = - (n * ln(p)) / (ln2)^2
         self.size = math.ceil(-(capacity * math.log(error_rate)) / (math.log(2) ** 2))
-        
+
         # Calculate the optimal number of hash functions (k) using:
         # k = (m/n) * ln2
         self.hash_count = math.ceil((self.size / capacity) * math.log(2))
-        
+
         # Initialize the bit array with all bits set to False (0)
         self.bit_array = [False] * self.size
 
-    def _hashes(self, item):
+    def _hashes(self, item: Any) -> Iterator[int]:
         """
         Generate hash values for the given item using double hashing.
 
@@ -39,19 +41,19 @@ class BloomFilter:
         :yield: A sequence of positions in the bit array.
         """
         # Convert the item to bytes (if it's not already) so it can be hashed.
-        item_bytes = str(item).encode('utf-8')
-        
+        item_bytes = str(item).encode("utf-8")
+
         # First hash using MD5 (not for security, used for bloom filter hashing)
         hash1 = int(hashlib.md5(item_bytes, usedforsecurity=False).hexdigest(), 16)
         # Second hash using SHA-1 (not for security, used for bloom filter hashing)
         hash2 = int(hashlib.sha1(item_bytes, usedforsecurity=False).hexdigest(), 16)
-        
+
         # Generate hash values using double hashing:
         # For each i, compute: (hash1 + i * hash2) mod size
         for i in range(self.hash_count):
             yield (hash1 + i * hash2) % self.size
 
-    def add(self, item):
+    def add(self, item: Any) -> None:
         """
         Add an item to the Bloom Filter.
 
@@ -60,7 +62,7 @@ class BloomFilter:
         for index in self._hashes(item):
             self.bit_array[index] = True
 
-    def __contains__(self, item):
+    def __contains__(self, item: Any) -> bool:
         """
         Check if an item is possibly in the Bloom Filter.
 
@@ -69,19 +71,26 @@ class BloomFilter:
         """
         return all(self.bit_array[index] for index in self._hashes(item))
 
+
 @registry.register_segment("distinctBloomFilter")
 @core.segment()
 def distinctBloomFilter(
-    items, 
-    capacity: Annotated[int, "Expected number of items to be added to the Bloom Filter"], 
-    error_rate: Annotated[float, "Acceptable false positive probability (between 0 and 1)"], 
-    field_list: Annotated[str, "Dot-separated string of nested fields to use for distinctness check"] = "_"
-):
+    items: Iterable[Any],
+    capacity: Annotated[
+        int, "Expected number of items to be added to the Bloom Filter"
+    ],
+    error_rate: Annotated[
+        float, "Acceptable false positive probability (between 0 and 1)"
+    ],
+    field_list: Annotated[
+        str, "Dot-separated string of nested fields to use for distinctness check"
+    ] = "_",
+) -> Iterator[Any]:
     """
     Filter items using a Bloom Filter to yield only distinct elements based on specified fields.
 
-    A Bloom Filter is a space-efficient probabilistic data structure used to test whether 
-    an element is a member of a set. False positive matches are possible, but false 
+    A Bloom Filter is a space-efficient probabilistic data structure used to test whether
+    an element is a member of a set. False positive matches are possible, but false
     negatives are not.
 
     Yields:
@@ -97,14 +106,19 @@ def distinctBloomFilter(
         of false positives (items incorrectly identified as duplicates) based on
         the specified error_rate.
     """
-    logger.debug(f"Creating a Bloom Filter with capacity={capacity} and error_rate={error_rate}.")
+    logger.debug(
+        f"Creating a Bloom Filter with capacity={capacity} and error_rate={error_rate}."
+    )
     bf = BloomFilter(capacity=capacity, error_rate=error_rate)
     for item in items:
         extracted = extract_property(item, field_list)
         if extracted not in bf:
-            logger.debug(f"Adding {str(item)} ({str(extracted)}) to the Bloom Filter and yielding it.")
+            logger.debug(
+                f"Adding {item!s} ({extracted!s}) to the Bloom Filter and yielding it."
+            )
             bf.add(extracted)
             yield item
         else:
-            logger.debug(f"{str(item)} ({str(extracted)}) is already in the Bloom Filter; skipping.")
-
+            logger.debug(
+                f"{item!s} ({extracted!s}) is already in the Bloom Filter; skipping."
+            )

@@ -1,6 +1,7 @@
-import pytest
 import numpy as np
+import pytest
 from sklearn.datasets import make_blobs
+
 from talkpipe.operations.matrices import ReduceTSNE
 
 
@@ -16,7 +17,7 @@ class TestReduceTSNE:
         assert reducer.early_exaggeration == 12.0
         assert reducer.learning_rate == 200.0
         assert reducer.max_iter == 1000
-        assert reducer.metric == 'euclidean'
+        assert reducer.metric == "euclidean"
         assert reducer.random_state is None
         assert reducer.tsne_kwargs == {}
 
@@ -27,19 +28,19 @@ class TestReduceTSNE:
             early_exaggeration=15.0,
             learning_rate=150.0,
             max_iter=2000,
-            metric='cosine',
+            metric="cosine",
             random_state=42,
-            method='exact'
+            method="exact",
         )
         assert custom_reducer.n_components == 3
         assert custom_reducer.perplexity == 50.0
         assert custom_reducer.early_exaggeration == 15.0
         assert custom_reducer.learning_rate == 150.0
         assert custom_reducer.max_iter == 2000
-        assert custom_reducer.metric == 'cosine'
+        assert custom_reducer.metric == "cosine"
         assert custom_reducer.random_state == 42
-        assert 'method' in custom_reducer.tsne_kwargs
-        assert custom_reducer.tsne_kwargs['method'] == 'exact'
+        assert "method" in custom_reducer.tsne_kwargs
+        assert custom_reducer.tsne_kwargs["method"] == "exact"
 
     def test_transform_with_random_data(self):
         """Test transformation of random data."""
@@ -89,14 +90,14 @@ class TestReduceTSNE:
         # Test with 3 components and appropriate perplexity
         reducer_3d = ReduceTSNE(n_components=3, perplexity=10, random_state=42)
         result_3d = list(reducer_3d.transform([data]))
-        
+
         # Check output shape
         assert result_3d[0].shape == (40, 3)
 
         # Test with 1 component
         reducer_1d = ReduceTSNE(n_components=1, perplexity=10, random_state=42)
         result_1d = list(reducer_1d.transform([data]))
-        
+
         # Check output shape
         assert result_1d[0].shape == (40, 1)
 
@@ -125,20 +126,22 @@ class TestReduceTSNE:
         X, y = make_blobs(n_samples=90, centers=3, n_features=10, random_state=42)
 
         # Create reducer with appropriate perplexity
-        reducer = ReduceTSNE(perplexity=15, random_state=42)  # Perplexity is less than n_samples/cluster
+        reducer = ReduceTSNE(
+            perplexity=15, random_state=42
+        )  # Perplexity is less than n_samples/cluster
 
         # Transform the data
         result = list(reducer.transform([X]))
         reduced_data = result[0]
 
-        # Check that points from the same cluster are closer together than 
+        # Check that points from the same cluster are closer together than
         # points from different clusters
         cluster_indices = [
             np.where(y == 0)[0],
             np.where(y == 1)[0],
-            np.where(y == 2)[0]
+            np.where(y == 2)[0],
         ]
-        
+
         # Calculate average within-cluster distances
         within_distances = []
         for indices in cluster_indices:
@@ -150,21 +153,21 @@ class TestReduceTSNE:
                     distances.append(dist)
             if distances:
                 within_distances.append(np.mean(distances))
-        
+
         avg_within_distance = np.mean(within_distances)
-        
+
         # Calculate average between-cluster distances
         between_distances = []
         for i, indices1 in enumerate(cluster_indices):
-            for j, indices2 in enumerate(cluster_indices[i+1:], i+1):
+            for indices2 in cluster_indices[i + 1 :]:
                 for idx1 in indices1:
                     for idx2 in indices2:
                         dist = np.linalg.norm(reduced_data[idx1] - reduced_data[idx2])
                         between_distances.append(dist)
-        
+
         avg_between_distance = np.mean(between_distances)
-        
-        # Average distance between clusters should be greater than 
+
+        # Average distance between clusters should be greater than
         # average distance within clusters
         assert avg_between_distance > avg_within_distance
 
@@ -179,12 +182,12 @@ class TestReduceTSNE:
         # Test with 1D array
         with pytest.raises((ValueError, TypeError)):
             list(reducer.transform([np.array([1, 2, 3])]))
-            
+
         # Test with invalid perplexity (too high for the dataset)
         small_data = np.random.rand(5, 10)  # Only 5 samples
         # Create a reducer with perplexity higher than sample count
         reducer_high_perplexity = ReduceTSNE(perplexity=10)  # Greater than 5 samples
-        
+
         # Should raise an error since perplexity must be less than n_samples
         with pytest.raises(ValueError):
             list(reducer_high_perplexity.transform([small_data]))

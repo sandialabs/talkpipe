@@ -1,5 +1,6 @@
 from talkpipe.operations import filtering
 
+
 def test_bloomfilter():
     # Create a Bloom Filter expecting to store 100 items with a 1% false positive probability.
     bf = filtering.BloomFilter(capacity=100, error_rate=0.01)
@@ -30,15 +31,49 @@ def test_bloomfilter():
     false_positive_rate = false_positives / len(test_range)
     # error if the false positive rate is greater than 3%.  This can happen
     # in principle, but should be very rare.
-    assert false_positive_rate < 0.03 
+    assert false_positive_rate < 0.03
+
 
 def test_bloomfilter_segment():
     bfs = filtering.distinctBloomFilter(capacity=100, error_rate=0.01)
     bfs = bfs.as_function(single_in=False, single_out=False)
-    ans = list(bfs(["apple", "banana", "cherry", "apple", "banana", "cherry", "durian", "elderberry"]))
+    ans = list(
+        bfs(
+            [
+                "apple",
+                "banana",
+                "cherry",
+                "apple",
+                "banana",
+                "cherry",
+                "durian",
+                "elderberry",
+            ]
+        )
+    )
     assert ans == ["apple", "banana", "cherry", "durian", "elderberry"]
 
     bfs = filtering.distinctBloomFilter(capacity=100, error_rate=0.01, field_list="x")
     bfs = bfs.as_function(single_in=False, single_out=False)
-    ans = list(bfs([{"x": "apple"}, {"x": "banana"}, {"x": "cherry"}, {"x": "apple"}, {"x": "banana"}, {"x": "cherry"}, {"x": "durian"}, {"x": "elderberry", "y": "apple"}, {"x": "elderberry", "y": "banana"}]))
-    assert ans == [{"x": "apple"}, {"x": "banana"}, {"x": "cherry"}, {"x": "durian"}, {"x": "elderberry", "y": "apple"}]
+    ans = list(
+        bfs(
+            [
+                {"x": "apple"},
+                {"x": "banana"},
+                {"x": "cherry"},
+                {"x": "apple"},
+                {"x": "banana"},
+                {"x": "cherry"},
+                {"x": "durian"},
+                {"x": "elderberry", "y": "apple"},
+                {"x": "elderberry", "y": "banana"},
+            ]
+        )
+    )
+    assert ans == [
+        {"x": "apple"},
+        {"x": "banana"},
+        {"x": "cherry"},
+        {"x": "durian"},
+        {"x": "elderberry", "y": "apple"},
+    ]

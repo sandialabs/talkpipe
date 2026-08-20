@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 import logging
-from typing import Annotated, Iterable, Iterator, Optional
+from collections.abc import Iterable, Iterator
+from typing import Annotated, Any
 
 from talkpipe.chatterlang.registry import register_segment
 from talkpipe.pipe.core import AbstractSegment
@@ -18,7 +19,7 @@ logger = logging.getLogger(__name__)
 
 
 @register_segment("llmVisionPrompt")
-class LLMVisionPrompt(AbstractSegment):
+class LLMVisionPrompt(AbstractSegment[Any, Any]):
     """Send a multimodal prompt (text plus image) to a vision-capable LLM.
 
     Reads context, prompt, and image fields from each input item and returns the
@@ -27,17 +28,37 @@ class LLMVisionPrompt(AbstractSegment):
 
     def __init__(
         self,
-        image_field: Annotated[str, "Item field containing the image path, URL, bytes, or ImageResult"],
-        model: Annotated[Optional[str], "The name of the model to chat with"] = None,
-        source: Annotated[Optional[str], "The source of the model (ollama, openai, or anthropic)"] = None,
-        system_prompt: Annotated[Optional[str], "The system prompt for the model"] = "You are a helpful assistant.",
-        context_field: Annotated[Optional[str], "Optional item field for text context"] = "",
-        prompt: Annotated[str, "Fixed prompt when prompt_field is not used"] = DEFAULT_VISION_PROMPT,
-        prompt_field: Annotated[Optional[str], "Optional item field overriding the fixed prompt"] = None,
-        set_as: Annotated[Optional[str], "Field to store the response on the input item"] = None,
-        multi_turn: Annotated[bool, "Whether to retain conversation history between items"] = False,
-        temperature: Annotated[Optional[float], "The temperature to use for the model"] = None,
-        debug_messages: Annotated[bool, "Whether to log outbound LLM request messages"] = False,
+        image_field: Annotated[
+            str, "Item field containing the image path, URL, bytes, or ImageResult"
+        ],
+        model: Annotated[str | None, "The name of the model to chat with"] = None,
+        source: Annotated[
+            str | None, "The source of the model (ollama, openai, or anthropic)"
+        ] = None,
+        system_prompt: Annotated[
+            str | None, "The system prompt for the model"
+        ] = "You are a helpful assistant.",
+        context_field: Annotated[
+            str | None, "Optional item field for text context"
+        ] = "",
+        prompt: Annotated[
+            str, "Fixed prompt when prompt_field is not used"
+        ] = DEFAULT_VISION_PROMPT,
+        prompt_field: Annotated[
+            str | None, "Optional item field overriding the fixed prompt"
+        ] = None,
+        set_as: Annotated[
+            str | None, "Field to store the response on the input item"
+        ] = None,
+        multi_turn: Annotated[
+            bool, "Whether to retain conversation history between items"
+        ] = False,
+        temperature: Annotated[
+            float | None, "The temperature to use for the model"
+        ] = None,
+        debug_messages: Annotated[
+            bool, "Whether to log outbound LLM request messages"
+        ] = False,
     ):
         super().__init__()
         cfg = get_config()
@@ -52,7 +73,7 @@ class LLMVisionPrompt(AbstractSegment):
         if source not in getPromptSources():
             raise ValueError(f"Unknown source: {source}")
 
-        adapter_kwargs = {
+        adapter_kwargs: dict[str, Any] = {
             "model": model,
             "system_prompt": system_prompt,
             "multi_turn": multi_turn,
@@ -67,14 +88,14 @@ class LLMVisionPrompt(AbstractSegment):
         self.prompt_field = prompt_field
         self.set_as = set_as
 
-    def _resolve_prompt(self, item) -> str:
+    def _resolve_prompt(self, item: Any) -> str:
         if self.prompt_field:
             value = extract_property(item, self.prompt_field)
             if value is not None and str(value).strip():
                 return str(value)
         return self.prompt
 
-    def _resolve_context(self, item) -> str | None:
+    def _resolve_context(self, item: Any) -> str | None:
         if not self.context_field:
             return None
         value = extract_property(item, self.context_field)
@@ -82,13 +103,15 @@ class LLMVisionPrompt(AbstractSegment):
             return None
         return str(value)
 
-    def _resolve_image(self, item):
+    def _resolve_image(self, item: Any) -> Any:
         value = extract_property(item, self.image_field)
         if value is None:
-            raise ValueError(f"Image field '{self.image_field}' is missing or empty on item: {item!r}")
+            raise ValueError(
+                f"Image field '{self.image_field}' is missing or empty on item: {item!r}"
+            )
         return value
 
-    def transform(self, input_iter: Iterable) -> Iterator:
+    def transform(self, input_iter: Iterable[Any]) -> Iterator[Any]:
         for item in input_iter:
             user_turn = user_turn_from_fields(
                 prompt=self._resolve_prompt(item),

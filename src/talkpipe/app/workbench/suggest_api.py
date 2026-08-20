@@ -12,7 +12,8 @@
 import json
 import logging
 import threading
-from typing import Optional
+from pathlib import Path
+from typing import Any
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
@@ -33,7 +34,7 @@ _stats_cache = None
 _stats_lock = threading.Lock()
 
 
-def invalidate_stats_cache():
+def invalidate_stats_cache() -> None:
     global _stats_cache
     _stats_cache = None
 
@@ -41,7 +42,7 @@ def invalidate_stats_cache():
 workspace_api.on_workspace_change(invalidate_stats_cache)
 
 
-def get_stats() -> dict:
+def get_stats() -> dict[str, Any]:
     global _stats_cache
     if _stats_cache is None:
         with _stats_lock:
@@ -51,17 +52,18 @@ def get_stats() -> dict:
 
 
 @router.get("/suggest/stats")
-def api_suggest_stats():
+def api_suggest_stats() -> dict[str, Any]:
     return get_stats()
 
 
 # --- Settings -------------------------------------------------------------------
 
-def _settings_path():
+
+def _settings_path() -> Path:
     return resolve_workspace_dir() / SETTINGS_FILENAME
 
 
-def load_settings() -> dict:
+def load_settings() -> dict[str, Any]:
     path = _settings_path()
     settings = {"suggest_source": None, "suggest_model": None, "auto_suggest": False}
     if path.is_file():
@@ -75,30 +77,33 @@ def load_settings() -> dict:
     return settings
 
 
-def save_settings(settings: dict):
+def save_settings(settings: dict[str, Any]) -> None:
     path = _settings_path()
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(settings, indent=2), encoding="utf-8")
 
 
-def _resolved_status(settings: dict) -> dict:
+def _resolved_status(settings: dict[str, Any]) -> dict[str, Any]:
     resolved, reason = suggest.resolve_llm_status(settings)
     if not resolved:
-        return {"available": False, "source": None, "model": None,
-                "reason": reason}
+        return {"available": False, "source": None, "model": None, "reason": reason}
     source, model = resolved
     available = suggest.check_availability(source, model)
-    return {"available": available, "source": source, "model": model,
-            "reason": None if available else suggest.unreachable_reason(source, model)}
+    return {
+        "available": available,
+        "source": source,
+        "model": model,
+        "reason": None if available else suggest.unreachable_reason(source, model),
+    }
 
 
 class SettingsUpdate(BaseModel):
-    suggest_source: Optional[str] = None
-    suggest_model: Optional[str] = None
-    auto_suggest: Optional[bool] = None
+    suggest_source: str | None = None
+    suggest_model: str | None = None
+    auto_suggest: bool | None = None
 
 
-def _settings_response(settings: dict) -> dict:
+def _settings_response(settings: dict[str, Any]) -> dict[str, Any]:
     return {
         **settings,
         "known_sources": suggest.getPromptSources(),
@@ -107,20 +112,22 @@ def _settings_response(settings: dict) -> dict:
 
 
 @router.get("/settings")
-def api_get_settings():
+def api_get_settings() -> dict[str, Any]:
     return _settings_response(load_settings())
 
 
 @router.put("/settings")
-def api_put_settings(request: SettingsUpdate):
+def api_put_settings(request: SettingsUpdate) -> dict[str, Any]:
     settings = load_settings()
     update = request.model_dump(exclude_unset=True)
     known_sources = suggest.getPromptSources()
     if update.get("suggest_source") and update["suggest_source"] not in known_sources:
         raise HTTPException(
             status_code=422,
-            detail=(f"Unknown LLM source '{update['suggest_source']}'. "
-                    f"Known sources: {', '.join(known_sources)}"),
+            detail=(
+                f"Unknown LLM source '{update['suggest_source']}'. "
+                f"Known sources: {', '.join(known_sources)}"
+            ),
         )
     for key in SETTINGS_KEYS:
         if key in update:
@@ -132,6 +139,7 @@ def api_put_settings(request: SettingsUpdate):
 
 # --- LLM suggestions ----------------------------------------------------------------
 
+
 class SuggestRequest(BaseModel):
     script: str
     cursor_offset: int = 0
@@ -139,7 +147,7 @@ class SuggestRequest(BaseModel):
 
 
 @router.post("/suggest")
-def api_suggest(request: SuggestRequest):
+def api_suggest(request: SuggestRequest) -> dict[str, Any]:
     settings = load_settings()
     resolved = suggest.resolve_llm(settings)
     saved = []

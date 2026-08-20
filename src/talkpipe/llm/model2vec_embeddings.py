@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 import threading
+from collections.abc import Sequence
 from pathlib import Path
-from typing import Sequence
+from typing import Any
 
 import numpy as np
 
@@ -12,7 +13,7 @@ import numpy as np
 DEFAULT_MODEL = "minishlab/potion-retrieval-32M"
 
 
-def _require_model2vec():
+def _require_model2vec() -> Any:
     try:
         from model2vec import StaticModel
     except ImportError as exc:
@@ -63,16 +64,16 @@ def _resolve_snapshot(
 # Hub every time (a network round-trip per pipeline rebuild). Keyed by the
 # loader class as well as the model spec so a monkeypatched loader never
 # hands its models to code using a different loader.
-_static_model_cache: dict = {}
+_static_model_cache: dict[tuple[Any, str, str | None, str | None], Any] = {}
 _static_model_cache_lock = threading.Lock()
 
 
 def _load_static_model(
-    StaticModel,
+    StaticModel: Any,
     model_name: str,
     revision: str | None,
     cache_folder: str | Path | None,
-):
+) -> Any:
     """Load a StaticModel, reusing a previously loaded instance when possible.
 
     Hub resolution (snapshot download / revision pinning) only happens on a
@@ -115,14 +116,12 @@ class Model2VecEmbedder:
         self.model_name = model_name
         self.revision = revision
         StaticModel = _require_model2vec()
-        self.model = _load_static_model(
-            StaticModel, model_name, revision, cache_folder
-        )
+        self.model = _load_static_model(StaticModel, model_name, revision, cache_folder)
 
     @property
     def dimension(self) -> int:
         """Output embedding dimension."""
-        return self.model.dim
+        return int(self.model.dim)
 
     @property
     def normalize(self) -> bool:
@@ -132,15 +131,17 @@ class Model2VecEmbedder:
     def embed(
         self,
         texts: str | Sequence[str],
-        **encode_kwargs,
+        **encode_kwargs: Any,
     ) -> np.ndarray:
         """Encode one string or many."""
-        return self.model.encode(texts, **encode_kwargs)
+        encoded: np.ndarray = self.model.encode(texts, **encode_kwargs)
+        return encoded
 
-    def embed_one(self, text: str, **encode_kwargs) -> list[float]:
+    def embed_one(self, text: str, **encode_kwargs: Any) -> list[float]:
         """Encode a single string and return a JSON-serializable list of floats."""
         vec = self.embed(text, **encode_kwargs)
-        return np.asarray(vec, dtype=float).tolist()
+        values: list[float] = np.asarray(vec, dtype=float).tolist()
+        return values
 
 
 def precache_model(
@@ -148,7 +149,7 @@ def precache_model(
     *,
     revision: str | None = None,
     cache_dir: str | Path | None = None,
-) -> dict:
+) -> dict[str, Any]:
     """Download and load a model2vec model into the local HF cache.
 
     Designed to be called at container-build time so the resulting image can

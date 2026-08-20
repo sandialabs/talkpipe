@@ -6,6 +6,7 @@
 ## Important Commands
 - `python -m build` — create a new release
 - `pytest --cov=src` — run unit tests with coverage
+- `ruff check .`, `ruff format --check .`, `mypy` — the code-quality gate. **CI fails on any finding from these three**; run them before pushing. `ruff check --fix . && ruff format .` fixes most lint/format findings; the rule set and mypy config live in `pyproject.toml`. `pre-commit install` (opt-in, per clone) runs the same checks on every commit.
 - `python .cursor/skills/update-entry-points/scripts/update_entry_points.py` — generate entry points from decorators and update pyproject.toml (preferred over chatterlang_generate_entry_points when updating pyproject.toml)
 - `pytest tests/test_doc_examples.py -v` — run all doc examples as tests (requires full_network for LLM examples; skip with `-m "not requires_ollama"` when Ollama unavailable)
 - `run_doc_examples` — extract and run all doc examples (alternative to pytest; requires full_network for LLM examples)

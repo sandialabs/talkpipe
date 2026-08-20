@@ -45,11 +45,11 @@ Manage and inspect TalkPipe plugins installed via Python entry points.
 ## Performance Optimization
 
 ### [Lazy Loading](lazy-loading.md)
-Optimize startup performance with on-demand component loading.
-- 18x faster startup times
-- Reduced memory footprint
-- Environment-based or programmatic configuration
-- Full backward compatibility
+How the registry loads components on demand (always on — no switch to flip).
+- Name lookups import only the component that was asked for
+- Catalogue-wide operations (`.all`, reference browser) load everything once
+- How to keep your own components cheap to load
+- Status of the historical `LAZY_IMPORT` flag
 
 ---
 

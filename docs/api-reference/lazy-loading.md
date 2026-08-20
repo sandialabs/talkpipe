@@ -1,577 +1,85 @@
 # Lazy Loading
 
-TalkPipe's lazy loading feature provides significant performance improvements by loading components on-demand rather than importing all sources and segments at startup.
+TalkPipe's component registry loads segments and sources **on demand, always**.
+There is no switch to flip: `import talkpipe` is fast (well under a second)
+because nothing beyond the core is imported until a script or the Pipe API
+actually names a component.
 
-## Overview
+## How the registry loads components
 
-The hybrid registry system supports two modes:
+The registry (`talkpipe.chatterlang.registry`) resolves a name in this order:
 
-- **Eager mode** (default): Components are loaded when first accessed, maintaining backward compatibility
-- **Lazy mode**: Entry point discovery is deferred until components are explicitly requested, providing up to **18x faster startup times** (from ~2.9s to ~0.16s)
+1. **Decorator registrations** — anything already registered with
+   `@register_segment` / `@register_source` in a module that has been imported.
+2. **Entry points** — the `talkpipe.segments` / `talkpipe.sources` groups
+   declared by talkpipe itself and by installed plugins. The entry point for
+   *that one name* is imported at that moment; nothing else is touched.
+3. Otherwise a `CompileError` / `KeyError` naming the closest matches.
 
-This is particularly beneficial for command-line tools, documentation generators, and applications that only use a subset of TalkPipe's 72+ built-in components.
-
-## Benefits
-
-- **Faster startup**: Dramatically reduced import time when lazy loading is enabled
-- **Reduced memory footprint**: Only load components that are actually used
-- **Backward compatible**: Existing code works without changes
-- **Flexible configuration**: Enable via environment variable, config file, or programmatically
-- **Graceful degradation**: Handles missing components cleanly
-
-## Enabling Lazy Loading
-
-### Method 1: Environment Variable (Recommended)
-
-Set the `TALKPIPE_LAZY_IMPORT` environment variable:
-
-```bash
-export TALKPIPE_LAZY_IMPORT=true
-python your_script.py
-```
-
-Accepted values: `'1'`, `'true'`, `'yes'` (case-insensitive)
-
-### Method 2: Configuration File
-
-Add to `~/.talkpipe.toml`:
-
-```toml
-LAZY_IMPORT = true
-```
-
-### Method 3: Programmatic Control
-
-Control lazy loading from within your Python code:
+Only operations that need the *whole* catalogue — the `.all` property,
+`chatterlang_reference_browser`, the workbench reference pane,
+`talkpipe_plugins --list`, and error-message suggestions — import every
+declared entry point, once, on first use.
 
 ```python
-from talkpipe.chatterlang.registry import enable_lazy_imports, disable_lazy_imports
+from talkpipe.chatterlang import registry
 
-# Enable lazy loading
-enable_lazy_imports()
+# Resolving one name imports only that component's module.
+seg = registry.segment_registry.get("print")
 
-# Your TalkPipe code here
-from talkpipe import compile
-pipeline = compile("INPUT FROM range[lower=0, upper=100] | print")
-
-# Disable lazy loading if needed
-disable_lazy_imports()
+# .all imports every declared entry point (once) — expected to be slower.
+names = sorted(registry.segment_registry.all)
+assert "print" in names
 ```
 
-## How It Works
+## `LAZY_IMPORT` — kept for compatibility, no longer changes behaviour
 
-### Component Registration
+Earlier releases documented a `LAZY_IMPORT` config key
+(`TALKPIPE_LAZY_IMPORT=true`) that switched the registry between eager and
+lazy loading. On-demand loading became the only behaviour, so the flag now
+affects nothing except the `lazy_mode` field of
+`registry.segment_registry.stats()` and a debug log line. Setting it is
+harmless; leaving it unset is recommended. `enable_lazy_imports()` /
+`disable_lazy_imports()` are retained as no-op-equivalent helpers for the same
+reason and are scheduled for removal in TalkPipe 2.0.
 
-TalkPipe uses a hybrid registry that combines decorator-based registration with entry point discovery:
+## Keeping *your* components cheap to load
 
-1. **Decorator registration**: Components decorated with `@register_source()` or `@register_segment()` are registered immediately when their module is imported
-2. **Entry point discovery**: Components declared in `pyproject.toml` entry points are discovered without importing
-3. **On-demand loading**: When a component is requested, its module is imported (triggering all decorators in that module), registering all components from that module at once
-
-### Registry Lookup Process
-
-When you request a component by name:
+Lazy resolution only helps if a component's module is itself cheap to import.
+Import heavy optional dependencies inside the function or method that needs
+them, not at module top level, so a pipeline that never uses that component
+never pays for it:
 
 ```python
-from talkpipe.chatterlang.registry import segment_registry
-segment_registry.get("print")
+from talkpipe.pipe import core
+from talkpipe.chatterlang import registry
+
+
+@registry.register_segment("myHeavyThing")
+@core.segment()
+def my_heavy_thing(items):
+    import json  # stand-in for a heavy import; resolved only when the segment runs
+
+    for item in items:
+        yield json.dumps(item)
+
+
+assert registry.segment_registry.get("myHeavyThing") is not None
 ```
 
-The registry follows this process:
+This is the pattern talkpipe uses for its own optional providers
+(`ollama`, `openai`, `anthropic`, `model2vec`, `pypdf`, `PIL`), each of which
+raises an `ImportError` naming the extra to install if it is missing.
 
-1. Check if already registered via decorators (fast path)
-2. Check if this component failed to load before (avoid retry loops)
-3. Try loading from entry points if available
-4. Raise `KeyError` with list of available components if not found
-
-**Important**: When a component's module is imported to load that component, **all components in that module** are registered at once. This is because importing the module executes all decorators in the file. For example, requesting the `print` segment will load and register all segments defined in the `talkpipe/pipe/io.py` module.
-
-### Loading All Components
-
-When you access all components:
+## Diagnostics
 
 ```python
-from talkpipe.chatterlang.registry import segment_registry
-all_segments = segment_registry.all
+from talkpipe.chatterlang import registry
+
+stats = registry.segment_registry.stats()
+print(sorted(stats))  # decorator-registered, entry-point, loaded, failed counts, lazy_mode
 ```
 
-In lazy mode, this triggers one-time loading of all entry points. Subsequent accesses use cached results.
-
-## Performance Characteristics
-
-### Lazy Mode (`TALKPIPE_LAZY_IMPORT=true`)
-
-- **Initial import**: ~0.16 seconds
-- **First `.all` access**: ~3 seconds (loads all 72 components)
-- **Subsequent accesses**: Very fast (cached)
-- **Individual component access**: Loads the component's module (registering all components in that module)
-
-### Eager Mode (default)
-
-- **Initial import**: Slightly slower than lazy mode
-- **Component access**: Same on-demand loading behavior
-- **Backward compatible** with existing code
-
-## Usage Examples
-
-### Basic Usage with ChatterLang
-
-Lazy loading works automatically with ChatterLang scripts:
-
-```python
-from talkpipe import compile
-
-# With lazy loading enabled, this starts fast
-pipeline = compile("""
-    INPUT FROM range[lower=0, upper=100]
-    | scale[multiplier=2]
-    | print
-""")
-
-# Only the modules containing 'range', 'scale', and 'print' are loaded
-# All components in those modules are registered when their module is imported
-```
-
-### Direct Registry Access
-
-```python
-from talkpipe.chatterlang.registry import segment_registry, input_registry
-
-# Get a specific segment (loads that component's module in lazy mode)
-# Note: All components in the same module are registered when the module is imported
-PrintSegment = segment_registry.get("print")
-
-# List available components without loading them
-entry_points = segment_registry.list_entry_points()
-print(f"Available segments: {', '.join(entry_points)}")
-
-# Get all segments (triggers loading of all modules in lazy mode)
-all_segments = segment_registry.all
-```
-
-### Checking Registry Statistics
-
-Monitor what's loaded in the registry:
-
-```python
-from talkpipe.chatterlang.registry import segment_registry
-
-stats = segment_registry.stats()
-print(stats)
-# Output: {'registered': 10, 'entry_points': 71, 'loaded_modules': 5, 'failed_loads': 0}
-```
-
-### Get Statistics for All Registries
-
-```python
-from talkpipe.chatterlang.registry import get_registry_stats
-
-stats = get_registry_stats()
-print(stats)
-# Output: {
-#   'sources': {'registered': 5, 'entry_points': 8, ...},
-#   'segments': {'registered': 35, 'entry_points': 71, ...},
-#   'lazy_mode': True
-# }
-```
-
-## API Reference
-
-### Functions
-
-#### `enable_lazy_imports()`
-Enable lazy loading mode for all registries.
-
-```python
-from talkpipe.chatterlang.registry import enable_lazy_imports
-enable_lazy_imports()
-```
-
-#### `disable_lazy_imports()`
-Disable lazy loading mode, returning to eager loading.
-
-```python
-from talkpipe.chatterlang.registry import disable_lazy_imports
-disable_lazy_imports()
-```
-
-#### `get_registry_stats()`
-Get statistics for all registries including lazy mode status.
-
-**Returns:** Dictionary with keys `'sources'`, `'segments'`, and `'lazy_mode'`
-
-```python
-from talkpipe.chatterlang.registry import get_registry_stats
-stats = get_registry_stats()
-```
-
-### Registry Methods
-
-#### `registry.get(name: str) -> Type`
-Get a component by name, loading from entry points if needed.
-
-**Raises:** `KeyError` if component is not found
-
-```python
-from talkpipe.chatterlang.registry import segment_registry
-component = segment_registry.get("print")
-```
-
-#### `registry.all -> Dict[str, Type]`
-Get all registered components. In lazy mode, this triggers loading of all entry points.
-
-```python
-from talkpipe.chatterlang.registry import segment_registry
-all_components = segment_registry.all
-```
-
-#### `registry.list_entry_points() -> List[str]`
-List names of all components available via entry points without loading them.
-
-```python
-from talkpipe.chatterlang.registry import segment_registry
-names = segment_registry.list_entry_points()
-```
-
-#### `registry.stats() -> Dict`
-Get statistics about the registry state.
-
-**Returns:** Dictionary with keys:
-- `'registered'`: Number of currently loaded components
-- `'entry_points'`: Total number of available entry points
-- `'loaded_modules'`: Number of modules that have been imported
-- `'failed_loads'`: Number of components that failed to load
-
-```python
-from talkpipe.chatterlang.registry import segment_registry
-stats = segment_registry.stats()
-```
-
-### Module Constants
-
-#### `LAZY_IMPORT_MODE`
-Global boolean flag indicating whether lazy loading is enabled.
-
-```python
-from talkpipe.chatterlang.registry import LAZY_IMPORT_MODE
-print(f"Lazy loading enabled: {LAZY_IMPORT_MODE}")
-```
-
-## Supported Components
-
-Lazy loading is fully supported for all TalkPipe components:
-
-- **8 built-in sources**: `chatterlangServer`, `echo`, `exec`, `prompt`, `randomInts`, `range`, `readEmail`, `rss`
-- **71 built-in segments**: Including data I/O, transformations, filtering, LLM operations, search, web processing, and more
-
-All components are declared as entry points in `pyproject.toml` and use decorator-based registration for seamless lazy loading.
-
-
-### Taking Advantage of Lazy Loading
-
-As a developer building TalkPipe applications or creating custom sources and segments, you can structure your code to maximize the benefits of lazy loading.
-
-### Module Organization Best Practices
-
-Since lazy loading works at the **module level** (importing one component loads all components in that module), organize your code strategically:
-
-#### 1. Group Related Components Together
-
-Place components that are often used together in the same module:
-
-```python
-# Good: data_io.py - components commonly used together
-from talkpipe.chatterlang.registry import register_segment
-from talkpipe.pipe.core import AbstractSegment
-
-@register_segment("readJson")
-class ReadJson(AbstractSegment):
-    """Read JSON files"""
-    pass
-
-@register_segment("writeJson")
-class WriteJson(AbstractSegment):
-    """Write JSON files"""
-    pass
-```
-
-
-#### 2. Organize by Domain
-
-Structure components by domain or functionality:
-
-```
-# Project structure
-src/myproject/
-    sources/
-        database.py      # All database sources
-        web.py          # All web-related sources
-    segments/
-        transform.py    # Data transformation
-        llm.py          # LLM-related (may have heavy deps)
-```
-
-#### 4. Use Entry Points for Discoverability
-
-Declare your components as entry points in `pyproject.toml`:
-
-```toml
-[project.entry-points."talkpipe.sources"]
-myDatabaseSource = "myproject.sources.database"
-
-[project.entry-points."talkpipe.segments"]
-myTransform = "myproject.segments.transform"
-```
-
-This allows TalkPipe to discover and load components on-demand without importing them.
-
-**Important**: Component names must be unique across all installed packages. TalkPipe detects name collisions and raises detailed errors. Use unique prefixes for plugin components (e.g., `myplugin_transform`) to avoid conflicts. See the [Extending TalkPipe](../architecture/extending-talkpipe.md) documentation for details on plugin architecture and collision handling.
-
-### When to Enable Lazy Loading
-
-Enable lazy loading in these scenarios:
-
-#### Best Use Cases
-
-1. **Command-line tools**: Fast startup is critical for good UX
-   ```bash
-   export TALKPIPE_LAZY_IMPORT=true
-   python my_cli_tool.py
-   ```
-
-2. **Documentation generators**: Need to discover all components but may not use them all
-   ```python
-   from talkpipe.chatterlang.registry import segment_registry, enable_lazy_imports   
-   enable_lazy_imports()
-   all_segments = segment_registry.list_entry_points()  # Fast discovery
-   ```
-
-3. **Development and testing**: Faster feedback loops
-   ```bash
-   export TALKPIPE_LAZY_IMPORT=true
-   pytest tests/
-   ```
-
-4. **Large libraries**: Projects with many components where users typically use a small subset
-   ```python
-   # In your library's __init__.py
-   from talkpipe.chatterlang.registry import enable_lazy_imports
-   enable_lazy_imports()
-   ```
-
-#### When Eager Loading May Be Better
-
-1. **Production services**: Where startup time happens once but runtime performance matters
-2. **Small applications**: With few components where lazy loading overhead isn't worth it
-3. **Using most components**: If your pipeline uses most available components anyway
-
-### Creating Lazy-Loading-Friendly Plugins
-
-When developing TalkPipe plugins, follow these guidelines:
-
-#### 1. Provide Multiple Granularity Levels
-
-Offer both bundled and granular entry points:
-
-```toml
-# In your plugin's pyproject.toml
-
-[project.entry-points."talkpipe.segments"]
-# All-in-one for convenience
-all_ml_segments = "myplugin.ml"
-
-# Individual components for lazy loading
-mlPredict = "myplugin.ml.predict"
-mlTrain = "myplugin.ml.train"
-mlEvaluate = "myplugin.ml.evaluate"
-```
-
-#### 2. Document Dependency Requirements
-
-Make it clear which components have special requirements:
-
-```python
-from talkpipe.chatterlang.registry import register_segment
-from talkpipe.pipe.core import AbstractSegment
-
-@register_segment("csvProcess")
-class CsvProcess(AbstractSegment):
-    """
-    Process CSV data using the csv module.
-
-    Requires: csv (stdlib)
-
-    For large datasets, consider: pip install pandas
-    """
-    pass
-```
-
-### Measuring the Impact
-
-Monitor the effectiveness of lazy loading:
-
-```python
-import time
-from talkpipe.chatterlang.registry import segment_registry, enable_lazy_imports
-
-# Measure startup time
-start = time.time()
-enable_lazy_imports()
-from talkpipe import compile
-startup_time = time.time() - start
-print(f"Startup time: {startup_time:.3f}s")
-
-# Check what's actually loaded
-stats = segment_registry.stats()
-print(f"Registered: {stats['registered']}/{stats['entry_points']} segments")
-print(f"Modules loaded: {stats['loaded_modules']}")
-
-# Run your pipeline
-pipeline = compile("INPUT FROM range[lower=0, upper=10] | print")
-
-# Check what got loaded
-stats_after = segment_registry.stats()
-print(f"After pipeline: {stats_after['registered']}/{stats_after['entry_points']} segments")
-print(f"Modules loaded: {stats_after['loaded_modules']}")
-```
-
-### Example: Optimizing a Large Project
-
-Here's a real-world example of restructuring for lazy loading:
-
-**Before: All components in one file**
-```python
-# components.py (slow to load)
-from talkpipe.chatterlang.registry import register_segment
-from talkpipe.pipe.core import AbstractSegment
-import csv
-import sqlite3
-import xml.etree.ElementTree as ET
-import decimal
-
-# 50+ segments all in one file
-@register_segment("csvFilter")
-class CsvFilter(AbstractSegment): pass
-
-@register_segment("sqliteQuery")
-class SqliteQuery(AbstractSegment): pass
-
-# ... 48 more segments
-```
-
-**After: Organized by functionality and dependencies**
-```python
-# segments/basic.py (fast to load, no heavy deps)
-from talkpipe.chatterlang.registry import register_segment
-from talkpipe.pipe.core import AbstractSegment
-
-@register_segment("filter")
-class Filter(AbstractSegment): pass
-
-@register_segment("map")
-class Map(AbstractSegment): pass
-
-# segments/data_io.py (moderate deps)
-from talkpipe.chatterlang.registry import register_segment
-from talkpipe.pipe.core import AbstractSegment
-
-@register_segment("csvFilter")
-class CsvFilter(AbstractSegment):
-    def transform(self, input_iter):
-        import csv  # Lazy import
-        # Use csv here
-
-# segments/database.py (stdlib deps)
-from talkpipe.chatterlang.registry import register_segment
-from talkpipe.pipe.core import AbstractSegment
-
-@register_segment("sqliteQuery")
-class SqliteQuery(AbstractSegment):
-    def transform(self, input_iter):
-        import sqlite3  # Lazy import
-        # Use sqlite3 here
-```
-
-**Result**: Users who only need basic filtering get **10x faster startup** because csv and sqlite3 are never imported. The same pattern applies to heavy ML libraries like TensorFlow or PyTorch.
-
-## Troubleshooting
-
-### Component Not Found
-
-If a component fails to load, check:
-
-1. Is the component name correct? Use `registry.list_entry_points()` to see available names
-2. Are dependencies installed? Some components require optional dependencies
-3. Check `registry.stats()` for `'failed_loads'` count
-
-### Performance Not Improved
-
-If you don't see performance improvements:
-
-1. Verify lazy loading is enabled: check `LAZY_IMPORT_MODE` value
-2. Ensure environment variable is set before importing TalkPipe
-3. Consider if your use case actually benefits (e.g., loading all components negates the benefit)
-
-### Circular Import Issues
-
-The hybrid registry is designed to avoid circular imports by:
-
-- Not loading entry points at `__init__` time
-- Loading decorators only when components are requested
-- Providing fallback to entry point discovery
-
-If you encounter circular import issues, they're likely from other parts of your code.
-
-### Component Name Conflicts
-
-**Automatic Detection**: As of the current version, TalkPipe automatically detects and reports entry point name collisions when packages are loaded. If you see a `ValueError` about name collisions, it means multiple installed packages are trying to use the same component name.
-
-**What to do when you see a collision error:**
-
-1. **Read the error message carefully** - it lists all conflicting packages and component names:
-   ```
-   ValueError: Entry point name collision detected in group 'talkpipe.segments'.
-   Multiple packages are trying to register components with the same name:
-     - Component 'transform' defined by:
-         • package1.segments:Transform (from package 'myplugin1')
-         • package2.segments:Transform (from package 'myplugin2')
-   ```
-
-2. **Choose your resolution strategy:**
-   - **Uninstall one of the conflicting packages** if you don't need both
-   - **Contact plugin authors** to request they use unique prefixes
-   - **Temporarily use a workaround** by forking one plugin and renaming its components
-
-3. **For plugin developers** - prevent conflicts by using unique prefixes:
-   ```toml
-   [project.entry-points."talkpipe.segments"]
-   # Good: unique prefix
-   myplugin_transform = "myplugin.segments.transform"
-
-   # Risky: generic name
-   transform = "myplugin.segments.transform"
-   ```
-
-**Manual collision checking** (if you want to check before installing a package):
-```bash
-# Show all packages defining talkpipe.segments
-python -c "
-from importlib.metadata import entry_points
-eps = entry_points().select(group='talkpipe.segments')
-seen = {}
-for ep in eps:
-    if ep.name in seen:
-        print(f'CONFLICT: {ep.name} defined by both {seen[ep.name]} and {ep.value}')
-    else:
-        seen[ep.name] = ep.value
-print(f'Total: {len(seen)} unique names')
-"
-```
-
----
-
-**See Also:**
-- [Plugin Manager](talkpipe-plugin-manager.md) for managing external plugins
-- [ChatterLang compiler layer](../architecture/chatterlang.md#2-compiler-layer) for how components are resolved during compilation
-
-Last Reviewed: 20251025
+`talkpipe_plugins --list` shows which entry points loaded and which failed,
+with the error, so a plugin that fails to import does not silently
+disappear.

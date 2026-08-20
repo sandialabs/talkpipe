@@ -70,7 +70,9 @@ def test_require_dependency_raises_helpful_error_for_missing_package():
     assert module is not None
 
     with pytest.raises(ImportError, match=r"pip install talkpipe\[fake-extra\]"):
-        adapter._require_dependency("missing_module_for_talkpipe_tests", "Missing", "fake-extra")
+        adapter._require_dependency(
+            "missing_module_for_talkpipe_tests", "Missing", "fake-extra"
+        )
 
 
 def test_complete_text_without_context_default_raises_not_implemented():
@@ -155,3 +157,81 @@ def test_clip_debug_text_handles_none_short_and_long_text():
     assert adapter._clip_debug_text(None) == ""
     assert adapter._clip_debug_text("short", limit=10) == "short"
     assert adapter._clip_debug_text("abcdefgh", limit=5) == "abcde...[truncated]"
+
+
+def test_require_dependency_distinguishes_missing_from_broken(monkeypatch):
+    adapter = DummyPromptAdapter()
+
+    # a real, importable module comes back as-is
+    assert adapter._require_dependency("json", "JSON", "json").__name__ == "json"
+
+    # missing package -> points at the extra
+    with pytest.raises(ImportError, match=r"talkpipe\[nope\]"):
+        adapter._require_dependency("definitely_not_a_module_xyz", "Nope", "nope")
+
+    # package present but a *transitive* import fails -> "installed but failed"
+    import builtins
+
+    real_import = builtins.__import__
+
+    def broken(name, *args, **kwargs):
+        if name == "brokenpkg":
+            raise ModuleNotFoundError(
+                "No module named 'its_dependency'", name="its_dependency"
+            )
+        return real_import(name, *args, **kwargs)
+
+    monkeypatch.setattr(builtins, "__import__", broken)
+    with pytest.raises(ImportError, match="installed but failed to import"):
+        adapter._require_dependency("brokenpkg", "Broken", "broken")
+
+    def broken_generic(name, *args, **kwargs):
+        if name == "brokenpkg2":
+            raise ImportError("dll load failed")
+        return real_import(name, *args, **kwargs)
+
+    monkeypatch.setattr(builtins, "__import__", broken_generic)
+    with pytest.raises(ImportError, match="dll load failed"):
+        adapter._require_dependency("brokenpkg2", "Broken", "broken")
+
+
+def test_format_message_for_debug_redacts_images_and_truncates():
+    adapter = DummyPromptAdapter()
+
+    long = "x" * 600
+    plain = adapter._format_message_for_debug({"role": "user", "content": long})
+    assert plain["role"] == "user"
+    assert plain["content"].endswith("...[truncated]")
+    assert len(plain["content"]) == 500 + len("...[truncated]")
+
+    with_images = adapter._format_message_for_debug(
+        {"role": "user", "content": long, "images": ["QUJD", "REVGRw=="]}
+    )
+    assert with_images["images"] == ["<4 base64 chars>", "<8 base64 chars>"]
+    assert with_images["content"].endswith("...[truncated]")
+
+    parts = adapter._format_message_for_debug(
+        {
+            "role": "user",
+            "content": [
+                {"type": "text", "text": "hi"},
+                {"type": "image_url", "image_url": {"url": "data:..."}},
+                {"type": "image", "source": {"data": "..."}},
+                "loose string part",
+            ],
+        }
+    )
+    assert parts["content"] == [
+        {"type": "text", "text": "hi"},
+        {"type": "image_url", "image": "<redacted>"},
+        {"type": "image", "image": "<redacted>"},
+        "loose string part",
+    ]
+
+
+def test_execute_turn_is_not_supported_by_default():
+    from talkpipe.llm.content import TextPart, UserTurn
+
+    adapter = DummyPromptAdapter()
+    with pytest.raises(NotImplementedError, match="DummyPromptAdapter"):
+        adapter.execute_turn(UserTurn(parts=[TextPart(text="hello")]))

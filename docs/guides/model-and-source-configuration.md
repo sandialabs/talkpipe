@@ -224,6 +224,7 @@ INPUT FROM prompt[data="Summarize this:"]
 | print
 ```
 
+<!-- doc-example: requires-openai -->
 ```python
 from talkpipe.llm.chat import LLMPrompt
 
@@ -394,6 +395,7 @@ chatterlang_script --script 'INPUT FROM prompt[data="Hi"] | llmPrompt[model=$def
 
 ### 6. Pipe API with config fallback
 
+<!-- doc-example: skip -->
 ```python
 from talkpipe.llm.chat import LLMPrompt
 

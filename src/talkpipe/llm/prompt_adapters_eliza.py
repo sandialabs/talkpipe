@@ -1,5 +1,5 @@
 import re
-from typing import Optional, Union
+from typing import Any
 
 from pydantic import BaseModel
 
@@ -15,11 +15,40 @@ class ElizaPromptAdapter(AbstractLLMPromptAdapter):
     ``LLMPrompt`` and guided-generation segments.
     """
 
-    _STOPWORDS = {
-        "the", "and", "that", "this", "with", "from", "about", "would", "could", "should",
-        "your", "you", "have", "what", "when", "where", "which", "there", "their", "them",
-        "they", "into", "while", "just", "been", "being", "were", "will", "then", "than",
-    }
+    _STOPWORDS = frozenset(
+        {
+            "the",
+            "and",
+            "that",
+            "this",
+            "with",
+            "from",
+            "about",
+            "would",
+            "could",
+            "should",
+            "your",
+            "you",
+            "have",
+            "what",
+            "when",
+            "where",
+            "which",
+            "there",
+            "their",
+            "them",
+            "they",
+            "into",
+            "while",
+            "just",
+            "been",
+            "being",
+            "were",
+            "will",
+            "then",
+            "than",
+        }
+    )
 
     _FEELING_TEMPLATES = (
         "Feelings usually carry useful data; what seems to be driving that today?",
@@ -62,14 +91,14 @@ class ElizaPromptAdapter(AbstractLLMPromptAdapter):
     def __init__(
         self,
         model: str,
-        system_prompt: Optional[str] = "You are a helpful assistant.",
+        system_prompt: str | None = "You are a helpful assistant.",
         multi_turn: bool = True,
-        temperature: float = None,
-        output_format: BaseModel = None,
-        role_map: str = None,
+        temperature: float | None = None,
+        output_format: type[BaseModel] | None = None,
+        role_map: str | None = None,
         memory_mode: str = "full",
         unsummarized_message_count: int = 6,
-        context_token_trigger: Optional[Union[int, float]] = None,
+        context_token_trigger: int | float | None = None,
         memory_size: int = 512,
         debug_messages: bool = False,
     ):
@@ -92,14 +121,14 @@ class ElizaPromptAdapter(AbstractLLMPromptAdapter):
         self._identity_introduced = False
         self._name_query_count = 0
 
-    def execute(self, prompt: str) -> str:
+    def execute(self, prompt: str) -> str | BaseModel:
         logger.debug(f"Adding user message to chat history: {prompt}")
         self._messages.append({"role": "user", "content": prompt})
         self._compact_context_if_needed()
         self._capture_facts(prompt)
         self._turn_count += 1
 
-        request_params = {
+        request_params: dict[str, Any] = {
             "model": self._model_name,
             "messages": self._request_messages(),
             "output_format": self._output_format,
@@ -110,21 +139,20 @@ class ElizaPromptAdapter(AbstractLLMPromptAdapter):
         response_text = str(response["text"])
         self._record_assistant_response(response_text)
 
-        if self._output_format:
-            result = response["structured"]
-        else:
-            result = response_text
+        result = response["structured"] if self._output_format else response_text
 
         logger.debug(f"Returning response: {result}")
         return result
 
-    def execute_turn(self, user_turn: UserTurn) -> str:
+    def execute_turn(self, user_turn: UserTurn) -> str | BaseModel:
         prompt = user_turn_text(user_turn)
         if not prompt.strip():
             prompt = "(shared an image without text)"
         return self.execute(prompt)
 
-    def _messages_create(self, model: str, messages: list, output_format=None) -> dict:
+    def _messages_create(
+        self, model: str, messages: list[dict[str, Any]], output_format: Any = None
+    ) -> dict[str, Any]:
         latest_user_text = ""
         for message in reversed(messages):
             if str(message.get("role", "")).lower() == "user":
@@ -152,7 +180,7 @@ class ElizaPromptAdapter(AbstractLLMPromptAdapter):
                 return f"I am {self._model_name}. You asked again, and consistency matters."
             return f"My name is {self._model_name}."
 
-        if "first name" in lower or "my name" in lower and "what" in lower:
+        if "first name" in lower or ("my name" in lower and "what" in lower):
             known_name = self._find_fact("your name is")
             if known_name:
                 response = f"Earlier you said your name is {known_name}. Is that still how you introduce yourself?"
@@ -185,10 +213,14 @@ class ElizaPromptAdapter(AbstractLLMPromptAdapter):
 
     def _is_bot_name_query(self, prompt_lower: str) -> bool:
         return bool(
-            re.search(r"\b(what('?s| is) your name|who are you|your name\?)\b", prompt_lower)
+            re.search(
+                r"\b(what('?s| is) your name|who are you|your name\?)\b", prompt_lower
+            )
         )
 
-    def _choose_template(self, templates: tuple[str, ...], prompt_lower: str, branch: str) -> str:
+    def _choose_template(
+        self, templates: tuple[str, ...], prompt_lower: str, branch: str
+    ) -> str:
         if len(templates) == 1:
             return templates[0]
         salt = sum(ord(char) for char in (prompt_lower + branch))
@@ -225,11 +257,11 @@ class ElizaPromptAdapter(AbstractLLMPromptAdapter):
         if len(self._facts) > 5:
             self._facts = self._facts[-5:]
 
-    def _find_fact(self, prefix: str) -> Optional[str]:
+    def _find_fact(self, prefix: str) -> str | None:
         prefix_lower = prefix.lower().strip()
         for fact in reversed(self._facts):
             if fact.lower().startswith(prefix_lower):
-                return fact[len(prefix):].strip()
+                return fact[len(prefix) :].strip()
         return None
 
     def _occasional_memory_line(self) -> str:
@@ -240,8 +272,12 @@ class ElizaPromptAdapter(AbstractLLMPromptAdapter):
         fact_index = (self._turn_count // 3 - 1) % len(self._facts)
         return f"You mentioned earlier that {self._facts[fact_index]}."
 
-    def _build_structured_response(self, prompt: str):
-        fields = set(self._output_format.model_fields)
+    def _build_structured_response(self, prompt: str) -> BaseModel:
+        if self._output_format is None:
+            raise ValueError("Structured response requested without an output_format")
+        output_format = self._output_format
+        fields = set(output_format.model_fields)
+        payload: dict[str, Any]
         if fields == {"score", "explanation"}:
             score = self._heuristic_score(prompt)
             payload = {
@@ -250,7 +286,7 @@ class ElizaPromptAdapter(AbstractLLMPromptAdapter):
                     f"{self._model_name} assigned {score}/10 using clarity, specificity, and emotional signal as generic heuristics."
                 ),
             }
-            return self._output_format.model_validate(payload)
+            return output_format.model_validate(payload)
 
         if fields == {"answer", "explanation"}:
             answer = self._heuristic_binary_answer(prompt)
@@ -260,15 +296,15 @@ class ElizaPromptAdapter(AbstractLLMPromptAdapter):
                     f"{self._model_name} inferred {'yes' if answer else 'no'} from lexical cues and explicit negation."
                 ),
             }
-            return self._output_format.model_validate(payload)
+            return output_format.model_validate(payload)
 
         if fields == {"terms"}:
             payload = {"terms": self._extract_terms(prompt)}
-            return self._output_format.model_validate(payload)
+            return output_format.model_validate(payload)
 
         payload = {}
-        for field_name, field_info in self._output_format.model_fields.items():
-            annotation = field_info.annotation
+        for field_name, field_info in output_format.model_fields.items():
+            annotation: Any = field_info.annotation
             if annotation is int:
                 payload[field_name] = self._heuristic_score(prompt)
             elif annotation is bool:
@@ -277,7 +313,7 @@ class ElizaPromptAdapter(AbstractLLMPromptAdapter):
                 payload[field_name] = self._extract_terms(prompt)
             else:
                 payload[field_name] = self._build_response_text(prompt)
-        return self._output_format.model_validate(payload)
+        return output_format.model_validate(payload)
 
     def _heuristic_score(self, prompt: str) -> int:
         text = prompt.lower()
@@ -318,9 +354,9 @@ class ElizaPromptAdapter(AbstractLLMPromptAdapter):
         self,
         prompt: str,
         *,
-        model: Optional[str] = None,
+        model: str | None = None,
         temperature: float = 0.0,
-        max_tokens: Optional[int] = None,
+        max_tokens: int | None = None,
     ) -> str:
         del temperature, max_tokens
         response = self._messages_create(

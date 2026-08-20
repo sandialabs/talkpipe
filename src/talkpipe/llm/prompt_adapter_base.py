@@ -1,12 +1,14 @@
-from abc import ABC, abstractmethod
 import json
 import logging
-from typing import Annotated, Optional, Union
+from abc import ABC, abstractmethod
+from collections.abc import Callable
+from typing import Annotated, Any
 
 from pydantic import BaseModel
 
-from talkpipe.util.data_manipulation import parse_key_value_str
+from talkpipe.util.config import parse_key_value_str
 
+from .content import UserTurn
 from .prompt_adapter_memory import PromptAdapterMemoryMixin
 
 # Keep the historical logger name for compatibility with existing monkeypatches.
@@ -22,25 +24,46 @@ class AbstractLLMPromptAdapter(PromptAdapterMemoryMixin, ABC):
 
     _model_name: str
     _source: str
-    _system_message: Optional[dict]
-    _summary_message: Optional[dict]
-    _messages: list
+    _system_message: dict[str, Any] | None
+    _summary_message: dict[str, Any] | None
+    _messages: list[dict[str, Any]]
     _multi_turn: bool
 
     def __init__(
         self,
         model: Annotated[str, "The name of the model"],
         source: Annotated[str, "The source of the model"],
-        system_prompt: Annotated[Optional[str], "The system prompt for the model"] = "You are a helpful assistant.",
-        multi_turn: Annotated[bool, "Whether the model supports multi-turn conversations"] = True,
-        temperature: Annotated[float, "The temperature for the model"] = None,
-        output_format: Annotated[BaseModel, "The output format for the model"] = None,
-        role_map: Annotated[str, "The role map for the model in the form 'role:message,role:message'. If the system role is included here, it overrides the system_prompt message"] = None,
-        memory_mode: Annotated[str, "Memory behavior: full, recent_only, summary_llm, summary_deterministic, or summary_truncate"] = "full",
-        unsummarized_message_count: Annotated[int, "Recent message count kept out of summary compaction"] = 6,
-        context_token_trigger: Annotated[Optional[Union[int, float]], "Approximate context-token trigger for rolling memory compaction (values < 1 are ignored)"] = None,
-        memory_size: Annotated[int, "Target max tokens for generated summary memory"] = 512,
-        debug_messages: Annotated[bool, "Whether to log outbound LLM request messages"] = False,
+        system_prompt: Annotated[
+            str | None, "The system prompt for the model"
+        ] = "You are a helpful assistant.",
+        multi_turn: Annotated[
+            bool, "Whether the model supports multi-turn conversations"
+        ] = True,
+        temperature: Annotated[float | None, "The temperature for the model"] = None,
+        output_format: Annotated[
+            type[BaseModel] | None, "The output format for the model"
+        ] = None,
+        role_map: Annotated[
+            str | None,
+            "The role map for the model in the form 'role:message,role:message'. If the system role is included here, it overrides the system_prompt message",
+        ] = None,
+        memory_mode: Annotated[
+            str,
+            "Memory behavior: full, recent_only, summary_llm, summary_deterministic, or summary_truncate",
+        ] = "full",
+        unsummarized_message_count: Annotated[
+            int, "Recent message count kept out of summary compaction"
+        ] = 6,
+        context_token_trigger: Annotated[
+            int | float | None,
+            "Approximate context-token trigger for rolling memory compaction (values < 1 are ignored)",
+        ] = None,
+        memory_size: Annotated[
+            int, "Target max tokens for generated summary memory"
+        ] = 512,
+        debug_messages: Annotated[
+            bool, "Whether to log outbound LLM request messages"
+        ] = False,
     ):
         """Initialize the chat model."""
         self._model_name = model
@@ -80,12 +103,14 @@ class AbstractLLMPromptAdapter(PromptAdapterMemoryMixin, ABC):
             self._system_message = {"role": "system", "content": system_prompt}
             self._prefix_messages = [self._system_message]
 
-    def _request_messages(self) -> list:
+    def _request_messages(self) -> list[dict[str, Any]]:
         # Providers consume the same assembled order: static prefix, rolling summary, then live turns.
         summary_messages = [self._summary_message] if self._summary_message else []
         return self._prefix_messages + summary_messages + self._messages
 
-    def _require_dependency(self, module_name: str, display_name: str, extra_name: str):
+    def _require_dependency(
+        self, module_name: str, display_name: str, extra_name: str
+    ) -> Any:
         try:
             return __import__(module_name)
         except ModuleNotFoundError as exc:
@@ -103,7 +128,9 @@ class AbstractLLMPromptAdapter(PromptAdapterMemoryMixin, ABC):
                 f"Check your environment for dependency conflicts."
             ) from exc
 
-    def _build_client(self, factory, display_name: str, api_key_env_var: str):
+    def _build_client(
+        self, factory: Callable[[], Any], display_name: str, api_key_env_var: str
+    ) -> Any:
         """Instantiate a provider SDK client with friendly credential errors.
 
         Cloud SDK clients raise a raw, provider-specific exception when no API
@@ -127,21 +154,25 @@ class AbstractLLMPromptAdapter(PromptAdapterMemoryMixin, ABC):
                 f"See https://github.com/sandialabs/talkpipe/blob/main/docs/guides/model-and-source-configuration.md."
             ) from exc
 
-    def _apply_temperature_if_explicit(self, request_params: dict) -> None:
+    def _apply_temperature_if_explicit(self, request_params: dict[str, Any]) -> None:
         if self._temperature_explicit:
             request_params["temperature"] = self._temperature
 
     def _record_assistant_response(self, response_text: str) -> None:
         # Single helper keeps history mutation consistent across providers.
         if self._multi_turn:
-            logger.debug("Multi-turn enabled, appending assistant response to chat history")
+            logger.debug(
+                "Multi-turn enabled, appending assistant response to chat history"
+            )
             self._messages.append({"role": "assistant", "content": response_text})
         else:
             logger.debug("Single-turn mode, clearing message and summary history")
             self._messages = []
             self._summary_message = None
 
-    def _log_message_payload(self, payload_name: str, messages: list) -> None:
+    def _log_message_payload(
+        self, payload_name: str, messages: list[dict[str, Any]]
+    ) -> None:
         if not self._debug_messages:
             return
         sanitized = [self._format_message_for_debug(message) for message in messages]
@@ -153,7 +184,7 @@ class AbstractLLMPromptAdapter(PromptAdapterMemoryMixin, ABC):
             json.dumps(sanitized, ensure_ascii=True),
         )
 
-    def _format_message_for_debug(self, message: dict) -> dict:
+    def _format_message_for_debug(self, message: dict[str, Any]) -> dict[str, Any]:
         role = message.get("role", "unknown")
         if message.get("images"):
             content = str(message.get("content", ""))
@@ -162,7 +193,9 @@ class AbstractLLMPromptAdapter(PromptAdapterMemoryMixin, ABC):
             return {
                 "role": role,
                 "content": content,
-                "images": [f"<{len(image)} base64 chars>" for image in message["images"]],
+                "images": [
+                    f"<{len(image)} base64 chars>" for image in message["images"]
+                ],
             }
         content = message.get("content", "")
         if isinstance(content, list):
@@ -182,7 +215,7 @@ class AbstractLLMPromptAdapter(PromptAdapterMemoryMixin, ABC):
             content = content[:500] + "...[truncated]"
         return {"role": role, "content": content}
 
-    def _clip_debug_text(self, text: str, limit: int = 1200) -> str:
+    def _clip_debug_text(self, text: str | None, limit: int = 1200) -> str:
         if text is None:
             return ""
         if len(text) <= limit:
@@ -193,9 +226,9 @@ class AbstractLLMPromptAdapter(PromptAdapterMemoryMixin, ABC):
         self,
         prompt: str,
         *,
-        model: Optional[str] = None,
+        model: str | None = None,
         temperature: float = 0.0,
-        max_tokens: Optional[int] = None,
+        max_tokens: int | None = None,
     ) -> str:
         """Return a plain text completion without reading or mutating chat history."""
         raise NotImplementedError(
@@ -212,23 +245,23 @@ class AbstractLLMPromptAdapter(PromptAdapterMemoryMixin, ABC):
     def source(self) -> str:
         return self._source
 
-    def description(self):
+    def description(self) -> str:
         return f"Chat with {self.model_name} ({self._source})"
 
-    def __str__(self):
+    def __str__(self) -> str:
         return f"Chat with {self.model_name} ({self._source})"
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return self.__str__()
 
     @abstractmethod
-    def execute(self, prompt: str) -> str:
+    def execute(self, prompt: str) -> str | BaseModel:
         """Execute the chat model.
 
         This method is used to execute the chat model with a given input.
         """
 
-    def execute_turn(self, user_turn) -> str:
+    def execute_turn(self, user_turn: UserTurn) -> str | BaseModel:
         """Execute the chat model with a multimodal user turn."""
         raise NotImplementedError(
             f"{self.__class__.__name__} must implement execute_turn() for multimodal prompts."

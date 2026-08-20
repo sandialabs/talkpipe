@@ -1,18 +1,38 @@
 import logging
-import pytest
 from pathlib import Path
 from unittest.mock import patch
+
+import pytest
+
 from talkpipe.data.extraction import (
-    ReadFile, readtxt, readhtml, readjson, readtsv, readdocx, readpdf, readcsv, readjsonl, listFiles,
-    ExtractorRegistry, extract_text, extract_html, extract_docx, extract_pdf,
-    extract_csv, extract_tsv, extract_json, extract_jsonl, skip_file,
-    get_default_registry, global_extractor_registry, ExtractionResult
+    ExtractionResult,
+    ExtractorRegistry,
+    ReadFile,
+    extract_csv,
+    extract_html,
+    extract_json,
+    extract_jsonl,
+    extract_pdf,
+    extract_text,
+    extract_tsv,
+    get_default_registry,
+    global_extractor_registry,
+    listFiles,
+    readcsv,
+    readdocx,
+    readjson,
+    readjsonl,
+    readpdf,
+    readtsv,
+    readtxt,
+    skip_file,
 )
+
 
 def test_readdocx(tmp_path):
     # Test reading individual docx file using existing test file
     rd = readdocx()
-    result = list(rd(["tests/talkpipe/data/test.docx"]))[0]
+    result = next(iter(rd(["tests/talkpipe/data/test.docx"])))
     assert isinstance(result, ExtractionResult)
     assert result.content.startswith("This is a sample document.")
     assert "test.docx" in result.source
@@ -29,7 +49,7 @@ def test_readdocx(tmp_path):
     # Test FileNotFoundError for non-existent directory
     with pytest.raises(FileNotFoundError, match="Path does not exist"):
         next(readdocx()([tmp_path / "nonexistent_dir"]))
-    
+
 
 def test_readtxt(tmp_path):
     # Test reading individual text files
@@ -70,6 +90,7 @@ def test_readtxt(tmp_path):
     with pytest.raises(FileNotFoundError, match="Path does not exist"):
         next(readtxt()([tmp_path / "nonexistent_dir"]))
 
+
 def test_FileExtractor(tmp_path):
     fe = ReadFile()
 
@@ -94,8 +115,9 @@ def test_FileExtractor(tmp_path):
 
     # With skip_unsupported=False, unsupported files raise an exception
     fe_strict = ReadFile(skip_unsupported=False)
-    with pytest.raises(Exception):
+    with pytest.raises(Exception, match="File extension doc not supported"):
         next(fe_strict([tmp_path / "test.doc"]))
+
 
 def test_readfile_skips_unreadable_files(tmp_path, caplog):
     """A supported file whose extractor raises (e.g. a corrupt PDF) is skipped
@@ -127,48 +149,49 @@ def test_readfile_skips_unreadable_files(tmp_path, caplog):
     with pytest.raises(ValueError, match="truncated file"):
         list(rf_strict([bad]))
 
+
 def test_listFiles(tmp_path):
     # Create test files
     (tmp_path / "file1.txt").write_text("content1")
-    (tmp_path / "file2.txt").write_text("content2") 
+    (tmp_path / "file2.txt").write_text("content2")
     (tmp_path / "file3.py").write_text("content3")
     (tmp_path / "data.json").write_text("content4")
-    
+
     # Create subdirectory with files
     subdir = tmp_path / "subdir"
     subdir.mkdir()
     (subdir / "sub1.txt").write_text("subcontent1")
     (subdir / "sub2.py").write_text("subcontent2")
-    
+
     # Test wildcard pattern matching with full paths
     txt_files = list(listFiles()([str(tmp_path / "*.txt")]))
     assert len(txt_files) == 2
     assert all(f.endswith(".txt") for f in txt_files)
     assert all(tmp_path.name in f for f in txt_files)
-    
+
     # Test wildcard pattern matching with filenames only
     txt_filenames = list(listFiles(full_path=False)([str(tmp_path / "*.txt")]))
     assert len(txt_filenames) == 2
     assert set(txt_filenames) == {"file1.txt", "file2.txt"}
-    
+
     # Test recursive pattern matching
     all_txt = list(listFiles()([str(tmp_path / "**/*.txt")]))
     assert len(all_txt) == 3  # 2 in root + 1 in subdir
-    
+
     # Test multiple patterns
     patterns = [str(tmp_path / "*.txt"), str(tmp_path / "*.py")]
     mixed_files = list(listFiles(full_path=False)(patterns))
     assert len(mixed_files) == 3
     assert set(mixed_files) == {"file1.txt", "file2.txt", "file3.py"}
-    
+
     # Test non-matching pattern (should return empty)
     no_match = list(listFiles()([str(tmp_path / "*.xyz")]))
     assert no_match == []
-    
+
     # Test exact filename (no wildcards)
     exact_file = list(listFiles(full_path=False)([str(tmp_path / "data.json")]))
     assert exact_file == ["data.json"]
-    
+
     # Test directory without wildcard (should add implied "/*")
     dir_files = list(listFiles(full_path=False, files_only=True)([str(tmp_path)]))
     assert len(dir_files) == 4  # Should find all files in root directory
@@ -272,7 +295,7 @@ def test_ReadFile_with_custom_registry(tmp_path):
     with open(tmp_path / "test.md", "w") as f:
         f.write("Markdown")
 
-    with pytest.raises(Exception):
+    with pytest.raises(Exception, match="File extension md not supported"):
         next(fe([tmp_path / "test.md"]))
 
 
@@ -365,19 +388,21 @@ def test_global_extractor_registry(tmp_path):
 
 def test_multi_emit_extractor(tmp_path):
     """Test that extractors can yield multiple items."""
+
     # Create a multi-emit extractor (like for CSV or JSONL)
     def extract_lines(file_path):
         from pathlib import Path
+
         p = Path(file_path)
         source_str = str(p.resolve())
-        with open(file_path, "r") as f:
+        with open(file_path) as f:
             for idx, line in enumerate(f):
                 result_id = source_str if idx == 0 else f"{source_str}:{idx}"
                 yield ExtractionResult(
                     content=line.strip(),
                     source=source_str,
                     id=result_id,
-                    title=f"{p.name}:line{idx+1}"
+                    title=f"{p.name}:line{idx + 1}",
                 )
 
     registry = ExtractorRegistry()
@@ -592,7 +617,7 @@ def test_extract_jsonl_non_dict_string(tmp_path):
 
 def test_extract_jsonl_non_dict_numbers(tmp_path):
     """Test extract_jsonl with number values."""
-    jsonl_content = '42\n3.14\n'
+    jsonl_content = "42\n3.14\n"
     jsonl_path = tmp_path / "numbers.jsonl"
     jsonl_path.write_text(jsonl_content)
 
@@ -625,7 +650,7 @@ def test_extract_jsonl_non_dict_array(tmp_path):
 
 def test_extract_jsonl_non_dict_boolean_null(tmp_path):
     """Test extract_jsonl with boolean and null values."""
-    jsonl_content = 'true\nfalse\nnull\n'
+    jsonl_content = "true\nfalse\nnull\n"
     jsonl_path = tmp_path / "misc.jsonl"
     jsonl_path.write_text(jsonl_content)
 
@@ -669,7 +694,9 @@ def test_extract_jsonl_error_cases(tmp_path):
 
 def test_readjsonl(tmp_path):
     """Test readjsonl segment."""
-    jsonl_content = '{"product": "Apple", "price": 1.50}\n{"product": "Banana", "price": 0.75}\n'
+    jsonl_content = (
+        '{"product": "Apple", "price": 1.50}\n{"product": "Banana", "price": 0.75}\n'
+    )
     jsonl_path = tmp_path / "products.jsonl"
     jsonl_path.write_text(jsonl_content)
 
@@ -697,8 +724,11 @@ ET
     obj2 = b"2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
     obj3 = b"3 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R /Resources 5 0 R >>\nendobj\n"
     obj4 = (
-        b"4 0 obj\n<< /Length " + str(len(content)).encode("ascii") + b" >>\nstream\n"
-        + content + b"\nendstream\nendobj\n"
+        b"4 0 obj\n<< /Length "
+        + str(len(content)).encode("ascii")
+        + b" >>\nstream\n"
+        + content
+        + b"\nendstream\nendobj\n"
     )
     obj5 = b"5 0 obj\n<< /Font << /F1 6 0 R >> >>\nendobj\n"
     obj6 = b"6 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n"
@@ -710,7 +740,9 @@ ET
     xref = b"xref\n0 7\n0000000000 65535 f \n"
     for i in range(1, 7):
         xref += f"{offsets[i - 1]:010d} 00000 n \n".encode()
-    trailer = f"trailer\n<< /Size 7 /Root 1 0 R >>\nstartxref\n{startxref}\n%%EOF\n".encode()
+    trailer = (
+        f"trailer\n<< /Size 7 /Root 1 0 R >>\nstartxref\n{startxref}\n%%EOF\n".encode()
+    )
     Path(path).write_bytes(b"%PDF-1.4\n" + body + xref + trailer)
 
 
@@ -720,6 +752,7 @@ def test_extract_pdf_requires_pypdf(tmp_path):
     pdf_path.write_bytes(b"%PDF-1.4 minimal\n")
 
     import builtins
+
     real_import = builtins.__import__
 
     def mock_import(name, *args, **kwargs):
@@ -808,6 +841,7 @@ def test_jsonl_in_default_registry(tmp_path):
 
 # --- extract_json tests ---
 
+
 def test_extract_json_dict(tmp_path):
     """Test extract_json with a dictionary value."""
     json_path = tmp_path / "test.json"
@@ -829,7 +863,10 @@ def test_extract_json_dict(tmp_path):
 def test_extract_json_dict_with_matching_fields(tmp_path):
     """Test extract_json when dict keys match ExtractionResult fields."""
     json_path = tmp_path / "matching.json"
-    json_path.write_text('{"content": "My content", "title": "My title", "extra": "val"}', encoding="utf-8")
+    json_path.write_text(
+        '{"content": "My content", "title": "My title", "extra": "val"}',
+        encoding="utf-8",
+    )
 
     results = list(extract_json(json_path))
     assert len(results) == 1
@@ -850,13 +887,13 @@ def test_extract_json_non_dict(tmp_path):
     assert results[0].value == "hello world"
 
     num_path = tmp_path / "number.json"
-    num_path.write_text('42', encoding="utf-8")
+    num_path.write_text("42", encoding="utf-8")
     results = list(extract_json(num_path))
     assert results[0].content == "42"
     assert results[0].value == 42
 
     arr_path = tmp_path / "array.json"
-    arr_path.write_text('[1, 2, 3]', encoding="utf-8")
+    arr_path.write_text("[1, 2, 3]", encoding="utf-8")
     results = list(extract_json(arr_path))
     assert results[0].content == "[1, 2, 3]"
     assert results[0].value == [1, 2, 3]
@@ -897,9 +934,12 @@ def test_json_in_default_registry(tmp_path):
 
 # --- extract_tsv tests ---
 
+
 def test_extract_tsv(tmp_path):
     """Test extract_tsv with basic tab-separated data."""
-    tsv_content = "name\temail\tage\nAlice\talice@example.com\t30\nBob\tbob@example.com\t25\n"
+    tsv_content = (
+        "name\temail\tage\nAlice\talice@example.com\t30\nBob\tbob@example.com\t25\n"
+    )
     tsv_path = tmp_path / "test.tsv"
     tsv_path.write_text(tsv_content)
 
@@ -966,13 +1006,16 @@ def test_tsv_in_default_registry(tmp_path):
 
 # --- RST in default registry ---
 
+
 def test_rst_in_default_registry(tmp_path):
     """Test that .rst files are handled via extract_text in the default registry."""
     registry = get_default_registry()
     assert "rst" in registry.registered_extensions
 
     rst_path = tmp_path / "readme.rst"
-    rst_path.write_text("=====\nTitle\n=====\n\nSome reStructuredText.", encoding="utf-8")
+    rst_path.write_text(
+        "=====\nTitle\n=====\n\nSome reStructuredText.", encoding="utf-8"
+    )
 
     results = list(registry.extract(rst_path))
     assert len(results) == 1
@@ -983,10 +1026,23 @@ def test_rst_in_default_registry(tmp_path):
 
 # --- Comprehensive default registry extensions check ---
 
+
 def test_default_registry_has_all_extensions():
     """Verify all expected extensions are registered in the default registry."""
     registry = get_default_registry()
-    expected = {"txt", "md", "rst", "html", "htm", "docx", "pdf", "csv", "tsv", "json", "jsonl"}
+    expected = {
+        "txt",
+        "md",
+        "rst",
+        "html",
+        "htm",
+        "docx",
+        "pdf",
+        "csv",
+        "tsv",
+        "json",
+        "jsonl",
+    }
     actual = set(registry.registered_extensions)
     assert expected.issubset(actual), f"Missing extensions: {expected - actual}"
 
@@ -1000,6 +1056,7 @@ def test_extract_pdf_releases_reader(tmp_path):
     """
     pytest.importorskip("pypdf")
     import gc
+
     from pypdf import PdfReader
 
     for i in range(3):

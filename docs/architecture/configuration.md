@@ -31,18 +31,15 @@ default_model_name = "llama3.2"
 default_model_source = "ollama"
 OLLAMA_SERVER_URL = "http://localhost:11434"
 
-# Server Configuration
-default_port = 8080
-default_host = "0.0.0.0"
+# HTTP servers (chatterlang_serve, serverag): key checked when --require_auth is set
+API_KEY = "change-me"
 
-# Security
-api_keys = ["key1", "key2", "key3"]
-
-# Custom scripts and modules
-custom_script_path = "/path/to/your/scripts"
+# chatterlang_workbench
+workbench_workspace = "~/talkpipe-workbench"
+workbench_api_key = "change-me-too"
 
 # Database connections (example)
-mongo_uri = "mongodb://localhost:27017/talkpipe"
+mongo_connection_string = "mongodb://localhost:27017/talkpipe"
 vector_db_path = "/path/to/vector/db"
 ```
 
@@ -70,12 +67,13 @@ Provider SDK credentials are separate from TalkPipe config keys:
 export TALKPIPE_LOGGER_LEVELS="root:INFO,talkpipe:DEBUG"
 export TALKPIPE_LOGGER_FILES="talkpipe:/tmp/talkpipe.log"
 
-# Server Configuration
-export TALKPIPE_DEFAULT_PORT="8080"
-export TALKPIPE_DEFAULT_HOST="127.0.0.1"
+# LLM defaults
+export TALKPIPE_DEFAULT_MODEL_NAME="llama3.2"
+export TALKPIPE_DEFAULT_MODEL_SOURCE="ollama"
+export TALKPIPE_OLLAMA_SERVER_URL="http://localhost:11434"
 
-# Custom scripts
-export TALKPIPE_WELCOME_SCRIPT='INPUT FROM echo[data="Hello from env!"] | print'
+# HTTP server API key (chatterlang_serve / serverag with --require_auth)
+export TALKPIPE_API_KEY="change-me"
 ```
 
 ### Environment Variable Processing
@@ -288,14 +286,15 @@ config = get_config(reload=True)  # Re-reads from sources
 # Use environment variables for local development
 export TALKPIPE_LOGGER_LEVELS="root:DEBUG,talkpipe:DEBUG"
 export OPENAI_API_KEY="sk-dev-key"
-export TALKPIPE_DEFAULT_PORT="8080"
+export TALKPIPE_OLLAMA_SERVER_URL="http://localhost:11434"
 
 # Use local configuration file for persistent settings
 cat > ~/.talkpipe.toml << EOF
 # Development configuration
 logger_levels = "root:DEBUG"
-custom_modules = ["/home/user/talkpipe-modules"]
-default_host = "127.0.0.1"
+default_model_name = "llama3.2"
+default_model_source = "ollama"
+workbench_load_modules = "/home/user/talkpipe-modules/my_segments.py"
 EOF
 ```
 
@@ -343,6 +342,36 @@ This will show detailed information about:
 - Argument parsing and constant extraction
 - Final merged configuration values
 
+## Recognized Configuration Keys
+
+Every key TalkPipe itself reads is named in `talkpipe.util.constants` (import
+the constant rather than repeating the string). Keys are matched
+case-insensitively; set any of them as `key = ...` in `~/.talkpipe.toml` or as
+`TALKPIPE_KEY` in the environment.
+
+| Key | Used by |
+|-----|---------|
+| `default_model_name`, `default_model_source` | `llmPrompt`, `llmVisionPrompt`, `serverag`, workbench suggestions |
+| `default_embedding_model_name`, `default_embedding_model_source` | `llmEmbed`, `makevectordatabase`, `serverag` |
+| `OLLAMA_SERVER_URL` | every `source="ollama"` adapter |
+| `MODEL2VEC_REVISION`, `MODEL2VEC_CACHE_DIR` | `source="model2vec"` embeddings |
+| `llm_timeout`, `email_timeout`, `mongo_timeout` | network timeouts (seconds) for LLM, SMTP/IMAP, and MongoDB clients |
+| `logger_levels`, `logger_files` | `configureLogger` / `configure_logger` |
+| `API_KEY` | `chatterlang_serve` and `serverag` when `--require_auth` is set |
+| `TALKPIPE_ALLOWED_ORIGINS` (environment only) | extra CORS origins for `chatterlang_serve` |
+| `user_agent` | `downloadURL` and other HTTP fetches |
+| `rss_url` | the `rss` source |
+| `smtp_server`, `smtp_port`, `sender_email`, `recipient_email`, `email_password` | `sendEmail` |
+| `imap_server`, `email_address`, `email_password` | `readEmail` |
+| `mongo_connection_string` | the MongoDB segments |
+| `workbench_workspace`, `workbench_load_modules`, `workbench_api_key`, `workbench_llm_suggestions`, `workbench_suggest_source`, `workbench_suggest_model` | `chatterlang_workbench` |
+| `LAZY_IMPORT` | registry diagnostics only (see [Lazy loading](../api-reference/lazy-loading.md)) |
+
+Any other key is stored and available to scripts as `$key`, but nothing in
+TalkPipe reads it. A test in the repository (`tests/test_config_keys_documented.py`)
+checks that every `TALKPIPE_*` variable mentioned in this document corresponds
+to a key TalkPipe actually reads.
+
 ## API Reference
 
 ### Configuration Functions
@@ -379,6 +408,17 @@ Configure logging based on configuration values.
 - `logger_levels` (str): Logger level configuration string
 - `base_level` (str): Default logging level
 - `logger_files` (str): File logging configuration string
+
+**Note — this reconfigures the host process's logging.** `configure_logger`
+(and the `configureLogger` segment, which calls it) invokes
+`logging.basicConfig(level=base_level)` and, for every logger named in
+`logger_levels`, clears that logger's existing handlers before attaching a
+console handler. That is what you want in a script or a `chatterlang_script`
+run, but if you embed talkpipe in an application that has already configured
+logging, either leave `configureLogger` out of the pipeline or accept that it
+replaces the handlers on the loggers it names. talkpipe itself installs only a
+`logging.NullHandler` on the `talkpipe` logger at import time and never
+touches the root logger unless you call this function.
 
 This comprehensive configuration system provides flexibility for different deployment scenarios while maintaining security and ease of use.
 

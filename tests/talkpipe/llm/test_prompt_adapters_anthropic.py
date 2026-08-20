@@ -1,10 +1,11 @@
-from talkpipe.llm.prompt_adapters import AnthropicPromptAdapter
+from typing import ClassVar
 
 from prompt_adapter_contract_suite import (
     PromptAdapterSpec,
     run_shared_live_contract_checks,
     run_shared_offline_contract_checks,
 )
+from talkpipe.llm.prompt_adapters import AnthropicPromptAdapter
 
 
 def _patch_anthropic_constructor(monkeypatch):
@@ -18,10 +19,14 @@ def _patch_anthropic_constructor(monkeypatch):
 
     class DummyAnthropic:
         class Anthropic:
-            def __new__(cls):
+            def __new__(cls, **_kwargs):
                 return DummyClient()
 
-    monkeypatch.setattr(AnthropicPromptAdapter, "_require_dependency", lambda *_args, **_kwargs: DummyAnthropic)
+    monkeypatch.setattr(
+        AnthropicPromptAdapter,
+        "_require_dependency",
+        lambda *_args, **_kwargs: DummyAnthropic,
+    )
 
 
 def _patch_anthropic_execute(monkeypatch, adapter, response_text: str):
@@ -29,7 +34,7 @@ def _patch_anthropic_execute(monkeypatch, adapter, response_text: str):
         text = response_text
 
     class DummyResponse:
-        content = [TextBlock()]
+        content: ClassVar[list] = [TextBlock()]
 
     monkeypatch.setattr(adapter, "_messages_create", lambda **_kwargs: DummyResponse())
 
@@ -55,7 +60,9 @@ def test_anthropic_shared_live_contract(request):
 
 def test_anthropic_execute_includes_summary_in_system_and_messages(monkeypatch):
     _patch_anthropic_constructor(monkeypatch)
-    adapter = AnthropicPromptAdapter("claude-3-5-haiku-latest", memory_mode="summary_deterministic")
+    adapter = AnthropicPromptAdapter(
+        "claude-3-5-haiku-latest", memory_mode="summary_deterministic"
+    )
     adapter._summary_message = {"role": "system", "content": "Older summary"}
     adapter._messages = [{"role": "assistant", "content": "recent"}]
     captured = {}
@@ -64,7 +71,7 @@ def test_anthropic_execute_includes_summary_in_system_and_messages(monkeypatch):
         text = "ok"
 
     class DummyResponse:
-        content = [TextBlock()]
+        content: ClassVar[list] = [TextBlock()]
 
     def fake_messages_create(**kwargs):
         captured.update(kwargs)
@@ -77,6 +84,7 @@ def test_anthropic_execute_includes_summary_in_system_and_messages(monkeypatch):
     assert result == "ok"
     assert "Conversation memory:\nOlder summary" in captured["system"]
     assert any(
-        msg["role"] == "assistant" and "Conversation memory:\nOlder summary" in msg["content"]
+        msg["role"] == "assistant"
+        and "Conversation memory:\nOlder summary" in msg["content"]
         for msg in captured["messages"]
     )

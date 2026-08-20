@@ -1,20 +1,22 @@
 import logging
-import time
 import sqlite3
+import time
+from collections.abc import Iterator
+from typing import Annotated, Any
+
 import feedparser
-from typing import Annotated
-from talkpipe.util.config import get_config
-from talkpipe.pipe import core
+
 from talkpipe.chatterlang import registry
-from talkpipe.data import html
+from talkpipe.pipe import core
+from talkpipe.util.config import get_config
+from talkpipe.util.constants import RSS_URL
 
 logger = logging.getLogger(__name__)
 
+
 def rss_monitor(
-    url: str,
-    db_path: str = ':memory:',
-    poll_interval_minutes: int = 60
-):
+    url: str, db_path: str = ":memory:", poll_interval_minutes: int = 60
+) -> Iterator[dict[str, Any]]:
     """Monitor an RSS feed URL and yield new items as they are published.
 
     This function continuously polls an RSS feed at specified intervals, tracks seen items
@@ -44,93 +46,109 @@ def rss_monitor(
     # Connect to (or create) the SQLite database.
     logger.debug(f"Connecting to database at {db_path}")
     conn = sqlite3.connect(db_path)
-    cursor = conn.cursor()
+    try:
+        cursor = conn.cursor()
 
-    logger.debug("Creating feed_items table if not exists")
-    # Create a table to store feed item data (including full content).
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS feed_items (
-            link TEXT PRIMARY KEY,
-            title TEXT,
-            published TEXT,
-            summary TEXT,
-            author TEXT,
-            content TEXT
-        )
-    """)
-    conn.commit()
+        logger.debug("Creating feed_items table if not exists")
+        # Create a table to store feed item data (including full content).
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS feed_items (
+                link TEXT PRIMARY KEY,
+                title TEXT,
+                published TEXT,
+                summary TEXT,
+                author TEXT,
+                content TEXT
+            )
+        """)
+        conn.commit()
 
-    while True:
-        logger.debug(f"Attempting to parse RSS feed from {url}")
-        # Parse the RSS feed using feedparser.
-        feed = feedparser.parse(url)
+        while True:
+            logger.debug(f"Attempting to parse RSS feed from {url}")
+            # Parse the RSS feed using feedparser.
+            feed = feedparser.parse(url)
 
-        logger.debug(f"Processing {len(feed.entries)} entries from feed")
-        # Iterate over each entry in the feed.
-        for entry in feed.entries:
-            link = entry.get('link')
-            if not link:
-                logger.debug("Skipping entry with no link")
-                continue
+            logger.debug(f"Processing {len(feed.entries)} entries from feed")
+            # Iterate over each entry in the feed.
+            for entry in feed.entries:
+                link = entry.get("link")
+                if not link:
+                    logger.debug("Skipping entry with no link")
+                    continue
 
-            # Check if we've already seen (and stored) this item.
-            cursor.execute("SELECT link FROM feed_items WHERE link = ?", (link,))
-            result = cursor.fetchone()
+                # Check if we've already seen (and stored) this item.
+                cursor.execute("SELECT link FROM feed_items WHERE link = ?", (link,))
+                result = cursor.fetchone()
 
-            # Only process if this item is new.
-            if result is None:
-                logger.debug(f"Processing new entry with link: {link}")
-                # Extract fields from the feed entry.
-                title = entry.get('title', '')
-                published = entry.get('published', '')
-                summary = entry.get('summary', '')
-                author = entry.get('author', '')
+                # Only process if this item is new.
+                if result is None:
+                    logger.debug(f"Processing new entry with link: {link}")
+                    # Extract fields from the feed entry.
+                    title = entry.get("title", "")
+                    published = entry.get("published", "")
+                    summary = entry.get("summary", "")
+                    author = entry.get("author", "")
 
-                # Attempt to get the "full content" from the 'content' field if it exists.
-                # Often this might be a list of dicts with 'value' being the HTML/text.
-                content = ''
-                if 'content' in entry:
-                    logger.debug("Extracting full content from entry")
-                    content_list = entry['content']
-                    if isinstance(content_list, list) and len(content_list) > 0:
-                        content = content_list[0].get('value', '')
+                    # Attempt to get the "full content" from the 'content' field if it exists.
+                    # Often this might be a list of dicts with 'value' being the HTML/text.
+                    content = ""
+                    if "content" in entry:
+                        logger.debug("Extracting full content from entry")
+                        content_list = entry["content"]
+                        if isinstance(content_list, list) and len(content_list) > 0:
+                            content = content_list[0].get("value", "")
 
-                # Prepare a dictionary to yield.
-                item_dict = {
-                    'title': title,
-                    'link': link,
-                    'published': published,
-                    'summary': summary,
-                    'author': author
-                }
+                    # Prepare a dictionary to yield.
+                    item_dict = {
+                        "title": title,
+                        "link": link,
+                        "published": published,
+                        "summary": summary,
+                        "author": author,
+                    }
 
-                logger.debug(f"Yielding new item: {title}")
-                # Yield the item so that the caller can process it.
-                yield item_dict
+                    logger.debug(f"Yielding new item: {title}")
+                    # Yield the item so that the caller can process it.
+                    yield item_dict
 
-                logger.debug("Storing new item in database")
-                # Store the new item in the database (INSERT).
-                cursor.execute("""
-                    INSERT INTO feed_items (link, title, published, summary, author, content)
-                    VALUES (?, ?, ?, ?, ?, ?)
-                """, (link, title, published, summary, author, content))
-                conn.commit()
+                    logger.debug("Storing new item in database")
+                    # Store the new item in the database (INSERT).
+                    cursor.execute(
+                        """
+                        INSERT INTO feed_items (link, title, published, summary, author, content)
+                        VALUES (?, ?, ?, ?, ?, ?)
+                    """,
+                        (link, title, published, summary, author, content),
+                    )
+                    conn.commit()
 
-        if poll_interval_minutes == -1:
-            # If poll_interval_minutes is -1, only poll once.
-            break
-        else:
-            # Sleep for the specified poll interval (convert minutes to seconds).
-            logger.debug(f"Sleeping for {poll_interval_minutes} minutes...")
-            time.sleep(poll_interval_minutes * 60)
+            if poll_interval_minutes == -1:
+                # If poll_interval_minutes is -1, only poll once.
+                break
+            else:
+                # Sleep for the specified poll interval (convert minutes to seconds).
+                logger.debug(f"Sleeping for {poll_interval_minutes} minutes...")
+                time.sleep(poll_interval_minutes * 60)
+    finally:
+        # Release the connection on every exit path, including a consumer
+        # abandoning the generator (e.g. firstN) or an error mid-poll.
+        conn.close()
+
 
 @registry.register_source("rss")
 @core.source(url=None)
 def rss_source(
-    url: Annotated[str, "The URL of the RSS feed to monitor. If None, reads from config using key 'RSS_URL'"], 
-    db_path: Annotated[str, "Path to SQLite database file for storing entry history"] = ':memory:', 
-    poll_interval_minutes: Annotated[int, "Number of minutes to wait between polling the RSS feed"] = 10
-):
+    url: Annotated[
+        str,
+        "The URL of the RSS feed to monitor. If None, reads from config using key 'RSS_URL'",
+    ],
+    db_path: Annotated[
+        str, "Path to SQLite database file for storing entry history"
+    ] = ":memory:",
+    poll_interval_minutes: Annotated[
+        int, "Number of minutes to wait between polling the RSS feed"
+    ] = 10,
+) -> Iterator[dict[str, Any]]:
     """
     Generator function that monitors and yields new entries from an RSS feed.
 
@@ -147,10 +165,9 @@ def rss_source(
     """
 
     try:
-        url = url or get_config().get("rss_url")
+        url = url or get_config().get(RSS_URL)
     except Exception as e:
         logger.error(f"Failed to get rss_url from config: {e}")
         raise
-
 
     yield from rss_monitor(url, db_path, poll_interval_minutes)

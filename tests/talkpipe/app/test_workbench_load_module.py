@@ -49,9 +49,7 @@ def test_configured_modules_loaded_at_app_startup(tmp_path, monkeypatch):
 
 
 def test_missing_configured_module_does_not_break_startup(tmp_path, monkeypatch):
-    monkeypatch.setenv(
-        "TALKPIPE_workbench_load_modules", str(tmp_path / "nope.py")
-    )
+    monkeypatch.setenv("TALKPIPE_workbench_load_modules", str(tmp_path / "nope.py"))
     reset_config()
     try:
         with TestClient(chatterlang_workbench.app) as client:

@@ -3,6 +3,8 @@
 [![PyPI version](https://img.shields.io/pypi/v/talkpipe.svg)](https://pypi.org/project/talkpipe/)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
+[![CI](https://github.com/sandialabs/talkpipe/actions/workflows/ci-cd.yml/badge.svg)](https://github.com/sandialabs/talkpipe/actions/workflows/ci-cd.yml)
+[![codecov](https://codecov.io/gh/sandialabs/talkpipe/graph/badge.svg)](https://codecov.io/gh/sandialabs/talkpipe)
 
 **Build and iterate on AI workflows efficiently.**
 
@@ -107,6 +109,7 @@ Multi-turn chat (requires a local model server):
 
 > **Prerequisite:** this example uses Ollama, a separate application (not just the `talkpipe[ollama]` Python package). Install and start it from https://ollama.com/download, then pull the model with `ollama pull llama3.2`. Cloud users can skip Ollama and substitute `source="openai"` or `source="anthropic"` (see the commented variants below).
 
+<!-- doc-example: requires-ollama -->
 ```python
 from talkpipe.chatterlang import compiler
 
@@ -123,6 +126,7 @@ response = chat("What's my name?")  # Will remember context
 
 Index a list of strings, then ask questions against the store (expand with options in [Example 5](#example-5-rag-pipeline-with-vector-database)):
 
+<!-- doc-example: requires-ollama -->
 ```python
 from talkpipe.chatterlang import compiler
 
@@ -160,6 +164,7 @@ rag("What is TalkPipe?")
 
 TalkPipe's Pipe API is a Pythonic way to build data pipelines using the `|` operator to chain components:
 
+<!-- doc-example: requires-ollama -->
 ```python
 from talkpipe.pipe import io
 from talkpipe.llm import chat
@@ -244,6 +249,7 @@ The `@registry.register_segment()` decorator makes your component discoverable b
 
 **Problem:** Run two LLM personas on one seed topic for several rounds. **Result:** Printed turns accumulated in `@conversation`.
 
+<!-- doc-example: requires-ollama -->
 ```python
 from talkpipe.chatterlang import compiler
 
@@ -281,6 +287,7 @@ debate = pipeline()  # Watch the debate unfold!
 
 **Problem:** Score a stream of JSONL rows with an LLM against a fixed rubric. **Result:** A pandas `DataFrame` with extracted scores per row.
 
+<!-- doc-example: requires-ollama -->
 ```python
 import pandas as pd
 from talkpipe.chatterlang import compiler
@@ -311,6 +318,7 @@ print(df)
 
 **Problem:** Fetch a page, strip boilerplate, summarize with an LLM. **Result:** Model output to stdout (here, three bullet points).
 
+<!-- doc-example: requires-ollama -->
 ```python
 from talkpipe.chatterlang import compiler
 
@@ -333,6 +341,7 @@ analyzer("http://example.com/")
 
 **Problem:** Score each article on two axes, keep only strong matches. **Result:** Printed dicts for items whose best score exceeds a threshold.
 
+<!-- doc-example: requires-ollama -->
 ```python
 from talkpipe.chatterlang import compiler
 
@@ -387,6 +396,7 @@ results = evaluator(articles)
 
 **Problem:** Embed texts into a local vector store, then answer questions with retrieval + completion. **Result:** String answers from `ragToText`, plus patterns for yes/no (`ragToBinaryAnswer`) and numeric scores (`ragToScore`).
 
+<!-- doc-example: requires-ollama -->
 ```python
 from talkpipe.chatterlang import compiler
 
@@ -523,16 +533,11 @@ export TALKPIPE_email_password="your-password"
 export OPENAI_API_KEY="sk-..."
 ```
 
+Scripts can read any configured value with `$name`, just as a Python program can read `os.environ` — a ChatterLang script is a program and runs with your privileges, like a Jupyter notebook. See [Security and trust model](docs/architecture/security.md) before running scripts from others or exposing a TalkPipe server.
+
 ### Performance Optimization
 
-TalkPipe includes an optional **lazy loading** feature that can dramatically improve startup performance (up to 18x faster) by deferring module imports until needed:
-
-```bash
-# Enable lazy loading for faster startup
-export TALKPIPE_LAZY_IMPORT=true
-```
-
-This is especially useful for CLI tools and scripts that don't use all TalkPipe features. See the [lazy loading documentation](docs/api-reference/lazy-loading.md) for details.
+`import talkpipe` is fast because the component registry imports a segment or source only when a script or the Pipe API first names it; only catalogue-wide operations (`.all`, the reference browser, `talkpipe_plugins --list`) load everything. Keep your own components cheap the same way — import heavy optional dependencies inside the function that needs them. See [lazy loading](docs/api-reference/lazy-loading.md) for details (the historical `TALKPIPE_LAZY_IMPORT` switch no longer changes behaviour).
 
 ## Development Guidelines
 
@@ -644,9 +649,38 @@ Two consequences worth remembering:
   apart. If you change dependencies in `pyproject.toml`, run `uv lock` and
   commit the result.
 
+**Code quality.** CI fails on any finding from `ruff check .`,
+`ruff format --check .`, or `mypy` (the rule set and type-checking config
+live in `pyproject.toml`), so run them before pushing —
+`ruff check --fix . && ruff format .` fixes most findings. To run the same
+checks on every commit, opt in once per clone with `uv run pre-commit
+install`; `pre-commit run --all-files` reproduces the CI gate locally.
+
+**Releasing.** The version comes from the git tag (`setuptools_scm`); the
+tag conventions and the publish steps are in [RELEASING.md](RELEASING.md).
+
 ## Status
 
-TalkPipe is in active development: feature-rich and in use, but APIs may evolve. We follow [semantic versioning](https://semver.org/): minor versions aim for compatibility within a major series; major bumps may include breaking changes. **Reasonably stable for everyday use:** install from PyPI, the `|` pipeline model, `compiler.compile(...).as_function(...)`, and optional extras for LLM providers.
+TalkPipe 1.0 is a stable release. From 1.0.0 onward we follow
+[semantic versioning](https://semver.org/):
+
+- **Public API.** Everything a program can reach without a leading
+  underscore in the modules listed under *Public surface* in the
+  [developer handbook](docs/contributing/developer-handbook.md#stability-and-deprecation-policy),
+  every registered ChatterLang segment and source name and its parameters,
+  the `talkpipe.plugins` / `talkpipe.sources` / `talkpipe.segments`
+  entry-point groups, and the console scripts. Internals of `talkpipe.app`
+  and anything underscored may change in any release.
+- **Compatibility.** Minor releases (1.x) add features and keep the public
+  API working. Anything scheduled for removal first emits a
+  `DeprecationWarning` for at least one minor release and is removed no
+  earlier than the next major release.
+- **Supported Python:** 3.11, 3.12, and 3.13, tested in CI on each.
+
+TalkPipe is a programming language, and its security model is analogous to
+Jupyter's: a script runs with the privileges of the user who runs it, so run
+scripts you trust and protect the servers the way you would a notebook
+server. Details in [Security and trust model](docs/architecture/security.md).
 
 ## License
 

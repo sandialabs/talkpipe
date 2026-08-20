@@ -2,12 +2,11 @@ import base64
 
 import pytest
 
-from talkpipe.data.image import ImageResult, load_image_from_bytes
+from talkpipe.data.image import load_image_from_bytes
 from talkpipe.llm.content import (
     DEFAULT_VISION_PROMPT,
     ImagePart,
     TextPart,
-    UserTurn,
     user_turn_from_fields,
     user_turn_from_text,
     user_turn_text,
@@ -42,7 +41,9 @@ def test_user_turn_from_fields_with_context_and_prompt():
 
 
 def test_user_turn_from_fields_skips_empty_context():
-    turn = user_turn_from_fields(prompt="Describe this", context=None, images=MINIMAL_PNG)
+    turn = user_turn_from_fields(
+        prompt="Describe this", context=None, images=MINIMAL_PNG
+    )
     assert turn.parts[0].text == "Describe this"
     assert len(turn.parts) == 2
 

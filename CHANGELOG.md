@@ -1,6 +1,247 @@
 # Changelog
 
-## Unreleased 
+## Unreleased
+
+- Documentation examples now run in CI. Every Python example in the README and
+  docs runs unconditionally unless the block is preceded by
+  `<!-- doc-example: requires-ollama -->` (or `requires-openai` /
+  `requires-anthropic`, or `skip`), in which case it is skipped only when that
+  service is unavailable. Previously all examples were gated on Ollama and so
+  never ran in CI; 103 of 114 examples now run offline. The tutorial scripts
+  under `docs/tutorials` are compiled as tests as well, and tutorial 1's
+  indexing and search steps run end to end from the committed `stories.json`.
+- New tests cover the parts of the extension surface that had none: a shared
+  embedding-adapter contract suite (`tests/embedding_adapter_contract_suite.py`,
+  reusable by plugins) exercised against the abstract base and the Ollama and
+  OpenAI adapters, `is_token_overflow_error`, the `serverag` command (CLI
+  argument and config fallback wiring, fail-fast startup, the web processor
+  through a real `ChatterlangServer`, and interactive mode), the
+  `talkpipe_precache_model2vec` command, and the prompt adapter base's
+  dependency-import errors, debug message formatting, and `execute_turn`
+  default.
+- Every configuration key TalkPipe reads is now named in
+  `talkpipe.util.constants` (`API_KEY`, `LOGGER_LEVELS`, `SMTP_SERVER`,
+  `MONGO_CONNECTION_STRING`, `WORKBENCH_*`, ...) and the call sites use the
+  constants; the string values are unchanged, so existing configuration keeps
+  working. `docs/architecture/configuration.md` gains a table of the
+  recognized keys, and a test fails the build if any doc mentions a
+  `TALKPIPE_*` variable that nothing reads. The examples that mentioned
+  `TALKPIPE_DEFAULT_PORT`, `TALKPIPE_DEFAULT_HOST`, `TALKPIPE_WELCOME_SCRIPT`,
+  `api_keys`, `custom_script_path`, `custom_modules`, and `mongo_uri` — none
+  of which were ever read — now show real keys.
+- The lazy-loading documentation no longer claims an "18x faster startup"
+  from `TALKPIPE_LAZY_IMPORT`. Component loading has been on demand
+  unconditionally for some time (import time is identical with the flag on
+  or off); the page now explains how the registry actually resolves names,
+  which operations load the whole catalogue, and how to keep custom
+  components cheap to load. `LAZY_IMPORT` and `enable_lazy_imports()` /
+  `disable_lazy_imports()` are documented as compatibility no-ops scheduled
+  for removal in 2.0.
+- CI now proves the package can be shipped: a new `package` job builds the
+  sdist and wheel, `twine check`s them, installs the wheel into a clean
+  virtualenv, imports the package, runs `chatterlang_script --help`, and
+  loads every declared entry point. Previously the wheel was only built at
+  publish time. `publish-package` no longer depends on the GitHub-only
+  container job, which had left publishing blocked behind a skipped job off
+  github.com.
+- The `lint` job checks that the `talkpipe.sources` / `talkpipe.segments`
+  entry-point tables match the `@register_*` decorators, so a component
+  added without updating `pyproject.toml` fails the build. The
+  `update_entry_points.py` maintainer script now preserves the `[tool.*]`
+  tables that follow the entry points instead of truncating the file.
+- Test coverage has a floor: `[tool.coverage.report] fail_under = 85` in
+  `pyproject.toml` (measured at 87%), enforced by the `test` job.
+- The Bandit configuration moved from the INI-style `.bandit` file, which
+  `bandit -c` never accepted, to `[tool.bandit]` in `pyproject.toml`, and CI
+  now passes it explicitly, matching local runs. The README carries CI and coverage badges, and
+  `.github/CICD.md` describes the pipeline as it actually is.
+- Packaging cleanup ahead of 1.0:
+  - `talkpipe.__version__` is now available (read from the installed package
+    metadata; setuptools_scm remains the source of truth).
+  - Removed three runtime dependencies that nothing in the package imports:
+    `ipywidgets`, `deprecated`, and `build` (a build frontend that had been
+    listed as a runtime requirement). Installs get lighter; nothing else
+    changes.
+  - Added PyPI classifiers for Python 3.11–3.13, `Typing :: Typed`, the
+    intended audience, and topics.
+  - `talkpipe.search` and `talkpipe.data.text` are now regular packages with
+    an `__init__.py` instead of relying on implicit namespace packages for
+    their entry points to resolve.
+  - Removed `setup.py`, which shelled out to `chatterlang_reference_generator`
+    at build time and, on failure, shipped files containing the error text as
+    the reference docs; nothing in the package read those files. The
+    generator remains available as a console script.
+  - Removed the stray `test-workflow.yml` at the repository root and the
+    unpackaged `bin/config-analyzer.py` and `bin/config_bash` scripts, and
+    dropped the dead `[tool.pytest.ini_options]` block from `pyproject.toml`
+    (`pytest.ini` is the pytest configuration).
+- Documented the security trust model in `docs/architecture/security.md`
+  (linked from the README and the docs index). TalkPipe is a programming
+  language with a security model analogous to Jupyter's: a ChatterLang script
+  is a program that runs with its user's privileges, so reading files and
+  configuration via `$name`, running programs via `exec`, and evaluating
+  Python via `lambda` are language capabilities, not vulnerabilities; the
+  `lambda` denylist and the `exec` command allow-list are guard rails against
+  accidents, not sandboxes; and `chatterlang_workbench`, `chatterlang_serve`,
+  and `serverag` are protected the way a notebook server is. The `run_command`
+  and `compileLambda` docstrings now say the same instead of describing
+  themselves as injection prevention.
+- Stated the 1.0 stability and deprecation policy: the README `Status`
+  section now describes semantic versioning from 1.0.0 and the supported
+  Python versions, and the developer handbook lists the public surface
+  (modules, base classes, segment/source names, entry-point groups, console
+  scripts, configuration keys), what is not covered, and the rule that
+  anything removed first emits a `DeprecationWarning` for at least one minor
+  release. It also explains the `readJsonl` (raw JSON) vs `readjsonl`
+  (`ExtractionResult`) pair, and both docstrings now cross-reference each
+  other.
+- Resolving a deprecated segment alias through the registry — the misspelled
+  `addToLancDB` / `searchLancDB` and the duplicate `fileToText` (alias of
+  `readFile`) — now emits a `DeprecationWarning` naming the replacement. The
+  aliases keep working and remain hidden from listings; they are scheduled
+  for removal in 2.0. `AbstractEmbeddingAdapter.execute()`'s deprecation
+  message, which said it would be removed in 1.0, now says 2.0.
+
+- Hardened the ChatterLang servers ahead of 1.0, without changing the default
+  loopback experience:
+  - `ChatterlangServer` / `chatterlang_serve` / `serverag` no longer ship a
+    built-in default API key. `api_key` defaults to `None`; with
+    `--require-auth` and no key given or configured, a random key is generated
+    and printed once at startup. Key comparison is constant-time.
+  - A session cookie the server does not recognise is never adopted as the
+    session id; a fresh id is issued instead. The cookie's `Secure` flag is now
+    a `secure_cookies` constructor / segment parameter and `--secure-cookies`
+    CLI flag (default off, for plain-HTTP localhost).
+  - Form-config values (labels, placeholders, defaults, options) are
+    HTML-escaped when rendered.
+  - `chatterlang_workbench` prints a banner explaining that it executes
+    arbitrary scripts as the current user, refuses to bind to a non-loopback
+    host unless `--allow-remote` is passed, and gains optional token
+    authentication (`--api-key` / `TALKPIPE_WORKBENCH_API_KEY`) that gates
+    every route doing work behind an `X-API-Key` header; the UI picks the token
+    up from a one-time `?key=` query parameter.
+- Configuration is no longer written to the debug log in the clear: a new
+  `talkpipe.util.config.redact()` masks key/token/password/secret/connection
+  string values, and the config loader, `add_config_values`, and the email
+  segments log through it. The MongoDB segments no longer log connection strings
+  or full documents.
+- The bandit scan reports LOW-severity / LOW-confidence findings too (the
+  tree is clean at that level).
+- Bounded the buffers that could previously grow without limit for the life of
+  a process: the `threaded` segment's queue (new `maxsize` parameter, default
+  100; the producer thread is now shut down when the consumer stops early),
+  the `fork` output queue (bounded like its inputs, with feeding moved to its
+  own thread so bounded queues cannot deadlock, and an upstream error now
+  propagates instead of hanging), the robots.txt parser cache (an LRU of 256
+  domains), and the workbench's log capture (10,000 entries, oldest dropped)
+  and compiled-script store (100 entries, least recently used evicted).
+- Made the component registry, the configuration cache, the workbench's
+  suggestion availability cache, and the persistent `ExpiringDict` safe to use
+  from several threads at once: concurrent lookups no longer race on lazy
+  discovery, the config is published only once fully built, and mutations to
+  the on-disk cache are serialized.
+- Library logging no longer surprises host applications: importing `talkpipe`
+  installs a `NullHandler` on the `talkpipe` logger, importing the workbench
+  module no longer reconfigures the root logger (that now happens only in its
+  `main()`), the two remaining library `print()` calls go through logging (the
+  interactive `prompt` source still shows a one-line error on stderr), and the
+  documentation for `configureLogger` / `configure_logger` now states that it
+  reconfigures the calling process's logging.
+- Every network client now carries a timeout so a hung server fails a pipeline
+  instead of blocking it forever. `llmPrompt`, the Ollama/OpenAI/Anthropic
+  prompt adapters and the Ollama/OpenAI embedding adapters accept a `timeout`
+  (seconds; default from the `llm_timeout` config key, 120 if unset);
+  `sendEmail`/`readEmail` and `send_email`/`fetch_emails` accept `timeout`
+  (`email_timeout`, default 30); `mongoInsert`/`mongoSearch` accept `timeout`
+  (`mongo_timeout`, default 30, applied as server-selection and connect
+  timeouts). Prompt adapters that take no `timeout` (such as `eliza`) keep
+  working; asking them for one raises `ValueError` rather than being ignored.
+- Connections are released on every exit path: the `rss` source closes its
+  SQLite connection, `readEmail`/`fetch_emails` log out of IMAP, and
+  `mongoInsert`/`mongoSearch` close their client even when the consumer stops
+  early or an error is raised mid-stream.
+- `ChatterlangServer.stop()` now actually stops a server started in the
+  background (it previously logged and did nothing): the server runs under a
+  `uvicorn.Server` whose exit flag `stop()` sets before joining the thread.
+- `LanceDBDocumentStore` logs a warning naming the operation and table when
+  `get_document`, `vector_search`, `delete_document`, `update_document`,
+  `count`, or `list_ids` swallows an exception; the neutral return values are
+  unchanged, so a LanceDB outage is no longer indistinguishable from an empty
+  database.
+- Fixed `configure_logger` (and the `configureLogger` segment) raising
+  `NameError` when `logger_files` was given without `logger_levels`. File
+  handlers now take the target logger's effective level, so the two options
+  work independently.
+- The `snippet` segment now logs a warning when its `script_source` is not an
+  existing file and is being treated as inline script text, and raises
+  `FileNotFoundError` when the value clearly looks like a path (a single
+  token containing a path separator or ending in `.script`/`.txt`), instead
+  of surfacing a confusing parse error for a mistyped filename.
+- `fork` now propagates an exception raised inside a branch to the caller once
+  the other branches have drained. Previously a crashed branch was
+  indistinguishable from an empty one. Also removed a spurious
+  `Queue.task_done()` call in the branch worker.
+- The `chatterlangServer` HTTP handlers that run pipelines (`/process`,
+  `/history`) are now plain synchronous handlers so FastAPI runs them in its
+  threadpool; previously they were `async def` and blocked the event loop for
+  the duration of each pipeline run. The SSE output stream no longer blocks the
+  loop while waiting for output.
+- Declared the `stripBase64` segment in the `talkpipe.segments` entry points,
+  so it is available by name without first importing its module. A new test
+  asserts every decorator-registered source and segment has an entry point.
+- Added `RELEASING.md` describing how a release is cut: the version comes
+  from the git tag via setuptools_scm, the tag conventions, the publish
+  workflow, and fast-forwarding `main` afterwards.
+
+## 1.0.0b2 (2026-08-16)
+
+- Fixed the `chatterlangServer` segment's `$VAR` form of `form_config`, which
+  passed the variable name to `get_config` as its `reload` flag and so used the
+  entire config as the form definition. The named variable is now looked up in
+  the config, matching the `chatterlang_serve` CLI; an unset variable still
+  falls back to treating the name as a file path.
+- Fixed `ragToText` failing on the first item when `append_sources_to_output`
+  is `False` and no `set_as` is given: the source-appending segment is now
+  omitted entirely when there is nothing to append, so the pipeline yields the
+  LLM answer directly (as text without `set_as`, or in that field with it).
+- Tightened the mypy gate two steps towards `strict`: `disallow_incomplete_defs`
+  and `disallow_untyped_defs` are now on, so every function in `src/` must be
+  fully annotated (parameters and return). Roughly 430 functions across the
+  package -- the built-in segments, the ChatterLang parser/compiler and
+  server, the LLM adapters, and the data/search/util helpers -- received
+  their missing annotations; no runtime behavior changed. `warn_return_any`
+  is on as well, so a typed function cannot leak an untyped value from a
+  stubless library through its return; the handful of such sites (numpy
+  `tolist()`, `json.load`, config lookups, SDK responses) now type or convert
+  the value explicitly.
+- talkpipe now ships a PEP 561 `py.typed` marker, so type checkers in
+  downstream projects use its annotations instead of treating the package as
+  untyped. To make that useful, `@source`, `@segment`, and `@field_segment` are
+  typed decorators: `@segment()` on a function `(items: Iterable[T], ...params)
+  -> Iterable[U]` yields a factory typed `(...params) -> AbstractSegment[T, U]`,
+  and `@register_source` / `@register_segment` accept and return whatever they
+  wrap unchanged. Consumers can therefore turn on mypy's
+  `disallow_untyped_decorators`. Exposing the real types surfaced a few
+  annotations that were narrower than the code (all corrected, no behavior
+  change): `diagPrint`'s `output` accepts `None` and `level` accepts a numeric
+  level as well as a name; the RAG pipelines' `diagPrintOutput` is a `str |
+  None` output target, not a bool; `echo`'s `delimiter` defaults to `","` in the
+  function signature and accepts `None`; `searchLanceDB`'s `path` is `str |
+  None` (it already raised a clear error on `None`); segments declared to take
+  an `Iterator` now take any `Iterable`.
+- mypy now runs in `strict` mode on `src/`, completing the tightening
+  roadmap: every generic type carries its parameters (`dict[str, Any]`,
+  `AbstractSegment[Any, Any]`, ...), calls into untyped code and untyped
+  decorators are errors, and re-exports are explicit. Two things are visible
+  from outside: `field_segment` factories are typed via a small
+  `FieldSegmentFactory` protocol, and imports that relied on implicit
+  re-exports (`talkpipe.pipe.io.AbstractSegment`,
+  `talkpipe.util.data_manipulation.parse_key_value_str`) now come from their
+  defining modules -- the public re-exports in `talkpipe`, `talkpipe.pipe`,
+  `talkpipe.llm`, and `talkpipe.chatterlang` already declare `__all__` and are
+  unchanged.
+
+## 1.0.0b1 (2026-08-15)
 
 - Resolved the dependency vulnerabilities reported by the `safety` scan
   (149 findings, now zero) without changing behavior or adding dependencies:
@@ -30,9 +271,22 @@
     authentication. Both paths still fail the build on a known vulnerability;
     the fallback's data is simply older than the authenticated scan that gates
     pushes.
+- Adopted ruff (lint and formatting) and a gating mypy baseline for the
+  library, which previously had no lint tooling: an explicit rule set and a
+  permissive-but-gating mypy configuration in `pyproject.toml`, tools pinned to
+  a minor series, an opt-in pre-commit config, and a standalone `lint` CI job
+  that the security scan and container build depend on. The autofixes and
+  formatter were applied across the tree; the remaining findings were fixed by
+  hand (exception chaining, module loggers instead of the root logger, explicit
+  `__all__` for package re-exports, shared test fixtures registered as a pytest
+  plugin). Typing `assert`s in library code became explicit checks that raise a
+  descriptive error, since asserts are stripped under `-O`. No runtime
+  behavior changed.
+
+## 0.14.2 (2026-07-28)
 
 - Made the `downloadURL` segment far more likely to succeed on real-world
-  pages (#4), without new dependencies:
+  pages, without new dependencies:
   - Requests now send a browser-like User-Agent (configurable via the
     `user_agent` config key) plus `Accept`/`Accept-Language` headers, instead
     of the literal `*` many sites reject as a bot.
@@ -44,6 +298,24 @@
     content-based encoding detection rather than the ISO-8859-1 fallback,
     fixing mojibake on undeclared-UTF-8 pages.
   - robots.txt fetches send the same identification headers as page fetches.
+- Reused loaded model2vec `StaticModel`s across `Model2VecEmbedder`
+  instances: models are cached for the life of the process (keyed by loader
+  class, model name, revision, and cache folder), so applications that rebuild
+  pipelines frequently no longer reload the vectorizer or contact the Hugging
+  Face Hub on every construction.
+- Streamlined the README for readability, and documented that building a
+  large vector database inside a container needs the podman machine VM to have
+  more than its default memory allocation.
+
+## 0.14.1 (2026-07-22)
+
+- `makevectordatabase` caps the number of glibc malloc arenas at startup
+  (new `util.os.limit_malloc_arenas()`; defers to an explicit
+  `MALLOC_ARENA_MAX`; no-op without glibc). Long LanceDB ingestions had grown
+  resident memory without bound because freed memory stranded in per-thread
+  arenas under the multithreaded writer; measured peak RSS dropped by about a
+  third with no throughput change.
+- Added a workbench video demo to the documentation.
 
 ## 0.14.0
 
@@ -582,7 +854,7 @@
 - Fixed a CI import failure in `talkpipe.chatterlang.registry` by importing `List`
   for the `available_names` return annotation, preventing `NameError` during module import.
 
-## v0.12.2
+## 0.12.2
 - Added batch embedding support: embedding adapters expose `execute_one` and `execute_batch`;
   `execute` remains as a deprecated alias for `execute_one` (removed in 1.0). `llmEmbed` extends
   `AbstractFieldSegment`, uses `batch_size` for internal provider batching only (one stream item

@@ -13,11 +13,21 @@ Comprehensive pipeline that runs on:
 - GitHub releases
 
 **Pipeline Jobs:**
-1. **Test** - Multi-version Python testing (3.11, 3.12) with coverage
-2. **Security Scan** - SAST and dependency vulnerability scanning
-3. **Build Container** - Docker image build and push; multi-architecture (linux/amd64, linux/arm64) on release only, single-platform otherwise
-4. **CodeQL Analysis** - GitHub's semantic code analysis
-5. **Publish Package** - Automated PyPI publishing on releases
+
+Host-neutral jobs run identically on GitHub Actions and on any other
+Actions-compatible runner; jobs that need github.com are guarded with
+`if: github.server_url == 'https://github.com'`.
+
+| Job | Runs | What it does |
+|---|---|---|
+| `test` | everywhere, matrix 3.11 / 3.12 / 3.13 | `pytest --cov=src`; the `[tool.coverage.report] fail_under` floor in `pyproject.toml` fails the job if coverage drops below it. Coverage is uploaded to Codecov from the 3.11 leg. |
+| `lint` | everywhere, 3.11 | `ruff check`, `ruff format --check`, `mypy` — all gating, no advisory mode — plus an entry-point drift check (regenerates the `talkpipe.sources`/`talkpipe.segments` tables from the `@register_*` decorators and fails on any diff to `pyproject.toml`). |
+| `package` | everywhere, 3.11 | Builds the sdist and wheel, `twine check`s them, installs the wheel into a clean venv, imports the package, runs `chatterlang_script --help`, and loads every declared entry point. Catches packaging breakage before release time. |
+| `lockfile-check` | everywhere | `uv lock --check` — the committed `uv.lock` must match `pyproject.toml`. Installs nothing; CI installs with pip on purpose. |
+| `security-scan` | everywhere; needs `test`, `lint` | Bandit (`-c pyproject.toml`, the `[tool.bandit]` table) and Safety. Uses the commercial database when `SAFETY_API_KEY` is set and falls back to the free `safety check` database when it is not (secrets are not passed to pull-request runs); both fail the build on a known vulnerability. |
+| `build-container` | github.com only | Docker image build and push to ghcr.io, Trivy scan; multi-architecture (linux/amd64, linux/arm64) on release only. |
+| `codeql-analysis` | github.com only | GitHub's semantic code analysis. |
+| `publish-package` | on a published release; needs `test`, `lint`, `package`, `security-scan` | `python -m build`, `twine check`, upload to PyPI. Does not depend on the container job, so publishing is not blocked where that job is skipped. |
 
 ### Configuration Files
 
@@ -26,7 +36,7 @@ Comprehensive pipeline that runs on:
 
 ### Root Level Security Files
 
-- **`.bandit`** - Configuration for Bandit static security analysis
+- **`[tool.bandit]` in `pyproject.toml`** - Configuration for Bandit static security analysis
 - **`.dockerignore`** - Optimized Docker build context exclusions
 
 ## Security Scanning
@@ -90,11 +100,20 @@ To enable full functionality, set these secrets in your GitHub repository settin
 Before pushing, you can test components locally:
 
 ```bash
-# Run tests with coverage (matches CI)
-pytest --cov=src --cov-report=xml --cov-report=html
+# Run tests with coverage (matches CI; fails below the fail_under floor)
+pytest --cov=src --cov-report=term --cov-report=xml --cov-report=html
+
+# Lint / format / types (matches CI)
+ruff check . && ruff format --check . && mypy
+
+# Entry-point drift check (matches CI)
+python .cursor/skills/update-entry-points/scripts/update_entry_points.py && git diff --exit-code -- pyproject.toml
+
+# Packaging smoke test (matches CI)
+python -m build && twine check dist/*
 
 # Run security scans
-bandit -r src/
+bandit -c pyproject.toml -r src/
 export SAFETY_API_KEY=your-key   # optional; links results to Safety Platform
 safety scan
 
@@ -113,7 +132,6 @@ docker run --rm -v /var/run/docker.sock:/var/run/docker.sock \
 | Push to main/develop | Automatic | All jobs |
 | Pull Request | Automatic | All except publish |
 | Release published | Automatic | All jobs + PyPI publish |
-| Manual trigger | `workflow_dispatch` | All jobs |
 
 ## Monitoring
 
@@ -144,6 +162,6 @@ docker run --rm -v /var/run/docker.sock:/var/run/docker.sock \
 4. **Security Scans Fail**:
    - Review Bandit/Safety reports
    - Update vulnerable dependencies
-   - Add exclusions to `.bandit` if needed
+   - Add exclusions to `[tool.bandit]` in `pyproject.toml` if needed
 
 For additional help, check the Actions tab logs or create an issue in the repository.

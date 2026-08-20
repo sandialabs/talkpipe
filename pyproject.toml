@@ -17,7 +17,14 @@ keywords = ["ai"]
 license = "Apache-2.0"
 classifiers = [
     "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
     "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Software Development :: Libraries",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Typing :: Typed",
     "Operating System :: OS Independent",
 ]
 # Lower bounds below are security floors, not feature requirements: each one is
@@ -39,13 +46,11 @@ dependencies = [
     'lxml>=6.1.0',
     'lxml_html_clean>=0.4.5',
     'fastapi[standard]>=0.109.1',
-    'ipywidgets>=8.0.0',
     'pymongo>=4.6.3',
     'scikit-learn>=1.5.0',
     'uvicorn>=0.12.3',
     'whoosh',
     'lancedb',
-    'deprecated',
     'pyyaml>=5.4',
     'greenlet',
     'networkx',
@@ -55,7 +60,6 @@ dependencies = [
     # covers the advisories published since, the latest being CVE-2026-54283,
     # which is first fixed in 1.3.1.
     "starlette>=1.3.1",
-    "build>=1.5.0",
 ]
 dynamic = ["version"]
 
@@ -64,7 +68,14 @@ dev = [
     'pytest>=9.0.3',
     'pytest-mock',
     'pytest-cov>=2.0.0',
-    'mongomock'
+    'mongomock',
+    # Lint/type tools are pinned to a minor series on purpose: ruff promotes
+    # new rules and mypy adds checks in minor releases, and CI resolves fresh,
+    # so an open floor would turn a tool release into a red build. Bump the
+    # pins deliberately (and the ruff-pre-commit rev with them).
+    "ruff>=0.16.3,<0.17",
+    "mypy>=2.3,<3",
+    "pre-commit>=4.0",
 ]
 ollama = [
     'ollama'
@@ -102,20 +113,17 @@ run_doc_examples = "talkpipe.app.doc_examples:main"
 talkpipe_precache_model2vec = "talkpipe.app.precache_model2vec:main"
 serverag = "talkpipe.app.serverag:main"
 
-[tool.pytest.ini_options]
-markers = [
-    "requires_ollama: mark test as requiring Ollama (LLM examples). Skip with -m 'not requires_ollama'.",
-]
-
 [tool.setuptools.packages.find]
 where = ["src"]
 
 # Add package data to include .ico files
 [tool.setuptools.package-data]
 "*" = ["*.ico"]
-"talkpipe.app.static" = ["*.html", "*.txt"]
+# PEP 561 marker: the package ships inline type information, so consumers'
+# type checkers use talkpipe's own annotations instead of treating it as Any.
+"talkpipe" = ["py.typed"]
 "talkpipe.app" = [
-    "static/*.html", "static/*.txt", "static/*.png", "static/*.ico",
+    "static/*.png", "static/*.ico",
     "static/workbench/*.html", "static/workbench/*.css", "static/workbench/*.js",
     "static/workbench/vendor/*.js", "static/workbench/vendor/*.txt",
     "workbench_data/seed_scripts/*.script",
@@ -182,13 +190,13 @@ isTrue = "talkpipe.pipe.basic:isTrue"
 lambda = "talkpipe.pipe.basic:EvalExpression"
 lambdaFilter = "talkpipe.pipe.basic:FilterExpression"
 listFiles = "talkpipe.data.extraction:listFiles"
-loadImage = "talkpipe.data.image:loadImageSegment"
 llmBinaryAnswer = "talkpipe.llm.chat:LlmBinaryAnswer"
 llmEmbed = "talkpipe.llm.embedding:LLMEmbed"
 llmExtractTerms = "talkpipe.llm.chat:LlmExtractTerms"
 llmPrompt = "talkpipe.llm.chat:LLMPrompt"
 llmScore = "talkpipe.llm.chat:LlmScore"
 llmVisionPrompt = "talkpipe.llm.vision:LLMVisionPrompt"
+loadImage = "talkpipe.data.image:loadImageSegment"
 loadsJsonl = "talkpipe.pipe.io:loadsJsonl"
 log = "talkpipe.pipe.io:Log"
 longestStr = "talkpipe.pipe.basic:longestStr"
@@ -230,9 +238,114 @@ sleep = "talkpipe.pipe.basic:sleep"
 slice = "talkpipe.pipe.basic:slice"
 snippet = "talkpipe.chatterlang.compiler:Snippet"
 splitText = "talkpipe.data.text.chunking_units:splitText"
+stripBase64 = "talkpipe.data.text.cleaning:stripBase64"
 threaded = "talkpipe.operations.thread_ops:threadedSegment"
 toDataFrame = "talkpipe.pipe.basic:ToDataFrame"
 toDict = "talkpipe.pipe.basic:ToDict"
 toList = "talkpipe.pipe.basic:ToList"
 writePickle = "talkpipe.pipe.io:writePickle"
 writeString = "talkpipe.pipe.io:writeString"
+
+[tool.bandit]
+# Static security scan of src/ (CI: `bandit -c pyproject.toml -r src/`). No
+# severity or confidence filter: bandit's defaults report every finding, and
+# the tree is clean at that level. This replaced the old INI-style `.bandit`,
+# which `-c` never accepted, so no filter was ever applied in CI.
+exclude_dirs = ["tests", "build", ".git"]
+skips = [
+    "B101",  # assert used: fine outside the test suite's runtime paths
+]
+
+[tool.coverage.run]
+source = ["src"]
+
+[tool.coverage.report]
+# Coverage floor: measured at 87% (offline run, Ollama-dependent tests
+# skipped, which is exactly what CI sees) with a two-point margin. The report
+# fails the test job below this. Raise it as coverage grows; never lower it
+# to get green.
+fail_under = 85
+show_missing = false
+
+[tool.ruff]
+line-length = 88
+target-version = "py311"
+src = ["src", "tests"]
+# *.md: ruff would otherwise reformat Python code blocks in prose; the docs
+# are not part of this gate.
+extend-exclude = ["build", "dist", ".venv", "*.md"]
+
+[tool.ruff.lint]
+# An explicit select rather than ruff's (version-dependent) defaults, so a
+# ruff upgrade never silently changes what CI enforces. CI fails on any
+# finding; there is no advisory pass.
+select = [
+    "E", "W",   # pycodestyle
+    "F",        # pyflakes
+    "I",        # isort
+    "UP",       # pyupgrade
+    "B",        # bugbear
+    "C4",       # comprehensions
+    "SIM",      # simplify
+    "PIE", "RUF", "PERF", "RET", "ISC", "FLY",
+    "PT",       # pytest style
+    "T10",      # debugger left in
+    "LOG", "G", # logging
+    "PGH",      # blanket noqa / type: ignore
+    "PLE",      # pylint errors only
+]
+ignore = [
+    "E501",   # line length: ruff format governs code; long strings/docstrings stay
+    "ISC001", # conflicts with the formatter
+    "G004",   # f-strings in logging calls are accepted style here
+]
+
+[tool.ruff.lint.per-file-ignores]
+# pytest-style rules only make sense in the test suite (an application
+# function that happens to be named test_* is not a test).
+"src/**" = ["PT"]
+# Tests assert on exception *types* deliberately; requiring a message match
+# on every `pytest.raises` adds noise without catching bugs.
+"tests/**" = ["PT011"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["talkpipe"]
+
+[tool.ruff.format]
+docstring-code-format = true
+
+[tool.mypy]
+# 3.12+ so mypy can parse modern dependency stubs (e.g. numpy uses `type`
+# statements); the package itself still supports Python 3.11.
+python_version = "3.12"
+files = ["src"]
+# `strict` is the whole mypy strict bundle (disallow_untyped_defs,
+# disallow_incomplete_defs, disallow_untyped_calls, disallow_untyped_decorators,
+# disallow_any_generics, no_implicit_reexport, warn_return_any, strict_equality,
+# extra_checks, ...). Every function in src/ is fully annotated, generics carry
+# their type parameters, and a typed function may not leak an untyped (Any)
+# value through its return. The package ships a py.typed marker, so these
+# annotations are the public typing contract for consumers. Never loosen a
+# flag here to get green.
+strict = true
+# Beyond the strict bundle:
+warn_unreachable = true
+warn_no_return = true
+show_error_codes = true
+enable_error_code = ["ignore-without-code"]
+
+[[tool.mypy.overrides]]
+# Third-party packages that ship no type information (no py.typed, no stubs).
+module = [
+    "feedparser.*",
+    "greenlet.*",
+    "lancedb.*",
+    "networkx.*",
+    "pandas.*",
+    "parsy.*",
+    "readability.*",
+    "sklearn.*",
+    "whoosh.*",
+    "yaml.*",
+]
+ignore_missing_imports = true

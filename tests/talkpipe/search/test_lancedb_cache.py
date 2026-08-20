@@ -1,20 +1,11 @@
-import math
-import os
-import time
-import pytest
-
-from talkpipe.search.lancedb import LanceDBDocumentStore
-from talkpipe.search.lancedb import add_to_lancedb, search_lancedb
+from talkpipe.search.lancedb import LanceDBDocumentStore, add_to_lancedb, search_lancedb
 
 
 def make_items(n, dim=3, start=0):
     items = []
     for i in range(n):
         vec = [float(start + i + j) for j in range(dim)]
-        items.append({
-            "vector": vec,
-            "meta": f"item-{start+i}"
-        })
+        items.append({"vector": vec, "meta": f"item-{start + i}"})
     return items
 
 
@@ -39,7 +30,9 @@ def test_add_to_lancedb_flushes_last_partial_batch_tmp_db():
     assert len(result) == 3
 
     # Verify count reflects flushed last partial batch
-    store = LanceDBDocumentStore(path=path, table_name=table_name, read_consistency_interval=0)
+    store = LanceDBDocumentStore(
+        path=path, table_name=table_name, read_consistency_interval=0
+    )
     assert store.count() == 3
 
     # Verify we can search and get at least one result
@@ -66,7 +59,9 @@ def test_add_to_lancedb_flushes_last_partial_batch_tmp_uri():
     )
     _ = list(seg(items))
 
-    store = LanceDBDocumentStore(path=path, table_name=table_name, read_consistency_interval=0)
+    store = LanceDBDocumentStore(
+        path=path, table_name=table_name, read_consistency_interval=0
+    )
     assert store.count() == 5
 
     # Check IDs list length to ensure persistence
@@ -81,18 +76,24 @@ def test_search_after_add_uses_read_consistency_param():
 
     items = make_items(4, dim=3)
     seg = add_to_lancedb(
-        path=path, table_name=table_name,
-        vector_field="vector", metadata_field_list="meta",
-        batch_size=2, optimize_on_batch=False,
+        path=path,
+        table_name=table_name,
+        vector_field="vector",
+        metadata_field_list="meta",
+        batch_size=2,
+        optimize_on_batch=False,
     )
     _ = list(seg(items))
 
     # Use search segment with read_consistency_interval=0 to ensure immediate visibility
     search_seg = search_lancedb(
-        path=path, table_name=table_name,
+        path=path,
+        table_name=table_name,
         all_results_at_once=True,
-        field=None, set_as=None,
-        limit=3, vector_dim=3,
+        field=None,
+        set_as=None,
+        limit=3,
+        vector_dim=3,
         read_consistency_interval=0,
     )
     # Query using the first vector
@@ -109,12 +110,16 @@ def test_add_to_lancedb_multiple_batches_then_count():
     items = make_items(7, dim=6)
 
     seg = add_to_lancedb(
-        path=path, table_name=table_name,
-        vector_field="vector", metadata_field_list="meta",
-        batch_size=4, optimize_on_batch=True,
+        path=path,
+        table_name=table_name,
+        vector_field="vector",
+        metadata_field_list="meta",
+        batch_size=4,
+        optimize_on_batch=True,
     )
     _ = list(seg(items))
 
-    store = LanceDBDocumentStore(path=path, table_name=table_name, read_consistency_interval=0)
+    store = LanceDBDocumentStore(
+        path=path, table_name=table_name, read_consistency_interval=0
+    )
     assert store.count() == 7
-

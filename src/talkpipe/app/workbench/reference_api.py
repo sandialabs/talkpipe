@@ -17,27 +17,29 @@ import inspect
 import logging
 import re
 import threading
-from typing import List, Optional
+from collections.abc import Iterable, Iterator
+from typing import Any
 
 from fastapi import APIRouter
 from parsy import ParseError
 from pydantic import BaseModel
 
+from talkpipe.app import chatterlang_reference_generator
+from talkpipe.chatterlang import compiler as chatterlang_compiler
 from talkpipe.chatterlang import registry
 from talkpipe.chatterlang.compiler import (
     CompileError,
     parse_error_location,
     remove_comments,
 )
-from talkpipe.chatterlang import compiler as chatterlang_compiler
 from talkpipe.chatterlang.parsers import (
     ForkNode,
     ParsedLoop,
     ParsedPipeline,
+    ParsedScript,
     SegmentNode,
     script_parser,
 )
-from talkpipe.app import chatterlang_reference_generator
 
 logger = logging.getLogger(__name__)
 
@@ -50,7 +52,7 @@ _reference_cache = None
 _reference_lock = threading.Lock()
 
 
-def _first_line(docstring: Optional[str]) -> str:
+def _first_line(docstring: str | None) -> str:
     if not docstring:
         return ""
     for line in docstring.strip().splitlines():
@@ -59,7 +61,7 @@ def _first_line(docstring: Optional[str]) -> str:
     return ""
 
 
-def _component_type(item) -> str:
+def _component_type(item: chatterlang_reference_generator.AnalyzedItem) -> str:
     if item.is_field_segment:
         return "field_segment"
     if item.is_source:
@@ -67,57 +69,63 @@ def _component_type(item) -> str:
     return "segment"
 
 
-def _build_reference() -> dict:
+def _build_reference() -> dict[str, Any]:
     items = chatterlang_reference_generator.analyze_registered_items()
-    components = []
-    seen_names = set()
+    components: list[dict[str, Any]] = []
+    seen_names: set[str] = set()
     for item in items:
         names = [n.strip() for n in (item.chatterlang_name or item.name).split(",")]
         for name in names:
             seen_names.add(name)
-            components.append({
-                "name": name,
-                "aliases": [n for n in names if n != name],
-                "type": _component_type(item),
-                "class_name": item.name,
-                "summary": _first_line(item.docstring),
-                "docstring": item.docstring or "",
-                "params": [
-                    {
-                        "name": p.name,
-                        "type": p.annotation or None,
-                        "default": p.default or None,
-                        "description": p.description or None,
-                    }
-                    for p in item.parameters
-                ],
-            })
+            components.append(
+                {
+                    "name": name,
+                    "aliases": [n for n in names if n != name],
+                    "type": _component_type(item),
+                    "class_name": item.name,
+                    "summary": _first_line(item.docstring),
+                    "docstring": item.docstring or "",
+                    "params": [
+                        {
+                            "name": p.name,
+                            "type": p.annotation or None,
+                            "default": p.default or None,
+                            "description": p.description or None,
+                        }
+                        for p in item.parameters
+                    ],
+                }
+            )
 
     # Components declared by plugins that failed to import: surface them as
     # disabled entries so the editor can explain rather than just not know.
-    for reg, comp_type in ((registry.input_registry, "source"),
-                           (registry.segment_registry, "segment")):
+    for reg, comp_type in (
+        (registry.input_registry, "source"),
+        (registry.segment_registry, "segment"),
+    ):
         for name in reg.available_names:
             if name in seen_names:
                 continue
             error = reg.load_error(name)
             if error:
-                components.append({
-                    "name": name,
-                    "aliases": [],
-                    "type": comp_type,
-                    "class_name": None,
-                    "summary": "",
-                    "docstring": "",
-                    "params": [],
-                    "error": error,
-                })
+                components.append(
+                    {
+                        "name": name,
+                        "aliases": [],
+                        "type": comp_type,
+                        "class_name": None,
+                        "summary": "",
+                        "docstring": "",
+                        "params": [],
+                        "error": error,
+                    }
+                )
 
     components.sort(key=lambda c: c["name"].lower())
     return {"components": components}
 
 
-def get_reference() -> dict:
+def get_reference() -> dict[str, Any]:
     """The cached reference document, building it on first use."""
     global _reference_cache
     if _reference_cache is None:
@@ -127,41 +135,44 @@ def get_reference() -> dict:
     return _reference_cache
 
 
-def invalidate_reference_cache():
+def invalidate_reference_cache() -> None:
     global _reference_cache
     _reference_cache = None
 
 
-def warm_reference_cache_async():
+def warm_reference_cache_async() -> None:
     """Build the reference cache in a background thread (server startup)."""
-    def _warm():
+
+    def _warm() -> None:
         try:
             get_reference()
             logger.info("Workbench reference cache warmed")
         except Exception as e:  # pragma: no cover - defensive
             logger.error(f"Failed to warm workbench reference cache: {e}")
+
     threading.Thread(target=_warm, daemon=True, name="workbench-reference-warm").start()
 
 
 @router.get("/reference")
-def api_reference():
+def api_reference() -> dict[str, Any]:
     return get_reference()
 
 
 # ---------------------------------------------------------------------------
 # Lint
 
+
 class LintRequest(BaseModel):
     script: str
     mode: str = "parse"
 
 
-def _param_names(params) -> List[str]:
+def _param_names(params: Iterable[Any]) -> list[str]:
     # Param dict keys may be plain strings or Identifier nodes.
     return [k.name if hasattr(k, "name") else str(k) for k in params]
 
 
-def _component_params(cls, kind: str):
+def _component_params(cls: Any, kind: str) -> tuple[list[str], bool]:
     """Best-effort ``(param_names, accepts_kwargs)`` for a component.
 
     Class-based components expose their parameters on ``__init__``. Function
@@ -171,10 +182,12 @@ def _component_params(cls, kind: str):
     the original function's first parameter is the input stream/item, not a
     configuration parameter.
     """
-    def introspect(target, drop_first=False):
+
+    def introspect(target: Any, drop_first: bool = False) -> tuple[list[str], bool]:
         params = list(inspect.signature(target).parameters.values())
         names = [
-            p.name for p in params
+            p.name
+            for p in params
             if p.kind in (p.POSITIONAL_OR_KEYWORD, p.KEYWORD_ONLY)
         ]
         if drop_first and names:
@@ -190,9 +203,10 @@ def _component_params(cls, kind: str):
     return names, var_kw
 
 
-def _iter_component_uses(parsed):
+def _iter_component_uses(parsed: ParsedScript) -> Iterator[tuple[str, str, list[str]]]:
     """Yield (kind, name, param_names) for every component in the AST."""
-    def walk_pipeline(pipeline):
+
+    def walk_pipeline(pipeline: Any) -> Iterator[tuple[str, str, list[str]]]:
         if isinstance(pipeline, ParsedLoop):
             for inner in pipeline.pipelines:
                 yield from walk_pipeline(inner)
@@ -200,25 +214,28 @@ def _iter_component_uses(parsed):
         if not isinstance(pipeline, ParsedPipeline):
             return
         node = pipeline.input_node
-        if node is not None and not isinstance(node.source, str) and not node.is_variable:
+        if (
+            node is not None
+            and not isinstance(node.source, str)
+            and not node.is_variable
+        ):
             yield "source", node.source.name, _param_names(node.params)
         for transform in pipeline.transforms:
             if isinstance(transform, SegmentNode):
-                yield "segment", transform.operation.name, _param_names(transform.params)
+                yield (
+                    "segment",
+                    transform.operation.name,
+                    _param_names(transform.params),
+                )
             elif isinstance(transform, ForkNode):
                 for branch in transform.branches:
-                    if isinstance(branch, (ParsedPipeline, ParsedLoop)):
-                        yield from walk_pipeline(branch)
-                    else:
-                        for seg in branch:
-                            if isinstance(seg, SegmentNode):
-                                yield "segment", seg.operation.name, _param_names(seg.params)
+                    yield from walk_pipeline(branch)
 
     for pipeline in parsed.pipelines:
         yield from walk_pipeline(pipeline)
 
 
-def _locate(script: str, name: str, used_offsets: set):
+def _locate(script: str, name: str, used_offsets: set[int]) -> tuple[int, int]:
     """Best-effort (line, column) of an identifier in the source text.
 
     The parser AST carries no positions, so occurrences are found by text
@@ -228,43 +245,52 @@ def _locate(script: str, name: str, used_offsets: set):
         if match.start() in used_offsets:
             continue
         used_offsets.add(match.start())
-        before = script[:match.start()]
+        before = script[: match.start()]
         line = before.count("\n") + 1
         column = match.start() - (before.rfind("\n") + 1) + 1
         return line, column
     return 1, 1
 
 
-def _parse_mode_diagnostics(script: str) -> List[dict]:
+def _parse_mode_diagnostics(script: str) -> list[dict[str, Any]]:
     preprocessed = remove_comments(script)
     try:
         parsed = script_parser.parse(preprocessed)
     except ParseError as e:
         line, column = parse_error_location(preprocessed, e)
         message = chatterlang_compiler._format_parse_error(preprocessed, e)
-        return [{
-            "line": line or 1,
-            "column": column or 1,
-            "severity": "error",
-            "message": message,
-            "kind": "syntax",
-        }]
+        return [
+            {
+                "line": line or 1,
+                "column": column or 1,
+                "severity": "error",
+                "message": message,
+                "kind": "syntax",
+            }
+        ]
 
     diagnostics = []
-    used_offsets = set()
-    registries = {"source": registry.input_registry, "segment": registry.segment_registry}
+    used_offsets: set[int] = set()
+    registries = {
+        "source": registry.input_registry,
+        "segment": registry.segment_registry,
+    }
     for kind, name, param_names in _iter_component_uses(parsed):
         reg = registries[kind]
         if name not in reg.available_names:
             line, column = _locate(script, name, used_offsets)
-            message = chatterlang_compiler._not_found_message(kind.capitalize(), name, reg)
-            diagnostics.append({
-                "line": line,
-                "column": column,
-                "severity": "error",
-                "message": message,
-                "kind": "unknown_name",
-            })
+            message = chatterlang_compiler._not_found_message(
+                kind.capitalize(), name, reg
+            )
+            diagnostics.append(
+                {
+                    "line": line,
+                    "column": column,
+                    "severity": "error",
+                    "message": message,
+                    "kind": "unknown_name",
+                }
+            )
             continue
 
         # Param-name check: imports the class (no instantiation). Skip when
@@ -287,52 +313,58 @@ def _parse_mode_diagnostics(script: str) -> List[dict]:
                 line, column = _locate(script, param, used_offsets)
                 close = difflib.get_close_matches(param, sorted(allowed), n=1)
                 hint = f" Did you mean '{close[0]}'?" if close else ""
-                diagnostics.append({
-                    "line": line,
-                    "column": column,
-                    "severity": "warning",
-                    "message": f"'{param}' is not a parameter of {kind} '{name}'."
-                               f"{hint} Valid parameters: {', '.join(valid)}.",
-                    "kind": "bad_param",
-                })
+                diagnostics.append(
+                    {
+                        "line": line,
+                        "column": column,
+                        "severity": "warning",
+                        "message": f"'{param}' is not a parameter of {kind} '{name}'."
+                        f"{hint} Valid parameters: {', '.join(valid)}.",
+                        "kind": "bad_param",
+                    }
+                )
     return diagnostics
 
 
-def _full_mode_diagnostics(script: str) -> List[dict]:
+def _full_mode_diagnostics(script: str) -> list[dict[str, Any]]:
     try:
         chatterlang_compiler.compile(script)
     except CompileError as e:
         return _compile_error_diagnostics(script, e)
     except Exception as e:
-        return [{
-            "line": 1,
-            "column": 1,
-            "severity": "error",
-            "message": f"Compilation failed: {e}",
-            "kind": "compile",
-        }]
+        return [
+            {
+                "line": 1,
+                "column": 1,
+                "severity": "error",
+                "message": f"Compilation failed: {e}",
+                "kind": "compile",
+            }
+        ]
     # The compiler can't see bad parameter names on function-based components
     # (their kwargs bind lazily at run time), so a clean compile still gets
     # the static parameter-name check.
     return _parse_mode_diagnostics(script)
 
 
-def _compile_error_diagnostics(script: str, e: CompileError) -> List[dict]:
-    used = set()
+def _compile_error_diagnostics(script: str, e: CompileError) -> list[dict[str, Any]]:
+    used: set[int] = set()
     line, column = e.line, e.column
     if line is None and e.bad_name:
         line, column = _locate(script, e.bad_name, used)
-    return [{
-        "line": line or 1,
-        "column": column or 1,
-        "severity": "error",
-        "message": str(e),
-        "kind": e.kind or "compile",
-    }]
+    return [
+        {
+            "line": line or 1,
+            "column": column or 1,
+            "severity": "error",
+            "message": str(e),
+            "kind": e.kind or "compile",
+        }
+    ]
 
 
 @router.post("/lint")
-def api_lint(request: LintRequest):
+def api_lint(request: LintRequest) -> dict[str, list[dict[str, Any]]]:
     if not request.script.strip():
         return {"diagnostics": []}
     if request.mode == "full":

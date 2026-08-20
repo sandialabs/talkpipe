@@ -1,19 +1,30 @@
-"""Utility segments and sources for io operations.
-"""
-from typing import Optional, Iterable, Iterator, Annotated, Any
+"""Utility segments and sources for io operations."""
+
+import json
 import logging
 import os
 import pickle  # nosec B403 - Used only for write operations, not loading untrusted data
-import json
-import traceback
+import sys
+from collections.abc import Iterable, Iterator
 from pprint import pformat
+from typing import Annotated, Any
+
 from prompt_toolkit import PromptSession
 from prompt_toolkit.history import FileHistory
 
-from talkpipe.chatterlang.registry import register_source, register_segment
 import talkpipe.chatterlang.registry as registry
-from talkpipe.pipe.core import AbstractSource, source, AbstractSegment, segment, Pipeline, field_segment
+from talkpipe.chatterlang.registry import register_segment, register_source
+from talkpipe.pipe.core import (
+    AbstractSegment,
+    AbstractSource,
+    Pipeline,
+    field_segment,
+    segment,
+    source,
+)
 from talkpipe.util import data_manipulation
+
+logger = logging.getLogger(__name__)
 
 
 class ErrorResilientPromptPipeline(Pipeline):
@@ -23,11 +34,15 @@ class ErrorResilientPromptPipeline(Pipeline):
     displays the error, and continues processing the next item from the prompt.
     """
 
-    def __init__(self, prompt_source, *operations):
+    def __init__(
+        self,
+        prompt_source: AbstractSource[Any],
+        *operations: AbstractSource[Any] | AbstractSegment[Any, Any],
+    ) -> None:
         super().__init__(prompt_source, *operations)
         self.prompt_source = prompt_source
 
-    def transform(self, input_iter=None):
+    def transform(self, input_iter: Iterable[Any] | None = None) -> Iterator[Any]:
         """Execute pipeline with error resilience for prompt-based workflows."""
         # Get the prompt generator
         prompt_iter = self.prompt_source()
@@ -43,45 +58,59 @@ class ErrorResilientPromptPipeline(Pipeline):
 
                 # Pass through each downstream operation
                 for op in downstream_ops:
-                    current_iter = op(current_iter)
+                    current_iter = (
+                        op() if isinstance(op, AbstractSource) else op(current_iter)
+                    )
 
                 # Consume and yield results
-                for result in current_iter:
-                    yield result
+                yield from current_iter
 
             except Exception as e:
-                # Catch and display errors, but continue prompting
-                print(f"Error: {e}")
-                traceback.print_exc()
+                # Show the user a one-line error (this source is an interactive
+                # prompt, so stderr is its UI) and keep the traceback in the log.
+                print(f"Error: {e}", file=sys.stderr)
+                logger.exception("Error while processing prompt input")
                 # Don't yield anything for this failed input, just continue to next prompt
 
-    def __or__(self, other):
+    def __or__(
+        self, other: AbstractSource[Any] | AbstractSegment[Any, Any]
+    ) -> "ErrorResilientPromptPipeline":
         """Support chaining additional operations to the error-resilient pipeline."""
         # Add the new operation to our operations list
-        return ErrorResilientPromptPipeline(self.prompt_source, *self.operations[1:], other)
+        return ErrorResilientPromptPipeline(
+            self.prompt_source, *self.operations[1:], other
+        )
 
 
 @registry.register_segment(name="print")
-class Print(AbstractSegment):
+class Print(AbstractSegment[Any, Any]):
     """
     An operation prints and passes on each item from the input stream.
     """
 
-    def __init__(self, 
-                 pprint: Annotated[Optional[bool], "If True, uses pformat for pretty printing"] = False, 
-                 field_list: Annotated[Optional[str], "Comma-separated list of fields to extract and print"] = None):
+    def __init__(
+        self,
+        pprint: Annotated[
+            bool | None, "If True, uses pformat for pretty printing"
+        ] = False,
+        field_list: Annotated[
+            str | None, "Comma-separated list of fields to extract and print"
+        ] = None,
+    ):
         super().__init__()
         self.pprint = pprint
         self.field_list = field_list
 
-    def transform(self, input_iter: Annotated[Iterable[int], "Iterable input data"]) -> Iterator[int]:
+    def transform(
+        self, input_iter: Annotated[Iterable[int], "Iterable input data"]
+    ) -> Iterator[int]:
         """Execute the operation on an iterable input.
 
         Yields:
             int: Each element of the input iterable
         """
         for x in input_iter:
-            to_print = x
+            to_print: Any = x
             if self.field_list is not None:
                 to_print = data_manipulation.toDict(x, self.field_list)
             # flush so output stays in order with unbuffered/stderr progress
@@ -89,38 +118,49 @@ class Print(AbstractSegment):
             print(pformat(to_print) if self.pprint else to_print, flush=True)
             yield x
 
+
 @registry.register_segment(name="log")
-class Log(AbstractSegment):
+class Log(AbstractSegment[Any, Any]):
     """
     An operation that logs each item from the input stream.
     """
 
-    def __init__(self, 
-                 level: Annotated[Optional[str], "Logging level (DEBUG, INFO, WARNING, ERROR, CRITICAL)"] = 'INFO', 
-                 field_list: Annotated[Optional[str], "Comma-separated list of fields to extract and log"] = None, 
-                 log_name: Annotated[Optional[str], "Name of the logger to use"] = None):
+    def __init__(
+        self,
+        level: Annotated[
+            str | None, "Logging level (DEBUG, INFO, WARNING, ERROR, CRITICAL)"
+        ] = "INFO",
+        field_list: Annotated[
+            str | None, "Comma-separated list of fields to extract and log"
+        ] = None,
+        log_name: Annotated[str | None, "Name of the logger to use"] = None,
+    ):
         super().__init__()
         self.level = level
         self.field_list = field_list
         self.log_name = log_name
         self.logger = logging.getLogger(log_name)
 
-    def transform(self, input_iter: Annotated[Iterable[int], "Iterable input data"]) -> Iterator[int]:
+    def transform(
+        self, input_iter: Annotated[Iterable[int], "Iterable input data"]
+    ) -> Iterator[int]:
         """Execute the operation on an iterable input.
 
         Yields:
             int: Each element of the input iterable
         """
         for x in input_iter:
-            to_log = x
+            to_log: Any = x
             if self.field_list is not None:
                 to_log = data_manipulation.toDict(x, self.field_list)
-            self.logger.log(logging.getLevelNamesMapping()[self.level], pformat(to_log))
+            self.logger.log(
+                logging.getLevelNamesMapping()[self.level or "INFO"], pformat(to_log)
+            )
             yield x
 
 
-@register_source('prompt')
-class Prompt(AbstractSource):
+@register_source("prompt")
+class Prompt(AbstractSource[str]):
     """A source that generates input from a prompt.
 
     This source will generate input from a prompt until the user enters an EOF.
@@ -132,18 +172,23 @@ class Prompt(AbstractSource):
     by overriding the __or__ method to wrap the downstream in error handling.
     """
 
-    def __init__(self, error_resilient: Annotated[bool, "If True, catches downstream errors and continues prompting"] = True, 
-                 history_file: Annotated[Optional[str], "File to store prompt history"] = None):
+    def __init__(
+        self,
+        error_resilient: Annotated[
+            bool, "If True, catches downstream errors and continues prompting"
+        ] = True,
+        history_file: Annotated[str | None, "File to store prompt history"] = None,
+    ):
         super().__init__()
         self.history_file = os.path.expanduser(history_file) if history_file else None
         history = FileHistory(self.history_file) if self.history_file else None
-        self.session = PromptSession(history=history)
+        self.session: PromptSession[str] = PromptSession(history=history)
         self.error_resilient = error_resilient
 
-    def generate(self) -> Iterable[str]:
+    def generate(self) -> Iterator[str]:
         while True:
             try:
-                user_input = self.session.prompt('> ')
+                user_input = self.session.prompt("> ")
                 yield user_input
             except EOFError:
                 break
@@ -151,7 +196,7 @@ class Prompt(AbstractSource):
                 print("\nInterrupted. Press Ctrl+D to exit or continue entering input.")
                 continue
 
-    def __or__(self, other):
+    def __or__(self, other: AbstractSegment[Any, Any]) -> Pipeline:
         """Override to add error handling when chaining with other segments."""
         if self.error_resilient:
             # Register the downstream relationship
@@ -160,90 +205,104 @@ class Prompt(AbstractSource):
 
             # Return an error-resilient pipeline instead of a regular one
             return ErrorResilientPromptPipeline(self, other)
-        else:
-            # Use default behavior
-            return super().__or__(other)
+        # Use default behavior
+        return super().__or__(other)
 
-@register_source('echo')
-@source(delimiter=',', n=1)
-def echo(data: Annotated[str, "The input string to split and generate items from"],
-         delimiter: Annotated[str, "The delimiter to split the string on"],
-         n: Annotated[int, "Number of times to emit the data"] = 1):
+
+@register_source("echo")
+@source(delimiter=",", n=1)
+def echo(
+    data: Annotated[str, "The input string to split and generate items from"],
+    delimiter: Annotated[
+        str | None, "The delimiter to split the string on; None emits the whole string"
+    ] = ",",
+    n: Annotated[int, "Number of times to emit the data"] = 1,
+) -> Iterator[str]:
     """A source that generates input from a string.
 
     This source will generate input from a string, splitting it on a delimiter,
     and optionally repeating the output n times.
     """
-    if delimiter is None:
-        items = [data]
-    else:
-        items = data.split(delimiter)
+    items = [data] if delimiter is None else data.split(delimiter)
 
     for _ in range(n):
-        for item in items:
-            yield item
+        yield from items
 
-@register_segment('readJsonl')
+
+@register_segment("readJsonl")
 @field_segment(multi_emit=True)
-def readJsonl(item: Annotated[str, "The path to the jsonl file"]):
+def readJsonl(item: Annotated[str, "The path to the jsonl file"]) -> Iterator[Any]:
     """Reads each item from the input stream as a path to a jsonl file. Loads each line of
     each file as a json object and yields each individually.
 
+    Not to be confused with the lower-case ``readjsonl`` segment, which yields an
+    ``ExtractionResult`` per line like the other ``read<format>`` file readers;
+    this segment yields the raw parsed JSON value.
+
     """
-    with open(item, 'r') as f:
+    with open(item) as f:
         for line in f:
             yield json.loads(line)
 
+
 @register_segment("loadsJsonl")
 @segment()
-def loadsJsonl(data: Iterable[str]):
+def loadsJsonl(data: Iterable[str]) -> Iterator[Any]:
     """Deserialize JSONL (JSON Lines) strings from the input stream.
-    
+
     JSON Lines is a format where each line is a valid JSON object. This segment
     interprets each input string as a single JSON line and parses it into a Python object.
     Useful for processing line-delimited JSON data from files or network streams.
-    
+
     Each line is expected to be valid JSON; invalid lines will raise an exception.
-    
+
     Yields:
         Parsed JSON objects from each input line.
     """
     for line in data:
         yield json.loads(line)
 
-@register_segment('dumpsJsonl')
+
+@register_segment("dumpsJsonl")
 @segment()
-def dumpsJsonl(data: Iterable):
+def dumpsJsonl(data: Iterable[Any]) -> Iterator[str]:
     """Serialize items from the input stream as JSON Lines strings.
-    
+
     JSON Lines is a format where each line is a valid JSON object. This segment
     converts each input item (typically a dict or list) into a JSON string and yields
     one JSON object per line. Useful for writing line-delimited JSON data to files or
     for streaming JSON data across network connections.
-    
+
     Non-JSON-serializable objects will raise a TypeError; use a preprocessing
     segment if needed to convert objects to JSON-compatible types.
-    
+
     Yields:
         JSON-serialized strings (one per input item, no trailing newline).
     """
     for item in data:
-        yield json.dumps(item) 
+        yield json.dumps(item)
 
-@register_segment('writePickle')
+
+@register_segment("writePickle")
 @segment()
-def writePickle(data, 
-                fname: Annotated[str, "The name of the file to write"], 
-                field: Annotated[Optional[str], "Field to extract from each item before writing"] = None, 
-                first_only: Annotated[bool, "If True, only the first item in the input stream is written"] = False):
+def writePickle(
+    data: Iterable[Any],
+    fname: Annotated[str, "The name of the file to write"],
+    field: Annotated[
+        str | None, "Field to extract from each item before writing"
+    ] = None,
+    first_only: Annotated[
+        bool, "If True, only the first item in the input stream is written"
+    ] = False,
+) -> Iterator[Any]:
     """Write items to a pickle file while passing them through the pipeline.
-    
+
     This segment is a passthrough - it writes to disk as a side effect but yields
     all input items unchanged, allowing further processing downstream.
-    
+
     Pickle format is Python-specific and best used for caching within Python
     applications. For interoperability with other tools, consider JSON or CSV.
-    
+
     All input items are yielded, regardless of first_only setting. When first_only
     is True, only the first item is written to the file, but all items are still
     yielded for downstream processing.
@@ -260,33 +319,44 @@ def writePickle(data,
         for item in data:
             if not first_only or first:
                 if field is not None:
-                    item = data_manipulation.extract_property(item, field, fail_on_missing=True)
+                    item = data_manipulation.extract_property(
+                        item, field, fail_on_missing=True
+                    )
                 if f is None:
-                    f = open(path, 'wb')
+                    f = open(path, "wb")  # noqa: SIM115 -- opened lazily, closed in `finally`
                 pickle.dump(item, f)
                 first = False
             yield item
         if f is None:
-            f = open(path, 'wb')
+            f = open(path, "wb")  # noqa: SIM115 -- opened lazily, closed in `finally`
     finally:
         if f is not None:
             f.close()
 
-@register_segment('writeString')
+
+@register_segment("writeString")
 @segment()
-def writeString(data, 
-                fname: Annotated[str, "The name of the file to write"], 
-                field: Annotated[Optional[str], "Field to extract from each item before writing"] = None, 
-                new_line: Annotated[bool, "If True, a new line will be written after each item"] = True, 
-                first_only: Annotated[bool, "If True, the segment will write only the first item in the input stream"] = False):
+def writeString(
+    data: Iterable[Any],
+    fname: Annotated[str, "The name of the file to write"],
+    field: Annotated[
+        str | None, "Field to extract from each item before writing"
+    ] = None,
+    new_line: Annotated[
+        bool, "If True, a new line will be written after each item"
+    ] = True,
+    first_only: Annotated[
+        bool, "If True, the segment will write only the first item in the input stream"
+    ] = False,
+) -> Iterator[Any]:
     """Write string representations of items to a text file while passing them through.
-    
+
     This segment is a passthrough - it writes to disk as a side effect but yields
     all input items unchanged, allowing further processing downstream.
-    
+
     Each item is converted to a string using str() before writing. Optionally appends
     a newline after each item for line-delimited output.
-    
+
     All input items are yielded, regardless of first_only setting. When first_only
     is True, only the first item is written to the file, but all items are still
     yielded for downstream processing.
@@ -303,16 +373,18 @@ def writeString(data,
         for item in data:
             if not first_only or first:
                 if field is not None:
-                    item = data_manipulation.extract_property(item, field, fail_on_missing=True)
+                    item = data_manipulation.extract_property(
+                        item, field, fail_on_missing=True
+                    )
                 if f is None:
-                    f = open(path, 'w')
+                    f = open(path, "w")  # noqa: SIM115 -- opened lazily, closed in `finally`
                 f.write(str(item))
                 if new_line:
-                    f.write('\n')
+                    f.write("\n")
                 first = False
             yield item
         if f is None:
-            f = open(path, 'w')
+            f = open(path, "w")  # noqa: SIM115 -- opened lazily, closed in `finally`
     finally:
         if f is not None:
             f.close()
@@ -320,8 +392,10 @@ def writeString(data,
 
 @register_segment("fileExistsFilter")
 @segment()
-def FileExistsFilter(items: Any,
-                       path_field: Annotated[str, "Field name containing the file path to check"] = "path"):
+def FileExistsFilter(
+    items: Any,
+    path_field: Annotated[str, "Field name containing the file path to check"] = "path",
+) -> Iterator[Any]:
     """
     Segment that filters out items where the file path doesn't exist.
 
@@ -342,8 +416,12 @@ def FileExistsFilter(items: Any,
 
 @register_segment("deleteFile")
 @segment()
-def DeleteFile(items: Any,
-               path_field: Annotated[str, "Field name containing the file path to delete"] = "source"):
+def DeleteFile(
+    items: Any,
+    path_field: Annotated[
+        str, "Field name containing the file path to delete"
+    ] = "source",
+) -> Iterator[Any]:
     """
     Segment that deletes source files after yielding items.
 
@@ -358,12 +436,13 @@ def DeleteFile(items: Any,
     for item in items:
         yield item
         # Delete the file after yielding to ensure downstream processing can complete
-        path = data_manipulation.extract_property(item, path_field, fail_on_missing=True)
+        path = data_manipulation.extract_property(
+            item, path_field, fail_on_missing=True
+        )
         if path and os.path.exists(path):
             try:
                 os.remove(path)
             except (OSError, PermissionError) as e:
                 # Log but don't fail if we can't delete
-                import logging
-                logging.warning(f"Failed to delete {path}: {e}")
 
+                logger.warning(f"Failed to delete {path}: {e}")

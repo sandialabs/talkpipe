@@ -107,6 +107,7 @@ Requires `talkpipe[ollama]` and Ollama running with a model (e.g. `ollama pull l
 
 ### ChatterLang
 
+<!-- doc-example: requires-ollama -->
 ```python
 from talkpipe.chatterlang import compiler
 
@@ -123,6 +124,7 @@ For `llmPrompt` memory behavior (`context_token_trigger`, `memory_mode`, `unsumm
 
 ### Pipe API
 
+<!-- doc-example: requires-ollama -->
 ```python
 from talkpipe.pipe import io
 from talkpipe.llm import chat

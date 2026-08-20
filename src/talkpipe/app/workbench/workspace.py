@@ -15,27 +15,29 @@ The pipeline id is the filename stem (a slug of the name at creation time);
 ``modified`` comes from the file's mtime and is never stored in the header.
 """
 
+import builtins
 import re
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import List, Optional
+from typing import Any
 
 from talkpipe.util.config import get_config
+from talkpipe.util.constants import WORKBENCH_WORKSPACE
 
 DEFAULT_WORKSPACE = "~/.talkpipe/workbench"
 HEADER_PREFIX = "#%"
 ID_PATTERN = re.compile(r"^[a-z0-9][a-z0-9_-]*$")
 
-_workspace_override: Optional[Path] = None
+_workspace_override: Path | None = None
 
 
 class WorkspaceError(Exception):
-    def __init__(self, message, status=400):
+    def __init__(self, message: str, status: int = 400):
         super().__init__(message)
         self.status = status
 
 
-def set_workspace_dir(path):
+def set_workspace_dir(path: str | Path | None) -> None:
     """Explicitly set the workspace directory (CLI/tests). None resets."""
     global _workspace_override
     _workspace_override = Path(path).expanduser() if path else None
@@ -44,7 +46,7 @@ def set_workspace_dir(path):
 def resolve_workspace_dir() -> Path:
     if _workspace_override is not None:
         return _workspace_override
-    configured = get_config().get("workbench_workspace")
+    configured = get_config().get(WORKBENCH_WORKSPACE)
     return Path(configured or DEFAULT_WORKSPACE).expanduser()
 
 
@@ -54,14 +56,14 @@ def slugify(name: str) -> str:
     return slug or "pipeline"
 
 
-def split_header(text: str):
+def split_header(text: str) -> tuple[dict[str, str], str]:
     """Split file content into (metadata dict, script body)."""
-    meta = {}
+    meta: dict[str, str] = {}
     lines = text.splitlines()
     body_start = 0
     for i, line in enumerate(lines):
         if line.startswith(HEADER_PREFIX):
-            key, _, value = line[len(HEADER_PREFIX):].partition(":")
+            key, _, value = line[len(HEADER_PREFIX) :].partition(":")
             meta[key.strip()] = value.strip()
             body_start = i + 1
         else:
@@ -84,7 +86,7 @@ class WorkspaceStore:
     def __init__(self, root: Path):
         self.root = Path(root).expanduser()
 
-    def _ensure_root(self):
+    def _ensure_root(self) -> None:
         self.root.mkdir(parents=True, exist_ok=True)
 
     def _path_for(self, pipeline_id: str) -> Path:
@@ -95,7 +97,7 @@ class WorkspaceStore:
             raise WorkspaceError(f"Invalid pipeline id: {pipeline_id!r}")
         return path
 
-    def _record(self, path: Path, include_script: bool) -> dict:
+    def _record(self, path: Path, include_script: bool) -> dict[str, Any]:
         text = path.read_text(encoding="utf-8")
         meta, body = split_header(text)
         record = {
@@ -104,14 +106,14 @@ class WorkspaceStore:
             "description": meta.get("description", ""),
             "created": meta.get("created", ""),
             "modified": datetime.fromtimestamp(
-                path.stat().st_mtime, tz=timezone.utc
+                path.stat().st_mtime, tz=UTC
             ).isoformat(),
         }
         if include_script:
             record["script"] = body
         return record
 
-    def list(self) -> List[dict]:
+    def list(self) -> list[dict[str, Any]]:
         if not self.root.is_dir():
             return []
         records = [
@@ -121,13 +123,13 @@ class WorkspaceStore:
         records.sort(key=lambda r: r["name"].lower())
         return records
 
-    def load(self, pipeline_id: str) -> dict:
+    def load(self, pipeline_id: str) -> dict[str, Any]:
         path = self._path_for(pipeline_id)
         if not path.is_file():
             raise WorkspaceError(f"Pipeline '{pipeline_id}' not found", status=404)
         return self._record(path, include_script=True)
 
-    def scripts(self) -> List[str]:
+    def scripts(self) -> builtins.list[str]:
         """All stored script bodies (for corpus mining)."""
         if not self.root.is_dir():
             return []
@@ -136,8 +138,9 @@ class WorkspaceStore:
             for path in self.root.glob("*.script")
         ]
 
-    def create(self, name: str, description: str, script: str,
-               overwrite: bool = False) -> dict:
+    def create(
+        self, name: str, description: str, script: str, overwrite: bool = False
+    ) -> dict[str, Any]:
         if not name.strip():
             raise WorkspaceError("Pipeline name is required")
         self._ensure_root()
@@ -147,13 +150,17 @@ class WorkspaceStore:
             raise WorkspaceError(
                 f"A pipeline with id '{pipeline_id}' already exists", status=409
             )
-        created = datetime.now(timezone.utc).isoformat(timespec="seconds")
+        created = datetime.now(UTC).isoformat(timespec="seconds")
         self._write(path, name.strip(), description.strip(), created, script)
         return self._record(path, include_script=False)
 
-    def update(self, pipeline_id: str, name: Optional[str] = None,
-               description: Optional[str] = None,
-               script: Optional[str] = None) -> dict:
+    def update(
+        self,
+        pipeline_id: str,
+        name: str | None = None,
+        description: str | None = None,
+        script: str | None = None,
+    ) -> dict[str, Any]:
         path = self._path_for(pipeline_id)
         if not path.is_file():
             raise WorkspaceError(f"Pipeline '{pipeline_id}' not found", status=404)
@@ -161,13 +168,15 @@ class WorkspaceStore:
         self._write(
             path,
             (name if name is not None else meta.get("name", pipeline_id)).strip(),
-            (description if description is not None else meta.get("description", "")).strip(),
+            (
+                description if description is not None else meta.get("description", "")
+            ).strip(),
             meta.get("created", ""),
             script if script is not None else body,
         )
         return self._record(path, include_script=False)
 
-    def rename(self, pipeline_id: str, new_name: str) -> dict:
+    def rename(self, pipeline_id: str, new_name: str) -> dict[str, Any]:
         if not new_name.strip():
             raise WorkspaceError("New name is required")
         path = self._path_for(pipeline_id)
@@ -180,19 +189,26 @@ class WorkspaceStore:
                 f"A pipeline with id '{new_id}' already exists", status=409
             )
         meta, body = split_header(path.read_text(encoding="utf-8"))
-        self._write(new_path, new_name.strip(), meta.get("description", ""),
-                    meta.get("created", ""), body)
+        self._write(
+            new_path,
+            new_name.strip(),
+            meta.get("description", ""),
+            meta.get("created", ""),
+            body,
+        )
         if new_path != path:
             path.unlink()
         return self._record(new_path, include_script=False)
 
-    def delete(self, pipeline_id: str):
+    def delete(self, pipeline_id: str) -> None:
         path = self._path_for(pipeline_id)
         if not path.is_file():
             raise WorkspaceError(f"Pipeline '{pipeline_id}' not found", status=404)
         path.unlink()
 
-    def _write(self, path: Path, name: str, description: str, created: str, script: str):
+    def _write(
+        self, path: Path, name: str, description: str, created: str, script: str
+    ) -> None:
         # Never nest headers if the incoming script still carries one.
         _, body = split_header(script)
         content = build_header(name, description, created) + body

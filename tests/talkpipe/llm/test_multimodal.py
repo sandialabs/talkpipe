@@ -1,6 +1,6 @@
 import base64
 
-from talkpipe.llm.content import ImagePart, TextPart, UserTurn, user_turn_from_fields
+from talkpipe.llm.content import TextPart, UserTurn, user_turn_from_fields
 from talkpipe.llm.multimodal import (
     to_anthropic_user_message,
     to_ollama_user_message,

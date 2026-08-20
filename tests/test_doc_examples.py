@@ -1,11 +1,15 @@
 """Pytest tests for documentation examples extracted from markdown."""
 
 import shutil
-
-import pytest
 from pathlib import Path
 
-from talkpipe.app.doc_examples import extract_all_examples, run_example
+import pytest
+
+from talkpipe.app.doc_examples import (
+    extract_all_examples_with_requirements,
+    extract_python_blocks_with_requirements,
+    run_example,
+)
 
 # Project root: tests/ -> parent
 _project_root = Path(__file__).resolve().parent.parent
@@ -58,19 +62,62 @@ def _safe_test_id(path: Path, line_num: int) -> str:
 
 
 def pytest_generate_tests(metafunc: pytest.Metafunc) -> None:
-    """Collect doc examples at collection time so new examples are picked up after doc edits."""
-    if "path" in metafunc.fixturenames and "line_num" in metafunc.fixturenames and "code" in metafunc.fixturenames:
-        examples = extract_all_examples(_project_root)
-        metafunc.parametrize(
-            "path,line_num,code",
-            examples,
-            ids=[_safe_test_id(path, line_num) for path, line_num, _ in examples],
+    """Collect doc examples at collection time so new examples are picked up after doc edits.
+
+    Examples that declare a requirement (``<!-- doc-example: requires-ollama -->``
+    on the line before the fence) get the matching marker and skip when the
+    service is unavailable; every other example runs unconditionally.
+    """
+    if (
+        "path" in metafunc.fixturenames
+        and "line_num" in metafunc.fixturenames
+        and "code" in metafunc.fixturenames
+    ):
+        examples = extract_all_examples_with_requirements(_project_root)
+        params = [
+            pytest.param(
+                path,
+                line_num,
+                code,
+                sorted(requirements),
+                marks=[getattr(pytest.mark, f"requires_{r}") for r in requirements],
+                id=_safe_test_id(path, line_num),
+            )
+            for path, line_num, code, requirements in examples
+        ]
+        metafunc.parametrize("path,line_num,code,requirements", params)
+
+
+def test_directive_parsing() -> None:
+    """The doc-example directive gates, skips, and rejects typos."""
+    content = (
+        "<!-- doc-example: requires-ollama -->\n```python\nx = 1\n```\n"
+        "text\n```python\ny = 2\n```\n"
+        "<!-- doc-example: skip -->\n```python\nraise SystemExit\n```\n"
+        "<!-- doc-example: requires-openai, requires-ollama -->\n```python\nz = 3\n```\n"
+    )
+    blocks = extract_python_blocks_with_requirements(content)
+    assert [(c, set(r)) for _, c, r in blocks] == [
+        ("x = 1", {"ollama"}),
+        ("y = 2", set()),
+        ("z = 3", {"openai", "ollama"}),
+    ]
+    with pytest.raises(ValueError, match="Unknown doc-example requirement"):
+        extract_python_blocks_with_requirements(
+            "<!-- doc-example: requires-olama -->\n```python\nx\n```\n"
         )
 
 
-@pytest.mark.requires_ollama
-def test_doc_example(requires_ollama,path: Path, line_num: int, code: str) -> None:
-    """Run a documentation example. Requires Ollama for LLM examples."""
+def test_doc_example(
+    request: pytest.FixtureRequest,
+    path: Path,
+    line_num: int,
+    code: str,
+    requirements: list[str],
+) -> None:
+    """Run a documentation example, skipping if a declared service is unavailable."""
+    for requirement in requirements:
+        request.getfixturevalue(f"requires_{requirement}")
     location = f"{path}:{line_num}"
     success, exc = run_example(location, code)
     if not success and exc is not None:

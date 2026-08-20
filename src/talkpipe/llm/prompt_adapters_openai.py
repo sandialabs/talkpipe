@@ -1,10 +1,13 @@
-from typing import Optional, Union
+from typing import Any
 
 from pydantic import BaseModel
 
-from .prompt_adapter_base import AbstractLLMPromptAdapter, logger
+from talkpipe.util.config import resolve_timeout
+from talkpipe.util.constants import DEFAULT_LLM_TIMEOUT, LLM_TIMEOUT
+
 from .content import UserTurn
 from .multimodal import to_openai_user_message
+from .prompt_adapter_base import AbstractLLMPromptAdapter, logger
 
 
 class OpenAIPromptAdapter(AbstractLLMPromptAdapter):
@@ -13,16 +16,17 @@ class OpenAIPromptAdapter(AbstractLLMPromptAdapter):
     def __init__(
         self,
         model: str,
-        system_prompt: Optional[str] = "You are a helpful assistant.",
+        system_prompt: str | None = "You are a helpful assistant.",
         multi_turn: bool = True,
-        temperature: float = None,
-        output_format: BaseModel = None,
-        role_map: str = None,
+        temperature: float | None = None,
+        output_format: type[BaseModel] | None = None,
+        role_map: str | None = None,
         memory_mode: str = "full",
         unsummarized_message_count: int = 6,
-        context_token_trigger: Optional[Union[int, float]] = None,
+        context_token_trigger: int | float | None = None,
         memory_size: int = 512,
         debug_messages: bool = False,
+        timeout: float | None = None,
     ):
         openai = self._require_dependency("openai", "OpenAI", "openai")
         super().__init__(
@@ -39,11 +43,12 @@ class OpenAIPromptAdapter(AbstractLLMPromptAdapter):
             memory_size,
             debug_messages,
         )
+        self._timeout = resolve_timeout(timeout, LLM_TIMEOUT, DEFAULT_LLM_TIMEOUT)
         self.client = self._build_client(
-            openai.OpenAI, "OpenAI", "OPENAI_API_KEY"
+            lambda: openai.OpenAI(timeout=self._timeout), "OpenAI", "OPENAI_API_KEY"
         )
 
-    def execute(self, prompt: str) -> str:
+    def execute(self, prompt: str) -> str | BaseModel:
         """Execute the chat model.
 
         Handles its own multi-turn conversation state.
@@ -57,10 +62,12 @@ class OpenAIPromptAdapter(AbstractLLMPromptAdapter):
         logger.debug(f"Sending chat request to OpenAI model {self._model_name}")
 
         # Build request parameters, only including temperature if explicitly set.
-        request_params = {
+        request_params: dict[str, Any] = {
             "model": self._model_name,
             "input": self._request_messages(),
-            "text_format": openai.NOT_GIVEN if self._output_format is None else self._output_format,
+            "text_format": openai.NOT_GIVEN
+            if self._output_format is None
+            else self._output_format,
         }
 
         self._apply_temperature_if_explicit(request_params)
@@ -70,11 +77,13 @@ class OpenAIPromptAdapter(AbstractLLMPromptAdapter):
 
         self._record_assistant_response(response.output_text)
 
-        result = response.output_parsed if self._output_format else response.output_text
+        result: str | BaseModel = (
+            response.output_parsed if self._output_format else response.output_text
+        )
         logger.debug(f"Returning response: {result}")
         return result
 
-    def execute_turn(self, user_turn: UserTurn) -> str:
+    def execute_turn(self, user_turn: UserTurn) -> str | BaseModel:
         """Execute the chat model with a multimodal user turn."""
         openai = self._require_dependency("openai", "OpenAI", "openai")
 
@@ -84,21 +93,25 @@ class OpenAIPromptAdapter(AbstractLLMPromptAdapter):
         self._compact_context_if_needed()
 
         logger.debug(f"Sending chat request to OpenAI model {self._model_name}")
-        request_params = {
+        request_params: dict[str, Any] = {
             "model": self._model_name,
             "input": self._request_messages(),
-            "text_format": openai.NOT_GIVEN if self._output_format is None else self._output_format,
+            "text_format": openai.NOT_GIVEN
+            if self._output_format is None
+            else self._output_format,
         }
         self._apply_temperature_if_explicit(request_params)
         self._log_message_payload("input", request_params["input"])
         response = self._responses_request(parse=True, **request_params)
 
         self._record_assistant_response(response.output_text)
-        result = response.output_parsed if self._output_format else response.output_text
+        result: str | BaseModel = (
+            response.output_parsed if self._output_format else response.output_text
+        )
         logger.debug(f"Returning response: {result}")
         return result
 
-    def _responses_request(self, parse: bool, **request_params):
+    def _responses_request(self, parse: bool, **request_params: Any) -> Any:
         # `parse=True` preserves guided-generation behavior when an output schema is provided.
         if parse:
             return self.client.responses.parse(**request_params)
@@ -108,9 +121,9 @@ class OpenAIPromptAdapter(AbstractLLMPromptAdapter):
         self,
         prompt: str,
         *,
-        model: Optional[str] = None,
+        model: str | None = None,
         temperature: float = 0.0,
-        max_tokens: Optional[int] = None,
+        max_tokens: int | None = None,
     ) -> str:
         request_params = {
             "model": model or self._model_name,
@@ -131,11 +144,18 @@ class OpenAIPromptAdapter(AbstractLLMPromptAdapter):
             bool: True if the model is available, False otherwise.
         """
         try:
-            test_messages = [self._system_message] if self._system_message else [{"role": "user", "content": "test"}]
+            test_messages = (
+                [self._system_message]
+                if self._system_message
+                else [{"role": "user", "content": "test"}]
+            )
             # Cap the probe: this only checks reachability, so don't pay for
             # (or wait on) a full uncapped generation.
-            request_params = {"model": self._model_name, "messages": test_messages,
-                              "max_completion_tokens": 1}
+            request_params = {
+                "model": self._model_name,
+                "messages": test_messages,
+                "max_completion_tokens": 1,
+            }
 
             self._apply_temperature_if_explicit(request_params)
 

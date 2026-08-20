@@ -8,7 +8,7 @@ from talkpipe.pipelines.vector_databases import RagIngestResult
 
 
 def _run_cli(monkeypatch, argv):
-    monkeypatch.setattr(sys, "argv", ["makevectordatabase"] + argv)
+    monkeypatch.setattr(sys, "argv", ["makevectordatabase", *argv])
     makevectordatabase.main()
 
 

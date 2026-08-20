@@ -4,11 +4,15 @@ Provides TOML-based config with environment overrides, logger setup,
 custom module loading, CLI argument parsing, and script resolution
 from files, config keys, or inline content.
 """
-from typing import Optional
+
 import importlib
+import importlib.util
 import logging
 import os
+import re
 import sys
+import threading
+
 try:
     import tomllib
 except ModuleNotFoundError as exc:  # tomllib is part of the stdlib only on Python 3.11+
@@ -17,17 +21,23 @@ except ModuleNotFoundError as exc:  # tomllib is part of the stdlib only on Pyth
         f"module is unavailable on Python {sys.version.split()[0]}). "
         "Please upgrade your Python interpreter."
     ) from exc
+from collections.abc import Mapping
 from logging.handlers import TimedRotatingFileHandler
-from typing import Any, Dict
 from pathlib import Path
+from typing import Any
+
+from talkpipe.util.constants import LOGGER_FILES, LOGGER_LEVELS
 
 logger = logging.getLogger(__name__)
 
 # Cached config; None forces reload on next get_config()
-_config = None
+_config: "_CaseInsensitiveDict | None" = None
+# Serializes the lazy load/reload so concurrent first callers do not each
+# build (and partially populate) their own copy.
+_config_lock = threading.RLock()
 
 
-class _CaseInsensitiveDict(dict):
+class _CaseInsensitiveDict(dict[Any, Any]):
     """Dict whose string keys are matched case-insensitively.
 
     Config keys arrive from two places that disagree on case: TOML files
@@ -39,30 +49,49 @@ class _CaseInsensitiveDict(dict):
     rather than creating a second entry.
     """
 
-    def _find_key(self, key):
+    def _find_key(self, key: Any) -> Any:
         if isinstance(key, str):
             for existing in dict.keys(self):
                 if isinstance(existing, str) and existing.lower() == key.lower():
                     return existing
         return key
 
-    def __setitem__(self, key, value):
+    def __setitem__(self, key: Any, value: Any) -> None:
         dict.__setitem__(self, self._find_key(key), value)
 
-    def __getitem__(self, key):
+    def __getitem__(self, key: Any) -> Any:
         return dict.__getitem__(self, self._find_key(key))
 
-    def __contains__(self, key):
+    def __contains__(self, key: object) -> bool:
         return dict.__contains__(self, self._find_key(key))
 
-    def get(self, key, default=None):
+    def get(self, key: Any, default: Any = None) -> Any:
         try:
             return self[key]
         except KeyError:
             return default
 
 
-def parse_key_value_str(field_list: str, require_value: bool = False) -> Dict[str, str]:
+_SECRET_KEY_PATTERN = re.compile(
+    r"key|token|password|passwd|secret|connection_string|credential", re.IGNORECASE
+)
+
+
+def redact(mapping: Mapping[str, Any]) -> dict[str, Any]:
+    """Return a copy of ``mapping`` with secret-looking values masked.
+
+    Any key whose name contains ``key``, ``token``, ``password``, ``secret``,
+    ``connection_string`` or ``credential`` (case-insensitive) has its value
+    replaced by ``"***"``. Use it before logging configuration so API keys,
+    passwords and connection strings never land in log files.
+    """
+    return {
+        key: ("***" if _SECRET_KEY_PATTERN.search(str(key)) else value)
+        for key, value in mapping.items()
+    }
+
+
+def parse_key_value_str(field_list: str, require_value: bool = False) -> dict[str, str]:
     """Parse a comma-separated key:value string into a dictionary.
 
     Pairs may omit the value; if so, the key gets ``"original"`` when the key
@@ -78,11 +107,11 @@ def parse_key_value_str(field_list: str, require_value: bool = False) -> Dict[st
     Raises:
         ValueError: If require_value is True and a key is missing a value.
     """
-    result = {}
+    result: dict[str, str] = {}
     for property in field_list.split(","):
-        key, *value = property.split(":", 1)
+        key, *rest = property.split(":", 1)
         key = key.strip()
-        value = value[0].strip() if len(value)>0 else None
+        value = rest[0].strip() if len(rest) > 0 else None
 
         if value is None:
             if require_value:
@@ -94,13 +123,14 @@ def parse_key_value_str(field_list: str, require_value: bool = False) -> Dict[st
     return result
 
 
-def reset_config():
+def reset_config() -> None:
     """Clear the cached config so the next get_config() reloads from disk and env."""
     global _config
-    _config = None
+    with _config_lock:
+        _config = None
 
 
-def add_config_values(values_dict, override=True):
+def add_config_values(values_dict: dict[str, Any], override: bool = True) -> None:
     """Merge additional values into the current configuration.
 
     Loads config if not yet loaded. Useful for injecting command-line
@@ -110,20 +140,19 @@ def add_config_values(values_dict, override=True):
         values_dict: Key-value pairs to add.
         override: If True, overwrite existing keys. If False, only add new keys.
     """
-    global _config
-    
     # Ensure config is loaded first
-    if _config is None:
-        get_config()
-    
+    config = _config if _config is not None else get_config()
+
     # Merge the values
     for key, value in values_dict.items():
-        if override or key not in _config:
-            _config[key] = value
-            logger.debug(f"Added config value: {key} = {value}")
+        if override or key not in config:
+            config[key] = value
+            logger.debug(f"Added config value: {key} = {redact({key: value})[key]}")
 
 
-def get_config(reload=False, path="~/.talkpipe.toml", ignore_env=False):
+def get_config(
+    reload: bool = False, path: str = "~/.talkpipe.toml", ignore_env: bool = False
+) -> _CaseInsensitiveDict:
     """Load and return configuration from TOML file and environment variables.
 
     Reads from a TOML file at the given path. Environment variables prefixed
@@ -145,31 +174,67 @@ def get_config(reload=False, path="~/.talkpipe.toml", ignore_env=False):
         - If config file does not exist, starts with empty dict.
     """
     global _config
-    if _config is None or reload:
-        logger.debug("Loading configuration")
-        config_path = os.path.expanduser(path)
-        if os.path.exists(config_path):
-            logger.info(f"Reading config from {config_path}")
-            with open(config_path, 'rb') as f:
-                _config = _CaseInsensitiveDict(tomllib.load(f))
-                logger.debug(f"Loaded config: {_config}")
-        else:
-            logger.debug(f"Config file {config_path} not found, using empty config")
-            _config = _CaseInsensitiveDict()
+    if _config is not None and not reload:
+        return _config
+    with _config_lock:
+        if _config is None or reload:
+            logger.debug("Loading configuration")
+            config_path = os.path.expanduser(path)
+            if os.path.exists(config_path):
+                logger.info(f"Reading config from {config_path}")
+                with open(config_path, "rb") as f:
+                    loaded = _CaseInsensitiveDict(tomllib.load(f))
+                    logger.debug(f"Loaded config: {redact(loaded)}")
+            else:
+                logger.debug(f"Config file {config_path} not found, using empty config")
+                loaded = _CaseInsensitiveDict()
 
-        if not ignore_env:
-            logger.debug("Checking environment variables")
-            # Override with environment variables
-            for env_var in os.environ:
-                if env_var.startswith('TALKPIPE_'):
-                    config_key = env_var[9:]  # Remove TALKPIPE_ prefix
-                    _config[config_key] = os.environ[env_var]
-                    logger.debug(f"Set {config_key} from environment variable {env_var}")
+            if not ignore_env:
+                logger.debug("Checking environment variables")
+                # Override with environment variables
+                for env_var in os.environ:
+                    if env_var.startswith("TALKPIPE_"):
+                        config_key = env_var[9:]  # Remove TALKPIPE_ prefix
+                        loaded[config_key] = os.environ[env_var]
+                        logger.debug(
+                            f"Set {config_key} from environment variable {env_var}"
+                        )
+            # Publish only once fully built, so other threads never observe a
+            # half-populated config.
+            _config = loaded
 
-    return _config
+        return _config
 
 
-def configure_logger(logger_levels: Optional[str] = None, base_level="WARNING", logger_files: Optional[str] = None, transformers_to_debug=True):
+def resolve_timeout(
+    explicit: float | int | str | None, config_key: str, default: float
+) -> float:
+    """Resolve a network timeout in seconds.
+
+    Precedence: an explicit value passed by the caller, then the ``config_key``
+    entry from :func:`get_config` (``TALKPIPE_<key>`` or ``~/.talkpipe.toml``),
+    then ``default``. Values are coerced to ``float``; a value that cannot be
+    parsed raises ``ValueError`` naming the key so a typo in configuration is
+    not silently turned into "wait forever".
+    """
+    if explicit is None:
+        explicit = get_config().get(config_key, None)
+    if explicit is None:
+        return float(default)
+    try:
+        return float(explicit)
+    except (TypeError, ValueError) as exc:
+        raise ValueError(
+            f"Invalid timeout {explicit!r} for {config_key}: expected a number of seconds"
+        ) from exc
+
+
+def configure_logger(
+    logger_levels: str | None = None,
+    base_level: str = "WARNING",
+    logger_files: str | None = None,
+    transformers_to_debug: bool = True,
+) -> None:
     """Configure logging levels and optional file handlers for loggers.
 
     Sets levels and handlers for loggers specified in ``logger_levels`` and
@@ -186,15 +251,21 @@ def configure_logger(logger_levels: Optional[str] = None, base_level="WARNING", 
 
     Note:
         Output format: ``%(asctime)s - %(levelname)s:%(name)s:%(message)s``.
-        When using ``logger_files``, also set ``logger_levels`` so handler
-        levels are correct.
+        File handlers take the target logger's effective level, so
+        ``logger_files`` may be used with or without ``logger_levels``.
+
+        This reconfigures the calling process's logging: it calls
+        ``logging.basicConfig`` and clears the existing handlers of every
+        logger named in ``logger_levels`` before attaching a console handler.
+        Applications embedding talkpipe that manage their own logging should
+        not call it (or use the ``configureLogger`` segment).
     """
 
     if not logger_levels:
-        logger_levels = get_config().get("logger_levels", None)
+        logger_levels = get_config().get(LOGGER_LEVELS, None)
 
     if not logger_files:
-        logger_files = get_config().get("logger_files", None)
+        logger_files = get_config().get(LOGGER_FILES, None)
 
     logging.basicConfig(level=base_level.upper())
 
@@ -203,7 +274,7 @@ def configure_logger(logger_levels: Optional[str] = None, base_level="WARNING", 
             if "transformers" in name and isinstance(logger, logging.Logger):
                 logger.setLevel(logging.ERROR)
 
-    formatter = logging.Formatter('%(asctime)s - %(levelname)s:%(name)s:%(message)s')
+    formatter = logging.Formatter("%(asctime)s - %(levelname)s:%(name)s:%(message)s")
 
     if logger_levels:
         for logger_name, level in parse_key_value_str(logger_levels).items():
@@ -223,13 +294,19 @@ def configure_logger(logger_levels: Optional[str] = None, base_level="WARNING", 
         for logger_name, file_name in parse_key_value_str(logger_files).items():
             logger = logging.getLogger(logger_name if logger_name != "root" else None)
 
-            file_handler = TimedRotatingFileHandler(file_name, when='midnight', backupCount=7)
-            file_handler.setLevel(level)
+            file_handler = TimedRotatingFileHandler(
+                file_name, when="midnight", backupCount=7
+            )
+            # Use the logger's own effective level (which ``logger_levels`` may
+            # have just set); fall back to ``base_level`` when the logger is
+            # unset, so ``logger_files`` works on its own.
+            file_level = logger.getEffectiveLevel() or base_level.upper()
+            file_handler.setLevel(file_level)
             file_handler.setFormatter(formatter)
             logger.addHandler(file_handler)
 
 
-def load_module_file(fname: str, fail_on_missing: bool = False) -> Optional[Any]:
+def load_module_file(fname: str, fail_on_missing: bool = False) -> Any | None:
     """Load a Python module from a file path.
 
     Supports ``~`` for home directory. The file's directory is temporarily
@@ -258,8 +335,7 @@ def load_module_file(fname: str, fail_on_missing: bool = False) -> Optional[Any]
             logger.warning(f"Custom module file not found: {config_path}")
             if fail_on_missing:
                 raise FileNotFoundError(f"Custom module file not found: {config_path}")
-            else:
-                return None
+            return None
 
         # Get the directory containing the config file
         config_dir = os.path.dirname(config_path)
@@ -292,10 +368,10 @@ def load_module_file(fname: str, fail_on_missing: bool = False) -> Optional[Any]
         raise
     except Exception as e:
         # Log or handle specific exceptions as needed
-        raise ImportError(f"Error loading module file: {str(e)}") from e
+        raise ImportError(f"Error loading module file: {e!s}") from e
 
 
-def parse_unknown_args(unknown_args):
+def parse_unknown_args(unknown_args: list[str]) -> dict[str, Any]:
     """Parse ``--key value`` and ``--flag`` style args into a dict.
 
     Values are parsed as bool (true/false), int, float, or str. Flags
@@ -307,22 +383,24 @@ def parse_unknown_args(unknown_args):
     Returns:
         Dict mapping names (without ``--``) to parsed values.
     """
-    constants = {}
+    constants: dict[str, Any] = {}
     i = 0
     while i < len(unknown_args):
-        if unknown_args[i].startswith('--'):
+        if unknown_args[i].startswith("--"):
             const_name = unknown_args[i][2:]  # Remove '--' prefix
 
             # Check if next arg exists and is not another flag
-            if i + 1 < len(unknown_args) and not unknown_args[i + 1].startswith('--'):
+            if i + 1 < len(unknown_args) and not unknown_args[i + 1].startswith("--"):
                 const_value = unknown_args[i + 1]
 
                 # Try to parse value as different types (similar to ChatterLang parameter parsing)
-                if const_value.lower() in ('true', 'false'):
-                    constants[const_name] = const_value.lower() == 'true'
-                elif const_value.isdigit() or (const_value.startswith('-') and const_value[1:].isdigit()):
+                if const_value.lower() in ("true", "false"):
+                    constants[const_name] = const_value.lower() == "true"
+                elif const_value.isdigit() or (
+                    const_value.startswith("-") and const_value[1:].isdigit()
+                ):
                     constants[const_name] = int(const_value)
-                elif '.' in const_value:
+                elif "." in const_value:
                     try:
                         constants[const_name] = float(const_value)
                     except ValueError:
@@ -360,44 +438,50 @@ def load_script(script_input: str) -> str:
     """
     if script_input is None or script_input.strip() == "":
         raise ValueError("script_input cannot be None or empty")
-    
+
     # 1. Check if the script input is an existing file path
     script_path = Path(script_input)
     try:
         is_file = script_path.is_file()
     except OSError as e:
-        logger.debug(f"Script path could not be checked as a file {script_input[0:25]}...: {e}")
+        logger.debug(
+            f"Script path could not be checked as a file {script_input[0:25]}...: {e}"
+        )
         is_file = False
     if is_file:
         try:
-            with open(script_path, 'r', encoding='utf-8') as f:
+            with open(script_path, encoding="utf-8") as f:
                 return f.read()
-        except IOError as e:
+        except OSError as e:
             error_message = f"Failed to read script file {script_path}: {e}"
-            raise IOError(error_message)
+            raise OSError(error_message) from e
 
     # 2. Check if the script input can be retrieved from configuration
     config_data = get_config()
     if script_input in config_data:
         config_value = config_data[script_input]
-        
+
         # Check if the config value is a file path
         config_file_path = Path(config_value)
         try:
             is_file = config_file_path.is_file()
         except OSError as e:
-            logger.warning(f"Config file path could not be checked as a file {config_value[0:25]}...: {e}")
+            logger.warning(
+                f"Config file path could not be checked as a file {config_value[0:25]}...: {e}"
+            )
             is_file = False
         if is_file:
             try:
-                with open(config_file_path, 'r', encoding='utf-8') as f:
+                with open(config_file_path, encoding="utf-8") as f:
                     return f.read()
-            except IOError as e:
-                error_message = f"Failed to read script file from config {config_file_path}: {e}"
-                raise IOError(error_message)
-        
+            except OSError as e:
+                error_message = (
+                    f"Failed to read script file from config {config_file_path}: {e}"
+                )
+                raise OSError(error_message) from e
+
         # If not a file, return the config value as-is
-        return config_value
-    
+        return str(config_value)
+
     # 3. Treat as inline script
     return script_input

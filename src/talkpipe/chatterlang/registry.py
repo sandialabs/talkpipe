@@ -1,30 +1,53 @@
 """Enhanced registry system with hybrid decorator + entry point support.
 
-This registry supports three modes of operation:
-1. Decorator registration (existing behavior, always works)
-2. Entry point discovery (fallback when decorator not registered)
-3. Lazy import mode (via LAZY_IMPORT config or TALKPIPE_LAZY_IMPORT env var)
+Names are resolved in this order:
+1. Decorator registration (``@register_segment`` / ``@register_source`` in an
+   already-imported module).
+2. Entry point discovery (the ``talkpipe.segments`` / ``talkpipe.sources``
+   groups): the entry point for *that one name* is imported on demand.
 
-Lazy import behavior:
-- The `.all` property always returns all available segments/sources (72 total)
-- Entry points are loaded on-demand when `.all` is first accessed (~3s load time)
-- LAZY_IMPORT=true: Fast module import (~0.17s) - entry points loaded when needed
-- LAZY_IMPORT=false (default): Same behavior currently, but reserved for future use
+Loading is therefore always lazy per name. Only the ``.all`` property (and
+tools built on it such as ``chatterlang_reference_browser`` and
+``talkpipe_plugins --list``) imports every declared entry point, once.
 
-This ensures tools like chatterlang_reference_browser can discover all components
-while maintaining fast import times for applications that use lazy mode.
+``LAZY_IMPORT`` (config key / ``TALKPIPE_LAZY_IMPORT``) is a historical
+switch that no longer changes behavior; it is still read so ``stats()`` can
+report it and so existing configuration keeps validating. It and the
+``enable_lazy_imports`` / ``disable_lazy_imports`` helpers are scheduled for
+removal in TalkPipe 2.0.
 """
 
-from typing import Dict, Type, TypeVar, Generic, Optional, Set, List
 import logging
+import threading
+import warnings
+from collections.abc import Callable
+from typing import Any, Generic, TypeVar
 
 logger = logging.getLogger(__name__)
 
-# Misspelled legacy names kept registered as functional aliases (so existing scripts
-# that use them keep working) but excluded from discovery listings — error-message
-# suggestions and `talkpipe_plugins --list` — since showing both spellings with no
-# indication of which is canonical only confuses newcomers.
-DEPRECATED_ALIASES = {"addToLancDB", "searchLancDB"}
+# Legacy names kept registered as functional aliases (so existing scripts that
+# use them keep working) but excluded from discovery listings — error-message
+# suggestions and `talkpipe_plugins --list` — since showing both spellings with
+# no indication of which is canonical only confuses newcomers. Resolving one
+# through the registry emits a ``DeprecationWarning`` naming the replacement;
+# the aliases are scheduled for removal in TalkPipe 2.0.
+DEPRECATED_ALIASES: dict[str, str] = {
+    "addToLancDB": "addToLanceDB",
+    "searchLancDB": "searchLanceDB",
+    "fileToText": "readFile",
+}
+
+
+def _warn_if_deprecated(name: str) -> None:
+    replacement = DEPRECATED_ALIASES.get(name)
+    if replacement is not None:
+        warnings.warn(
+            f"'{name}' is a deprecated alias of '{replacement}' and will be "
+            f"removed in TalkPipe 2.0; use '{replacement}' instead.",
+            DeprecationWarning,
+            stacklevel=3,
+        )
+
 
 # Check for lazy import mode from configuration
 def _get_lazy_import_setting() -> bool:
@@ -35,34 +58,42 @@ def _get_lazy_import_setting() -> bool:
     """
     try:
         from talkpipe.util.config import get_config
+        from talkpipe.util.constants import LAZY_IMPORT
+
         config = get_config()
-        value = config.get('LAZY_IMPORT', 'false')
-        return str(value).lower() in ('1', 'true', 'yes')
+        value = config.get(LAZY_IMPORT, "false")
+        return str(value).lower() in ("1", "true", "yes")
     except Exception as e:
-        logger.warning(f"Could not load LAZY_IMPORT from config: {e}. Defaulting to eager loading.")
+        logger.warning(
+            f"Could not load LAZY_IMPORT from config: {e}. Defaulting to eager loading."
+        )
         return False
+
 
 LAZY_IMPORT_MODE = _get_lazy_import_setting()
 
-T = TypeVar('T')
+T = TypeVar("T")
+# Anything a registration decorator can wrap: a Source/Segment class or the
+# factory returned by @source()/@segment()/@field_segment(). It is returned as-is.
+Registrable = TypeVar("Registrable")
 
 
 class HybridRegistry(Generic[T]):
     """
     Registry supporting both decorator registration and entry point discovery.
-    
+
     Workflow:
     1. When get() is called, check if component is registered (decorator ran)
     2. If not, try to load from entry points
     3. Entry point import triggers decorator, which registers component
     4. Return registered component
-    
+
     This allows gradual migration from eager to lazy loading without breaking changes.
     """
-    
-    def __init__(self,
-                 entry_point_group: Optional[str] = None,
-                 lazy_import: Optional[bool] = None):
+
+    def __init__(
+        self, entry_point_group: str | None = None, lazy_import: bool | None = None
+    ):
         """
         Initialize the hybrid registry.
 
@@ -72,12 +103,19 @@ class HybridRegistry(Generic[T]):
             lazy_import: Force lazy import mode. If None, respects configuration setting.
                         True = lazy loading, False = eager loading.
         """
-        self._registry: Dict[str, Type[T]] = {}
+        self._registry: dict[str, T] = {}
         self._entry_point_group = entry_point_group
-        self._entry_points_cache: Optional[Dict] = None
-        self._attempted_loads: Set[str] = set()
-        self._loaded_modules: Set[str] = set()
-        self._load_errors: Dict[str, str] = {}
+        self._entry_points_cache: dict[str, Any] | None = None
+        self._attempted_loads: set[str] = set()
+        self._loaded_modules: set[str] = set()
+        self._load_errors: dict[str, str] = {}
+        # Guards the bookkeeping above. It is deliberately NOT held while an
+        # entry point is imported: module import runs decorators that call
+        # register() (fine, the lock is re-entrant) but can also block on
+        # another thread's in-progress import of the same module — holding
+        # this lock across that wait could deadlock with a thread that is
+        # importing directly and needs the lock for its own register() call.
+        self._lock = threading.RLock()
 
         # Determine if we should do lazy imports
         if lazy_import is not None:
@@ -98,71 +136,90 @@ class HybridRegistry(Generic[T]):
                 f"(will load all entry points when accessed)"
             )
 
-    def register(self, cls: Type[T], name: str) -> None:
+    def register(self, cls: T, name: str) -> None:
         """
         Register a component (called by decorators when modules are imported).
-        
+
         Args:
             cls: The class to register
             name: The registration name
         """
-        if name in self._registry:
-            existing = self._registry[name]
-            if existing is not cls:
-                logger.warning(
-                    f"Component '{name}' already registered as {existing}. "
-                    f"Overwriting with {cls}."
-                )
-        
-        self._registry[name] = cls
-        logger.debug(f"Registered '{name}' → {cls.__module__}.{cls.__name__}")
-    
-    def get(self, name: str) -> Type[T]:
+        with self._lock:
+            if name in self._registry:
+                existing = self._registry[name]
+                if existing is not cls:
+                    logger.warning(
+                        f"Component '{name}' already registered as {existing}. "
+                        f"Overwriting with {cls}."
+                    )
+
+            self._registry[name] = cls
+        logger.debug(
+            f"Registered '{name}' → "
+            f"{getattr(cls, '__module__', '?')}.{getattr(cls, '__name__', cls)}"
+        )
+
+    def get(self, name: str) -> T:
         """
         Get a component by name, using entry points as fallback.
-        
+
         Args:
             name: Component name
-            
+
         Returns:
             The component class
-            
+
         Raises:
             KeyError: If component not found in registry or entry points
         """
+        _warn_if_deprecated(name)
+
         # Fast path: already registered via decorator
         if name in self._registry:
             return self._registry[name]
-        
+
         # Avoid retry loops for known failures
         if name in self._attempted_loads:
             raise KeyError(
                 f"Component '{name}' not found and previous load attempt failed"
             )
-        
+
         # Try to load from entry points
-        if self._entry_point_group:
-            if self._try_load_from_entry_point(name):
-                return self._registry[name]
-        
+        if self._entry_point_group and self._try_load_from_entry_point(name):
+            return self._registry[name]
+
         # Component not found anywhere
-        self._attempted_loads.add(name)
-        available = sorted(self._registry.keys())
-        
+        with self._lock:
+            self._attempted_loads.add(name)
+            available = sorted(self._registry.keys())
+
         raise KeyError(
             f"Component '{name}' not found in registry. "
             f"Available components: {', '.join(available[:10])}"
             f"{', ...' if len(available) > 10 else ''}"
         )
-    
-    def _discover_entry_points(self):
-        """Lazy discovery of entry points with collision detection."""
-        if self._entry_points_cache is not None:
-            return
 
+    def _discover_entry_points(self) -> dict[str, Any]:
+        """Lazy discovery of entry points with collision detection.
+
+        Returns the (possibly freshly built) name -> entry point cache.
+        """
+        cache = self._entry_points_cache
+        if cache is not None:
+            return cache
+
+        with self._lock:
+            # Re-check: another thread may have built it while we waited.
+            cache = self._entry_points_cache
+            if cache is not None:
+                return cache
+            return self._discover_entry_points_locked()
+
+    def _discover_entry_points_locked(self) -> dict[str, Any]:
+        """Build the entry-point cache. Caller holds ``self._lock``."""
         if not self._entry_point_group:
             self._entry_points_cache = {}
-            return
+            return self._entry_points_cache
 
         # A package installed (e.g. via `pip install -e .`) earlier in this same
         # process can leave stale negative lookups in the import machinery's path
@@ -170,60 +227,40 @@ class HybridRegistry(Generic[T]):
         # invisible until some later cache-busting import happens. Invalidating
         # here is cheap and ensures discovery sees on-disk metadata as it is now.
         import importlib
+
         importlib.invalidate_caches()
 
-        try:
-            # Try Python 3.10+ API first
-            from importlib.metadata import entry_points
+        from importlib.metadata import entry_points
 
-            # Get entry points list
-            ep_list = []
-            if hasattr(entry_points, '__call__'):
-                eps = entry_points()
-                if hasattr(eps, 'select'):
-                    # Python 3.10+
-                    ep_list = list(eps.select(group=self._entry_point_group))
-                else:
-                    # Python 3.9
-                    ep_list = list(eps.get(self._entry_point_group, []))
-            else:
-                # Shouldn't happen, but handle it
-                ep_list = []
-
-        except ImportError:
-            # Python < 3.8, try backport
-            try:
-                from importlib_metadata import entry_points
-                eps = entry_points()
-                ep_list = list(eps.get(self._entry_point_group, []))
-            except ImportError:
-                logger.warning(
-                    "Cannot discover entry points: importlib.metadata not available. "
-                    "Install importlib_metadata for Python < 3.8"
-                )
-                ep_list = []
+        ep_list = list(entry_points().select(group=self._entry_point_group))
 
         # Detect name collisions before creating cache
-        seen = {}
-        conflicts = []
+        seen: dict[str, Any] = {}
+        conflicts: list[str] = []
 
         for ep in ep_list:
             if ep.name in seen:
                 # Get package names for better error messages
-                existing_pkg = 'unknown'
-                new_pkg = 'unknown'
+                existing_pkg = "unknown"
+                new_pkg = "unknown"
 
                 try:
-                    if hasattr(seen[ep.name], 'dist') and hasattr(seen[ep.name].dist, 'name'):
+                    if hasattr(seen[ep.name], "dist") and hasattr(
+                        seen[ep.name].dist, "name"
+                    ):
                         existing_pkg = seen[ep.name].dist.name
                 except Exception as e:
-                    logger.debug(f"Could not get package name for existing entry point '{ep.name}': {e}")
+                    logger.debug(
+                        f"Could not get package name for existing entry point '{ep.name}': {e}"
+                    )
 
                 try:
-                    if hasattr(ep, 'dist') and hasattr(ep.dist, 'name'):
+                    if ep.dist is not None and hasattr(ep.dist, "name"):
                         new_pkg = ep.dist.name
                 except Exception as e:
-                    logger.debug(f"Could not get package name for new entry point '{ep.name}': {e}")
+                    logger.debug(
+                        f"Could not get package name for new entry point '{ep.name}': {e}"
+                    )
 
                 conflicts.append(
                     f"  - Component '{ep.name}' defined by:\n"
@@ -237,11 +274,12 @@ class HybridRegistry(Generic[T]):
             error_msg = (
                 f"Entry point name collision detected in group '{self._entry_point_group}'.\n"
                 f"Multiple packages are trying to register components with the same name:\n"
-                + "\n".join(conflicts) + "\n\n"
-                f"To resolve this conflict:\n"
-                f"  1. Use unique prefixes for plugin components (e.g., 'myplugin_transform')\n"
-                f"  2. Uninstall conflicting packages\n"
-                f"  3. Contact the plugin authors to coordinate naming"
+                + "\n".join(conflicts)
+                + "\n\n"
+                "To resolve this conflict:\n"
+                "  1. Use unique prefixes for plugin components (e.g., 'myplugin_transform')\n"
+                "  2. Uninstall conflicting packages\n"
+                "  3. Contact the plugin authors to coordinate naming"
             )
             raise ValueError(error_msg)
 
@@ -251,77 +289,83 @@ class HybridRegistry(Generic[T]):
             f"Discovered {len(self._entry_points_cache)} entry points "
             f"in group '{self._entry_point_group}'"
         )
-    
-    def _load_all_entry_points(self):
+        return self._entry_points_cache
+
+    def _load_all_entry_points(self) -> None:
         """
         Discover and load all entry points.
 
         This is called during __init__ in eager mode, or on first .all access in lazy mode.
         """
-        self._discover_entry_points()
+        entry_points_cache = self._discover_entry_points()
 
-        for name in list(self._entry_points_cache.keys()):
-            if name not in self._registry and name not in self._attempted_loads:
+        for name in list(entry_points_cache.keys()):
+            with self._lock:
+                needed = (
+                    name not in self._registry and name not in self._attempted_loads
+                )
+            if needed:
                 self._try_load_from_entry_point(name)
 
     def _try_load_from_entry_point(self, name: str) -> bool:
         """
         Attempt to load a component from entry points.
-        
+
         Args:
             name: Component name
-            
+
         Returns:
             True if component was successfully loaded and registered
         """
         # Discover entry points if needed
-        self._discover_entry_points()
-        
-        if name not in self._entry_points_cache:
+        entry_points_cache = self._discover_entry_points()
+
+        if name not in entry_points_cache:
             logger.debug(f"Component '{name}' not found in entry points")
             return False
-        
-        ep = self._entry_points_cache[name]
-        
+
+        ep = entry_points_cache[name]
+
         try:
             logger.info(
                 f"Loading '{name}' from entry point: {ep.value} "
                 f"(group: {self._entry_point_group})"
             )
-            
+
             # Load the entry point - this imports the module
             # The import will execute decorators, which call register()
             cls = ep.load()
-            
-            # Track which module we loaded
-            if hasattr(cls, '__module__'):
-                self._loaded_modules.add(cls.__module__)
-            
+
+            with self._lock:
+                # Track which module we loaded
+                if hasattr(cls, "__module__"):
+                    self._loaded_modules.add(cls.__module__)
+                registered = name in self._registry
+
             # Check if decorator registered it with the same name
-            if name in self._registry:
+            if registered:
                 logger.info(f"Successfully loaded and registered '{name}'")
                 return True
-            else:
-                # Class loaded but didn't register with expected name
-                # This could happen if decorator uses different name
-                logger.warning(
-                    f"Entry point '{name}' loaded class {cls} but it was not "
-                    f"registered under that name. Registering manually."
-                )
-                # Register it manually with the entry point name
-                self.register(cls, name)
-                return True
-                
-        except Exception as e:
-            logger.error(
-                f"Failed to load '{name}' from entry point {ep.value}: {e}",
-                exc_info=True
+            # Class loaded but didn't register with expected name
+            # This could happen if decorator uses different name
+            logger.warning(
+                f"Entry point '{name}' loaded class {cls} but it was not "
+                f"registered under that name. Registering manually."
             )
-            self._attempted_loads.add(name)
-            self._load_errors[name] = f"{ep.value}: {e}"
+            # Register it manually with the entry point name
+            self.register(cls, name)
+            return True
+
+        except Exception as e:
+            logger.exception(
+                f"Failed to load '{name}' from entry point {ep.value}: {e}"
+            )
+            with self._lock:
+                self._attempted_loads.add(name)
+                self._load_errors[name] = f"{ep.value}: {e}"
             return False
 
-    def load_error(self, name: str) -> Optional[str]:
+    def load_error(self, name: str) -> str | None:
         """
         Get the captured error for a name whose entry point failed to load.
 
@@ -330,9 +374,9 @@ class HybridRegistry(Generic[T]):
             or None if no load was attempted or it succeeded.
         """
         return self._load_errors.get(name)
-    
+
     @property
-    def all(self) -> Dict[str, Type[T]]:
+    def all(self) -> dict[str, T]:
         """
         Get all registered components, loading from entry points if needed.
 
@@ -346,9 +390,10 @@ class HybridRegistry(Generic[T]):
         # Ensure all entry points are loaded
         self._load_all_entry_points()
 
-        return self._registry.copy()
-    
-    def list_entry_points(self) -> Dict[str, str]:
+        with self._lock:
+            return self._registry.copy()
+
+    def list_entry_points(self) -> dict[str, str]:
         """
         Get a mapping of entry point names to their module:object strings.
 
@@ -357,14 +402,11 @@ class HybridRegistry(Generic[T]):
         Returns:
             Dictionary mapping names to "module:object" strings
         """
-        self._discover_entry_points()
-        return {
-            name: ep.value
-            for name, ep in self._entry_points_cache.items()
-        }
+        entry_points_cache = self._discover_entry_points()
+        return {name: ep.value for name, ep in entry_points_cache.items()}
 
     @property
-    def available_names(self) -> List[str]:
+    def available_names(self) -> list[str]:
         """
         Sorted names of every component known without importing them.
 
@@ -376,7 +418,8 @@ class HybridRegistry(Generic[T]):
         Returns:
             Sorted list of component names
         """
-        names = set(self._registry.keys())
+        with self._lock:
+            names = set(self._registry.keys())
         try:
             names.update(self.list_entry_points().keys())
         except Exception as e:
@@ -385,57 +428,64 @@ class HybridRegistry(Generic[T]):
                 f"Failed to discover entry points while collecting available names: {e}",
                 exc_info=True,
             )
-        names -= DEPRECATED_ALIASES
+        names.difference_update(DEPRECATED_ALIASES)
         return sorted(names)
-    
-    def invalidate_cache(self):
+
+    def invalidate_cache(self) -> None:
         """
         Clear caches (useful for testing).
         """
-        self._entry_points_cache = None
-        self._attempted_loads.clear()
-    
-    def stats(self) -> Dict[str, int]:
+        with self._lock:
+            self._entry_points_cache = None
+            self._attempted_loads.clear()
+
+    def stats(self) -> dict[str, int]:
         """
         Get statistics about registry usage.
-        
+
         Returns:
             Dictionary with counts of registered components, entry points, etc.
         """
-        self._discover_entry_points()
-        
+        entry_points_cache = self._discover_entry_points()
+
         return {
-            'registered': len(self._registry),
-            'entry_points': len(self._entry_points_cache),
-            'loaded_modules': len(self._loaded_modules),
-            'failed_loads': len(self._attempted_loads),
+            "registered": len(self._registry),
+            "entry_points": len(entry_points_cache),
+            "loaded_modules": len(self._loaded_modules),
+            "failed_loads": len(self._attempted_loads),
         }
 
 
 # Create the global registries with entry point groups
-input_registry = HybridRegistry(entry_point_group='talkpipe.sources')
-segment_registry = HybridRegistry(entry_point_group='talkpipe.segments')
+input_registry: HybridRegistry[Any] = HybridRegistry(
+    entry_point_group="talkpipe.sources"
+)
+segment_registry: HybridRegistry[Any] = HybridRegistry(
+    entry_point_group="talkpipe.segments"
+)
 
 
-def register_source(*names: str, name: str = None):
+def register_source(
+    *names: str, name: str | None = None
+) -> Callable[[Registrable], Registrable]:
     """
     Decorator to register a source module with one or more names in the registry.
-    
+
     Usage:
         @register_source("mySource")
         class MySource(AbstractSource):
             ...
-        
+
         # Register with multiple names
         @register_source("source1", "source2", "source3")
         class MultiNameSource(AbstractSource):
             ...
-        
+
         # Backward compatible keyword argument
         @register_source(name="mySource")
         class KeywordSource(AbstractSource):
             ...
-    
+
     Args:
         *names: One or more names to register the source under (positional)
         name: Single name to register the source under (keyword, for backward compatibility)
@@ -443,38 +493,43 @@ def register_source(*names: str, name: str = None):
     # Handle backward compatibility with name= keyword argument
     if name is not None:
         if names:
-            raise ValueError("Cannot specify both positional names and 'name' keyword argument")
+            raise ValueError(
+                "Cannot specify both positional names and 'name' keyword argument"
+            )
         names = (name,)
-    
+
     if not names:
         raise ValueError("At least one name must be provided")
-    
-    def wrap(cls):
+
+    def wrap(cls: Registrable) -> Registrable:
         for source_name in names:
             input_registry.register(cls, name=source_name)
         return cls
+
     return wrap
 
 
-def register_segment(*names: str, name: str = None):
+def register_segment(
+    *names: str, name: str | None = None
+) -> Callable[[Registrable], Registrable]:
     """
     Decorator to register a segment module with one or more names in the registry.
-    
+
     Usage:
         @register_segment("mySegment")
         class MySegment(AbstractSegment):
             ...
-        
+
         # Register with multiple names
         @register_segment("segment1", "segment2", "segment3")
         class MultiNameSegment(AbstractSegment):
             ...
-        
+
         # Backward compatible keyword argument
         @register_segment(name="mySegment")
         class KeywordSegment(AbstractSegment):
             ...
-    
+
     Args:
         *names: One or more names to register the segment under (positional)
         name: Single name to register the segment under (keyword, for backward compatibility)
@@ -482,20 +537,23 @@ def register_segment(*names: str, name: str = None):
     # Handle backward compatibility with name= keyword argument
     if name is not None:
         if names:
-            raise ValueError("Cannot specify both positional names and 'name' keyword argument")
+            raise ValueError(
+                "Cannot specify both positional names and 'name' keyword argument"
+            )
         names = (name,)
-    
+
     if not names:
         raise ValueError("At least one name must be provided")
-    
-    def wrap(cls):
+
+    def wrap(cls: Registrable) -> Registrable:
         for segment_name in names:
             segment_registry.register(cls, name=segment_name)
         return cls
+
     return wrap
 
 
-def get_registry_stats():
+def get_registry_stats() -> dict[str, Any]:
     """
     Get statistics about both registries.
 
@@ -503,14 +561,18 @@ def get_registry_stats():
         Dictionary with stats for both registries
     """
     return {
-        'sources': input_registry.stats(),
-        'segments': segment_registry.stats(),
-        'lazy_mode': LAZY_IMPORT_MODE,
+        "sources": input_registry.stats(),
+        "segments": segment_registry.stats(),
+        "lazy_mode": LAZY_IMPORT_MODE,
     }
 
 
-def enable_lazy_imports():
-    """Enable lazy import mode programmatically."""
+def enable_lazy_imports() -> None:
+    """Set the historical lazy-import flag.
+
+    Component loading is always on demand, so this only changes what
+    ``stats()`` reports. Kept for compatibility; scheduled for removal in 2.0.
+    """
     global LAZY_IMPORT_MODE
     LAZY_IMPORT_MODE = True
     input_registry._lazy_import = True
@@ -518,8 +580,8 @@ def enable_lazy_imports():
     logger.info("Enabled lazy import mode")
 
 
-def disable_lazy_imports():
-    """Disable lazy import mode (use eager loading) programmatically."""
+def disable_lazy_imports() -> None:
+    """Clear the historical lazy-import flag (see ``enable_lazy_imports``)."""
     global LAZY_IMPORT_MODE
     LAZY_IMPORT_MODE = False
     input_registry._lazy_import = False

@@ -28,6 +28,22 @@ Then open the printed URL (default `http://127.0.0.1:4143`) in a browser.
 | `--suggest-source` | string | | LLM source for the suggestions sidebar (e.g. `ollama`) |
 | `--suggest-model` | string | | LLM model name for the suggestions sidebar |
 | `--no-llm-suggestions` | flag | `false` | Disable LLM-driven suggestions entirely (heuristic suggestions remain) |
+| `--allow-remote` | flag | `false` | Permit a non-loopback `--host`. Without it the workbench refuses to start on anything but `127.0.0.1`/`localhost`/`::1` |
+| `--api-key` | string | | Require this token as an `X-API-Key` header on every API call (`/compile`, `/go`, `/api/*`, `/logs`, `/examples`, `/docs/*`). Also settable as `TALKPIPE_WORKBENCH_API_KEY` |
+
+### Security model
+
+The workbench compiles and **runs whatever script it is sent, as the user who
+started it**, and scripts can read any TalkPipe configuration value —
+including API keys — through `$name`. It is a single-developer tool: it binds
+to loopback by default and prints a banner saying so at startup.
+
+If you must reach it from another machine, pass `--allow-remote` **and**
+`--api-key <token>`, and put it behind a TLS-terminating reverse proxy. Open
+the UI once as `http://host:port/?key=<token>`; the page stores the token in
+`sessionStorage` (this tab only), strips it from the address bar, and sends it
+as `X-API-Key` on every request. The UI shell and static assets stay open so
+the page can load; every route that does work returns `401` without the token.
 
 ### Examples
 
@@ -35,8 +51,8 @@ Then open the printed URL (default `http://127.0.0.1:4143`) in a browser.
 # Start server with default settings
 chatterlang_workbench
 
-# Start on custom host and port
-chatterlang_workbench --host 0.0.0.0 --port 8080
+# Expose on the network (only behind TLS): requires both flags
+chatterlang_workbench --host 0.0.0.0 --port 8080 --allow-remote --api-key "$(openssl rand -hex 24)"
 
 # Enable development mode with auto-reload
 chatterlang_workbench --reload

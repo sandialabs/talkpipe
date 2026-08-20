@@ -1,23 +1,25 @@
 """Classes for chatting with models from different sources.
 
-Contains an abstract class for a chat model, as well as two 
+Contains an abstract class for a chat model, as well as two
 concrete classes for chatting with models from Ollama.
 """
 
-from typing import Optional, Iterable, Iterator, Annotated
-from abc import ABC, abstractmethod
 import inspect
 import logging
+from abc import abstractmethod
+from collections.abc import Callable, Iterable, Iterator
+from typing import Annotated, Any
+
 from pydantic import BaseModel
 
+from talkpipe.chatterlang.registry import register_segment
+from talkpipe.pipe.core import AbstractSegment
+from talkpipe.util.config import get_config
 from talkpipe.util.constants import TALKPIPE_MODEL_NAME, TALKPIPE_SOURCE
-from talkpipe.util.data_manipulation import extract_property, assign_property
-
+from talkpipe.util.data_manipulation import assign_property, extract_property
 
 from .config import getPromptAdapter, getPromptSources
-from talkpipe.pipe.core import AbstractSegment
-from talkpipe.chatterlang.registry import register_segment
-from talkpipe.util.config import get_config
+from .prompt_adapter_base import AbstractLLMPromptAdapter
 
 logger = logging.getLogger(__name__)
 
@@ -30,10 +32,11 @@ PROMPT_ADAPTER_COMPAT_KWARG_DEFAULTS = {
     "debug_messages": False,
 }
 
+
 @register_segment("llmPrompt")
-class LLMPrompt(AbstractSegment):
+class LLMPrompt(AbstractSegment[Any, Any]):
     """Interactive, optionally multi-turn, chat with an llm.
-    
+
     Reads prompts from the input stream and emits responses from the llm.
     The model name and source can be specified in three different ways.  If
     explicitly included in the constructor, those values will be used.  If not,
@@ -63,38 +66,72 @@ class LLMPrompt(AbstractSegment):
     """
 
     def __init__(
-            self,
-            model: Annotated[Optional[str], "The name of the model to chat with"] = None,
-            source: Annotated[Optional[str], "The source of the model (e.g. ollama, openai, or anthropic; pluggable via registerPromptAdapter)"] = None,
-            system_prompt: Annotated[Optional[str], "The system prompt for the model"] = "You are a helpful assistant.",
-            multi_turn: Annotated[bool, "Whether the chat is multi-turn"] = True,
-            pass_prompts: Annotated[bool, "Whether to pass the prompts through to the output"] = False,
-            field: Annotated[Optional[str], "The field in the input item containing the prompt"] = None,
-            set_as: Annotated[Optional[str], "The field to append the response to"] = None,
-            temperature: Annotated[Optional[float], "The temperature to use for the model"] = None,
-            output_format: Annotated[Optional[BaseModel], "A class used for guided generation"] = None,
-            role_map: Annotated[Optional[str], "Initial conversation context as 'role:message,role:message'"] = None,
-            memory_mode: Annotated[str, "Memory behavior: full, recent_only, summary_llm, summary_deterministic, or summary_truncate"] = "full",
-            unsummarized_message_count: Annotated[int, "Recent message count kept out of summary compaction"] = 6,
-            context_token_trigger: Annotated[Optional[float], "Approximate context-token trigger for rolling memory compaction (values < 1 are ignored)"] = None,
-            memory_size: Annotated[int, "Target max tokens for generated summary memory"] = 512,
-            debug_messages: Annotated[bool, "Whether to log outbound LLM request messages"] = False):
+        self,
+        model: Annotated[str | None, "The name of the model to chat with"] = None,
+        source: Annotated[
+            str | None,
+            "The source of the model (e.g. ollama, openai, or anthropic; pluggable via registerPromptAdapter)",
+        ] = None,
+        system_prompt: Annotated[
+            str | None, "The system prompt for the model"
+        ] = "You are a helpful assistant.",
+        multi_turn: Annotated[bool, "Whether the chat is multi-turn"] = True,
+        pass_prompts: Annotated[
+            bool, "Whether to pass the prompts through to the output"
+        ] = False,
+        field: Annotated[
+            str | None, "The field in the input item containing the prompt"
+        ] = None,
+        set_as: Annotated[str | None, "The field to append the response to"] = None,
+        temperature: Annotated[
+            float | None, "The temperature to use for the model"
+        ] = None,
+        output_format: Annotated[
+            type[BaseModel] | None, "A class used for guided generation"
+        ] = None,
+        role_map: Annotated[
+            str | None, "Initial conversation context as 'role:message,role:message'"
+        ] = None,
+        memory_mode: Annotated[
+            str,
+            "Memory behavior: full, recent_only, summary_llm, summary_deterministic, or summary_truncate",
+        ] = "full",
+        unsummarized_message_count: Annotated[
+            int, "Recent message count kept out of summary compaction"
+        ] = 6,
+        context_token_trigger: Annotated[
+            float | None,
+            "Approximate context-token trigger for rolling memory compaction (values < 1 are ignored)",
+        ] = None,
+        memory_size: Annotated[
+            int, "Target max tokens for generated summary memory"
+        ] = 512,
+        debug_messages: Annotated[
+            bool, "Whether to log outbound LLM request messages"
+        ] = False,
+        timeout: Annotated[
+            float | None,
+            "Request timeout in seconds for the model server; defaults to the llm_timeout config value (120 if unset)",
+        ] = None,
+    ):
         super().__init__()
-        logging.debug(f"Initializing LLMPrompt with name={model}, source={source}")
+        logger.debug(f"Initializing LLMPrompt with name={model}, source={source}")
         cfg = get_config()
         model = model or cfg.get(TALKPIPE_MODEL_NAME, None)
         source = source or cfg.get(TALKPIPE_SOURCE, None)
-        logging.debug(f"Resolved model name={model}, source={source}")
+        logger.debug(f"Resolved model name={model}, source={source}")
 
         if model is None or source is None:
-            logging.error("Model name and source must be provided")
-            raise ValueError("Model name and source must be provided, specified in the configuration file, or in environment variables.")
+            logger.error("Model name and source must be provided")
+            raise ValueError(
+                "Model name and source must be provided, specified in the configuration file, or in environment variables."
+            )
 
         if source not in getPromptSources():
-            logging.error(f"Unknown source: {source}")
+            logger.error(f"Unknown source: {source}")
             raise ValueError(f"Unknown source: {source}")
 
-        logging.debug(f"Creating chat model with name: {model}")
+        logger.debug(f"Creating chat model with name: {model}")
         adapter_kwargs = {
             "model": model,
             # Always pass system_prompt, even if None, so the adapter can handle it correctly.
@@ -108,16 +145,36 @@ class LLMPrompt(AbstractSegment):
             "context_token_trigger": context_token_trigger,
             "memory_size": memory_size,
             "debug_messages": debug_messages,
+            "timeout": timeout,
         }
-        self.chat = self._create_prompt_adapter(getPromptAdapter(source), source, adapter_kwargs)
+        self.chat = self._create_prompt_adapter(
+            getPromptAdapter(source), source, adapter_kwargs
+        )
 
         self.pass_prompts = pass_prompts
         self.field = field
         self.set_as = set_as
 
-    def _create_prompt_adapter(self, adapter_cls, source: str, adapter_kwargs: dict):
+    def _create_prompt_adapter(
+        self,
+        adapter_cls: Callable[..., AbstractLLMPromptAdapter],
+        source: str,
+        adapter_kwargs: dict[str, Any],
+    ) -> AbstractLLMPromptAdapter:
         accepted_kwargs = self._supported_adapter_kwargs(adapter_cls, adapter_kwargs)
-        unsupported_compat_kwargs = set(PROMPT_ADAPTER_COMPAT_KWARG_DEFAULTS) - accepted_kwargs
+        # Adapters with no network call (eliza) or third-party adapters that
+        # predate the option take no ``timeout``: drop it when unset, refuse
+        # loudly when the user asked for one so it is never silently ignored.
+        if "timeout" in adapter_kwargs and "timeout" not in accepted_kwargs:
+            if adapter_kwargs["timeout"] is not None:
+                raise ValueError(
+                    f"Prompt adapter '{source}' does not accept a timeout; "
+                    "remove the timeout option or update the adapter."
+                )
+            adapter_kwargs = {k: v for k, v in adapter_kwargs.items() if k != "timeout"}
+        unsupported_compat_kwargs = (
+            set(PROMPT_ADAPTER_COMPAT_KWARG_DEFAULTS) - accepted_kwargs
+        )
 
         if unsupported_compat_kwargs:
             non_default_kwargs = {
@@ -144,18 +201,18 @@ class LLMPrompt(AbstractSegment):
 
         return adapter_cls(**adapter_kwargs)
 
-    def _supported_adapter_kwargs(self, adapter_cls, adapter_kwargs: dict) -> set[str]:
+    def _supported_adapter_kwargs(
+        self, adapter_cls: Callable[..., Any], adapter_kwargs: dict[str, Any]
+    ) -> set[str]:
         signature = inspect.signature(adapter_cls)
         parameters = signature.parameters.values()
-        if any(parameter.kind == inspect.Parameter.VAR_KEYWORD for parameter in parameters):
+        if any(
+            parameter.kind == inspect.Parameter.VAR_KEYWORD for parameter in parameters
+        ):
             return set(adapter_kwargs)
-        return {
-            name
-            for name in adapter_kwargs
-            if name in signature.parameters
-        }
+        return {name for name in adapter_kwargs if name in signature.parameters}
 
-    def transform(self, input_iter: Iterable) -> Iterator:
+    def transform(self, input_iter: Iterable[Any]) -> Iterator[Any]:
         for item in input_iter:
             logger.debug(f"Processing input item: {item}")
             if self.field is not None:
@@ -164,15 +221,15 @@ class LLMPrompt(AbstractSegment):
             else:
                 prompt = item
                 logger.debug(f"Using item as prompt: {prompt}")
-            
+
             if self.pass_prompts:
                 logger.debug("Passing prompt through")
                 yield prompt
-            
+
             logger.debug(f"Executing chat with prompt: {prompt}")
             ans = self.chat.execute(str(prompt))
             logger.debug(f"Received response: {ans}")
-            
+
             if self.set_as is not None:
                 logger.debug(f"Appending response to field {self.set_as}")
                 assign_property(item, self.set_as, ans)
@@ -180,6 +237,7 @@ class LLMPrompt(AbstractSegment):
             else:
                 logger.debug("Yielding response directly")
                 yield ans
+
 
 class AbstractLLMGuidedGeneration(LLMPrompt):
     """Abstract class for LLM-guided generation segments.
@@ -190,26 +248,49 @@ class AbstractLLMGuidedGeneration(LLMPrompt):
 
     @staticmethod
     @abstractmethod
-    def get_output_format() -> BaseModel:
+    def get_output_format() -> type[BaseModel]:
         """Returns the output format for the segment. Must be implemented by subclasses."""
-        pass
 
     def __init__(
-            self,
-            system_prompt: Annotated[str, "The system prompt for the LLM"],
-            model: Annotated[Optional[str], "The name of the model to chat with"] = None,
-            source: Annotated[Optional[str], "The source of the model (e.g. ollama, openai, or anthropic; pluggable via registerPromptAdapter)"] = None,
-            multi_turn: Annotated[bool, "Whether the chat is multi-turn"] = False,
-            pass_prompts: Annotated[bool, "Whether to pass the prompts through to the output"] = False,
-            field: Annotated[Optional[str], "The field in the input item containing the prompt"] = None,
-            temperature: Annotated[Optional[float], "The temperature to use for the model"] = None,
-            set_as: Annotated[Optional[str], "The field to append the response to"] = None,
-            role_map: Annotated[Optional[str], "Initial conversation context as 'role:message,role:message'"] = None,
-            memory_mode: Annotated[str, "Memory behavior: full, recent_only, summary_llm, summary_deterministic, or summary_truncate"] = "full",
-            unsummarized_message_count: Annotated[int, "Recent message count kept out of summary compaction"] = 6,
-            context_token_trigger: Annotated[Optional[float], "Approximate context-token trigger for rolling memory compaction (values < 1 are ignored)"] = None,
-            memory_size: Annotated[int, "Target max tokens for generated summary memory"] = 512,
-            debug_messages: Annotated[bool, "Whether to log outbound LLM request messages"] = False):
+        self,
+        system_prompt: Annotated[str, "The system prompt for the LLM"],
+        model: Annotated[str | None, "The name of the model to chat with"] = None,
+        source: Annotated[
+            str | None,
+            "The source of the model (e.g. ollama, openai, or anthropic; pluggable via registerPromptAdapter)",
+        ] = None,
+        multi_turn: Annotated[bool, "Whether the chat is multi-turn"] = False,
+        pass_prompts: Annotated[
+            bool, "Whether to pass the prompts through to the output"
+        ] = False,
+        field: Annotated[
+            str | None, "The field in the input item containing the prompt"
+        ] = None,
+        temperature: Annotated[
+            float | None, "The temperature to use for the model"
+        ] = None,
+        set_as: Annotated[str | None, "The field to append the response to"] = None,
+        role_map: Annotated[
+            str | None, "Initial conversation context as 'role:message,role:message'"
+        ] = None,
+        memory_mode: Annotated[
+            str,
+            "Memory behavior: full, recent_only, summary_llm, summary_deterministic, or summary_truncate",
+        ] = "full",
+        unsummarized_message_count: Annotated[
+            int, "Recent message count kept out of summary compaction"
+        ] = 6,
+        context_token_trigger: Annotated[
+            float | None,
+            "Approximate context-token trigger for rolling memory compaction (values < 1 are ignored)",
+        ] = None,
+        memory_size: Annotated[
+            int, "Target max tokens for generated summary memory"
+        ] = 512,
+        debug_messages: Annotated[
+            bool, "Whether to log outbound LLM request messages"
+        ] = False,
+    ):
 
         super().__init__(
             model,
@@ -226,13 +307,14 @@ class AbstractLLMGuidedGeneration(LLMPrompt):
             unsummarized_message_count=unsummarized_message_count,
             context_token_trigger=context_token_trigger,
             memory_size=memory_size,
-            debug_messages=debug_messages)
-        
+            debug_messages=debug_messages,
+        )
+
 
 @register_segment("llmScore")
 class LlmScore(AbstractLLMGuidedGeneration):
     """
-    Compute an integer relevance (or quality) score and a natural‑language explanation
+    Compute an integer relevance (or quality) score and a natural-language explanation
     for each prompt using an LLM.
     Overview
     --------
@@ -244,17 +326,17 @@ class LlmScore(AbstractLLMGuidedGeneration):
     3. Validates / structures the model response into an instance of LlmScore.Score
         (a pydantic model with fields `score: int`, `explanation: str`).
     You MUST supply a system prompt that clearly defines:
-    - The scoring scale (integer range, e.g., 0–10 or 1–5).
+    - The scoring scale (integer range, e.g., 0-10 or 1-5).
     - The semantics of low / high values.
-    - Any domain‑specific evaluation criteria.
+    - Any domain-specific evaluation criteria.
 
     Intended Use Cases
     ------------------
     - Content relevance scoring (e.g., "How related is this passage to canines?").
     - Quality, safety, or policy compliance triage.
     - Lightweight ranking signals ahead of deeper analysis.
-    - Real‑time streaming evaluation of incoming documents or chat messages.
-    
+    - Real-time streaming evaluation of incoming documents or chat messages.
+
     Parameters (inherited / expected)
     ---------------------------------
     While this class adds no new constructor arguments beyond those of
@@ -263,14 +345,14 @@ class LlmScore(AbstractLLMGuidedGeneration):
     implementation):
     - system_prompt (str, required):
          A carefully crafted instruction that:
-            * Defines the integer scoring range (e.g., 0–10).
+            * Defines the integer scoring range (e.g., 0-10).
             * Explains the meaning of endpoints and (optionally) intermediate values.
             * Requests a JSON (or structured) output containing fields:
                  - "score": integer
                  - "explanation": brief textual rationale
          Example:
             "You are a scoring assistant. Score the supplied text for how
-             relevant it is to canines on a 0–10 scale (0 = unrelated, 10 = highly
+             relevant it is to canines on a 0-10 scale (0 = unrelated, 10 = highly
              specific and directly about canines). Return JSON with keys
              'score' (int) and 'explanation' (string). Be concise."
     - model:
@@ -284,7 +366,7 @@ class LlmScore(AbstractLLMGuidedGeneration):
     - field (str, optional):
          The specific field serve as the prompt (e.g., "content", "style").
     - temperature (float, optional):
-         Sampling temperature; often set low (e.g., 0.0–0.3) to encourage
+         Sampling temperature; often set low (e.g., 0.0-0.3) to encourage
          deterministic, reproducible scoring.
     - set_as (str, optional):
          If specified, the output will be appended as this field in the
@@ -296,7 +378,7 @@ class LlmScore(AbstractLLMGuidedGeneration):
          score (int):
               The integer score within the scale you defined in the system prompt.
               Always validate that returned values fall in-range; if not, consider
-              clamping, rejecting, or re‑prompting.
+              clamping, rejecting, or re-prompting.
          explanation (str):
               Concise justification of why the score was chosen. Encourage the model
               (via the prompt) to reference explicit criteria, avoid hallucinated
@@ -332,17 +414,17 @@ class LlmScore(AbstractLLMGuidedGeneration):
         score: int
 
     @staticmethod
-    def get_output_format() -> BaseModel:
+    def get_output_format() -> type[BaseModel]:
         return LlmScore.Score
- 
+
 
 @register_segment("llmExtractTerms")
 class LlmExtractTerms(AbstractLLMGuidedGeneration):
     """For each piece of text read from the input stream, extract terms from the text.
-    
-    The system prompt must be provided and should explain the nature of the terms. For 
+
+    The system prompt must be provided and should explain the nature of the terms. For
     example, a system_prompt might be:
-    
+
     <pre>Extract keywords from the following text.</pre>
 
     See the LLMPrompt segment for more information on the other arguments.
@@ -352,8 +434,9 @@ class LlmExtractTerms(AbstractLLMGuidedGeneration):
         terms: list[str]
 
     @staticmethod
-    def get_output_format() -> BaseModel:
+    def get_output_format() -> type[BaseModel]:
         return LlmExtractTerms.Terms
+
 
 @register_segment("llmBinaryAnswer")
 class LlmBinaryAnswer(AbstractLLMGuidedGeneration):
@@ -375,5 +458,5 @@ class LlmBinaryAnswer(AbstractLLMGuidedGeneration):
             return f"{'Yes' if self.answer else 'No'}: {self.explanation}"
 
     @staticmethod
-    def get_output_format() -> BaseModel:
+    def get_output_format() -> type[BaseModel]:
         return LlmBinaryAnswer.Answer

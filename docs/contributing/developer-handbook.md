@@ -12,9 +12,104 @@ are not at the start of a pipeline are Segments.
 
 ## Conventions
 
+### Code quality
+
+Ruff (lint and Black-compatible formatting) and mypy gate CI: any finding
+from `ruff check .`, `ruff format --check .`, or `mypy` fails the build, with
+no advisory mode. The rule set (`[tool.ruff]`) and the type-checking
+baseline (`[tool.mypy]`) live in `pyproject.toml`; `ruff check --fix . &&
+ruff format .` fixes most lint and format findings. `pre-commit install`
+(opt-in, per clone) runs the same three checks on every commit. mypy runs in
+`strict` mode on `src/`: every function is fully annotated, generic types
+carry their parameters (`dict[str, Any]`, `AbstractSegment[Any, Any]`, never
+bare `dict` or `AbstractSegment`), calls into untyped code and untyped
+decorators are errors, re-exports must be explicit (`__all__` or
+`from x import y as y`), and a typed function may not return an untyped `Any`.
+Do not add `# type: ignore` without an error code and a reason. Where a value
+comes from an untyped library (`json.load`, numpy's `tolist()`, a stubless
+client), give it a typed local (`values: list[float] = ...`) or convert it
+(`int(...)`, `str(...)`) before returning it; where a stubless library's
+decorator is applied (parsy's `@generate`), bind it to a typed alias first as
+`chatterlang/parsers.py` does.
+
+The package ships a PEP 561 `py.typed` marker, so these annotations are the
+public typing contract: a consumer's type checker sees talkpipe's real types
+rather than `Any`. In particular `@source`, `@segment`, and `@field_segment`
+are typed decorators -- `@segment()` on `def f(items: Iterable[int], n: int)
+-> Iterator[str]` yields a factory typed `(n: int) -> AbstractSegment[int,
+str]` -- so downstream projects can enable mypy's
+`disallow_untyped_decorators`. Keep parameter annotations on segments and
+sources honest (`str | None` if `None` is accepted, defaults in the function
+signature rather than only in the decorator), because they are now what
+consumers are checked against.
+
 ### Versioning
 
-This codebase will use [semantic versioning](https://semver.org/) with the additional convention that during the 0.x.y development that each MINOR version will mostly maintain backward compatibility and PATCH versions will include substantial new capability.  So, for example, every 0.2.x version will be mostly backward compatible, but 0.3.0 might contain code reorganization.
+TalkPipe follows [semantic versioning](https://semver.org/). Releases are
+`vMAJOR.MINOR.PATCH` git tags (pre-releases `v1.2.0b1`, `v1.2.0rc1`); the
+package version is derived from the tag by `setuptools_scm`, so there is no
+version string to edit.
+How a release is cut — tagging, publishing, and fast-forwarding `main` — is
+described in [`RELEASING.md`](../../RELEASING.md).
+
+- **PATCH** — bug fixes only; no new public names, no behavior changes a
+  correct program could observe except the fix.
+- **MINOR** — new segments, sources, parameters, modules, and features;
+  existing public API keeps working. May emit new `DeprecationWarning`s.
+- **MAJOR** — may remove anything that has been deprecated for at least one
+  minor release, and may make other breaking changes, each listed in the
+  changelog.
+
+(During 0.x development the convention was looser: each 0.MINOR series was
+mostly backward compatible and PATCH releases carried substantial new
+capability. That period ended with 1.0.0.)
+
+### Stability and deprecation policy
+
+**Public surface.** The following are the public API. Within a major series
+they keep working, and anything that will go away is announced first:
+
+- The top-level `talkpipe` exports (`compile`, `segment`, `source`,
+  `field_segment`, `register_segment`, `register_source`, `AbstractSegment`,
+  `AbstractSource`, `AbstractFieldSegment`) and the `__all__` of
+  `talkpipe.pipe`, `talkpipe.chatterlang`, and `talkpipe.llm`.
+- Every non-underscored name in these modules:
+  `talkpipe.util.config`, `talkpipe.util.constants`,
+  `talkpipe.util.data_manipulation`, `talkpipe.llm.config`,
+  `talkpipe.chatterlang.compiler`, `talkpipe.chatterlang.registry`,
+  `talkpipe.pipe.core`, `talkpipe.pipe.basic`, `talkpipe.pipe.io`,
+  `talkpipe.search.*`, `talkpipe.pipelines.*`.
+- The extension-point base classes and their documented abstract methods:
+  `AbstractSegment`, `AbstractSource`, `AbstractFieldSegment`,
+  `AbstractLLMPromptAdapter`, `AbstractEmbeddingAdapter`, and the
+  `registerPromptAdapter` / `registerEmbeddingAdapter` hooks.
+- Every registered ChatterLang segment and source **name**, its parameter
+  names, and the shape of what it yields, as documented in the generated
+  reference (`chatterlang_reference_generator`).
+- The `talkpipe.plugins`, `talkpipe.sources`, and `talkpipe.segments`
+  entry-point groups and the `initialize_plugin()` protocol.
+- The console scripts and their documented flags.
+- Configuration key names documented in this handbook and in
+  [Configuration](../architecture/configuration.md).
+
+**Not covered.** Anything under `talkpipe.app.*` other than the console-script
+behavior (the FastAPI apps' internals, HTML, and helper functions), any name
+starting with `_`, test utilities, and the exact wording of log messages and
+exceptions. These may change in any release.
+
+**Deprecation.** Something leaving the public surface first emits a
+`DeprecationWarning` naming the replacement, is documented as deprecated, and
+stays for at least one MINOR release; it is removed no earlier than the next
+MAJOR release. Currently deprecated: the misspelled aliases `addToLancDB` /
+`searchLancDB` (use `addToLanceDB` / `searchLanceDB`), the alias `fileToText`
+(use `readFile`), and `AbstractEmbeddingAdapter.execute()` (use
+`execute_one()` / `execute_batch()`) — all scheduled for removal in 2.0.
+
+**Two names, one case apart.** `readJsonl` (`talkpipe.pipe.io`) yields the
+parsed JSON object from each line; `readjsonl` (`talkpipe.data.extraction`)
+yields an `ExtractionResult` per line, like the other `read<format>` file
+readers. Both are supported and neither is deprecated — pick by whether you
+want raw objects or the extraction wrapper.
 
 ### Codebase Structure
 

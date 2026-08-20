@@ -5,7 +5,12 @@ from fastapi.testclient import TestClient
 
 from talkpipe.app import chatterlang_workbench
 from talkpipe.app.workbench import workspace
-from talkpipe.app.workbench.workspace import WorkspaceError, WorkspaceStore, slugify, split_header
+from talkpipe.app.workbench.workspace import (
+    WorkspaceError,
+    WorkspaceStore,
+    slugify,
+    split_header,
+)
 
 
 @pytest.fixture
@@ -24,6 +29,7 @@ SCRIPT = 'INPUT FROM echo[data="hi"] | print'
 
 
 # --- WorkspaceStore unit tests ------------------------------------------------
+
 
 def test_slugify():
     assert slugify("Daily RSS Summarizer!") == "daily-rss-summarizer"
@@ -48,6 +54,7 @@ def test_saved_file_is_runnable_script(store, tmp_path):
     assert content.startswith("#% name: My Pipeline\n")
     # Header uses ChatterLang comments, so the file still compiles as-is.
     from talkpipe.chatterlang.compiler import compile as chatterlang_compile
+
     assert chatterlang_compile(content) is not None
 
 
@@ -115,11 +122,17 @@ def test_split_header_tolerates_manual_files():
 
 # --- API endpoint tests ---------------------------------------------------------
 
+
 def test_api_crud_flow(client):
     # create
-    response = client.post("/api/pipelines", json={
-        "name": "Test Pipe", "description": "d", "script": SCRIPT,
-    })
+    response = client.post(
+        "/api/pipelines",
+        json={
+            "name": "Test Pipe",
+            "description": "d",
+            "script": SCRIPT,
+        },
+    )
     assert response.status_code == 201
     pipeline_id = response.json()["id"]
 
@@ -138,8 +151,9 @@ def test_api_crud_flow(client):
     assert client.get(f"/api/pipelines/{pipeline_id}").json()["script"] == "| print"
 
     # rename
-    response = client.post(f"/api/pipelines/{pipeline_id}/rename",
-                           json={"new_name": "Renamed"})
+    response = client.post(
+        f"/api/pipelines/{pipeline_id}/rename", json={"new_name": "Renamed"}
+    )
     assert response.status_code == 200
     new_id = response.json()["id"]
     assert new_id == "renamed"
@@ -153,8 +167,9 @@ def test_api_create_collision_409(client):
     client.post("/api/pipelines", json={"name": "P", "script": SCRIPT})
     response = client.post("/api/pipelines", json={"name": "P", "script": SCRIPT})
     assert response.status_code == 409
-    response = client.post("/api/pipelines",
-                           json={"name": "P", "script": SCRIPT, "overwrite": True})
+    response = client.post(
+        "/api/pipelines", json={"name": "P", "script": SCRIPT, "overwrite": True}
+    )
     assert response.status_code == 201
 
 

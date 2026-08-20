@@ -5,7 +5,11 @@ from __future__ import annotations
 import argparse
 import sys
 
-from talkpipe.llm.model2vec_embeddings import DEFAULT_MODEL, Model2VecEmbedder, precache_model
+from talkpipe.llm.model2vec_embeddings import (
+    DEFAULT_MODEL,
+    Model2VecEmbedder,
+    precache_model,
+)
 
 
 def _demo() -> None:
