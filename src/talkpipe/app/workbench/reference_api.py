@@ -252,22 +252,66 @@ def _locate(script: str, name: str, used_offsets: set[int]) -> tuple[int, int]:
     return 1, 1
 
 
+def _ends_with_unquoted_value(text: str) -> bool:
+    """Whether ``text`` ends with ``param=<bareword>`` — an unquoted string
+    value (e.g. ``model=llama3.2``), the most common ChatterLang mistake.
+
+    A linear scan; the equivalent ``\\w+\\s*=\\s*[A-Za-z_]\\w*$`` regex
+    backtracks polynomially on adversarial input.
+    """
+    i = end = len(text)
+    while i > 0 and (text[i - 1] == "_" or text[i - 1].isalnum()):
+        i -= 1
+    if i == end or not (text[i] == "_" or text[i].isalpha()):
+        return False
+    while i > 0 and text[i - 1].isspace():
+        i -= 1
+    if i == 0 or text[i - 1] != "=":
+        return False
+    i -= 1
+    while i > 0 and text[i - 1].isspace():
+        i -= 1
+    return i > 0 and (text[i - 1] == "_" or text[i - 1].isalnum())
+
+
+def _syntax_error_diagnostic(preprocessed: str, e: ParseError) -> dict[str, Any]:
+    """A located syntax diagnostic that does not echo the parser exception.
+
+    Interpolating the ParseError into the response would flow exception text
+    to the client (CodeQL: information exposure through an exception), so the
+    message is rebuilt from the script text and the numeric error position
+    only. The parser's full message still reaches the user when they run the
+    script (the /compile error text) and is written to the server log here.
+    """
+    logger.info(f"Parse failed during lint: {e}")
+    line, column = parse_error_location(preprocessed, e)
+    index = getattr(e, "index", None)
+    before = preprocessed[:index] if isinstance(index, int) else preprocessed
+    message = "ChatterLang syntax error"
+    if line is not None:
+        message += f" at line {line}, column {column}"
+    message += "."
+    if _ends_with_unquoted_value(before):
+        message += (
+            ' Hint: string parameter values must be quoted, e.g. model="llama3.2".'
+        )
+    else:
+        message += " Run the script to see the full parser message."
+    return {
+        "line": line or 1,
+        "column": column or 1,
+        "severity": "error",
+        "message": message,
+        "kind": "syntax",
+    }
+
+
 def _parse_mode_diagnostics(script: str) -> list[dict[str, Any]]:
     preprocessed = remove_comments(script)
     try:
         parsed = script_parser.parse(preprocessed)
     except ParseError as e:
-        line, column = parse_error_location(preprocessed, e)
-        message = chatterlang_compiler._format_parse_error(preprocessed, e)
-        return [
-            {
-                "line": line or 1,
-                "column": column or 1,
-                "severity": "error",
-                "message": message,
-                "kind": "syntax",
-            }
-        ]
+        return [_syntax_error_diagnostic(preprocessed, e)]
 
     diagnostics = []
     used_offsets: set[int] = set()
@@ -331,13 +375,18 @@ def _full_mode_diagnostics(script: str) -> list[dict[str, Any]]:
         chatterlang_compiler.compile(script)
     except CompileError as e:
         return _compile_error_diagnostics(script, e)
-    except Exception as e:
+    except Exception:
+        logger.exception("Compiler failed unexpectedly during full-mode lint")
         return [
             {
                 "line": 1,
                 "column": 1,
                 "severity": "error",
-                "message": f"Compilation failed: {e}",
+                "message": (
+                    "Compilation failed with an unexpected internal error — "
+                    "likely a bug in a component or the compiler. The full "
+                    "traceback is in the workbench server log."
+                ),
                 "kind": "compile",
             }
         ]
@@ -347,20 +396,49 @@ def _full_mode_diagnostics(script: str) -> list[dict[str, Any]]:
     return _parse_mode_diagnostics(script)
 
 
+# Maps a CompileError's kind onto a fresh literal so no exception-derived
+# string reaches the response.
+_COMPILE_ERROR_KINDS = {
+    "syntax": "syntax",
+    "unknown_name": "unknown_name",
+    "bad_param": "bad_param",
+}
+
+
 def _compile_error_diagnostics(script: str, e: CompileError) -> list[dict[str, Any]]:
+    """Diagnostics for a compile failure, without echoing the exception.
+
+    Sending ``str(e)`` to the client would flow exception text into the
+    response (CodeQL: information exposure through an exception). Instead the
+    script is re-linted in parse mode, which regenerates the same syntax /
+    unknown-name / bad-param messages from the script text and the component
+    registry. A compile failure the static pass cannot reproduce (e.g. a
+    component constructor rejecting a parameter value) gets a located,
+    generic diagnostic; the compiler's full message is in the server log and
+    in the /compile response when the user runs the script.
+    """
+    logger.info(f"Compile failed during full-mode lint: {e}")
+    diagnostics = _parse_mode_diagnostics(script)
+    if any(d["severity"] == "error" for d in diagnostics):
+        return diagnostics
     used: set[int] = set()
     line, column = e.line, e.column
     if line is None and e.bad_name:
         line, column = _locate(script, e.bad_name, used)
-    return [
+    diagnostics.append(
         {
-            "line": line or 1,
-            "column": column or 1,
+            "line": int(line or 1),
+            "column": int(column or 1),
             "severity": "error",
-            "message": str(e),
-            "kind": e.kind or "compile",
+            "message": (
+                "Compilation failed here. Run the script to see the "
+                "compiler's full error message (it is also in the workbench "
+                "server log)."
+            ),
+            "kind": _COMPILE_ERROR_KINDS.get(e.kind or "", "compile"),
         }
-    ]
+    )
+    return diagnostics
 
 
 @router.post("/lint")

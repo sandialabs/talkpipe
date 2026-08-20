@@ -66,13 +66,22 @@ RUN mkdir -p /app/data && \
 # Copy the built wheel from builder stage
 COPY --from=builder --chown=app:app /build/dist/*.whl /tmp/
 
-# Install runtime Python dependencies and the application
-RUN python3 -m pip install --no-cache-dir --upgrade pip && \
-    python3 -m pip install --no-cache-dir \
+# Install the application, then remove pip from the runtime image. pip is only
+# needed for these installs, and pip >= 25 ships an SBOM of its *vendored*
+# code (pip/_vendor/bom.cdx.json) that Trivy reports as installed packages
+# (setuptools: CVE-2025-47273 and the MANIFEST.in NFC/NFD bypass; msgpack:
+# the Unpacker out-of-bounds read) even though nothing outside pip uses them.
+# Dropping pip removes both the false positives and an unneeded tool from the
+# shipped image. Deliberately no `pip install --upgrade pip` here: that would
+# leave a second pip copy under /usr/local that `dnf remove` cannot see.
+RUN python3 -m pip install --no-cache-dir \
         numpy pandas matplotlib scikit-learn scipy && \
     WHEEL_FILE=$(ls /tmp/*.whl) && \
     python3 -m pip install --no-cache-dir "${WHEEL_FILE}[all]" && \
-    rm -f /tmp/*.whl
+    rm -f /tmp/*.whl && \
+    dnf remove -y python3-pip && \
+    dnf clean all && \
+    rm -rf /var/cache/dnf
 
 # Copy only necessary runtime files
 COPY --chown=app:app pyproject.toml ./

@@ -314,9 +314,11 @@ def get_docs_html() -> HTMLResponse:
                 os.unlink(temp_path)
 
     except Exception as e:
-        logger.error(f"Error generating HTML documentation: {e}")
+        logger.exception("Error generating HTML documentation")
         raise HTTPException(
-            status_code=500, detail=f"Documentation generation failed: {e}"
+            status_code=500,
+            detail="Documentation generation failed; details are in the "
+            "workbench server log.",
         ) from e
 
 
@@ -377,9 +379,11 @@ def get_docs_text() -> HTMLResponse:
                 os.unlink(temp_path)
 
     except Exception as e:
-        logger.error(f"Error generating text documentation: {e}")
+        logger.exception("Error generating text documentation")
         raise HTTPException(
-            status_code=500, detail=f"Documentation generation failed: {e}"
+            status_code=500,
+            detail="Documentation generation failed; details are in the "
+            "workbench server log.",
         ) from e
 
 
@@ -466,8 +470,10 @@ def interactive_go(request: InteractiveRequest) -> StreamingResponse:
     # has already sent HTTP 200 and its headers. We therefore cannot switch to an
     # error status code; if we let the exception propagate, the connection aborts
     # and the browser reports a meaningless "network error". Instead, catch it and
-    # yield the real, actionable message into the stream body so it shows up in the
-    # output pane (mirroring the /compile error text).
+    # yield an error line into the stream body so it shows up in the output pane.
+    # Only the exception class name is streamed: runtime exception text can carry
+    # file paths, URLs, and library internals (information exposure through an
+    # exception), so the full error and traceback go to the server log instead.
     def ensure_serializable() -> Iterator[str]:
         try:
             output_iterator = script_info["instance"]([request.user_input])
@@ -483,8 +489,13 @@ def interactive_go(request: InteractiveRequest) -> StreamingResponse:
                     # Pass through strings and other basic types
                     yield str(item)
         except Exception as e:
-            logger.error(f"Interactive execution failed: {e!s}")
-            yield f"\nError: {e}"
+            logger.exception("Interactive execution failed")
+            yield (
+                f"\nError: the pipeline failed while running "
+                f"({type(e).__name__}). Check the segment parameters and "
+                "input values; the full error and traceback are in the "
+                "workbench server log."
+            )
 
     return StreamingResponse(ensure_serializable(), media_type="text/plain")
 

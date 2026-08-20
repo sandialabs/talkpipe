@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- The container image no longer ships pip: it is removed after installing the
+  application, along with the pip self-upgrade that would have left a second
+  copy behind. pip's vendored-code SBOM was being reported by image scanners
+  as installed setuptools and msgpack packages with known vulnerabilities,
+  though nothing outside pip uses that code.
 - Documentation examples now run in CI. Every Python example in the README and
   docs runs unconditionally unless the block is preceded by
   `<!-- doc-example: requires-ollama -->` (or `requires-openai` /

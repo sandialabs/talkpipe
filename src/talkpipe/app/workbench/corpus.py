@@ -73,11 +73,39 @@ def _chains_from_parsed(parsed: ParsedScript) -> list[list[str]]:
     return chains
 
 
+def _blank_string_literals(text: str) -> str:
+    """Replace each double-quoted string (escapes honored) with ``""``.
+
+    A linear scan; the equivalent ``"(?:[^"\\\\]|\\\\.)*"`` regex rescans from
+    every quote and goes polynomial on adversarial input. An unterminated
+    string is left as-is, matching the regex's no-match behavior.
+    """
+    out = []
+    i = 0
+    n = len(text)
+    while i < n:
+        ch = text[i]
+        if ch != '"':
+            out.append(ch)
+            i += 1
+            continue
+        j = i + 1
+        while j < n and text[j] != '"':
+            j += 2 if text[j] == "\\" else 1
+        if j < n:
+            out.append('""')
+            i = j + 1
+        else:
+            out.append(text[i:])
+            break
+    return "".join(out)
+
+
 def _chains_from_regex(script: str) -> list[list[str]]:
     """Crude fallback for scripts the parser rejects."""
     chains = []
     text = remove_comments(script)
-    text = re.sub(r'"(?:[^"\\]|\\.)*"', '""', text)  # drop string contents
+    text = _blank_string_literals(text)  # drop string contents
     for statement in text.split(";"):
         chain = []
         for stage in statement.split("|"):
