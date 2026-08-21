@@ -13,6 +13,18 @@ from talkpipe.app.chatterlang_serve import ChatterlangServer
 from talkpipe.util.config import reset_config
 
 
+class FakePipeline:
+    """A built pipeline: echoes queries as answers, remembers how often it ran."""
+
+    def __init__(self) -> None:
+        self.calls = 0
+
+    def __call__(self, items: Any) -> Any:
+        self.calls += 1
+        for item in items:
+            yield {"answer": f"answer to {item['prompt']}", "sources": []}
+
+
 class FakeRAG:
     """Stands in for RAGToText: records kwargs, echoes queries as answers."""
 
@@ -21,14 +33,17 @@ class FakeRAG:
     def __init__(self, **kwargs: Any) -> None:
         self.kwargs = kwargs
         self.made = False
+        self.pipelines: list[FakePipeline] = []
         FakeRAG.instances.append(self)
 
-    def make_pipeline(self) -> None:
+    def make_pipeline(self) -> FakePipeline:
         self.made = True
+        pipeline = FakePipeline()
+        self.pipelines.append(pipeline)
+        return pipeline
 
     def transform(self, items: Any) -> Any:
-        for item in items:
-            yield {"answer": f"answer to {item['prompt']}", "sources": []}
+        yield from FakePipeline()(items)
 
     def __call__(self, items: Any) -> Any:  # used as the tail of ``a | b | rag``
         return self.transform(items)
@@ -197,6 +212,42 @@ def test_processor_answers_through_a_real_chatterlang_server() -> None:
     assert body["status"] == "success"
     assert body["data"]["input"] == {"prompt": "what is talkpipe?"}
     assert body["data"]["output"][0]["answer"] == "answer to what is talkpipe?"
+
+
+def test_each_session_keeps_its_own_pipeline_across_requests() -> None:
+    """One built RAG pipeline per browser session, reused for every request.
+
+    Rebuilding per request reset the LLM's conversation memory on every turn;
+    sharing one pipeline across sessions would leak one user's conversation
+    into another's.
+    """
+    real_server_kwargs: dict[str, Any] = {}
+
+    class CapturingServer(FakeServer):
+        def __init__(self, **kwargs: Any) -> None:
+            super().__init__(**kwargs)
+            real_server_kwargs.update(kwargs)
+
+    with (
+        patch.object(serverag, "RAGToText", FakeRAG),
+        patch.object(serverag, "ChatterlangServer", CapturingServer),
+        patch("sys.argv", ["serverag", "--path", "/tmp/db"]),
+    ):
+        serverag.main()
+    (rag,) = FakeRAG.instances
+    startup_builds = len(rag.pipelines)  # the fail-fast build at startup
+
+    server = ChatterlangServer(**real_server_kwargs)
+    alice = TestClient(server.app)  # cookies persist per client => one session
+    bob = TestClient(server.app)
+
+    assert alice.post("/process", json={"prompt": "hi"}).status_code == 200
+    assert alice.post("/process", json={"prompt": "again"}).status_code == 200
+    assert bob.post("/process", json={"prompt": "hello"}).status_code == 200
+
+    session_pipelines = rag.pipelines[startup_builds:]
+    assert len(session_pipelines) == 2, "one pipeline per session, not per request"
+    assert sorted(p.calls for p in session_pipelines) == [1, 2]
 
 
 def test_interactive_mode_reads_prompts_and_prints_answers(

@@ -194,6 +194,30 @@ class TestUserSession:
 
         assert session.last_activity > original_time
 
+    def test_state_is_per_session_scratch_space(self):
+        """Processor functions can cache per-session objects on ``state``."""
+        a = UserSession("a")
+        b = UserSession("b")
+        a.state["pipeline"] = object()
+        assert a.state == {"pipeline": a.state["pipeline"]}
+        assert b.state == {}
+
+    def test_process_json_serializes_requests_within_a_session(self):
+        """A session's processor never runs concurrently with itself, so
+        per-session stateful pipelines (conversation memory) need no locking
+        of their own."""
+        seen = []
+
+        def processor(data, session):
+            seen.append(session.lock.locked())
+            return "ok"
+
+        server = ChatterlangServer(processor_func=processor)
+        session = UserSession("s")
+        server._process_json({"x": 1}, session)
+        assert seen == [True]
+        assert not session.lock.locked()
+
 
 class TestChatterlangServer:
     """Test ChatterlangServer class."""

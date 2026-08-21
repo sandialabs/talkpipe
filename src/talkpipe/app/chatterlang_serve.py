@@ -28,6 +28,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, HTMLResponse, StreamingResponse
 from pydantic import BaseModel
 
+from talkpipe.app.server_common import is_output_stream
 from talkpipe.chatterlang import compile, register_source
 from talkpipe.chatterlang.compiler import CompileError
 from talkpipe.pipe.core import AbstractSource
@@ -59,6 +60,12 @@ class UserSession:
         self.output_queue: Queue[Any] = Queue(maxsize=1000)
         self.compiled_script: Callable[..., Any] | None = None
         self.last_activity = datetime.now()
+        # Scratch space for processor functions that keep per-session objects
+        # (e.g. a built pipeline whose LLM adapter carries conversation memory).
+        self.state: dict[str, Any] = {}
+        # Held while this session's processor runs, so a stateful per-session
+        # pipeline is never entered by two requests at once.
+        self.lock = threading.Lock()
 
         # Compile script for this session if provided
         if script_content:
@@ -514,36 +521,8 @@ class ChatterlangServer:
     def _process_json(self, data: dict[str, Any], session: UserSession) -> DataResponse:
         """Process JSON data and return response"""
         try:
-            # Determine which processor to use
-            processor: Callable[..., Any] = (
-                session.compiled_script
-                if session.compiled_script
-                else self.processor_function
-            )
-
-            # Process the data
-            if session.compiled_script:
-                result = processor(data)
-            else:
-                result = processor(data, session)
-
-            # Collect all output items for the API response
-            output_items: list[Any] = []
-
-            # If result is iterable (like a generator), process each item
-            if hasattr(result, "__iter__") and not isinstance(
-                result, (str, bytes, dict)
-            ):
-                try:
-                    output_items.extend(item for item in result if item is not None)
-                except Exception as e:
-                    error_msg = f"Error processing iterator: {e!s}"
-                    session.add_output(error_msg, "error")
-                    output_items.append({"error": error_msg})
-            else:
-                # Single result
-                if result is not None:
-                    output_items.append(result)
+            with session.lock:
+                output_items = self._run_processor(data, session)
 
             # Do not add response items to output_queue - the stream UI displays from the
             # /process response to avoid duplicates. SSE output_queue is only used for errors.
@@ -572,6 +551,25 @@ class ChatterlangServer:
             session.add_output(error_msg, "error")
             logger.error(f"Port {self.port} Session {session.session_id}: {error_msg}")
             raise HTTPException(status_code=500, detail=error_msg) from e
+
+    def _run_processor(self, data: dict[str, Any], session: UserSession) -> list[Any]:
+        """Run the session's script (or the processor function) and collect its output."""
+        if session.compiled_script:
+            result = session.compiled_script(data)
+        else:
+            result = self.processor_function(data, session)
+
+        output_items: list[Any] = []
+        if is_output_stream(result):
+            try:
+                output_items.extend(item for item in result if item is not None)
+            except Exception as e:
+                error_msg = f"Error processing iterator: {e!s}"
+                session.add_output(error_msg, "error")
+                output_items.append({"error": error_msg})
+        elif result is not None:
+            output_items.append(result)
+        return output_items
 
     def _get_history(self, limit: int, session: UserSession) -> DataHistory:
         """Get processing history for a session"""

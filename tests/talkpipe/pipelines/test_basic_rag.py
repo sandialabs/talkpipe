@@ -535,6 +535,46 @@ def test_rag_to_text_no_sources_with_set_as_yields_item(monkeypatch):
     assert results == [{"query": "q", "_background": [], "answer": "the answer"}]
 
 
+def test_rag_pipeline_is_built_once_and_reused_across_calls(monkeypatch):
+    """Repeated transform() calls reuse one built pipeline.
+
+    Rebuilding on every call created a fresh LLM adapter each time, so the
+    conversation memory of a multi-turn RAG chat silently reset between turns.
+    """
+    from talkpipe.pipelines.basic_rag import RAGToText
+
+    built = []
+
+    class FakeSearch(AbstractSegment):
+        def __init__(self, **kwargs):
+            super().__init__()
+            built.append(self)
+
+        def transform(self, input_iter):
+            for item in input_iter:
+                item["_background"] = []
+                yield item
+
+    monkeypatch.setattr(
+        "talkpipe.pipelines.basic_rag.SearchVectorDatabaseSegment", FakeSearch
+    )
+    monkeypatch.setattr("talkpipe.pipelines.basic_rag.LLMPrompt", _FakeLLMPrompt)
+
+    rag_segment = RAGToText(
+        path="tmp://rag_test",
+        content_field="query",
+        set_as="answer",
+        append_sources_to_output=False,
+        diagPrintOutput=None,
+    )
+    first = list(rag_segment.transform([{"query": "one"}]))
+    second = list(rag_segment.transform([{"query": "two"}]))
+
+    assert first[0]["answer"] == "the answer"
+    assert second[0]["answer"] == "the answer"
+    assert len(built) == 1, "the pipeline must be built once, not per call"
+
+
 def test_rag_to_text_diagPrintOutput_in_pipeline(capsys):
     """Test that diagPrintOutput parameter correctly controls DiagPrint output in the pipeline."""
     from unittest.mock import MagicMock, patch

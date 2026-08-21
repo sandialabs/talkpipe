@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+- `serverag` now keeps one RAG pipeline per browser session instead of
+  rebuilding it on every request. Rebuilding reconnected to the database and
+  replaced the LLM adapter each time, so the multi-turn conversation memory
+  (`--memory_mode` and friends) silently reset after every question; sessions
+  never share a pipeline, so one user's conversation cannot leak into
+  another's. `ChatterlangServer` serialises requests within a session and gives
+  processor functions a per-session `session.state` dict for such objects.
+  The `ragToText` / `ragToBinaryAnswer` / `ragToScore` segments likewise build
+  their internal pipeline once and reuse it across calls, matching how
+  `llmPrompt` keeps its memory.
 - The API key that `chatterlang_serve` generates when `--require-auth` is set
   without a key is no longer written to the log (clear-text logging of a
   credential). Since that leaves a CLI operator with no way to learn the key,

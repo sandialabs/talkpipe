@@ -227,12 +227,20 @@ class AbstractRAGPipeline(AbstractSegment[Any, Any]):
         self.context_token_trigger = context_token_trigger
         self.memory_size = memory_size
         self.debug_messages = debug_messages
+        self._pipeline: AbstractSegment[Any, Any] | None = None
 
     @abstractmethod
     def make_completion_segment(self) -> AbstractSegment[Any, Any]:
         """Create the segment that performs the completion over the RAG prompt."""
 
     def make_pipeline(self) -> AbstractSegment[Any, Any]:
+        """Build a fresh search -> prompt -> completion pipeline.
+
+        Each call returns independent segments (its own database connection
+        and its own LLM adapter, hence its own conversation memory). ``transform``
+        builds one lazily and keeps it; callers that need isolated state per
+        user, such as ``serverag``, call this once per session instead.
+        """
         pipeline: AbstractSegment[Any, Any] = (
             SearchVectorDatabaseSegment(
                 embedding_model=self.embedding_model,
@@ -257,8 +265,12 @@ class AbstractRAGPipeline(AbstractSegment[Any, Any]):
         return pipeline
 
     def transform(self, input_iter: Iterable[Any]) -> Iterator[Any]:
-        pipeline = self.make_pipeline()
-        yield from pipeline(input_iter)
+        # Built once and reused, like every other stateful segment: rebuilding
+        # per call reconnected to the database and replaced the LLM adapter,
+        # which silently reset multi-turn conversation memory between calls.
+        if self._pipeline is None:
+            self._pipeline = self.make_pipeline()
+        yield from self._pipeline(input_iter)
 
 
 @register_segment("ragToText")

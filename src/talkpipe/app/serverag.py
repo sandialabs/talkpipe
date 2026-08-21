@@ -3,7 +3,7 @@ import logging
 import sys
 from typing import Any
 
-from talkpipe.app.chatterlang_serve import ChatterlangServer
+from talkpipe.app.chatterlang_serve import ChatterlangServer, UserSession
 from talkpipe.pipe.basic import ToDict
 from talkpipe.pipe.io import Prompt
 from talkpipe.pipelines.basic_rag import RAGToText
@@ -155,9 +155,9 @@ def main() -> None:
 
     api_key = args.api_key or config.get(API_KEY)
 
-    # Setup the RAG Pipeline Segment
-    # We will instantiate it once. Alternatively, it could be instantiated per request if state isolation is needed,
-    # but Talkpipe segments are generally designed to process sequences.
+    # One RAGToText holds the configuration; each web session builds its own
+    # pipeline from it (see process_request) so conversation memory is kept per
+    # user and never shared between users.
     try:
         rag_kwargs = {
             "path": args.path,
@@ -213,16 +213,22 @@ def main() -> None:
 
     else:
         # Define the processor function that ChatterlangServer will call for each web request
-        def process_request(data: dict[str, Any], session: Any) -> Any:
+        def process_request(data: dict[str, Any], session: UserSession) -> Any:
             # data will contain {"prompt": "user's question"} from the form
             logger.info(f"Received query: {data.get('prompt', '')}")
 
+            # Each session gets its own built pipeline, kept for the life of
+            # the session: its LLM adapter carries the conversation memory, so
+            # rebuilding per request would forget the conversation and sharing
+            # one across sessions would mix users' conversations together.
+            # ChatterlangServer serialises requests within a session.
+            pipeline = session.state.get("rag_pipeline")
+            if pipeline is None:
+                pipeline = session.state["rag_pipeline"] = rag_pipeline.make_pipeline()
+
             # We pass a copy of the dictionary through the pipeline
             # so internal state (like _background arrays) doesn't pollute the return payload
-            input_data = [data.copy()]
-
-            # Yield the results directly, which ChatterlangServer supports returning
-            yield from rag_pipeline.transform(input_data)
+            yield from pipeline([data.copy()])
 
         # Configure the UI Form
         form_config_dict = {
