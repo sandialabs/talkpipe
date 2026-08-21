@@ -44,6 +44,11 @@
   entry points now name the new homes. Nothing breaks: ChatterLang scripts
   are unaffected, and `talkpipe.pipe.basic` remains as a facade that
   re-exports every public name, so existing imports keep working.
+- `pandas` and `python-docx` are imported inside the one segment each that
+  uses them (`toDataFrame`, `readdocx`) rather than when their modules load.
+  Importing talkpipe is lighter, and this is the groundwork for making them
+  (and the other dependencies only some users need) optional extras, which is
+  a breaking change reserved for 2.0.
 - The API key that `chatterlang_serve` generates when `--require-auth` is set
   without a key is no longer written to the log (clear-text logging of a
   credential). Since that leaves a CLI operator with no way to learn the key,

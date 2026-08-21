@@ -11,7 +11,6 @@ from functools import partial
 from pathlib import Path, PosixPath
 from typing import Annotated, Any
 
-from docx import Document
 from pydantic import BaseModel, ConfigDict
 
 from talkpipe.chatterlang.registry import register_segment
@@ -196,6 +195,10 @@ def extract_docx(file_path: str | Path) -> Iterator[ExtractionResult]:
     if not p.is_file():
         logger.error(f"Unsupported path type: {file_path}")
         raise FileNotFoundError(f"Unsupported path type: {file_path}")
+
+    # Imported here, not at module level: only .docx extraction needs
+    # python-docx, so the rest of this module works without it.
+    from docx import Document
 
     logger.info(f"Reading docx file: {p}")
     source_str = str(p.resolve())

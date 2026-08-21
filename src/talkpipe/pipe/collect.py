@@ -3,8 +3,6 @@
 from collections.abc import Iterable, Iterator
 from typing import Any
 
-import pandas as pd
-
 import talkpipe.chatterlang.registry as registry
 from talkpipe.pipe.core import (
     AbstractSegment,
@@ -27,6 +25,11 @@ class ToDataFrame(AbstractSegment[Any, Any]):
         Args:
             input_iter (Iterable): The input data
         """
+        # Imported here, not at module level: pandas is heavy and only this
+        # segment needs it, so importing talkpipe stays light and a future
+        # optional-dependency split needs no further change.
+        import pandas as pd
+
         data = list(input_iter)
         if len(data) > 0 and isinstance(data[0], dict):
             yield pd.DataFrame(data)
