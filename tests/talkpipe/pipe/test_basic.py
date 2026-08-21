@@ -160,7 +160,10 @@ class TestDiagPrint:
         def fake_get_config():
             return {"diag_output": "stderr"}
 
-        monkeypatch.setattr(basic, "get_config", fake_get_config)
+        # DiagPrint lives in talkpipe.pipe.debug; basic only re-exports it.
+        from talkpipe.pipe import debug
+
+        monkeypatch.setattr(debug, "get_config", fake_get_config)
 
         pipeline = basic.DiagPrint(output="config:diag_output")
         result = list(pipeline(items))
