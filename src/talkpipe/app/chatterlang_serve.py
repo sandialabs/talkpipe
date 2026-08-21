@@ -6,12 +6,13 @@ Multi-user support with session isolation
 
 import argparse
 import asyncio
-import hmac
+import functools
 import html
 import json
 import logging
 import secrets
 import socket
+import string
 import sys
 import threading
 import uuid
@@ -28,20 +29,46 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, HTMLResponse, StreamingResponse
 from pydantic import BaseModel
 
-from talkpipe.app.server_common import is_output_stream
+from talkpipe.app.server_common import (
+    STATIC_DIR,
+    add_host_port_args,
+    add_load_module_arg,
+    api_key_matches,
+    apply_cli_constants,
+    is_output_stream,
+    load_module_files_or_exit,
+    mount_static,
+)
 from talkpipe.chatterlang import compile, register_source
 from talkpipe.chatterlang.compiler import CompileError
 from talkpipe.pipe.core import AbstractSource
-from talkpipe.util.config import (
-    add_config_values,
-    get_config,
-    load_module_file,
-    load_script,
-    parse_unknown_args,
-)
+from talkpipe.util.config import get_config, load_script
 from talkpipe.util.constants import ALLOWED_ORIGINS, API_KEY
 
 logger = logging.getLogger(__name__)
+
+#: Page templates (``string.Template`` syntax); their CSS and JavaScript are
+#: static files under ``static/serve/``, served at ``/static/serve/``.
+TEMPLATE_DIR = Path(__file__).parent / "templates" / "chatterlang_serve"
+
+_FORM_POSITIONS = ("bottom", "top", "left", "right")
+
+_AUTH_SECTION_HTML = """
+            <div class="auth-section">
+                <label for="apiKey">API Key:</label>
+                <input type="password" id="apiKey" placeholder="Enter API key">
+            </div>
+"""
+
+
+@functools.cache
+def _load_template(name: str) -> string.Template:
+    return string.Template((TEMPLATE_DIR / name).read_text(encoding="utf-8"))
+
+
+def _render_template(name: str, **values: str) -> str:
+    """Fill the named page template. Callers pass already-escaped values."""
+    return _load_template(name).substitute(values)
 
 
 # User Session Management
@@ -232,7 +259,7 @@ class ChatterlangServer:
         # Mount favicon.ico directly to root
         @self.app.get("/favicon.ico")
         async def favicon() -> FileResponse:
-            favicon_path = Path(__file__).parent / "static" / "favicon.ico"
+            favicon_path = STATIC_DIR / "favicon.ico"
             if favicon_path.exists():
                 return FileResponse(favicon_path)
             raise HTTPException(status_code=404, detail="Favicon not found")
@@ -245,6 +272,10 @@ class ChatterlangServer:
 
         # Configure routes
         self._setup_routes()
+
+        # The pages' CSS and JavaScript (including the vendored Markdown
+        # renderer), so the UI works with no internet access.
+        mount_static(self.app)
 
         # Server instance for stopping
         self.server = None
@@ -396,9 +427,12 @@ class ChatterlangServer:
             response.headers["X-Content-Type-Options"] = "nosniff"
             response.headers["X-XSS-Protection"] = "1; mode=block"
             response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+            # Scripts come only from this server (no inline handlers, no CDN);
+            # styles allow inline because the pages set layout variables in a
+            # style attribute.
             response.headers["Content-Security-Policy"] = (
                 "default-src 'self'; "
-                "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; "
+                "script-src 'self'; "
                 "style-src 'self' 'unsafe-inline'; "
                 "img-src 'self' data:; "
                 "connect-src 'self'; "
@@ -485,11 +519,7 @@ class ChatterlangServer:
 
     async def _verify_api_key(self, x_api_key: str | None = Header(None)) -> str | None:
         """Dependency for API key validation"""
-        if self.require_auth and not (
-            x_api_key is not None
-            and self.api_key is not None
-            and hmac.compare_digest(x_api_key, self.api_key)
-        ):
+        if self.require_auth and not api_key_matches(x_api_key, self.api_key):
             raise HTTPException(status_code=403, detail="Invalid API key")
         return x_api_key
 
@@ -660,1251 +690,44 @@ class ChatterlangServer:
 
         return "\n".join(fields_html)
 
-    def _get_stream_interface(self) -> str:
-        """Generate streaming HTML interface with chat-like layout that respects position configuration"""
+    def _page_context(self) -> dict[str, str]:
+        """Values every page template takes. All operator-supplied text is
+        HTML-escaped here; the templates never escape on their own."""
         position = self.form_config.position
-        height = self.form_config.height
-        theme = self.form_config.theme
+        if position not in _FORM_POSITIONS:
+            position = "bottom"
+        theme = "dark" if self.form_config.theme == "dark" else "light"
+        return {
+            "title": html.escape(self.title),
+            "form_title": html.escape(self.form_config.title),
+            "theme": theme,
+            "position": position,
+            "height": html.escape(self.form_config.height),
+            "auth_section": _AUTH_SECTION_HTML if self.require_auth else "",
+            "form_fields": self._generate_form_fields(),
+        }
 
-        # Theme colors
-        if theme == "dark":
-            bg_color = "#1e1e1e"
-            text_color = "#ffffff"
-            input_bg = "#2d2d2d"
-            border_color = "#444"
-            button_bg = "#0066cc"
-            button_hover = "#0052a3"
-            output_bg = "#0a0a0a"
-            output_text = "#00ff00"
-            user_msg_bg = "#2d4a87"
-            response_msg_bg = "#2d2d2d"
-            error_msg_bg = "#8b2635"
-        else:
-            bg_color = "#f5f5f5"
-            text_color = "#333333"
-            input_bg = "#ffffff"
-            border_color = "#ddd"
-            button_bg = "#0066cc"
-            button_hover = "#0052a3"
-            output_bg = "#ffffff"
-            output_text = "#333333"
-            user_msg_bg = "#e3f2fd"
-            response_msg_bg = "#f5f5f5"
-            error_msg_bg = "#ffebee"
-
-        # Generate position-specific CSS and classes
-        form_panel_class = "form-panel"
-        if position in ["bottom", "top"]:
-            # Horizontal layouts - form at bottom/top, chat fills remaining space
-            form_panel_class += " horizontal"
-            if position == "bottom":
-                main_container_style = "flex-direction: column;"
-                form_panel_style = f"order: 2; height: {height}; border-top: 1px solid {border_color}; border-right: none;"
-                chat_panel_style = f"order: 1; flex: 1; height: calc(100vh - {height} - 140px);"  # 80px header + 60px controls
-                controls_style = "order: 3;"
-            else:  # top
-                main_container_style = "flex-direction: column;"
-                form_panel_style = f"order: 1; height: {height}; border-bottom: 1px solid {border_color}; border-right: none;"
-                chat_panel_style = f"order: 2; flex: 1; height: calc(100vh - {height} - 140px);"  # 80px header + 60px controls
-                controls_style = "order: 3;"
-            form_panel_width = "width: 100%;"
-
-        else:
-            # Vertical layouts - form at left/right, chat fills remaining space
-            main_container_style = "flex-direction: row;"
-            form_panel_width = (
-                f"width: {height};"  # Use height as width for vertical layouts
-            )
-            chat_panel_style = "flex: 1;"
-            controls_style = ""
-
-            if position == "left":
-                form_panel_style = f"order: 1; border-right: 1px solid {border_color};"
-                chat_panel_style += " order: 2;"
-            else:  # right
-                form_panel_style = f"order: 2; border-left: 1px solid {border_color};"
-                chat_panel_style += " order: 1;"
-
-        # Generate controls HTML based on position
-        if position in ["bottom", "top"]:
-            # Controls outside chat panel for bottom/top positions
-            chat_controls = ""
-            standalone_controls = """
-                <div class="controls">
-                    <button class="control-btn" onclick="clearChat()">Clear Chat</button>
-                    <button class="control-btn" onclick="toggleAutoScroll()" id="autoScrollBtn">Auto-scroll: ON</button>
-                    <span id="connectionStatus">Connecting...</span>
-                </div>
-            """
-        else:
-            # Controls inside chat panel for left/right positions
-            chat_controls = """
-                    <div class="controls">
-                        <button class="control-btn" onclick="clearChat()">Clear Chat</button>
-                        <button class="control-btn" onclick="toggleAutoScroll()" id="autoScrollBtn">Auto-scroll: ON</button>
-                        <span id="connectionStatus">Connecting...</span>
-                    </div>
-            """
-            standalone_controls = ""
-
-        auth_header = (
-            """
-            <div class="auth-section">
-                <label for="apiKey">API Key:</label>
-                <input type="password" id="apiKey" placeholder="Enter API key">
-            </div>
-        """
-            if self.require_auth
-            else ""
+    def _get_stream_interface(self) -> str:
+        """The chat-style page at ``/stream`` (templates/chatterlang_serve/stream.html)."""
+        return _render_template(
+            "stream.html",
+            **self._page_context(),
+            display_property=html.escape(self.display_property or ""),
         )
-
-        form_fields = self._generate_form_fields()
-
-        return f'''<!DOCTYPE html>
-        <html>
-        <head>
-            <title>{html.escape(self.title)} - Stream</title>
-            <style>
-                * {{
-                    margin: 0;
-                    padding: 0;
-                    box-sizing: border-box;
-                }}
-
-                body {{
-                    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-                    background-color: {bg_color};
-                    color: {text_color};
-                    height: 100vh;
-                    display: flex;
-                    flex-direction: column;
-                }}
-
-                .header {{
-                    background-color: {input_bg};
-                    border-bottom: 1px solid {border_color};
-                    padding: 1rem;
-                    text-align: center;
-                    flex-shrink: 0;
-                    height: 80px;
-                }}
-
-                .main-container {{
-                    display: flex;
-                    flex: 1;
-                    overflow: hidden;
-                    {main_container_style}
-                }}
-
-                .form-panel {{
-                    {form_panel_width}
-                    background-color: {input_bg};
-                    padding: 1rem;
-                    overflow-y: auto;
-                    {form_panel_style}
-                }}
-
-                .chat-panel {{
-                    display: flex;
-                    flex-direction: column;
-                    background-color: {output_bg};
-                    {chat_panel_style}
-                }}
-
-                .chat-messages {{
-                    flex: 1;
-                    padding: 1rem;
-                    overflow-y: auto;
-                    display: flex;
-                    flex-direction: column;
-                    gap: 0.5rem;
-                }}
-
-                .message {{
-                    max-width: 70%;
-                    padding: 0.75rem 1rem;
-                    border-radius: 1rem;
-                    margin: 0.25rem 0;
-                    word-wrap: break-word;
-                    position: relative;
-                }}
-
-                .copy-btn {{
-                    position: absolute;
-                    top: 0.5rem;
-                    right: 0.5rem;
-                    background: rgba(255, 255, 255, 0.1);
-                    border: none;
-                    border-radius: 0.25rem;
-                    color: currentColor;
-                    cursor: pointer;
-                    padding: 0.25rem;
-                    opacity: 0;
-                    transition: opacity 0.2s;
-                    font-size: 0.75rem;
-                    backdrop-filter: blur(10px);
-                }}
-
-                .message:hover .copy-btn {{
-                    opacity: 1;
-                }}
-
-                .copy-btn:hover {{
-                    background: rgba(255, 255, 255, 0.2);
-                }}
-
-                .copy-btn.copied {{
-                    background: rgba(34, 197, 94, 0.2);
-                    color: #22c55e;
-                }}
-
-                .message.user {{
-                    background-color: {user_msg_bg};
-                    color: white;
-                    align-self: flex-end;
-                    margin-left: auto;
-                }}
-
-                .message.response {{
-                    background-color: {response_msg_bg};
-                    color: {output_text};
-                    align-self: flex-start;
-                    margin-right: auto;
-                }}
-
-                .message.error {{
-                    background-color: {error_msg_bg};
-                    color: white;
-                    align-self: flex-start;
-                    margin-right: auto;
-                }}
-
-                .message-timestamp {{
-                    font-size: 0.75rem;
-                    opacity: 0.7;
-                    margin-bottom: 0.25rem;
-                }}
-
-                .message-content {{
-                    font-family: 'Segoe UI', system-ui, sans-serif;
-                }}
-
-                .message.user .message-content {{
-                    white-space: pre-wrap;
-                    font-family: 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', Consolas, 'Courier New', monospace;
-                    font-size: 0.9rem;
-                }}
-
-                .message.response .message-content,
-                .message.error .message-content {{
-                    line-height: 1.5;
-                }}
-                .message.response .message-content h1,
-                .message.response .message-content h2,
-                .message.response .message-content h3,
-                .message.error .message-content h1,
-                .message.error .message-content h2,
-                .message.error .message-content h3 {{
-                    margin: 0.5rem 0 0.25rem 0;
-                    font-weight: 600;
-                }}
-                .message.response .message-content h1 {{ font-size: 1.25rem; }}
-                .message.response .message-content h2 {{ font-size: 1.1rem; }}
-                .message.response .message-content h3 {{ font-size: 1rem; }}
-                .message.error .message-content h1 {{ font-size: 1.25rem; }}
-                .message.error .message-content h2 {{ font-size: 1.1rem; }}
-                .message.error .message-content h3 {{ font-size: 1rem; }}
-                .message.response .message-content p,
-                .message.error .message-content p {{
-                    margin: 0.25rem 0;
-                }}
-                .message.response .message-content ul,
-                .message.response .message-content ol,
-                .message.error .message-content ul,
-                .message.error .message-content ol {{
-                    margin: 0.25rem 0;
-                    padding-left: 1.5rem;
-                }}
-                .message.response .message-content blockquote,
-                .message.error .message-content blockquote {{
-                    margin: 0.25rem 0;
-                    padding-left: 1rem;
-                    border-left: 3px solid currentColor;
-                    opacity: 0.9;
-                }}
-                .message.response .message-content code,
-                .message.error .message-content code {{
-                    font-family: 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', Consolas, monospace;
-                    font-size: 0.9em;
-                    padding: 0.1rem 0.25rem;
-                    border-radius: 0.25rem;
-                    background: rgba(0,0,0,0.15);
-                }}
-                .message.response .message-content pre,
-                .message.error .message-content pre {{
-                    white-space: pre-wrap;
-                    margin: 0.25rem 0;
-                    padding: 0.5rem;
-                    border-radius: 0.25rem;
-                    background: rgba(0,0,0,0.15);
-                    overflow-x: auto;
-                }}
-                .message.response .message-content pre code,
-                .message.error .message-content pre code {{
-                    padding: 0;
-                    background: none;
-                }}
-                .message.response .message-content a,
-                .message.error .message-content a {{
-                    color: inherit;
-                    text-decoration: underline;
-                }}
-                .message.response .message-content hr,
-                .message.error .message-content hr {{
-                    margin: 0.5rem 0;
-                    border: none;
-                    border-top: 1px solid currentColor;
-                    opacity: 0.5;
-                }}
-
-                .form-group {{
-                    margin-bottom: 1rem;
-                }}
-
-                .form-group label {{
-                    display: block;
-                    margin-bottom: 0.5rem;
-                    font-weight: 500;
-                }}
-
-                .form-group input,
-                .form-group textarea,
-                .form-group select {{
-                    width: 100%;
-                    padding: 0.75rem;
-                    border: 1px solid {border_color};
-                    border-radius: 0.5rem;
-                    background-color: {input_bg};
-                    color: {text_color};
-                    font-size: 1rem;
-                }}
-
-                .form-group input:focus,
-                .form-group textarea:focus,
-                .form-group select:focus {{
-                    outline: none;
-                    border-color: {button_bg};
-                    box-shadow: 0 0 0 2px {button_bg}33;
-                }}
-
-                .submit-btn {{
-                    width: 100%;
-                    padding: 0.75rem;
-                    background-color: {button_bg};
-                    color: white;
-                    border: none;
-                    border-radius: 0.5rem;
-                    font-size: 1rem;
-                    cursor: pointer;
-                    transition: background-color 0.2s;
-                }}
-
-                /* Make submit button narrower for horizontal layouts */
-                .form-panel.horizontal .submit-btn {{
-                    width: auto;
-                    min-width: 120px;
-                    max-width: 200px;
-                    margin: 0 auto;
-                    display: block;
-                }}
-
-                /* Organize form fields in horizontal layouts */
-                .form-panel.horizontal {{
-                    display: flex;
-                    flex-direction: column;
-                }}
-
-                .form-panel.horizontal form {{
-                    display: flex;
-                    flex-direction: row;
-                    align-items: flex-end;
-                    gap: 1rem;
-                    flex-wrap: wrap;
-                }}
-
-                .form-panel.horizontal .form-fields {{
-                    display: flex;
-                    flex-direction: row;
-                    gap: 1rem;
-                    flex-wrap: wrap;
-                    flex: 1;
-                }}
-
-                .form-panel.horizontal .form-group {{
-                    flex: 1;
-                    min-width: 200px;
-                    margin-bottom: 0;
-                }}
-
-                .form-panel.horizontal .submit-btn {{
-                    margin: 0;
-                    align-self: flex-end;
-                    height: fit-content;
-                }}
-
-                .form-panel.horizontal .status {{
-                    width: 100%;
-                    margin: 0.5rem 0 0 0;
-                }}
-
-                .form-panel.horizontal .auth-section {{
-                    width: 100%;
-                    margin-bottom: 1rem;
-                }}
-
-                .submit-btn:hover {{
-                    background-color: {button_hover};
-                }}
-
-                .submit-btn:disabled {{
-                    background-color: #666;
-                    cursor: not-allowed;
-                }}
-
-                .controls {{
-                    padding: 1rem;
-                    border-top: 1px solid {border_color};
-                    background-color: {input_bg};
-                    display: flex;
-                    gap: 1rem;
-                    align-items: center;
-                    flex-wrap: wrap;
-                    flex-shrink: 0;
-                    height: 60px;
-                    {controls_style}
-                }}
-
-                .control-btn {{
-                    padding: 0.5rem 1rem;
-                    background-color: {button_bg};
-                    color: white;
-                    border: none;
-                    border-radius: 0.25rem;
-                    cursor: pointer;
-                    font-size: 0.9rem;
-                }}
-
-                .control-btn:hover {{
-                    background-color: {button_hover};
-                }}
-
-                .status {{
-                    padding: 0.75rem;
-                    margin: 1rem 0;
-                    border-radius: 0.5rem;
-                    display: none;
-                }}
-
-                .status.success {{
-                    background-color: #d4edda;
-                    color: #155724;
-                    border: 1px solid #c3e6cb;
-                }}
-
-                .status.error {{
-                    background-color: #f8d7da;
-                    color: #721c24;
-                    border: 1px solid #f5c6cb;
-                }}
-
-                .auth-section {{
-                    margin-bottom: 1rem;
-                    padding-bottom: 1rem;
-                    border-bottom: 1px solid {border_color};
-                }}
-
-                .initial-message {{
-                    text-align: center;
-                    padding: 2rem;
-                    color: {text_color};
-                    opacity: 0.6;
-                    font-style: italic;
-                }}
-
-                /* Responsive adjustments */
-                @media (max-width: 768px) {{
-                    .main-container {{
-                        flex-direction: column !important;
-                    }}
-
-                    .form-panel {{
-                        order: 2 !important;
-                        width: 100% !important;
-                        height: {height} !important;
-                        border-right: none !important;
-                        border-left: none !important;
-                        border-top: 1px solid {border_color} !important;
-                        border-bottom: none !important;
-                    }}
-
-                    .form-panel form {{
-                        flex-direction: column !important;
-                    }}
-
-                    .form-panel .form-fields {{
-                        flex-direction: column !important;
-                    }}
-
-                    .form-panel .form-group {{
-                        margin-bottom: 1rem !important;
-                    }}
-
-                    .form-panel .submit-btn {{
-                        width: 100% !important;
-                        margin: 0 !important;
-                    }}
-
-                    .chat-panel {{
-                        order: 1 !important;
-                        height: calc(100vh - {height} - 140px) !important;
-                    }}
-
-                    .controls {{
-                        order: 3 !important;
-                    }}
-                }}
-            </style>
-            <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
-            <script src="https://cdn.jsdelivr.net/npm/dompurify@3/dist/purify.min.js"></script>
-        </head>
-        <body>
-            <div class="header">
-                <h1>{html.escape(self.form_config.title)}</h1>
-            </div>
-
-            <div class="main-container">
-                <div class="{form_panel_class}">
-                    {auth_header}
-
-                    <form id="dataForm">
-                        <div class="form-fields">
-                            {form_fields}
-                        </div>
-                        <button type="submit" class="submit-btn" id="submitBtn">Send Message</button>
-                    </form>
-
-                    <div id="status" class="status"></div>
-                </div>
-
-                <div class="chat-panel">
-                    <div class="chat-messages" id="chatMessages">
-                        <div class="initial-message">
-                            Welcome! Send a message to start the conversation.
-                        </div>
-                    </div>
-                    {chat_controls}
-                </div>
-                {standalone_controls}
-            </div>
-
-            <script>
-                let eventSource = null;
-                let autoScroll = true;
-
-                function renderMarkdown(text) {{
-                    if (typeof text !== 'string' || text === '') return '';
-                    try {{
-                        const parseFn = (typeof marked !== 'undefined' && marked.parse) ? marked.parse : (typeof marked !== 'undefined' && typeof marked === 'function') ? marked : null;
-                        const raw = parseFn ? parseFn(text, {{ breaks: true }}) : text;
-                        return (typeof DOMPurify !== 'undefined' && DOMPurify.sanitize) ? DOMPurify.sanitize(raw) : raw;
-                    }} catch (e) {{
-                        return text;
-                    }}
-                }}
-
-                function initSSE() {{
-                    eventSource = new EventSource('/output-stream');
-
-                    eventSource.onopen = function(event) {{
-                        document.getElementById('connectionStatus').textContent = 'Connected';
-                        document.getElementById('connectionStatus').style.color = 'green';
-                    }};
-
-                    eventSource.onmessage = function(event) {{
-                        try {{
-                            const data = JSON.parse(event.data);
-                            // Skip user messages from server since we display them immediately on client
-                            if (data.type === 'user' && data.output === lastUserMessage) {{
-                                return;
-                            }}
-                            // Buffer SSE during /process request - we'll display from response to avoid duplicates
-                            if (pendingRequest && data.type === 'response') {{
-                                sseBuffer.push(data);
-                                return;
-                            }}
-                            addMessage(data.output, data.type || 'response', data.timestamp);
-                        }} catch (e) {{
-                            console.error('Error parsing SSE data:', e);
-                        }}
-                    }};
-
-                    eventSource.onerror = function(event) {{
-                        document.getElementById('connectionStatus').textContent = 'Connection error';
-                        document.getElementById('connectionStatus').style.color = 'red';
-                    }};
-                }}
-
-                function resetFormSelectively(form) {{
-                    const formElements = form.querySelectorAll('input, select, textarea');
-                    formElements.forEach(element => {{
-                        if (!element.hasAttribute('data-persist')) {{
-                            // Reset non-persistent fields
-                            if (element.type === 'checkbox' || element.type === 'radio') {{
-                                element.checked = false;
-                            }} else {{
-                                element.value = '';
-                            }}
-                        }}
-                    }});
-                }}
-
-                function addMessage(content, type, timestamp) {{
-                    const messagesContainer = document.getElementById('chatMessages');
-
-                    // Remove initial message if it exists
-                    const initialMessage = messagesContainer.querySelector('.initial-message');
-                    if (initialMessage) {{
-                        initialMessage.remove();
-                    }}
-
-                    const messageDiv = document.createElement('div');
-                    messageDiv.className = `message ${{type}}`;
-
-                    const timestampDiv = document.createElement('div');
-                    timestampDiv.className = 'message-timestamp';
-                    timestampDiv.textContent = new Date(timestamp).toLocaleTimeString();
-
-                    const contentDiv = document.createElement('div');
-                    contentDiv.className = 'message-content';
-                    if (type === 'response' || type === 'error') {{
-                        contentDiv.innerHTML = renderMarkdown(content);
-                    }} else {{
-                        contentDiv.textContent = content;
-                    }}
-
-                    messageDiv.appendChild(timestampDiv);
-                    messageDiv.appendChild(contentDiv);
-
-                    // Add copy button for response and error messages
-                    if (type === 'response' || type === 'error') {{
-                        const copyBtn = document.createElement('button');
-                        copyBtn.className = 'copy-btn';
-                        copyBtn.innerHTML = '📋';
-                        copyBtn.title = 'Copy message';
-                        copyBtn.onclick = function() {{
-                            copyToClipboard(content, copyBtn);
-                        }};
-                        messageDiv.appendChild(copyBtn);
-                    }}
-                    messagesContainer.appendChild(messageDiv);
-
-                    if (autoScroll) {{
-                        messagesContainer.scrollTop = messagesContainer.scrollHeight;
-                    }}
-                }}
-
-                function clearChat() {{
-                    const messagesContainer = document.getElementById('chatMessages');
-                    messagesContainer.innerHTML = '<div class="initial-message">Chat cleared. Send a message to continue.</div>';
-                }}
-
-                function toggleAutoScroll() {{
-                    autoScroll = !autoScroll;
-                    const btn = document.getElementById('autoScrollBtn');
-                    btn.textContent = `Auto-scroll: ${{autoScroll ? 'ON' : 'OFF'}}`;
-                }}
-
-                function copyToClipboard(text, button) {{
-                    navigator.clipboard.writeText(text).then(function() {{
-                        // Visual feedback
-                        const originalContent = button.innerHTML;
-                        button.innerHTML = '✓';
-                        button.classList.add('copied');
-
-                        setTimeout(function() {{
-                            button.innerHTML = originalContent;
-                            button.classList.remove('copied');
-                        }}, 2000);
-                    }}).catch(function(err) {{
-                        console.error('Failed to copy text: ', err);
-                        // Fallback for older browsers
-                        const textArea = document.createElement('textarea');
-                        textArea.value = text;
-                        document.body.appendChild(textArea);
-                        textArea.select();
-                        try {{
-                            document.execCommand('copy');
-                            // Same visual feedback as above
-                            const originalContent = button.innerHTML;
-                            button.innerHTML = '✓';
-                            button.classList.add('copied');
-
-                            setTimeout(function() {{
-                                button.innerHTML = originalContent;
-                                button.classList.remove('copied');
-                            }}, 2000);
-                        }} catch (err) {{
-                            console.error('Fallback copy failed: ', err);
-                        }}
-                        document.body.removeChild(textArea);
-                    }});
-                }}
-
-                let lastUserMessage = null; // Track last user message to avoid duplicates
-                let pendingRequest = false;  // True while /process request is in flight
-                let sseBuffer = [];  // Buffer SSE events during request to avoid duplicate display
-
-                async function submitForm(event) {{
-                    event.preventDefault();
-                    const form = document.getElementById('dataForm');
-                    const status = document.getElementById('status');
-                    const submitBtn = document.getElementById('submitBtn');
-                    const formData = new FormData(form);
-
-                    // Build JSON object from form data
-                    const data = {{}};
-                    for (const [key, value] of formData.entries()) {{
-                        if (key === 'apiKey') continue;
-
-                        const input = form.elements[key];
-                        if (input.type === 'number') {{
-                            data[key] = value ? parseFloat(value) : null;
-                        }} else if (input.type === 'checkbox') {{
-                            data[key] = input.checked;
-                        }} else {{
-                            data[key] = value;
-                        }}
-                    }}
-
-                    // Add user message to chat immediately for instant feedback
-                    const displayProperty = '{html.escape(str(self.display_property))}' || Object.keys(data)[0];
-                    const userMessage = data[displayProperty] || JSON.stringify(data);
-                    lastUserMessage = userMessage; // Store to detect duplicates from server
-                    addMessage(userMessage, 'user', new Date().toISOString());
-
-                    // Clear form, but preserve persistent fields
-                    resetFormSelectively(form);
-
-                    submitBtn.disabled = true;
-                    submitBtn.textContent = 'Sending...';
-                    pendingRequest = true;
-                    sseBuffer = [];
-
-                    try {{
-                        const headers = {{'Content-Type': 'application/json'}};
-                        const apiKey = document.getElementById('apiKey')?.value;
-                        if (apiKey) {{
-                            headers['X-API-Key'] = apiKey;
-                        }}
-
-                        const response = await fetch('/process', {{
-                            method: 'POST',
-                            headers: headers,
-                            body: JSON.stringify(data)
-                        }});
-
-                        const result = await response.json();
-                        if (!response.ok) {{
-                            const detail = result.detail;
-                            const msg = typeof detail === 'string' ? detail : (detail ? JSON.stringify(detail) : `HTTP ${{response.status}}: ${{response.statusText}}`);
-                            throw new Error(msg);
-                        }}
-
-                        status.textContent = 'Message sent successfully!';
-                        status.className = 'status success';
-                        status.style.display = 'block';
-
-                        // Display results from response - more reliable than SSE for batch results
-                        // (avoids race where SSE may not deliver all items before next interaction)
-                        if (result.data && result.data.output && Array.isArray(result.data.output)) {{
-                            const timestamp = result.timestamp || new Date().toISOString();
-                            for (const item of result.data.output) {{
-                                const content = typeof item === 'object' ? JSON.stringify(item, null, 2) : String(item);
-                                addMessage(content, 'response', timestamp);
-                            }}
-                        }}
-                        sseBuffer = [];  // Discard buffered SSE - we displayed from response
-
-                        setTimeout(() => {{
-                            status.style.display = 'none';
-                            lastUserMessage = null; // Clear after a delay
-                        }}, 3000);
-
-                    }} catch (error) {{
-                        status.textContent = `Error: ${{error.message}}`;
-                        status.className = 'status error';
-                        status.style.display = 'block';
-
-                        addMessage(`Error: ${{error.message}}`, 'error', new Date().toISOString());
-                        lastUserMessage = null; // Clear on error
-                        sseBuffer = [];
-                    }} finally {{
-                        pendingRequest = false;
-                        submitBtn.disabled = false;
-                        submitBtn.textContent = 'Send Message';
-                    }}
-                }}
-
-                // Event listeners
-                document.getElementById('dataForm').addEventListener('submit', submitForm);
-
-                // Initialize SSE on page load
-                initSSE();
-            </script>
-        </body>
-        </html>
-        '''  # nosec B608
 
     def _get_html_interface(self) -> str:
-        """Generate HTML interface with configurable form"""
-        position = self.form_config.position
-        height = self.form_config.height
-        theme = self.form_config.theme
-
-        # CSS for different positions
-        position_styles = {
-            "bottom": f"bottom: 0; left: 0; right: 0; height: {height};",
-            "top": f"top: 0; left: 0; right: 0; height: {height};",
-            "left": f"top: 0; left: 0; bottom: 0; width: {height};",
-            "right": f"top: 0; right: 0; bottom: 0; width: {height};",
-        }
-
-        form_style = position_styles.get(position, position_styles["bottom"])
-
-        # Theme colors
-        if theme == "dark":
-            text_color = "#ffffff"
-            input_bg = "#2d2d2d"
-            border_color = "#444"
-            button_bg = "#0066cc"
-            button_hover = "#0052a3"
-        else:
-            text_color = "#333333"
-            input_bg = "#ffffff"
-            border_color = "#ddd"
-            button_bg = "#0066cc"
-            button_hover = "#0052a3"
-
-        auth_header = (
-            """
-            <div class="auth-section">
-                <label for="apiKey">API Key:</label>
-                <input type="password" id="apiKey" placeholder="Enter API key">
-            </div>
-        """
-            if self.require_auth
-            else ""
+        """The form-and-history page at ``/`` (templates/chatterlang_serve/index.html)."""
+        return _render_template(
+            "index.html",
+            **self._page_context(),
+            host=html.escape(self.host),
+            port=html.escape(str(self.port)),
+            auth_note=(
+                "<p>Authentication required: Include 'X-API-Key' header</p>"
+                if self.require_auth
+                else ""
+            ),
         )
-
-        form_fields = self._generate_form_fields()
-
-        # nosec B608 - HTML template with proper escaping, not SQL injection
-        return f"""<!DOCTYPE html>
-        <html>
-        <head>
-            <title>{html.escape(self.title)}</title>
-            <style>
-                * {{
-                    margin: 0;
-                    padding: 0;
-                    box-sizing: border-box;
-                }}
-
-                body {{
-                    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-                    background-color: #f0f0f0;
-                    color: #333;
-                    height: 100vh;
-                    overflow: hidden;
-                }}
-
-                .main-content {{
-                    height: calc(100vh - {html.escape(height)});
-                    padding: 20px;
-                    overflow-y: auto;
-                    background-color: #f8f9fa;
-                }}
-
-                .info-section {{
-                    background-color: white;
-                    border-radius: 8px;
-                    padding: 20px;
-                    margin-bottom: 20px;
-                    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-                }}
-
-                .endpoint-info {{
-                    background-color: #f8f9fa;
-                    padding: 10px;
-                    border-radius: 4px;
-                    font-family: monospace;
-                    font-size: 14px;
-                    margin: 10px 0;
-                    border: 1px solid #dee2e6;
-                }}
-
-                .history-section {{
-                    background-color: white;
-                    border-radius: 8px;
-                    padding: 20px;
-                    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-                }}
-
-                .history-item {{
-                    background-color: #f8f9fa;
-                    padding: 10px;
-                    margin: 5px 0;
-                    border-radius: 4px;
-                    font-family: monospace;
-                    font-size: 12px;
-                    white-space: pre-wrap;
-                }}
-
-                .form-panel {{
-                    position: fixed;
-                    {html.escape(form_style)}
-                    background-color: {html.escape(input_bg)};
-                    border: 1px solid {html.escape(border_color)};
-                    padding: 20px;
-                    box-shadow: 0 -2px 10px rgba(0,0,0,0.1);
-                    overflow-y: auto;
-                }}
-
-                .form-container {{
-                    display: flex;
-                    flex-direction: column;
-                    height: 100%;
-                }}
-
-                .form-header {{
-                    margin-bottom: 15px;
-                }}
-
-                .form-header h3 {{
-                    color: {html.escape(text_color)};
-                    margin: 0;
-                }}
-
-                .form-content {{
-                    flex: 1;
-                    display: flex;
-                    flex-wrap: wrap;
-                    gap: 15px;
-                    overflow-y: auto;
-                    margin-bottom: 15px;
-                }}
-
-                .form-group {{
-                    min-width: 200px;
-                    flex: 1;
-                }}
-
-                .form-group label {{
-                    display: block;
-                    margin-bottom: 5px;
-                    font-weight: 500;
-                    color: {text_color};
-                }}
-
-                .form-group input,
-                .form-group textarea,
-                .form-group select {{
-                    width: 100%;
-                    padding: 8px 12px;
-                    border: 1px solid {border_color};
-                    border-radius: 4px;
-                    background-color: {input_bg};
-                    color: {text_color};
-                    font-size: 14px;
-                }}
-
-                .form-group input:focus,
-                .form-group textarea:focus,
-                .form-group select:focus {{
-                    outline: none;
-                    border-color: {button_bg};
-                    box-shadow: 0 0 0 2px {button_bg}33;
-                }}
-
-                .form-actions {{
-                    display: flex;
-                    gap: 10px;
-                    align-items: center;
-                }}
-
-                .submit-btn {{
-                    padding: 10px 20px;
-                    background-color: {button_bg};
-                    color: white;
-                    border: none;
-                    border-radius: 4px;
-                    cursor: pointer;
-                    font-size: 14px;
-                    transition: background-color 0.2s;
-                }}
-
-                .submit-btn:hover {{
-                    background-color: {button_hover};
-                }}
-
-                .submit-btn:disabled {{
-                    background-color: #6c757d;
-                    cursor: not-allowed;
-                }}
-
-                .status {{
-                    padding: 8px 12px;
-                    border-radius: 4px;
-                    font-size: 14px;
-                    display: none;
-                }}
-
-                .status.success {{
-                    background-color: #d4edda;
-                    color: #155724;
-                    border: 1px solid #c3e6cb;
-                }}
-
-                .status.error {{
-                    background-color: #f8d7da;
-                    color: #721c24;
-                    border: 1px solid #f5c6cb;
-                }}
-
-                .auth-section {{
-                    margin-bottom: 15px;
-                    padding-bottom: 15px;
-                    border-bottom: 1px solid {border_color};
-                }}
-
-                .checkbox-group {{
-                    display: flex;
-                    align-items: center;
-                }}
-
-                .checkbox-group input {{
-                    width: auto;
-                    margin-right: 8px;
-                }}
-
-                .form-minimized {{
-                    height: 50px !important;
-                    overflow: hidden;
-                }}
-
-                .form-minimized .form-content,
-                .form-minimized .form-actions {{
-                    display: none;
-                }}
-
-                @media (max-width: 768px) {{
-                    .form-content {{
-                        flex-direction: column;
-                    }}
-
-                    .form-group {{
-                        min-width: 100%;
-                    }}
-                }}
-            </style>
-        </head>
-        <body>
-            <div class="main-content">
-                <div class="info-section">
-                    <h1>{html.escape(self.title)}</h1>
-                    <p>Submit JSON data using the form below or send POST requests to:</p>
-                    <div class="endpoint-info">POST http://{html.escape(self.host)}:{
-            html.escape(str(self.port))
-        }/process</div>
-                    {
-            "<p>Authentication required: Include 'X-API-Key' header</p>"
-            if self.require_auth
-            else ""
-        }
-                    <p>View API documentation at: <a href="/docs">/docs</a></p>
-                    <p>View streaming interface at: <a href="/stream">/stream</a></p>
-                </div>
-
-                <div class="history-section">
-                    <h2>Recent Submissions</h2>
-                    <button onclick="fetchHistory()">Refresh History</button>
-                    <button onclick="clearHistory()">Clear History</button>
-                    <div id="history"></div>
-                </div>
-            </div>
-
-            <div class="form-panel" id="formPanel">
-                <div class="form-container">
-                    <div class="form-header">
-                        <h3>{html.escape(self.form_config.title)}</h3>
-                    </div>
-
-                    {auth_header}
-
-                    <form id="dataForm">
-                        <div class="form-content">
-                            {form_fields}
-                        </div>
-
-                        <div class="form-actions">
-                            <button type="submit" class="submit-btn" id="submitBtn">Submit</button>
-                            <div id="status" class="status"></div>
-                        </div>
-                    </form>
-                </div>
-            </div>
-
-            <script>
-                async function submitForm(event) {{
-                    event.preventDefault();
-                    const form = document.getElementById('dataForm');
-                    const status = document.getElementById('status');
-                    const submitBtn = document.getElementById('submitBtn');
-                    const formData = new FormData(form);
-
-                    // Build JSON object from form data
-                    const data = {{}};
-                    for (const [key, value] of formData.entries()) {{
-                        // Skip API key field
-                        if (key === 'apiKey') continue;
-
-                        // Handle different input types
-                        const input = form.elements[key];
-                        if (input.type === 'number') {{
-                            data[key] = value ? parseFloat(value) : null;
-                        }} else if (input.type === 'checkbox') {{
-                            data[key] = input.checked;
-                        }} else {{
-                            data[key] = value;
-                        }}
-                    }}
-
-                    const headers = {{
-                        'Content-Type': 'application/json'
-                    }};
-
-                    {
-            (
-                "if (document.getElementById('apiKey')?.value) {"
-                "headers['X-API-Key'] = document.getElementById('apiKey').value;"
-                "}"
-            )
-            if self.require_auth
-            else ""
-        }
-
-                    submitBtn.disabled = true;
-                    submitBtn.textContent = 'Submitting...';
-
-                    try {{
-                        const response = await fetch('/process', {{
-                            method: 'POST',
-                            headers: headers,
-                            body: JSON.stringify(data)
-                        }});
-
-                        const result = await response.json();
-
-                        status.style.display = 'block';
-                        if (response.ok) {{
-                            status.className = 'status success';
-                            status.textContent = 'Success: ' + result.message;
-                            fetchHistory();
-                        }} else {{
-                            status.className = 'status error';
-                            status.textContent = 'Error: ' + result.detail;
-                        }}
-                    }} catch (error) {{
-                        status.style.display = 'block';
-                        status.className = 'status error';
-                        status.textContent = 'Error: ' + error.message;
-                    }}
-
-                    submitBtn.disabled = false;
-                    submitBtn.textContent = 'Submit';
-
-                    setTimeout(() => {{
-                        status.style.display = 'none';
-                    }}, 3000);
-                }}
-
-                async function fetchHistory() {{
-                    const headers = {{}};
-                    {
-            (
-                "if (document.getElementById('apiKey')?.value) {"
-                "headers['X-API-Key'] = document.getElementById('apiKey').value;"
-                "}"
-            )
-            if self.require_auth
-            else ""
-        }
-
-                    try {{
-                        const response = await fetch('/history?limit=10', {{ headers }});
-                        const data = await response.json();
-
-                        const historyDiv = document.getElementById('history');
-                        if (data.entries && data.entries.length > 0) {{
-                            historyDiv.innerHTML = data.entries
-                                .reverse()
-                                .map(entry => `<div class="history-item">${{JSON.stringify(entry, null, 2)}}</div>`)
-                                .join('');
-                        }} else {{
-                            historyDiv.innerHTML = '<p>No history available</p>';
-                        }}
-                    }} catch (error) {{
-                        console.error('Error fetching history:', error);
-                    }}
-                }}
-
-                async function clearHistory() {{
-                    const headers = {{}};
-                    {
-            (
-                "if (document.getElementById('apiKey')?.value) {"
-                "headers['X-API-Key'] = document.getElementById('apiKey').value;"
-                "}"
-            )
-            if self.require_auth
-            else ""
-        }
-
-                    try {{
-                        await fetch('/history', {{ method: 'DELETE', headers }});
-                        fetchHistory();
-                    }} catch (error) {{
-                        console.error('Error clearing history:', error);
-                    }}
-                }}
-
-                // Handle Enter key to submit form
-                document.getElementById('dataForm').addEventListener('keypress', function(event) {{
-                    if (event.key === 'Enter' && !event.shiftKey && event.target.tagName !== 'TEXTAREA') {{
-                        event.preventDefault();
-                        submitForm(event);
-                    }}
-                }});
-
-                // Attach event listener to form
-                document.getElementById('dataForm').addEventListener('submit', submitForm);
-
-                // Load history on page load
-                fetchHistory();
-            </script>
-        </body>
-        </html>
-        """  # nosec B608
 
     def set_processor_function(self, func: Callable[..., Any]) -> None:
         """Set the function used to process incoming JSON data"""
@@ -2002,6 +825,28 @@ def load_form_config(config_path: str) -> dict[str, Any]:
     return config
 
 
+def resolve_form_config(
+    form_config: str | dict[str, Any] | None,
+) -> dict[str, Any] | None:
+    """Resolve a form configuration given as a dict, a file path, or ``$name``.
+
+    ``$name`` is looked up in the configuration (a JSON string or a table);
+    if it is not set there, ``name`` is tried as a file path.
+    """
+    if not isinstance(form_config, str):
+        return form_config
+    if form_config.startswith("$"):
+        name = form_config[1:]
+        config_data: Any = get_config().get(name)
+        if config_data:
+            resolved: dict[str, Any] = (
+                json.loads(config_data) if isinstance(config_data, str) else config_data
+            )
+            return resolved
+        return load_form_config(name)
+    return load_form_config(form_config)
+
+
 @register_source("chatterlangServer")
 class ChatterlangServerSegment(AbstractSource[Any]):
     """Segment for receiving JSON data via FastAPI with configurable form"""
@@ -2028,27 +873,7 @@ class ChatterlangServerSegment(AbstractSource[Any]):
         self.secure_cookies = secure_cookies
         self.queue: Queue[Any] = Queue(maxsize=1000)
 
-        # Load form configuration if provided
-        form_config_dict: dict[str, Any] | None
-        if isinstance(form_config, str):
-            # Check if it's a config variable
-            if form_config.startswith("$"):
-                # Look up the named config variable (cf. the CLI path below).
-                config_data: Any = get_config().get(form_config[1:])
-                if config_data:
-                    form_config_dict = (
-                        json.loads(config_data)
-                        if isinstance(config_data, str)
-                        else config_data
-                    )
-                else:
-                    # Try loading as file path
-                    form_config_dict = load_form_config(form_config[1:])
-            else:
-                # Load from file
-                form_config_dict = load_form_config(form_config)
-        else:
-            form_config_dict = form_config
+        form_config_dict = resolve_form_config(form_config)
 
         # Create a custom script that forwards data to our queue
         script_content = """
@@ -2108,12 +933,7 @@ def go() -> None:
     parser = argparse.ArgumentParser(
         description="FastAPI JSON Data Receiver with Configurable Form"
     )
-    parser.add_argument(
-        "-p", "--port", type=int, default=2025, help="Port to listen on (default: 2025)"
-    )
-    parser.add_argument(
-        "-o", "--host", default="localhost", help="Host to bind to (default: localhost)"
-    )
+    add_host_port_args(parser, default_host="localhost", default_port=2025)
     parser.add_argument("--api-key", help="Set API key for authentication")
     parser.add_argument(
         "--require-auth",
@@ -2144,13 +964,7 @@ def go() -> None:
         default=None,
         help="Path to form configuration file (YAML or JSON) or config variable ($VAR_NAME)",
     )
-    parser.add_argument(
-        "--load-module",
-        action="append",
-        default=[],
-        type=str,
-        help="Path to a custom module file to import before running the script.",
-    )
+    add_load_module_arg(parser)
     parser.add_argument(
         "--display-property",
         default=None,
@@ -2159,26 +973,9 @@ def go() -> None:
 
     args, unknown_args = parser.parse_known_args()
 
-    # Parse unknown arguments and add to configuration so they're accessible via $key syntax
-    constants = parse_unknown_args(unknown_args)
-
-    # Add command-line constants to the configuration
-    if constants:
-        add_config_values(constants, override=True)
-        print(f"Added command-line values to configuration: {list(constants.keys())}")
-
-    if args.load_module:
-        for module_file in args.load_module:
-            try:
-                load_module_file(fname=module_file, fail_on_missing=True)
-            except FileNotFoundError as exc:
-                print(
-                    f"ERROR: {exc}. Relative paths are resolved against the current "
-                    f"directory; run the command from the directory containing the "
-                    f"module or pass an absolute path.",
-                    file=sys.stderr,
-                )
-                sys.exit(1)
+    # Leftover --key value arguments become configuration values ($key in scripts)
+    apply_cli_constants(unknown_args)
+    load_module_files_or_exit(args.load_module)
 
     # Get API key from command line, or fall back to configuration (which checks environment variable)
     api_key = args.api_key
@@ -2217,21 +1014,7 @@ def go() -> None:
     form_config = None
     if args.form_config:
         try:
-            if args.form_config.startswith("$"):
-                # Try to load from config variable
-                config_data = get_config()[args.form_config[1:]]
-                if config_data:
-                    form_config = (
-                        json.loads(config_data)
-                        if isinstance(config_data, str)
-                        else config_data
-                    )
-                else:
-                    # Try loading as file path
-                    form_config = load_form_config(args.form_config[1:])
-            else:
-                # Load from file
-                form_config = load_form_config(args.form_config)
+            form_config = resolve_form_config(args.form_config)
         except FileNotFoundError as exc:
             print(
                 f"ERROR: {exc}. Relative paths are resolved against the current "

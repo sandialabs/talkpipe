@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>$title</title>
+  <link rel="icon" type="image/ico" href="/favicon.ico">
+  <link rel="stylesheet" href="/static/serve/index.css">
+</head>
+<body data-theme="$theme" data-position="$position" style="--form-size: $height">
+  <div class="main-content">
+    <div class="info-section">
+      <h1>$title</h1>
+      <p>Submit JSON data using the form below or send POST requests to:</p>
+      <div class="endpoint-info">POST http://$host:$port/process</div>
+      $auth_note
+      <p>View API documentation at: <a href="/docs">/docs</a></p>
+      <p>View streaming interface at: <a href="/stream">/stream</a></p>
+    </div>
+
+    <div class="history-section">
+      <h2>Recent Submissions</h2>
+      <button id="refreshHistoryBtn">Refresh History</button>
+      <button id="clearHistoryBtn">Clear History</button>
+      <div id="history"></div>
+    </div>
+  </div>
+
+  <div class="form-panel" id="formPanel">
+    <div class="form-container">
+      <div class="form-header">
+        <h3>$form_title</h3>
+      </div>
+
+      $auth_section
+
+      <form id="dataForm">
+        <div class="form-content">
+          $form_fields
+        </div>
+
+        <div class="form-actions">
+          <button type="submit" class="submit-btn" id="submitBtn">Submit</button>
+          <div id="status" class="status"></div>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script src="/static/serve/common.js"></script>
+  <script src="/static/serve/index.js"></script>
+</body>
+</html>

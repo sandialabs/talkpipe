@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>$title - Stream</title>
+  <link rel="icon" type="image/ico" href="/favicon.ico">
+  <link rel="stylesheet" href="/static/serve/stream.css">
+  <script src="/static/serve/vendor/marked.min.js"></script>
+  <script src="/static/serve/vendor/purify.min.js"></script>
+</head>
+<body data-theme="$theme" data-position="$position" style="--form-size: $height">
+  <div class="header">
+    <h1>$form_title</h1>
+  </div>
+
+  <div class="main-container">
+    <div class="form-panel">
+      $auth_section
+      <form id="dataForm" data-display-property="$display_property">
+        <div class="form-fields">
+          $form_fields
+        </div>
+        <button type="submit" class="submit-btn" id="submitBtn">Send Message</button>
+      </form>
+      <div id="status" class="status"></div>
+    </div>
+
+    <div class="chat-panel">
+      <div class="chat-messages" id="chatMessages">
+        <div class="initial-message">
+          Welcome! Send a message to start the conversation.
+        </div>
+      </div>
+    </div>
+
+    <div class="controls">
+      <button class="control-btn" id="clearChatBtn">Clear Chat</button>
+      <button class="control-btn" id="autoScrollBtn">Auto-scroll: ON</button>
+      <span id="connectionStatus">Connecting...</span>
+    </div>
+  </div>
+
+  <script src="/static/serve/common.js"></script>
+  <script src="/static/serve/stream.js"></script>
+</body>
+</html>

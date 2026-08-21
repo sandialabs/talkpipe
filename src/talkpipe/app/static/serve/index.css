@@ -1,0 +1,238 @@
+/* chatterlang_serve / page: endpoint information, submission history, and the
+ * form panel fixed to one edge of the window.
+ *
+ * The server sets data-theme, data-position and --form-size on <body>; see
+ * stream.css for the convention. */
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  --text: #ffffff;
+  --input-bg: #2d2d2d;
+  --border: #444;
+  --button-bg: #0066cc;
+  --button-hover: #0052a3;
+  --form-size: 150px;
+
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  background-color: #f0f0f0;
+  color: #333;
+  height: 100vh;
+  overflow: hidden;
+}
+
+body[data-theme="light"] {
+  --text: #333333;
+  --input-bg: #ffffff;
+  --border: #ddd;
+}
+
+.main-content {
+  height: 100vh;
+  padding: 20px;
+  overflow-y: auto;
+  background-color: #f8f9fa;
+}
+
+body[data-position="bottom"] .main-content { height: calc(100vh - var(--form-size)); }
+body[data-position="top"] .main-content {
+  height: calc(100vh - var(--form-size));
+  margin-top: var(--form-size);
+}
+body[data-position="left"] .main-content { margin-left: var(--form-size); }
+body[data-position="right"] .main-content { margin-right: var(--form-size); }
+
+.info-section {
+  background-color: white;
+  border-radius: 8px;
+  padding: 20px;
+  margin-bottom: 20px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.endpoint-info {
+  background-color: #f8f9fa;
+  padding: 10px;
+  border-radius: 4px;
+  font-family: monospace;
+  font-size: 14px;
+  margin: 10px 0;
+  border: 1px solid #dee2e6;
+}
+
+.history-section {
+  background-color: white;
+  border-radius: 8px;
+  padding: 20px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.history-item {
+  background-color: #f8f9fa;
+  padding: 10px;
+  margin: 5px 0;
+  border-radius: 4px;
+  font-family: monospace;
+  font-size: 12px;
+  white-space: pre-wrap;
+}
+
+/* The form panel is fixed to the edge named by data-position. */
+.form-panel {
+  position: fixed;
+  background-color: var(--input-bg);
+  border: 1px solid var(--border);
+  padding: 20px;
+  box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.1);
+  overflow-y: auto;
+}
+
+body[data-position="bottom"] .form-panel { bottom: 0; left: 0; right: 0; height: var(--form-size); }
+body[data-position="top"] .form-panel { top: 0; left: 0; right: 0; height: var(--form-size); }
+body[data-position="left"] .form-panel { top: 0; left: 0; bottom: 0; width: var(--form-size); }
+body[data-position="right"] .form-panel { top: 0; right: 0; bottom: 0; width: var(--form-size); }
+
+.form-container {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.form-header {
+  margin-bottom: 15px;
+}
+
+.form-header h3 {
+  color: var(--text);
+  margin: 0;
+}
+
+.form-content {
+  flex: 1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 15px;
+  overflow-y: auto;
+  margin-bottom: 15px;
+}
+
+.form-group {
+  min-width: 200px;
+  flex: 1;
+}
+
+.form-group label {
+  display: block;
+  margin-bottom: 5px;
+  font-weight: 500;
+  color: var(--text);
+}
+
+.form-group input,
+.form-group textarea,
+.form-group select {
+  width: 100%;
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background-color: var(--input-bg);
+  color: var(--text);
+  font-size: 14px;
+}
+
+.form-group input:focus,
+.form-group textarea:focus,
+.form-group select:focus {
+  outline: none;
+  border-color: var(--button-bg);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--button-bg) 20%, transparent);
+}
+
+.form-actions {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.submit-btn {
+  padding: 10px 20px;
+  background-color: var(--button-bg);
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 14px;
+  transition: background-color 0.2s;
+}
+
+.submit-btn:hover { background-color: var(--button-hover); }
+.submit-btn:disabled {
+  background-color: #6c757d;
+  cursor: not-allowed;
+}
+
+.status {
+  padding: 8px 12px;
+  border-radius: 4px;
+  font-size: 14px;
+  display: none;
+}
+
+.status.success {
+  background-color: #d4edda;
+  color: #155724;
+  border: 1px solid #c3e6cb;
+}
+
+.status.error {
+  background-color: #f8d7da;
+  color: #721c24;
+  border: 1px solid #f5c6cb;
+}
+
+.auth-section {
+  margin-bottom: 15px;
+  padding-bottom: 15px;
+  border-bottom: 1px solid var(--border);
+}
+
+.auth-section label {
+  display: block;
+  margin-bottom: 5px;
+  font-weight: 500;
+  color: var(--text);
+}
+
+.auth-section input {
+  width: 100%;
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background-color: var(--input-bg);
+  color: var(--text);
+  font-size: 14px;
+}
+
+.checkbox-group {
+  display: flex;
+  align-items: center;
+}
+
+.checkbox-group input {
+  width: auto;
+  margin-right: 8px;
+}
+
+@media (max-width: 768px) {
+  .form-content {
+    flex-direction: column;
+  }
+
+  .form-group {
+    min-width: 100%;
+  }
+}

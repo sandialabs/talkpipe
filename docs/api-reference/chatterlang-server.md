@@ -301,9 +301,19 @@ Click "Submit" or "Send Message" to process your data. The interface will:
 The `/stream` interface provides:
 - **Real-time output**: See results as they're generated
 - **Chat history**: Conversation-style display of interactions
+- **Markdown rendering**: Responses are rendered as Markdown and sanitised
 - **Auto-scroll**: Automatically scrolls to new messages (toggleable)
 - **Clear chat**: Reset the conversation history
 - **Responsive design**: Works on desktop and mobile
+
+### Works offline
+
+Both pages are built from templates shipped with the package
+(`talkpipe/app/templates/chatterlang_serve/`), and their stylesheets,
+scripts, and the vendored Markdown libraries (`marked`, `DOMPurify`) are
+served by the server itself under `/static/serve/`. Nothing is fetched from a
+CDN, so the web interface works on air-gapped hosts, and the server's
+Content-Security-Policy allows scripts from its own origin only.
 
 ## Integration Examples
 

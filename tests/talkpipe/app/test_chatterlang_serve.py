@@ -461,24 +461,39 @@ class TestChatterlangServerEndpoints:
 
     def test_stream_displays_results_from_process_response(self, client):
         """Stream UI should display results from /process response for reliable display."""
-        response = client.get("/stream")
-        html_content = response.text
+        assert '<script src="/static/serve/stream.js">' in client.get("/stream").text
+        script = client.get("/static/serve/stream.js").text
         # Must use response data for display (fixes race where SSE may not deliver all items)
-        assert "result.data.output" in html_content
-        assert "Array.isArray(result.data.output)" in html_content
+        assert "result.data.output" in script
+        assert "Array.isArray(result.data.output)" in script
         # Buffer SSE during request to avoid duplicate display
-        assert "pendingRequest" in html_content
-        assert "sseBuffer" in html_content
+        assert "pendingRequest" in script
+        assert "sseBuffer" in script
 
     def test_stream_includes_markdown_rendering(self, client):
-        """Stream UI should include marked and DOMPurify for markdown output rendering."""
+        """Stream UI renders Markdown with marked and DOMPurify, served locally."""
         response = client.get("/stream")
         assert response.status_code == 200
         html_content = response.text
-        assert "marked.min.js" in html_content
-        assert "purify.min.js" in html_content
-        assert "renderMarkdown" in html_content
-        assert "DOMPurify.sanitize" in html_content
+        assert '<script src="/static/serve/vendor/marked.min.js">' in html_content
+        assert '<script src="/static/serve/vendor/purify.min.js">' in html_content
+        script = client.get("/static/serve/stream.js").text
+        assert "renderMarkdown" in script
+        assert "DOMPurify.sanitize" in script
+
+    def test_pages_work_offline_without_inline_scripts(self, client):
+        """No CDN and no inline script: everything is served from this host
+        and the CSP allows scripts from 'self' only."""
+        for path in ("/", "/stream"):
+            response = client.get(path)
+            html_content = response.text
+            assert "cdn.jsdelivr.net" not in html_content
+            assert "<script>" not in html_content
+            assert "onclick=" not in html_content
+            csp = response.headers["Content-Security-Policy"]
+            assert "script-src 'self';" in csp
+            assert "jsdelivr" not in csp
+            assert "unsafe-inline" not in csp.split("style-src")[0]
 
     def test_favicon_endpoint(self, client):
         """Test favicon endpoint."""
@@ -693,30 +708,59 @@ class TestHTMLGeneration:
         assert 'value="50"' in html
 
     def test_get_html_interface_themes(self):
-        """Test HTML interface generation."""
-        # The main HTML interface doesn't use theme colors, just test it generates HTML
+        """The theme is handed to the stylesheet via a data attribute."""
         server = ChatterlangServer(form_config={"theme": "dark"})
         html = server._get_html_interface()
         assert "<!DOCTYPE html>" in html
         assert "ChatterLang Server" in html
         assert "form" in html.lower()
+        assert 'data-theme="dark"' in html
 
-        # Test light theme for stream interface (which does use theme colors)
         server = ChatterlangServer(form_config={"theme": "light"})
-        html = server._get_stream_interface()
-        assert "#f5f5f5" in html  # Light background color
+        assert 'data-theme="light"' in server._get_stream_interface()
+        assert 'data-theme="light"' in server._get_html_interface()
+        stylesheet = TestClient(server.app).get("/static/serve/stream.css").text
+        assert '[data-theme="light"]' in stylesheet
+        assert "#f5f5f5" in stylesheet  # Light background color
 
     def test_get_stream_interface_positions(self):
-        """Test stream interface with different form positions."""
+        """Position and panel size reach the stylesheet as data/CSS variables."""
         positions = ["bottom", "top", "left", "right"]
 
         for position in positions:
-            server = ChatterlangServer(form_config={"position": position})
-            html = server._get_stream_interface()
+            server = ChatterlangServer(
+                form_config={"position": position, "height": "222px"}
+            )
+            for html in (server._get_stream_interface(), server._get_html_interface()):
+                assert "form-panel" in html
+                assert f'data-position="{position}"' in html
+                assert 'style="--form-size: 222px"' in html
 
-            assert "form-panel" in html
-            # Each position should have specific CSS styling
-            assert "flex-direction:" in html or "order:" in html
+        # An unknown position falls back to the default layout.
+        server = ChatterlangServer(form_config={"position": "sideways"})
+        assert 'data-position="bottom"' in server._get_stream_interface()
+
+    def test_page_values_are_html_escaped(self):
+        """Operator-supplied text cannot break out of the markup."""
+        server = ChatterlangServer(
+            title='<script>alert("x")</script>',
+            form_config={"title": "A & B", "height": '1px" onload="x'},
+            display_property='p" data-x="',
+        )
+        for html in (server._get_stream_interface(), server._get_html_interface()):
+            assert "<script>alert" not in html
+            assert "&lt;script&gt;alert" in html
+            assert "A &amp; B" in html
+            assert 'style="--form-size: 1px&quot; onload=&quot;x"' in html
+        assert 'data-display-property="p&quot; data-x=&quot;"' in (
+            server._get_stream_interface()
+        )
+
+    def test_templates_have_no_unfilled_placeholders(self):
+        server = ChatterlangServer(require_auth=True, api_key="k")
+        for html in (server._get_stream_interface(), server._get_html_interface()):
+            assert "$" not in html
+            assert 'id="apiKey"' in html
 
 
 class TestChatterlangServerSegment:
@@ -914,8 +958,8 @@ class TestMainFunction:
         mock_server_class.return_value = mock_server
 
         with (
-            patch("talkpipe.app.chatterlang_serve.parse_unknown_args", return_value={}),
-            patch("talkpipe.app.chatterlang_serve.add_config_values"),
+            patch("talkpipe.app.server_common.parse_unknown_args", return_value={}),
+            patch("talkpipe.app.server_common.add_config_values"),
             patch("talkpipe.app.chatterlang_serve.load_script", return_value=None),
         ):
             go()
@@ -952,8 +996,8 @@ class TestMainFunction:
         mock_server_class.return_value = mock_server
 
         with (
-            patch("talkpipe.app.chatterlang_serve.parse_unknown_args", return_value={}),
-            patch("talkpipe.app.chatterlang_serve.add_config_values"),
+            patch("talkpipe.app.server_common.parse_unknown_args", return_value={}),
+            patch("talkpipe.app.server_common.add_config_values"),
             patch("talkpipe.app.chatterlang_serve.load_script", return_value=None),
         ):
             go()
@@ -976,8 +1020,8 @@ class TestMainFunction:
         mock_server_class.return_value = mock_server
 
         with (
-            patch("talkpipe.app.chatterlang_serve.parse_unknown_args", return_value={}),
-            patch("talkpipe.app.chatterlang_serve.add_config_values"),
+            patch("talkpipe.app.server_common.parse_unknown_args", return_value={}),
+            patch("talkpipe.app.server_common.add_config_values"),
         ):
             go()
 
@@ -997,8 +1041,8 @@ class TestMainFunction:
         mock_load_script.return_value = "| notARealSegment"
 
         with (
-            patch("talkpipe.app.chatterlang_serve.parse_unknown_args", return_value={}),
-            patch("talkpipe.app.chatterlang_serve.add_config_values"),
+            patch("talkpipe.app.server_common.parse_unknown_args", return_value={}),
+            patch("talkpipe.app.server_common.add_config_values"),
             pytest.raises(SystemExit) as exc_info,
         ):
             go()
@@ -1020,8 +1064,8 @@ class TestMainFunction:
         mock_server_class.return_value = mock_server
 
         with (
-            patch("talkpipe.app.chatterlang_serve.parse_unknown_args", return_value={}),
-            patch("talkpipe.app.chatterlang_serve.add_config_values"),
+            patch("talkpipe.app.server_common.parse_unknown_args", return_value={}),
+            patch("talkpipe.app.server_common.add_config_values"),
             patch("talkpipe.app.chatterlang_serve.load_script", return_value=None),
         ):
             go()
@@ -1033,7 +1077,7 @@ class TestMainFunction:
             assert call_args["form_config"] == form_config_data
 
     @patch("talkpipe.app.chatterlang_serve.ChatterlangServer")
-    @patch("talkpipe.app.chatterlang_serve.load_module_file")
+    @patch("talkpipe.app.server_common.load_module_file")
     @patch(
         "sys.argv",
         ["script.py", "--load-module", "module1.py", "--load-module", "module2.py"],
@@ -1044,8 +1088,8 @@ class TestMainFunction:
         mock_server_class.return_value = mock_server
 
         with (
-            patch("talkpipe.app.chatterlang_serve.parse_unknown_args", return_value={}),
-            patch("talkpipe.app.chatterlang_serve.add_config_values"),
+            patch("talkpipe.app.server_common.parse_unknown_args", return_value={}),
+            patch("talkpipe.app.server_common.add_config_values"),
             patch("talkpipe.app.chatterlang_serve.load_script", return_value=None),
         ):
             go()
@@ -1060,8 +1104,8 @@ class TestMainFunction:
     def test_go_with_missing_module_exits(self, mock_server_class, capsys):
         """A missing --load-module file stops the server at startup with a clean error."""
         with (
-            patch("talkpipe.app.chatterlang_serve.parse_unknown_args", return_value={}),
-            patch("talkpipe.app.chatterlang_serve.add_config_values"),
+            patch("talkpipe.app.server_common.parse_unknown_args", return_value={}),
+            patch("talkpipe.app.server_common.add_config_values"),
             pytest.raises(SystemExit) as exc_info,
         ):
             go()
@@ -1077,8 +1121,8 @@ class TestMainFunction:
     def test_go_with_missing_form_config_exits(self, mock_server_class, capsys):
         """A missing form config stops the server with a clean error, not a traceback."""
         with (
-            patch("talkpipe.app.chatterlang_serve.parse_unknown_args", return_value={}),
-            patch("talkpipe.app.chatterlang_serve.add_config_values"),
+            patch("talkpipe.app.server_common.parse_unknown_args", return_value={}),
+            patch("talkpipe.app.server_common.add_config_values"),
             patch("talkpipe.app.chatterlang_serve.load_script", return_value=None),
             pytest.raises(SystemExit) as exc_info,
         ):
@@ -1100,12 +1144,8 @@ class TestMainFunction:
         mock_server_class.return_value = mock_server
 
         with (
-            patch(
-                "talkpipe.app.chatterlang_serve.parse_unknown_args"
-            ) as mock_parse_args,
-            patch(
-                "talkpipe.app.chatterlang_serve.add_config_values"
-            ) as mock_add_config,
+            patch("talkpipe.app.server_common.parse_unknown_args") as mock_parse_args,
+            patch("talkpipe.app.server_common.add_config_values") as mock_add_config,
             patch("talkpipe.app.chatterlang_serve.load_script", return_value=None),
         ):
             # Mock parsing of unknown arguments
@@ -1134,8 +1174,8 @@ class TestMainFunction:
         mock_get_config.return_value = mock_config
 
         with (
-            patch("talkpipe.app.chatterlang_serve.parse_unknown_args", return_value={}),
-            patch("talkpipe.app.chatterlang_serve.add_config_values"),
+            patch("talkpipe.app.server_common.parse_unknown_args", return_value={}),
+            patch("talkpipe.app.server_common.add_config_values"),
             patch("talkpipe.app.chatterlang_serve.load_script", return_value=None),
         ):
             go()
@@ -1159,8 +1199,8 @@ class TestMainFunction:
         mock_get_config.return_value = mock_config
 
         with (
-            patch("talkpipe.app.chatterlang_serve.parse_unknown_args", return_value={}),
-            patch("talkpipe.app.chatterlang_serve.add_config_values"),
+            patch("talkpipe.app.server_common.parse_unknown_args", return_value={}),
+            patch("talkpipe.app.server_common.add_config_values"),
             patch("talkpipe.app.chatterlang_serve.load_script", return_value=None),
         ):
             go()

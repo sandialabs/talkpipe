@@ -12,6 +12,27 @@
   The `ragToText` / `ragToBinaryAnswer` / `ragToScore` segments likewise build
   their internal pipeline once and reuse it across calls, matching how
   `llmPrompt` keeps its memory.
+- The `chatterlang_serve` web pages work offline. The Markdown renderer
+  (`marked`) and sanitiser (`DOMPurify`) used by `/stream` were loaded from
+  `cdn.jsdelivr.net`; they are now vendored and served from the package under
+  `/static/serve/` (licenses in `static/serve/vendor/LICENSES.txt`), and the
+  Content-Security-Policy allows scripts from the server's own origin only,
+  with no inline scripts. The two pages' HTML, CSS and JavaScript, previously
+  ~1250 lines of f-strings inside `chatterlang_serve.py`, are now templates
+  (`talkpipe/app/templates/chatterlang_serve/`) and static files
+  (`talkpipe/app/static/serve/`) sharing one form/fetch implementation, the
+  same arrangement the workbench uses. Theme, panel position and size are
+  passed to the stylesheet as data attributes and a CSS variable; the `/`
+  page's content no longer hides under a top/left/right form panel.
+- `chatterlang_serve` and `chatterlang_workbench` share their common plumbing
+  through the new `talkpipe.app.server_common`: host/port and `--load-module`
+  arguments, turning leftover `--key value` arguments into `$key`
+  configuration, constant-time API-key comparison, static asset mounting,
+  interactive-script detection and output rendering. `chatterlang_workbench`
+  gains the `-o`/`-p` short options `chatterlang_serve` already had, and
+  `chatterlang_serve --form-config $name` now falls back to a file named
+  `name` when the configuration value is unset, as the `chatterlangServer`
+  segment already did, instead of failing.
 - `talkpipe.pipe.basic` (1250 lines, thirty-odd unrelated segments) is split
   into themed modules: `talkpipe.pipe.debug` (`diagPrint`, `describe`,
   `progressTicks`, `configureLogger`), `flow` (`sleep`, `firstN`, `everyN`,

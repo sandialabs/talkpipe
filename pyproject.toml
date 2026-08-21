@@ -126,6 +126,9 @@ where = ["src"]
     "static/*.png", "static/*.ico",
     "static/workbench/*.html", "static/workbench/*.css", "static/workbench/*.js",
     "static/workbench/vendor/*.js", "static/workbench/vendor/*.txt",
+    "static/serve/*.css", "static/serve/*.js",
+    "static/serve/vendor/*.js", "static/serve/vendor/*.txt",
+    "templates/chatterlang_serve/*.html",
     "workbench_data/seed_scripts/*.script",
 ]
 

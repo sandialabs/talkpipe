@@ -1,7 +1,5 @@
 import argparse
 import contextlib
-import hmac
-import ipaddress
 import logging
 import queue
 import sys
@@ -9,7 +7,6 @@ import uuid
 from collections import OrderedDict
 from collections.abc import AsyncIterator, Iterator
 from contextlib import asynccontextmanager
-from pathlib import Path
 from typing import Any
 
 import uvicorn
@@ -20,7 +17,6 @@ from fastapi.responses import (
     JSONResponse,
     StreamingResponse,
 )
-from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 from talkpipe.app.chatterlang_reference_generator import (
@@ -28,10 +24,23 @@ from talkpipe.app.chatterlang_reference_generator import (
     generate_html,
     generate_text,
 )
+from talkpipe.app.server_common import (
+    STATIC_DIR,
+    add_host_port_args,
+    add_load_module_arg,
+    api_key_matches,
+    apply_cli_constants,
+    is_interactive_script,
+    is_loopback_host,
+    iter_output_text,
+    mount_static,
+)
 from talkpipe.app.workbench import reference_api, suggest_api, workspace_api
 from talkpipe.chatterlang.compiler import compile
-from talkpipe.util.config import add_config_values, load_module_file, parse_unknown_args
+from talkpipe.util.config import add_config_values, load_module_file
 from talkpipe.util.constants import WORKBENCH_API_KEY, WORKBENCH_LOAD_MODULES
+
+__all__ = ["app", "is_loopback_host", "main"]
 
 logger = logging.getLogger(__name__)
 
@@ -67,13 +76,9 @@ async def _lifespan(app: FastAPI) -> AsyncIterator[None]:
 
 
 app = FastAPI(lifespan=_lifespan)
-# Since we're adding static files, set up the directory for serving them
-# Note: You'll need to create this directory when deploying
-app.mount(
-    "/static", StaticFiles(directory=Path(__file__).parent / "static"), name="static"
-)
+mount_static(app)
 
-WORKBENCH_STATIC_DIR = Path(__file__).parent / "static" / "workbench"
+WORKBENCH_STATIC_DIR = STATIC_DIR / "workbench"
 
 app.include_router(reference_api.router)
 app.include_router(workspace_api.router)
@@ -99,16 +104,6 @@ WORKBENCH_BANNER = (
 )
 
 
-def is_loopback_host(host: str) -> bool:
-    """True if ``host`` only ever resolves to this machine (127/8, ::1, localhost)."""
-    if host == "localhost":
-        return True
-    try:
-        return ipaddress.ip_address(host).is_loopback
-    except ValueError:
-        return False
-
-
 def _configured_api_key() -> str | None:
     """The workbench token, if one is configured (``workbench_api_key``)."""
     from talkpipe.util.config import get_config
@@ -127,12 +122,12 @@ def _is_protected(path: str) -> bool:
 @app.middleware("http")
 async def _require_api_key(request: Request, call_next: Any) -> Any:
     key = _configured_api_key()
-    if key and _is_protected(request.url.path):
-        supplied = request.headers.get("x-api-key")
-        if supplied is None or not hmac.compare_digest(supplied, key):
-            return JSONResponse(
-                {"detail": "Missing or invalid X-API-Key"}, status_code=401
-            )
+    if (
+        key
+        and _is_protected(request.url.path)
+        and not api_key_matches(request.headers.get("x-api-key"), key)
+    ):
+        return JSONResponse({"detail": "Missing or invalid X-API-Key"}, status_code=401)
     return await call_next(request)
 
 
@@ -419,13 +414,7 @@ def compile_script(request: ScriptRequest) -> dict[str, Any]:
         logger.error(f"Script compilation failed: {e!s}")
         raise HTTPException(status_code=400, detail=f"Compilation error: {e}") from e
 
-    is_interactive = False
-    for line in request.script.splitlines():
-        line = line.strip()
-        if not line or line.startswith(("CONST", "#")):
-            continue
-        is_interactive = line[0] == "|"
-        break
+    is_interactive = is_interactive_script(request.script)
 
     script_id = str(uuid.uuid4())
     compiled_scripts[script_id] = {
@@ -476,18 +465,7 @@ def interactive_go(request: InteractiveRequest) -> StreamingResponse:
     # exception), so the full error and traceback go to the server log instead.
     def ensure_serializable() -> Iterator[str]:
         try:
-            output_iterator = script_info["instance"]([request.user_input])
-            for item in output_iterator:
-                # Handle Pydantic models and other complex objects
-                if hasattr(item, "model_dump_json"):
-                    # If it's a Pydantic model, use its JSON serialization
-                    yield item.model_dump_json()
-                elif hasattr(item, "__dict__"):
-                    # For other objects with __dict__
-                    yield str(item)
-                else:
-                    # Pass through strings and other basic types
-                    yield str(item)
+            yield from iter_output_text(script_info["instance"]([request.user_input]))
         except Exception as e:
             logger.exception("Interactive execution failed")
             yield (
@@ -512,22 +490,11 @@ def main() -> None:
         description="Start the ChatterLang Workbench, a browser-based IDE "
         "for developing and testing ChatterLang pipelines."
     )
-    parser.add_argument(
-        "--host", type=str, default="127.0.0.1", help="Server host (default: 127.0.0.1)"
-    )
-    parser.add_argument(
-        "--port", type=int, default=4143, help="Server port (default: 4143)"
-    )
+    add_host_port_args(parser, default_host="127.0.0.1", default_port=4143)
     parser.add_argument(
         "--reload", action="store_true", help="Enable auto-reload (default: off)"
     )
-    parser.add_argument(
-        "--load-module",
-        action="append",
-        default=[],
-        type=str,
-        help="Path to a custom module file to import before running the script.",
-    )
+    add_load_module_arg(parser)
     parser.add_argument(
         "--workspace",
         type=str,
@@ -573,13 +540,8 @@ def main() -> None:
     # Add more uvicorn options as needed
     args, unknown_args = parser.parse_known_args()
 
-    # Parse unknown arguments and add to configuration so they're accessible via $key syntax
-    constants = parse_unknown_args(unknown_args)
-
-    # Add command-line constants to the configuration
-    if constants:
-        add_config_values(constants, override=True)
-        print(f"Added command-line values to configuration: {list(constants.keys())}")
+    # Leftover --key value arguments become configuration values ($key in scripts)
+    apply_cli_constants(unknown_args)
 
     # Expose the workbench's own logo URL so example scripts can fetch it from
     # the running server via $workbench_logo_url.

@@ -20,8 +20,8 @@ Then open the printed URL (default `http://127.0.0.1:4143`) in a browser.
 
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
-| `--host` | string | `127.0.0.1` | Server host address |
-| `--port` | integer | `4143` | Server port number |
+| `-o`, `--host` | string | `127.0.0.1` | Server host address |
+| `-p`, `--port` | integer | `4143` | Server port number |
 | `--reload` | flag | `false` | Enable auto-reload for development |
 | `--load-module` | string | | Path to custom module file to import (can be used multiple times) |
 | `--workspace` | string | `~/.talkpipe/workbench` | Directory for saved pipelines and workbench settings |
