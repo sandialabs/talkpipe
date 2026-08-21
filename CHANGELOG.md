@@ -12,6 +12,17 @@
   The `ragToText` / `ragToBinaryAnswer` / `ragToScore` segments likewise build
   their internal pipeline once and reuse it across calls, matching how
   `llmPrompt` keeps its memory.
+- `talkpipe.pipe.basic` (1250 lines, thirty-odd unrelated segments) is split
+  into themed modules: `talkpipe.pipe.debug` (`diagPrint`, `describe`,
+  `progressTicks`, `configureLogger`), `flow` (`sleep`, `firstN`, `everyN`,
+  `debounce`), `fields` (`cast`, `toDict`, `formatItem`, `setAs`,
+  `extractProperty`, `set`, `concat`, `slice`, `longestStr`, `flatten`,
+  `fillTemplate`, `copy`, `deepCopy`), `filters` (`isIn`, `isNotIn`,
+  `isTrue`, `isFalse`, `lambda`, `lambdaFilter`), `collect` (`toList`,
+  `toDataFrame`), `hashing` (`hash`, `hash_data`) and `shell` (`exec`). The
+  entry points now name the new homes. Nothing breaks: ChatterLang scripts
+  are unaffected, and `talkpipe.pipe.basic` remains as a facade that
+  re-exports every public name, so existing imports keep working.
 - The API key that `chatterlang_serve` generates when `--require-auth` is set
   without a key is no longer written to the log (clear-text logging of a
   credential). Since that leaves a CLI operator with no way to learn the key,

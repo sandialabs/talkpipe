@@ -7,7 +7,7 @@ from typing import Annotated, Any
 
 from talkpipe import AbstractSegment, register_segment
 from talkpipe.llm.chat import LlmBinaryAnswer, LLMPrompt, LlmScore
-from talkpipe.pipe.basic import DiagPrint
+from talkpipe.pipe.debug import DiagPrint
 from talkpipe.pipelines.vector_databases import SearchVectorDatabaseSegment
 from talkpipe.search.abstract import SearchResult
 from talkpipe.util.data_manipulation import assign_property, extract_property

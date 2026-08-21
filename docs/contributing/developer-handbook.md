@@ -77,7 +77,9 @@ they keep working, and anything that will go away is announced first:
   `talkpipe.util.config`, `talkpipe.util.constants`,
   `talkpipe.util.data_manipulation`, `talkpipe.llm.config`,
   `talkpipe.chatterlang.compiler`, `talkpipe.chatterlang.registry`,
-  `talkpipe.pipe.core`, `talkpipe.pipe.basic`, `talkpipe.pipe.io`,
+  `talkpipe.pipe.core`, `talkpipe.pipe.basic` (a facade re-exporting
+  `talkpipe.pipe.debug`, `.flow`, `.fields`, `.filters`, `.collect`,
+  `.hashing`, and `.shell`, which are public too), `talkpipe.pipe.io`,
   `talkpipe.search.*`, `talkpipe.pipelines.*`.
 - The extension-point base classes and their documented abstract methods:
   `AbstractSegment`, `AbstractSource`, `AbstractFieldSegment`,

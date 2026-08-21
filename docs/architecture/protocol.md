@@ -257,7 +257,9 @@ TalkPipe's protocol operates at multiple layers:
 - Many built-in segments are **convention-aware** and assume dictionary items with specific fields
 - Convention-aware segments use `extract_property`/`assign_property` for field access
 - Segments document their expected input/output types in docstrings
-- Location: `talkpipe/pipe/basic.py`, `talkpipe/operations/`, etc.
+- Location: the themed modules under `talkpipe/pipe/` (`debug.py`, `flow.py`,
+  `fields.py`, `filters.py`, `collect.py`, `hashing.py`, `shell.py`; all
+  re-exported by `talkpipe/pipe/basic.py`), `talkpipe/operations/`, etc.
 
 ```python
 from talkpipe.pipe.core import field_segment, segment

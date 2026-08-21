@@ -8,7 +8,8 @@ from talkpipe.data.extraction import ReadFile, listFiles
 from talkpipe.data.text.chunking_units import ShingleText, splitText
 from talkpipe.data.text.cleaning import stripBase64
 from talkpipe.llm.embedding import LLMEmbed
-from talkpipe.pipe.basic import ToDict, progressTicks, setAs
+from talkpipe.pipe.debug import progressTicks
+from talkpipe.pipe.fields import ToDict, setAs
 from talkpipe.pipe.io import Print
 from talkpipe.search.lancedb import add_to_lancedb, search_lancedb
 from talkpipe.util.config import get_config

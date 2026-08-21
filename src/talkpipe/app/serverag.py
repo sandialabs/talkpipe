@@ -4,7 +4,7 @@ import sys
 from typing import Any
 
 from talkpipe.app.chatterlang_serve import ChatterlangServer, UserSession
-from talkpipe.pipe.basic import ToDict
+from talkpipe.pipe.fields import ToDict
 from talkpipe.pipe.io import Prompt
 from talkpipe.pipelines.basic_rag import RAGToText
 from talkpipe.util.config import (
