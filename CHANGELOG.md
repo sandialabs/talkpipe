@@ -41,9 +41,21 @@
   `fillTemplate`, `copy`, `deepCopy`), `filters` (`isIn`, `isNotIn`,
   `isTrue`, `isFalse`, `lambda`, `lambdaFilter`), `collect` (`toList`,
   `toDataFrame`), `hashing` (`hash`, `hash_data`) and `shell` (`exec`). The
-  entry points now name the new homes. Nothing breaks: ChatterLang scripts
-  are unaffected, and `talkpipe.pipe.basic` remains as a facade that
-  re-exports every public name, so existing imports keep working.
+  entry points now name the new homes. ChatterLang scripts are unaffected,
+  and `talkpipe.pipe.basic` remains as a facade that re-exports every public
+  name, so existing imports keep working.
+- Fixed: the `talkpipe.pipe.basic` facade left out the names the module had
+  imported for its own use rather than defined, so `from talkpipe.pipe.basic
+  import AbstractFieldSegment` — and the same for `AbstractSegment`,
+  `segment`, `source`, `field_segment`, `toDict`, `fill_template`,
+  `extract_property`, `assign_property`, `compileLambda`, `dict_to_text`,
+  `extract_template_field_names`, `get_all_attributes`, `get_type_safely`,
+  `configure_logger`, `get_config`, `parse_key_value_str`, `run_command` and
+  the `registry` module — raised `ImportError` even though the objects
+  themselves had not moved. Downstream packages did import them from there,
+  so the split was not the source-compatible change it was meant to be. The
+  facade now re-exports them from their real homes in `talkpipe.pipe.core`
+  and `talkpipe.util`, and a test pins the full list.
 - `pandas` and `python-docx` are imported inside the one segment each that
   uses them (`toDataFrame`, `readdocx`) rather than when their modules load.
   Importing talkpipe is lighter, and this is the groundwork for making them
