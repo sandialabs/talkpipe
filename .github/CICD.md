@@ -25,7 +25,7 @@ Actions-compatible runner; jobs that need github.com are guarded with
 | `package` | everywhere, 3.11 | Builds the sdist and wheel, `twine check`s them, installs the wheel into a clean venv, imports the package, runs `chatterlang_script --help`, and loads every declared entry point. Catches packaging breakage before release time. |
 | `lockfile-check` | everywhere | `uv lock --check` — the committed `uv.lock` must match `pyproject.toml`. Installs nothing; CI installs with pip on purpose. |
 | `security-scan` | everywhere; needs `test`, `lint` | Bandit (`-c pyproject.toml`, the `[tool.bandit]` table) and Safety. Uses the commercial database when `SAFETY_API_KEY` is set and falls back to the free `safety check` database when it is not (secrets are not passed to pull-request runs); both fail the build on a known vulnerability. |
-| `build-container` | github.com only | Docker image build and push to ghcr.io, Trivy scan; multi-architecture (linux/amd64, linux/arm64) on release only. |
+| `build-container` | github.com only | Docker image build and Trivy scan on every run; pushes to ghcr.io **on releases only** (`latest` for stable releases, `experimental` for pre-releases); multi-architecture (linux/amd64, linux/arm64) on release only. |
 | `codeql-analysis` | github.com only | GitHub's semantic code analysis. |
 | `publish-package` | on a published release; needs `test`, `lint`, `package`, `security-scan` | `python -m build`, `twine check`, upload to PyPI. Does not depend on the container job, so publishing is not blocked where that job is skipped. |
 
@@ -58,7 +58,7 @@ Docker images are built and pushed to GitHub Container Registry. On **release**,
 Images are available at:
 ```
 ghcr.io/sandialabs/talkpipe:latest
-ghcr.io/sandialabs/talkpipe:<branch-name>
+ghcr.io/sandialabs/talkpipe:experimental
 ghcr.io/sandialabs/talkpipe:<version>
 ```
 

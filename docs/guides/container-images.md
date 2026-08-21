@@ -27,20 +27,19 @@ Your client pulls the correct architecture automatically. To list platforms in a
 docker manifest inspect ghcr.io/sandialabs/talkpipe:0.11.7 | grep architecture
 ```
 
-Non-release workflow runs (pushes and pull requests) still publish images for CI, but those builds are **single-platform** (`linux/amd64` only) for faster pipelines. For reproducible, portable deployments, use an image built from a **release** tag.
+Non-release workflow runs (pushes and pull requests) still **build** the image — so a broken Dockerfile fails CI — but only releases **publish** to GHCR. Every published image comes from a release; non-release builds are single-platform (`linux/amd64` only) and discarded after the CI run.
 
 ## Tags and versions
 
-Images are tagged from the same metadata CI uses for releases and branches. Useful patterns:
+Every GitHub release publishes these tags:
 
 | Tag | When to use |
 |-----|----------------|
-| `latest` | Latest **stable** release (not pre-releases tagged as alpha/beta). Good for quick starts; pin a version for production. |
-| `experimental` | Latest **pre-release** (alpha/beta) GitHub release, when applicable. |
+| `latest` | Latest **stable** release (releases not marked pre-release). Good for quick starts; pin a version for production. |
+| `experimental` | Latest release **marked pre-release** on GitHub, when applicable. |
 | `0.11.7` (example) | Exact release (**full semantic version**). Best for reproducible deploys. |
 | `0.11` | **Major.minor** line—floats to the newest patch in that minor series for that release stream. |
-| Branch or PR refs | Built from CI on pushes/PRs; **amd64 only**; useful for testing unreleased commits. |
-| Git SHA | Immutable pointer to the exact image built for a commit. |
+| Git SHA | Immutable pointer to the exact commit the release was built from. |
 
 Replace `0.11.7` with the version you want from the [releases](https://github.com/sandialabs/talkpipe/releases) page.
 

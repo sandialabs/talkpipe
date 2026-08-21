@@ -190,7 +190,11 @@ jobs:
         # see the note on the test job's install step
         python -m venv .venv
         echo "$PWD/.venv/bin" >> "$GITHUB_PATH"
-        .venv/bin/python -m pip install --upgrade pip
+        # `python -m venv` seeds the venv with whatever pip and setuptools the
+        # interpreter bundles, and safety scans the whole venv, so upgrade
+        # both: a stale bundled setuptools fails the scan on an advisory
+        # unrelated to anything this project declares or installs.
+        .venv/bin/python -m pip install --upgrade pip setuptools
         .venv/bin/pip install -e ".[dev,all]"
         .venv/bin/pip install bandit safety
     
@@ -271,15 +275,18 @@ jobs:
           type=semver,pattern={{version}}
           type=semver,pattern={{major}}.{{minor}}
           type=sha
-          type=raw,value=latest,enable=${{ github.event_name == 'release' && !contains(github.ref_name, 'alpha') && !contains(github.ref_name, 'beta') && !contains(github.ref_name, 'a') && !contains(github.ref_name, 'b') }}
-          type=raw,value=experimental,enable=${{ github.event_name == 'release' && (contains(github.ref_name, 'alpha') || contains(github.ref_name, 'beta') || contains(github.ref_name, 'a') || contains(github.ref_name, 'b')) }}
+          type=raw,value=latest,enable=${{ github.event_name == 'release' && !github.event.release.prerelease }}
+          type=raw,value=experimental,enable=${{ github.event_name == 'release' && github.event.release.prerelease }}
     
     - name: Build and push Docker image
       uses: docker/build-push-action@v7
       with:
         context: .
         platforms: ${{ github.event_name == 'release' && 'linux/amd64,linux/arm64' || 'linux/amd64' }}
-        push: true
+        # only releases publish images; other runs build (and Trivy-scan)
+        # without pushing, so `load` puts the image in the local daemon
+        push: ${{ github.event_name == 'release' }}
+        load: ${{ github.event_name != 'release' }}
         tags: ${{ steps.meta.outputs.tags }}
         labels: ${{ steps.meta.outputs.labels }}
         cache-from: type=gha
