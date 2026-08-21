@@ -8,8 +8,8 @@ This directory contains the GitHub Actions workflows and configuration for the T
 
 #### `ci-cd.yml` - Main CI/CD Pipeline
 Comprehensive pipeline that runs on:
-- Pushes to `main` and `develop` branches  
-- Pull requests to `main` and `develop`
+- Pushes to `main` and topic branches (`bugfix/**`, `feature/**`, `chore/**`)  
+- Pull requests targeting `main`
 - GitHub releases
 
 **Pipeline Jobs:**
@@ -129,7 +129,7 @@ docker run --rm -v /var/run/docker.sock:/var/run/docker.sock \
 
 | Event | Trigger | Jobs Run |
 |-------|---------|----------|
-| Push to main/develop | Automatic | All jobs |
+| Push to main | Automatic | All jobs |
 | Pull Request | Automatic | All except publish |
 | Release published | Automatic | All jobs + PyPI publish |
 

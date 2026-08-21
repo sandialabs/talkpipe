@@ -6,7 +6,7 @@ that triggers the publish workflow.
 
 ## Tag conventions
 
-Tags are PEP 440 versions with a `v` prefix, on `develop`:
+Tags are PEP 440 versions with a `v` prefix, on `main`:
 
 | Kind        | Tag          | Example      |
 |-------------|--------------|--------------|
@@ -21,15 +21,15 @@ history and only made version sorting harder. Semantic versioning rules
 
 ## Steps
 
-1. **Check the tree.** `develop` is up to date, CI is green on it, and the
+1. **Check the tree.** `main` is up to date, CI is green on it, and the
    working tree is clean.
 2. **Changelog.** Rename the `## Unreleased` section in `CHANGELOG.md` to
    `## X.Y.Z (YYYY-MM-DD)` and add a fresh empty `## Unreleased` above it.
    Land that through the normal branch → merge request flow.
-3. **Tag** the merge commit on `develop` and push the tag:
+3. **Tag** the merge commit on `main` and push the tag:
 
    ```bash
-   git checkout develop && git pull
+   git checkout main && git pull
    git tag -a vX.Y.Z -m "vX.Y.Z"
    git push origin vX.Y.Z
    ```
@@ -41,20 +41,10 @@ history and only made version sorting harder. Semantic versioning rules
    `PYPI_API_TOKEN` repository secret. Mark betas and release candidates as
    pre-releases. Watch the run finish; the package job and the container build
    (GitHub only) run in the same workflow.
-5. **Fast-forward `main`.** `main` is the stable branch and should point at
-   the latest final release (it may also carry a release candidate that is
-   worth pinning):
-
-   ```bash
-   git checkout main && git pull
-   git merge --ff-only vX.Y.Z
-   git push origin main
-   ```
-
-6. **Verify** with a fresh environment: `pip install talkpipe==X.Y.Z`,
+5. **Verify** with a fresh environment: `pip install talkpipe==X.Y.Z`,
    `python -c "import talkpipe; print(talkpipe.__version__)"`.
 
-Nothing is bumped afterwards; the next commit on `develop` reports itself as
+Nothing is bumped afterwards; the next commit on `main` reports itself as
 `X.Y.(Z+1).devN` automatically.
 
 ## Downstream

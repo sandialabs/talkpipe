@@ -2,9 +2,9 @@ name: CI/CD Pipeline
 
 on:
   push:
-    branches: [ main, develop, 'bugfix/**', 'feature/**', "chore/**" ]
+    branches: [ main, 'bugfix/**', 'feature/**', "chore/**" ]
   pull_request:
-    branches: [ main, develop, 'bugfix/**', 'feature/**', "chore/**" ]
+    branches: [ main, 'bugfix/**', 'feature/**', "chore/**" ]
   release:
     types: [ published ]
 
@@ -211,7 +211,7 @@ jobs:
           # Fall back to the free database rather than failing for lack of auth
           # or, worse, passing without scanning anything. This still fails the
           # build on a known vulnerability -- the database is just staler than
-          # the authenticated scan that gates pushes to develop and main.
+          # the authenticated scan that gates pushes to main.
           echo "SAFETY_API_KEY unavailable; falling back to 'safety check' (free database)."
           # `check` is the legacy command and the only one that runs without an
           # account. It rejects .safety-policy.yml because that file is v3.0 and
