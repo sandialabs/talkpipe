@@ -1,3 +1,4 @@
+import copy
 import logging
 from collections.abc import Iterable, Iterator
 from typing import Annotated, Any
@@ -113,7 +114,9 @@ class ShingleText(AbstractSegment[Any, Any]):
                 output = shingle_text
 
             if self.set_as:
-                new_item = item.copy() if item else {}
+                # copy.copy works for dicts and pydantic models alike
+                # (BaseModel.copy is deprecated in pydantic v2).
+                new_item = copy.copy(item) if item else {}
                 assign_property(new_item, self.set_as, output)
                 yield new_item
             else:

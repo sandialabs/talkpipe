@@ -5,6 +5,7 @@ This includes the abstract base classes for creating input generators
 and operations, as well as the Pipeline class for chaining operations together.
 """
 
+import copy
 import logging
 from abc import ABC, abstractmethod
 from collections.abc import Callable, Iterable, Iterator
@@ -881,7 +882,9 @@ class AbstractFieldSegment(AbstractSegment[T, U]):
                 processed = [processed]
             for result in processed:
                 if self.set_as:
-                    ans = item.copy() if self.multi_emit else item
+                    # copy.copy works for dicts and pydantic models alike
+                    # (BaseModel.copy is deprecated in pydantic v2).
+                    ans = copy.copy(item) if self.multi_emit else item
                     data_manipulation.assign_property(ans, self.set_as, result)
                     yield ans
                 else:
