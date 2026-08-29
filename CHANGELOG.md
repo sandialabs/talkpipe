@@ -1,6 +1,29 @@
 # Changelog
 
-## Unreleased
+## 1.0.0
+
+- `ShingleText` and `AbstractFieldSegment` no longer call the item's `.copy()`
+  method when shallow-copying for `set_as` output; they use `copy.copy()`,
+  which works for dicts and pydantic models alike. Pydantic v2 deprecates
+  `BaseModel.copy()`, so streams of pydantic models no longer emit a
+  `DeprecationWarning` on these paths.
+
+## 1.0.0b5 (2026-08-21)
+
+- Fixed: the `talkpipe.pipe.basic` facade left out the names the module had
+  imported for its own use rather than defined, so `from talkpipe.pipe.basic
+  import AbstractFieldSegment` — and the same for `AbstractSegment`,
+  `segment`, `source`, `field_segment`, `toDict`, `fill_template`,
+  `extract_property`, `assign_property`, `compileLambda`, `dict_to_text`,
+  `extract_template_field_names`, `get_all_attributes`, `get_type_safely`,
+  `configure_logger`, `get_config`, `parse_key_value_str`, `run_command` and
+  the `registry` module — raised `ImportError` even though the objects
+  themselves had not moved. Downstream packages did import them from there,
+  so the split was not the source-compatible change it was meant to be. The
+  facade now re-exports them from their real homes in `talkpipe.pipe.core`
+  and `talkpipe.util`, and a test pins the full list.
+
+## 1.0.0b4 (2026-08-21)
 
 - `serverag` now keeps one RAG pipeline per browser session instead of
   rebuilding it on every request. Rebuilding reconnected to the database and
@@ -44,23 +67,14 @@
   entry points now name the new homes. ChatterLang scripts are unaffected,
   and `talkpipe.pipe.basic` remains as a facade that re-exports every public
   name, so existing imports keep working.
-- Fixed: the `talkpipe.pipe.basic` facade left out the names the module had
-  imported for its own use rather than defined, so `from talkpipe.pipe.basic
-  import AbstractFieldSegment` — and the same for `AbstractSegment`,
-  `segment`, `source`, `field_segment`, `toDict`, `fill_template`,
-  `extract_property`, `assign_property`, `compileLambda`, `dict_to_text`,
-  `extract_template_field_names`, `get_all_attributes`, `get_type_safely`,
-  `configure_logger`, `get_config`, `parse_key_value_str`, `run_command` and
-  the `registry` module — raised `ImportError` even though the objects
-  themselves had not moved. Downstream packages did import them from there,
-  so the split was not the source-compatible change it was meant to be. The
-  facade now re-exports them from their real homes in `talkpipe.pipe.core`
-  and `talkpipe.util`, and a test pins the full list.
 - `pandas` and `python-docx` are imported inside the one segment each that
   uses them (`toDataFrame`, `readdocx`) rather than when their modules load.
   Importing talkpipe is lighter, and this is the groundwork for making them
   (and the other dependencies only some users need) optional extras, which is
   a breaking change reserved for 2.0.
+
+## 1.0.0b3 (2026-08-20)
+
 - The API key that `chatterlang_serve` generates when `--require-auth` is set
   without a key is no longer written to the log (clear-text logging of a
   credential). Since that leaves a CLI operator with no way to learn the key,
@@ -171,7 +185,6 @@
   aliases keep working and remain hidden from listings; they are scheduled
   for removal in 2.0. `AbstractEmbeddingAdapter.execute()`'s deprecation
   message, which said it would be removed in 1.0, now says 2.0.
-
 - Hardened the ChatterLang servers ahead of 1.0, without changing the default
   loopback experience:
   - `ChatterlangServer` / `chatterlang_serve` / `serverag` no longer ship a
