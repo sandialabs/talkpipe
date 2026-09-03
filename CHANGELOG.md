@@ -2,6 +2,14 @@
 
 ## 1.0.0
 
+- The Anthropic adapter no longer sends the `temperature` parameter. The
+  Anthropic API removed sampling parameters on current models and the
+  anthropic 1.x SDK rejects `temperature` with a `TypeError` (fresh installs
+  resolve to 1.x, so `complete_text_without_context()` — used by connection
+  probes and LLM summarization — failed with
+  `Messages.create() got an unexpected keyword argument 'temperature'`).
+  A requested temperature is now dropped with a warning in the log instead.
+
 - `ShingleText` and `AbstractFieldSegment` no longer call the item's `.copy()`
   method when shallow-copying for `set_as` output; they use `copy.copy()`,
   which works for dicts and pydantic models alike. Pydantic v2 deprecates

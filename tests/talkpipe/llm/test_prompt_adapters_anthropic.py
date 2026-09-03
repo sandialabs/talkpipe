@@ -1,3 +1,4 @@
+import logging
 from typing import ClassVar
 
 from prompt_adapter_contract_suite import (
@@ -88,3 +89,62 @@ def test_anthropic_execute_includes_summary_in_system_and_messages(monkeypatch):
         and "Conversation memory:\nOlder summary" in msg["content"]
         for msg in captured["messages"]
     )
+
+
+def _capture_messages_create(monkeypatch, adapter, response_text: str) -> dict:
+    class TextBlock:
+        text = response_text
+
+    class DummyResponse:
+        content: ClassVar[list] = [TextBlock()]
+
+    captured = {}
+
+    def fake_messages_create(**kwargs):
+        captured.update(kwargs)
+        return DummyResponse()
+
+    monkeypatch.setattr(adapter, "_messages_create", fake_messages_create)
+    return captured
+
+
+def test_anthropic_execute_drops_explicit_temperature_with_warning(monkeypatch, caplog):
+    # anthropic SDK 1.x removed temperature from Messages.create(); sending
+    # it raises TypeError. A configured temperature must be dropped, loudly.
+    _patch_anthropic_constructor(monkeypatch)
+    adapter = AnthropicPromptAdapter("claude-3-5-haiku-latest", temperature=0.7)
+    captured = _capture_messages_create(monkeypatch, adapter, "ok")
+
+    with caplog.at_level(logging.WARNING):
+        assert adapter.execute("prompt") == "ok"
+
+    assert "temperature" not in captured
+    assert "no longer supports the temperature parameter" in caplog.text
+
+
+def test_anthropic_complete_text_without_context_drops_temperature(monkeypatch, caplog):
+    _patch_anthropic_constructor(monkeypatch)
+    adapter = AnthropicPromptAdapter("claude-3-5-haiku-latest")
+    captured = _capture_messages_create(monkeypatch, adapter, "ok")
+
+    with caplog.at_level(logging.WARNING):
+        result = adapter.complete_text_without_context(
+            "summarize", temperature=0.2, max_tokens=8
+        )
+
+    assert result == "ok"
+    assert "temperature" not in captured
+    assert "no longer supports the temperature parameter" in caplog.text
+
+
+def test_anthropic_no_temperature_warning_when_none_requested(monkeypatch, caplog):
+    _patch_anthropic_constructor(monkeypatch)
+    adapter = AnthropicPromptAdapter("claude-3-5-haiku-latest")
+    captured = _capture_messages_create(monkeypatch, adapter, "ok")
+
+    with caplog.at_level(logging.WARNING):
+        assert adapter.execute("prompt") == "ok"
+        assert adapter.complete_text_without_context("summarize", max_tokens=8) == "ok"
+
+    assert "temperature" not in captured
+    assert "temperature" not in caplog.text

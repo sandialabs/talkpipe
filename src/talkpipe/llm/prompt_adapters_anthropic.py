@@ -183,6 +183,22 @@ class AnthropicPromptAdapter(AbstractLLMPromptAdapter):
                 ) from exc
             raise
 
+    def _apply_temperature_if_explicit(self, request_params: dict[str, Any]) -> None:
+        # The Anthropic API removed sampling parameters (temperature, top_p,
+        # top_k) on current models, and anthropic SDK 1.x rejects them with a
+        # TypeError at the client. Never send temperature to Anthropic; log a
+        # warning instead so a configured temperature is not silently ignored.
+        if self._temperature_explicit:
+            self._warn_temperature_unsupported(self._temperature)
+
+    @staticmethod
+    def _warn_temperature_unsupported(temperature: float | None) -> None:
+        logger.warning(
+            "The Anthropic API no longer supports the temperature parameter; "
+            "ignoring temperature=%s for this request.",
+            temperature,
+        )
+
     def _extract_anthropic_text(self, response: Any) -> str:
         response_text = ""
         for block in response.content:
@@ -195,14 +211,15 @@ class AnthropicPromptAdapter(AbstractLLMPromptAdapter):
         prompt: str,
         *,
         model: str | None = None,
-        temperature: float = 0.0,
+        temperature: float | None = None,
         max_tokens: int | None = None,
     ) -> str:
+        if temperature is not None:
+            self._warn_temperature_unsupported(temperature)
         response = self._messages_create(
             model=model or self._model_name,
             messages=[{"role": "user", "content": prompt}],
             max_tokens=max_tokens or self._summary_max_tokens,
-            temperature=temperature,
         )
         return self._extract_anthropic_text(response).strip()
 
