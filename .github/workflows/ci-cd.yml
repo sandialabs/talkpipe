@@ -196,8 +196,16 @@ jobs:
         # unrelated to anything this project declares or installs.
         .venv/bin/python -m pip install --upgrade pip setuptools
         .venv/bin/pip install -e ".[dev,all]"
-        .venv/bin/pip install bandit safety
-    
+        # safety shares this venv with the project, and the project's `all`
+        # extra pulls in httpx2 (openai 3.x and anthropic 1.x depend on it).
+        # authlib 1.8.0 (safety's OAuth client) switches its httpx integration
+        # to httpx2 whenever httpx2 is importable, but safety 3.8.1 still
+        # builds httpx-0.28 Timeout objects for it, so every `safety` command
+        # crashes during auth setup with "'Timeout' object cannot be
+        # interpreted as an integer". Hold authlib below 1.8 until a safety
+        # release supports it. This is a CI tool pin, not a project floor.
+        .venv/bin/pip install bandit safety "authlib<1.8"
+
     - name: Run Bandit security scan
       run: |
         bandit -c pyproject.toml -r src/ -f json -o bandit-report.json
