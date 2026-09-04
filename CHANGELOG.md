@@ -1,6 +1,6 @@
 # Changelog
 
-## 1.0.0
+## 1.0.1
 
 - The Anthropic adapter no longer sends the `temperature` parameter. The
   Anthropic API removed sampling parameters on current models and the
@@ -9,6 +9,8 @@
   probes and LLM summarization — failed with
   `Messages.create() got an unexpected keyword argument 'temperature'`).
   A requested temperature is now dropped with a warning in the log instead.
+
+## 1.0.0
 
 - `ShingleText` and `AbstractFieldSegment` no longer call the item's `.copy()`
   method when shallow-copying for `set_as` output; they use `copy.copy()`,
