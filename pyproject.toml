@@ -87,7 +87,7 @@ anthropic = [
     'anthropic>=0.87.0'
 ]
 pypdf = [
-    'pypdf>=6.15.0'
+    'pypdf>=6.16.1'  # security floor: <6.16.0 loops forever on a crafted PDF (TreeObject.insert_child)
 ]
 pillow = [
     'Pillow>=12.2.0'
