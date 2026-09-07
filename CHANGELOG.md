@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.0.2
+
+- The `pypdf` extra now requires pypdf 6.16.1 or later. Earlier releases can
+  be driven into an infinite loop by a crafted PDF through
+  `TreeObject.insert_child`; the floor is a security minimum, and every
+  fresh install already resolved above it.
+
+
 ## 1.0.1
 
 - The Anthropic adapter no longer sends the `temperature` parameter. The
@@ -9,11 +17,6 @@
   probes and LLM summarization — failed with
   `Messages.create() got an unexpected keyword argument 'temperature'`).
   A requested temperature is now dropped with a warning in the log instead.
-- The `pypdf` extra now requires pypdf 6.16.1 or later. Earlier releases can
-  be driven into an infinite loop by a crafted PDF through
-  `TreeObject.insert_child`; the floor is a security minimum, and every
-  fresh install already resolved above it.
-
 ## 1.0.0
 
 - `ShingleText` and `AbstractFieldSegment` no longer call the item's `.copy()`
