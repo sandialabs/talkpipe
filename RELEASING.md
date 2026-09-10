@@ -34,6 +34,14 @@ history and only made version sorting harder. Semantic versioning rules
    git push origin vX.Y.Z
    ```
 
+   Then advance `stable`, the repository's default branch, to the release.
+   `stable` only ever points at a full release, so skip this for betas and
+   release candidates:
+
+   ```bash
+   git push origin vX.Y.Z^{commit}:stable
+   ```
+
 4. **Publish a release** for the tag (Gitea: *Releases → New Release*;
    GitHub mirror: *Releases → Draft a new release*). The CI workflow's
    `release: published` trigger runs `publish-package`, which builds the
