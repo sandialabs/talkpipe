@@ -52,7 +52,7 @@ jobs:
         # --cov-report=term makes the [tool.coverage.report] fail_under floor
         # in pyproject.toml fail this step; xml/html are for Codecov and
         # local inspection.
-        pytest --cov=src --cov-report=term --cov-report=xml --cov-report=html
+        pytest --cov=src --cov=appcenter --cov-report=term --cov-report=xml --cov-report=html
     
     - name: Upload coverage to Codecov
       if: matrix.python-version == '3.11'
@@ -152,6 +152,17 @@ jobs:
         print("all entry points resolve")
         PY
 
+    - name: Run the TalkPipe App Center the way users do
+      run: |
+        # appcenter/talkpipe_appcenter.py is a single file users run with `uv run`; it
+        # must work from a plain interpreter that has only its one declared
+        # dependency, from any directory, without the talkpipe package.
+        python -m venv .appcenter
+        .appcenter/bin/pip install "textual>=8,<9"
+        cp appcenter/talkpipe_appcenter.py /tmp/talkpipe_appcenter.py
+        (cd /tmp && TALKPIPE_APPCENTER_OFFLINE=1 UV=/bin/true "$GITHUB_WORKSPACE/.appcenter/bin/python" talkpipe_appcenter.py list)
+        .appcenter/bin/python /tmp/talkpipe_appcenter.py --version
+
   lockfile-check:
     # uv.lock is a development convenience only -- CI installs with pip on
     # purpose (see README, "Development environment"). This job installs
@@ -208,8 +219,8 @@ jobs:
 
     - name: Run Bandit security scan
       run: |
-        bandit -c pyproject.toml -r src/ -f json -o bandit-report.json
-        bandit -c pyproject.toml -r src/ -f txt
+        bandit -c pyproject.toml -r src/ appcenter/talkpipe_appcenter.py -f json -o bandit-report.json
+        bandit -c pyproject.toml -r src/ appcenter/talkpipe_appcenter.py -f txt
 
     - name: Run Safety dependency scan
       run: |
@@ -381,3 +392,40 @@ jobs:
         TWINE_USERNAME: __token__
         TWINE_PASSWORD: ${{ secrets.PYPI_API_TOKEN }}
       run: twine upload dist/*
+
+  release-assets:
+    # The TalkPipe App Center is one file users run with `uv run <url>`; each
+    # release attaches it, stamped with the tag so a copy can report which
+    # release it came from, plus the two bootstrap scripts. GitHub only: the
+    # upload uses the GitHub token and the releases/latest/download URL.
+    runs-on: ubuntu-latest
+    needs: [test, lint, package, security-scan]
+    if: github.event_name == 'release' && github.event.action == 'published' && github.server_url == 'https://github.com'
+    permissions:
+      contents: write
+
+    steps:
+    - uses: actions/checkout@v7
+
+    - name: Set up Python
+      uses: actions/setup-python@v7
+      with:
+        python-version: '3.11'
+
+    - name: Stamp the release version into the App Center file
+      run: |
+        tag="${{ github.event.release.tag_name }}"
+        version="${tag#v}"
+        sed -i "s/^STAMPED_VERSION = \"0.0.0+unknown\"$/STAMPED_VERSION = \"${version}\"/" appcenter/talkpipe_appcenter.py
+        grep -q "^STAMPED_VERSION = \"${version}\"$" appcenter/talkpipe_appcenter.py
+        python -m venv .appcenter
+        .appcenter/bin/pip install "textual>=8,<9"
+        reported="$(.appcenter/bin/python appcenter/talkpipe_appcenter.py --version)"
+        test "$reported" = "talkpipe-appcenter ${version}"
+
+    - name: Attach the App Center and its bootstrap scripts to the release
+      env:
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      run: |
+        gh release upload "${{ github.event.release.tag_name }}" \
+          appcenter/talkpipe_appcenter.py appcenter/install.sh appcenter/install.ps1 --clobber

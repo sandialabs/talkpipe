@@ -1,0 +1,71 @@
+# The default TalkPipe App Center catalog.
+#
+# Each [[apps]] entry names a PyPI package that installs a console script. The
+# App Center gets the display name, summary, publisher, homepage, and latest version
+# from PyPI at run time, so nothing here has to change when a new release
+# ships. The catalog only carries what PyPI cannot know: how to launch the
+# app, which port it serves, how to tell it is running, where its icon and
+# data live, and which external services it needs.
+#
+# Keys (per entry):
+#   id             required; ^[a-z0-9][a-z0-9-]{1,62}$, unique in the catalog
+#   package        required; "name", "name[extra]", "name==1.2", or "name @ <url-or-path>"
+#   command        required; the console script the launcher runs
+#   args           launcher arguments (default [])
+#   kind           "web" (serves a page), "cli", or "tui" (default "cli")
+#   port           web only, required for web
+#   health         web only; a path that answers 200 when up. Absent: /health,
+#                  then /api/health, then a plain TCP connect are tried.
+#   url            web only; default "http://127.0.0.1:{port}/"
+#   opens_browser  web only; true when the app opens the browser itself on
+#                  start, so the App Center does not open a second tab (default false)
+#   icon           a PNG inside the installed package (site-packages-relative);
+#                  a .ico beside it is used for Windows. Absent or wrong: a
+#                  generic icon is used.
+#   data           directories the app keeps user data in (shown on uninstall)
+#   needs          external services to detect and explain: "ollama"
+#   index          a private package index URL (passed to uv as --index)
+#   release        a deliberate version pin; leave unset to track the latest
+#   name, description, publisher, homepage   override what PyPI supplies. PyPI's
+#                  name is the distribution name, so a human name is worth
+#                  giving here; the rest is best left to PyPI.
+
+schema_version = 1
+name = "TalkPipe"
+description = "Applications built on the TalkPipe framework"
+
+[[apps]]
+id = "vault"
+name = "TalkPipe Vault"
+package = "talkpipe-vault"
+command = "vault-server"
+args = ["--resume"]
+kind = "web"
+port = 8002
+health = "/api/health"
+opens_browser = true
+icon = "talkpipe_vault/apps/static/icon-256.png"
+data = ["~/.talkpipe-vault"]
+needs = ["ollama"]
+
+[[apps]]
+id = "writing-assistant"
+name = "TalkPipe Writing Assistant"
+package = "talkpipe-writing-assistant"
+command = "writing-assistant"
+kind = "web"
+port = 8001
+health = "/health"
+opens_browser = true
+icon = "writing_assistant/app/static/android-chrome-512x512.png"
+data = ["~/.writing_assistant"]
+needs = ["ollama"]
+
+[[apps]]
+id = "talkpipe"
+name = "ChatterLang Workbench"
+package = "talkpipe[all]"
+command = "chatterlang_workbench"
+kind = "web"
+port = 4143
+icon = "talkpipe/app/static/talkpipe_logo.png"

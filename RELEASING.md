@@ -40,9 +40,17 @@ history and only made version sorting harder. Semantic versioning rules
    sdist and wheel, `twine check`s them, and uploads to PyPI with the
    `PYPI_API_TOKEN` repository secret. Mark betas and release candidates as
    pre-releases. Watch the run finish; the package job and the container build
-   (GitHub only) run in the same workflow.
+   (GitHub only) run in the same workflow, and so does `release-assets`
+   (GitHub only), which stamps the tag into `appcenter/talkpipe_appcenter.py` and
+   attaches it with `appcenter/install.sh` and `appcenter/install.ps1` to the
+   release: that is what the App Center's `releases/latest/download/` URL serves.
 5. **Verify** with a fresh environment: `pip install talkpipe==X.Y.Z`,
-   `python -c "import talkpipe; print(talkpipe.__version__)"`.
+   `python -c "import talkpipe; print(talkpipe.__version__)"`, and
+   `uv run https://github.com/sandialabs/talkpipe/releases/download/vX.Y.Z/talkpipe_appcenter.py --version`,
+   which must print `talkpipe-appcenter X.Y.Z`. Before a *final* release, also
+   try the App Center by hand (`appcenter/README.md`, "Development") on a Linux
+   desktop; its macOS and Windows launcher code paths are unit-tested only,
+   so try those there when a machine is at hand.
 
 Nothing is bumped afterwards; the next commit on `main` reports itself as
 `X.Y.(Z+1).devN` automatically.

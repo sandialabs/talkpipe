@@ -52,3 +52,9 @@ TalkPipe is a Python toolkit that makes it easy to create, test, and deploy work
 - When creating a new source or segment, add it to the talkpipe.sources or talkpipe.segments entry points in [pyproject.toml](pyproject.toml). Use the update-entry-points skill to generate and apply entry points automatically: `.venv/bin/python .cursor/skills/update-entry-points/scripts/update_entry_points.py`. See [docs/architecture/protocol.md](docs/architecture/protocol.md) for protocol conventions.
 - When writing documentation for segments or sources, do not document the parameters.
 - When writing new sources or segments, use Annotated in the parameter lists to explain the type and purpose of each parameter.
+
+## The TalkPipe App Center (appcenter/)
+- `appcenter/talkpipe_appcenter.py` is a single file users run with `uv run <url>`; it is **not** part of the `talkpipe` package and has one dependency, Textual (dev extra only, capped at its major). Do not split it into a package, add a dependency, or import talkpipe from it.
+- Every external touchpoint (uv, HTTP, the launcher's helper commands, home directory, platform) is injectable; `appcenter/tests/` never runs the real uv or touches the network (see the fake uv in `appcenter/tests/conftest.py`).
+- Applications need no awareness of the App Center; never ask an app to change for the App Center's sake. The catalog (`appcenter/talkpipe.toml`, embedded in the file, a test checks they match) carries only what PyPI cannot supply: launch command, port, health path, icon, data dirs, external services.
+- The file reports the talkpipe release it shipped with: CI stamps the tag into `STAMPED_VERSION` on release; never edit that line by hand. `appcenter/README.md` is its user documentation.

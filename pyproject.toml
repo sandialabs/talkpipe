@@ -69,6 +69,12 @@ dev = [
     'pytest-mock',
     'pytest-cov>=2.0.0',
     'mongomock',
+    # The TalkPipe App Center (appcenter/talkpipe_appcenter.py) is a single file users run
+    # with `uv run`; Textual is its only dependency and pytest-asyncio drives
+    # its screen in tests. Both are dev-only: the library itself does not
+    # depend on them.
+    "textual>=8,<9",
+    "pytest-asyncio>=0.23.0",
     # Lint/type tools are pinned to a minor series on purpose: ruff promotes
     # new rules and mypy adds checks in minor releases, and CI resolves fresh,
     # so an open floor would turn a tool release into a red build. Bump the
@@ -260,7 +266,8 @@ skips = [
 ]
 
 [tool.coverage.run]
-source = ["src"]
+source = ["src", "appcenter"]
+omit = ["appcenter/tests/*"]
 
 [tool.coverage.report]
 # Coverage floor: measured at 87% (offline run, Ollama-dependent tests
@@ -273,7 +280,7 @@ show_missing = false
 [tool.ruff]
 line-length = 88
 target-version = "py311"
-src = ["src", "tests"]
+src = ["src", "tests", "appcenter"]
 # *.md: ruff would otherwise reformat Python code blocks in prose; the docs
 # are not part of this gate.
 extend-exclude = ["build", "dist", ".venv", "*.md"]
@@ -307,12 +314,14 @@ ignore = [
 # pytest-style rules only make sense in the test suite (an application
 # function that happens to be named test_* is not a test).
 "src/**" = ["PT"]
+"appcenter/talkpipe_appcenter.py" = ["PT"]
 # Tests assert on exception *types* deliberately; requiring a message match
 # on every `pytest.raises` adds noise without catching bugs.
 "tests/**" = ["PT011"]
+"appcenter/tests/**" = ["PT011"]
 
 [tool.ruff.lint.isort]
-known-first-party = ["talkpipe"]
+known-first-party = ["talkpipe", "talkpipe_appcenter"]
 
 [tool.ruff.format]
 docstring-code-format = true
@@ -321,7 +330,9 @@ docstring-code-format = true
 # 3.12+ so mypy can parse modern dependency stubs (e.g. numpy uses `type`
 # statements); the package itself still supports Python 3.11.
 python_version = "3.12"
-files = ["src"]
+# appcenter/talkpipe_appcenter.py is the single-file TalkPipe App Center; its tests, like
+# the library's, are not type-checked.
+files = ["src", "appcenter/talkpipe_appcenter.py"]
 # `strict` is the whole mypy strict bundle (disallow_untyped_defs,
 # disallow_incomplete_defs, disallow_untyped_calls, disallow_untyped_decorators,
 # disallow_any_generics, no_implicit_reexport, warn_return_any, strict_equality,

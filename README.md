@@ -67,6 +67,13 @@ These are the entry points for different usage scenarios, from interactive devel
 - **[Container images](docs/guides/container-images.md)**
   Pull release images from GitHub Container Registry (multi-platform on each GitHub release).
 
+- **[TalkPipe App Center](appcenter/README.md)**
+  The part of TalkPipe that installs applications: an app-store-like terminal screen that installs, upgrades, launches, and uninstalls them with [uv](https://docs.astral.sh/uv/), each into its own environment, with desktop launchers. It is designed to make the TalkPipe-based applications (the vault, the writing assistant, the workbench) easy to install and ships with a catalog of them, but it is just as easy to use for any pip-installable Python application that has a command of its own, listed in a catalog of your own. One file, nothing to install first but uv:
+
+  ```bash
+  uv run https://github.com/sandialabs/talkpipe/releases/latest/download/talkpipe_appcenter.py
+  ```
+
 ## Quick Start
 
 **Requirements:** Python 3.11 or newer. Check your version first with `python3 --version` — it must report 3.11 or higher before installing.
@@ -124,7 +131,7 @@ response = chat("What's my name?")  # Will remember context
 
 ### RAG at a glance
 
-Index a list of strings, then ask questions against the store (expand with options in [Example 5](#example-5-rag-pipeline-with-vector-database)):
+Index a list of strings, then ask questions against the App Center (expand with options in [Example 5](#example-5-rag-pipeline-with-vector-database)):
 
 <!-- doc-example: requires-ollama -->
 ```python

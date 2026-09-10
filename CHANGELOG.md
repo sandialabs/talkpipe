@@ -1,5 +1,30 @@
 # Changelog
 
+## Unreleased
+
+- **The TalkPipe App Center** (`appcenter/talkpipe_appcenter.py`), the part
+  of TalkPipe that installs applications: one file, run with
+  `uv run https://github.com/sandialabs/talkpipe/releases/latest/download/talkpipe_appcenter.py`,
+  that installs, upgrades, launches, and uninstalls applications with
+  `uv tool install`, each into its own environment, and adds desktop
+  launchers on Linux, macOS, and Windows. It is designed to make the
+  TalkPipe-based applications (TalkPipe Vault, the TalkPipe Writing
+  Assistant, the ChatterLang Workbench) easy to install and ships with a
+  catalog of them, but any pip-installable Python application with a
+  console script can be listed in a catalog of one's own: `--catalog`
+  (before or after the subcommand) uses one for a run, `--remember` or
+  `catalog add` saves it so every later run loads it (`catalog list`,
+  `catalog remove`). An app-store-like terminal screen
+  plus equivalent subcommands (`list`, `info`, `install`, `upgrade`,
+  `uninstall`, `launch`, `stop`, `open`, `shortcut`). Driven by a TOML
+  catalog (`appcenter/talkpipe.toml`, embedded; `--catalog` overlays or
+  replaces it) whose entries name only what PyPI cannot supply; summaries,
+  publishers, homepages, and latest versions come from PyPI at run time.
+  `appcenter/install.sh` and `appcenter/install.ps1` install uv when it is missing
+  and hand over to the App Center. Each GitHub release attaches the file, stamped
+  with the release version, and the two scripts. The library gained no
+  runtime dependency; Textual and pytest-asyncio joined the `dev` extra.
+
 ## 1.0.2
 
 - `chatterlang_workbench` now exits within a couple of seconds of Ctrl-C even
