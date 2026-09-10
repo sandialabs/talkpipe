@@ -1,8 +1,12 @@
 import argparse
+import asyncio
+import atexit
 import contextlib
 import logging
+import os
 import queue
 import sys
+import threading
 import uuid
 from collections import OrderedDict
 from collections.abc import AsyncIterator, Iterator
@@ -66,6 +70,23 @@ def _load_configured_modules() -> None:
             load_module_file(fname=module_file, fail_on_missing=False)
 
 
+class _DropCancelledRequestTracebacks(logging.Filter):
+    """Hide uvicorn's "Exception in ASGI application" report for cancelled requests.
+
+    Installed once the app has shut down (see the Shutdown section below): the
+    only requests still running then are the ones uvicorn cancelled because
+    the grace period expired, and it reports each of them with a full
+    ``CancelledError`` traceback although nothing went wrong.
+    """
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        exc = record.exc_info[1] if record.exc_info else None
+        return not isinstance(exc, asyncio.CancelledError)
+
+
+_cancelled_request_filter = _DropCancelledRequestTracebacks()
+
+
 @asynccontextmanager
 async def _lifespan(app: FastAPI) -> AsyncIterator[None]:
     _load_configured_modules()
@@ -73,6 +94,7 @@ async def _lifespan(app: FastAPI) -> AsyncIterator[None]:
     # (seconds); do it in the background so the first browser fetch is fast.
     reference_api.warm_reference_cache_async()
     yield
+    logging.getLogger("uvicorn.error").addFilter(_cancelled_request_filter)
 
 
 app = FastAPI(lifespan=_lifespan)
@@ -484,6 +506,62 @@ def get_ui() -> FileResponse:
     return FileResponse(WORKBENCH_STATIC_DIR / "index.html", media_type="text/html")
 
 
+# --- Shutdown ----------------------------------------------------------------
+#
+# Ctrl-C must stop the workbench promptly even while a request is still
+# running. Two things otherwise keep it alive for as long as that request
+# takes (an LLM call for the suggestions sidebar, or a script run via
+# /compile or /go, can run for minutes):
+#
+# 1. uvicorn's graceful shutdown waits for in-flight requests with no time
+#    limit unless ``timeout_graceful_shutdown`` is set. After the grace period
+#    it cancels the request tasks and returns from ``uvicorn.run``.
+# 2. Cancelling a task does not stop the code it was running: the sync
+#    endpoints execute on anyio worker threads, which are not daemon threads,
+#    and Python's interpreter shutdown joins every non-daemon thread before the
+#    process can exit. A second Ctrl-C ("force quit") does not help with this
+#    part either.
+#
+# So after a short grace period the process is ended with ``os._exit`` when
+# request threads are still running. Registered ``atexit`` handlers (talkpipe's
+# temp-directory cleanup, ``logging.shutdown``) are run explicitly first,
+# because ``os._exit`` skips them. With ``--reload`` the app runs in uvicorn's
+# reloader subprocess, which only the grace period reaches.
+
+SHUTDOWN_GRACE_SECONDS = 2
+
+
+def _lingering_request_threads() -> list[threading.Thread]:
+    """Non-daemon threads (other than the main thread) that are still alive."""
+    return [
+        thread
+        for thread in threading.enumerate()
+        if thread is not threading.main_thread() and not thread.daemon
+    ]
+
+
+def _exit_without_waiting_for_requests() -> None:
+    """Exit the process now if request threads survived uvicorn's shutdown.
+
+    Called after ``uvicorn.run`` returns. When nothing is running this is a
+    no-op and the interpreter exits normally; otherwise interpreter shutdown
+    would block until the running script or LLM call finishes.
+    """
+    lingering = _lingering_request_threads()
+    if not lingering:
+        return
+    # print, not logger: the module logger feeds the UI log panel, not the
+    # console, and the UI is gone by now.
+    print(
+        f"Exiting without waiting for {len(lingering)} running request(s) to finish",
+        file=sys.stderr,
+    )
+    atexit._run_exitfuncs()
+    sys.stdout.flush()
+    sys.stderr.flush()
+    os._exit(0)
+
+
 def main() -> None:
     configure_logging()
     parser = argparse.ArgumentParser(
@@ -620,7 +698,9 @@ def main() -> None:
         host=args.host,
         port=args.port,
         reload=args.reload,
+        timeout_graceful_shutdown=SHUTDOWN_GRACE_SECONDS,
     )
+    _exit_without_waiting_for_requests()
 
 
 if __name__ == "__main__":

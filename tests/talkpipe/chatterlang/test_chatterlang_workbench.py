@@ -1,8 +1,16 @@
+import contextlib
+import json
 import logging
 import queue
+import re
+import signal
 import subprocess
 import sys
+import threading
+import time
+import urllib.request
 import uuid
+from unittest.mock import Mock
 
 import pytest
 from fastapi.testclient import TestClient
@@ -251,3 +259,180 @@ def test_configure_logging_is_idempotent():
         assert root.handlers.count(chatterlang_workbench.queue_handler) == 1
     finally:
         root.handlers[:] = before
+
+
+# --- Shutdown -----------------------------------------------------------------
+#
+# Ctrl-C used to wait for whatever request was running (a script, or the
+# suggestions sidebar's LLM call) to finish before the workbench exited.
+
+
+def test_main_bounds_uvicorn_graceful_shutdown(monkeypatch):
+    monkeypatch.setattr("sys.argv", ["chatterlang_workbench"])
+    calls = []
+    monkeypatch.setattr(
+        chatterlang_workbench.uvicorn, "run", lambda *a, **k: calls.append(k)
+    )
+    chatterlang_workbench.main()
+    assert (
+        calls[0]["timeout_graceful_shutdown"]
+        == chatterlang_workbench.SHUTDOWN_GRACE_SECONDS
+    )
+
+
+def test_lingering_request_threads_ignores_daemon_and_main_threads():
+    stop = threading.Event()
+    worker = threading.Thread(target=stop.wait, daemon=False)
+    helper = threading.Thread(target=stop.wait, daemon=True)
+    worker.start()
+    helper.start()
+    try:
+        lingering = chatterlang_workbench._lingering_request_threads()
+        assert worker in lingering
+        assert helper not in lingering
+        assert threading.main_thread() not in lingering
+    finally:
+        stop.set()
+        worker.join()
+        helper.join()
+
+
+def test_exit_without_waiting_is_a_noop_when_idle(monkeypatch):
+    monkeypatch.setattr(chatterlang_workbench, "_lingering_request_threads", list)
+    hard_exit = Mock()
+    monkeypatch.setattr(chatterlang_workbench.os, "_exit", hard_exit)
+    chatterlang_workbench._exit_without_waiting_for_requests()
+    hard_exit.assert_not_called()
+
+
+def test_exit_without_waiting_runs_exit_handlers_then_exits(monkeypatch, capsys):
+    monkeypatch.setattr(
+        chatterlang_workbench, "_lingering_request_threads", lambda: [Mock()]
+    )
+    order = []
+    monkeypatch.setattr(
+        chatterlang_workbench.atexit, "_run_exitfuncs", lambda: order.append("atexit")
+    )
+    monkeypatch.setattr(
+        chatterlang_workbench.os, "_exit", lambda code: order.append(("exit", code))
+    )
+    chatterlang_workbench._exit_without_waiting_for_requests()
+    assert order == ["atexit", ("exit", 0)]
+    assert "without waiting for 1 running request" in capsys.readouterr().err
+
+
+def test_cancelled_request_filter_drops_only_cancellations():
+    import asyncio
+
+    filt = chatterlang_workbench._cancelled_request_filter
+
+    def record(exc):
+        try:
+            raise exc
+        except BaseException:
+            return logging.LogRecord(
+                "uvicorn.error", logging.ERROR, __file__, 0, "boom", (), sys.exc_info()
+            )
+
+    assert not filt.filter(record(asyncio.CancelledError("timeout exceeded")))
+    assert filt.filter(record(RuntimeError("real problem")))
+    assert filt.filter(
+        logging.LogRecord("x", logging.ERROR, __file__, 0, "m", (), None)
+    )
+
+
+def _start_workbench(workspace):
+    """Start a real workbench on an ephemeral port; return (proc, port, stderr_lines)."""
+    proc = subprocess.Popen(
+        [
+            sys.executable,
+            "-c",
+            "from talkpipe.app.chatterlang_workbench import main; main()",
+            "--port",
+            "0",
+            "--no-llm-suggestions",
+            "--workspace",
+            str(workspace),
+        ],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+    lines: list[str] = []
+    port_found: queue.Queue[int | None] = queue.Queue()
+    pattern = re.compile(r"Uvicorn running on http://127\.0\.0\.1:(\d+)")
+
+    def drain():
+        assert proc.stderr is not None
+        for line in proc.stderr:
+            lines.append(line)
+            match = pattern.search(line)
+            if match:
+                port_found.put(int(match.group(1)))
+        port_found.put(None)
+
+    threading.Thread(target=drain, daemon=True).start()
+    try:
+        port = port_found.get(timeout=90)
+    except queue.Empty:
+        port = None
+    if port is None:
+        proc.kill()
+        proc.wait()
+        pytest.fail("workbench did not start:\n" + "".join(lines))
+    return proc, port, lines
+
+
+def _post_compile_in_background(port, script):
+    body = json.dumps({"script": script}).encode()
+    request = urllib.request.Request(
+        f"http://127.0.0.1:{port}/compile",
+        data=body,
+        headers={"Content-Type": "application/json"},
+    )
+
+    def send():
+        with contextlib.suppress(Exception):
+            urllib.request.urlopen(request, timeout=120)
+
+    threading.Thread(target=send, daemon=True).start()
+
+
+def _wait_for_log_line(port, needle, deadline=30):
+    """Poll GET /logs until a line containing ``needle`` has been emitted."""
+    end = time.monotonic() + deadline
+    while time.monotonic() < end:
+        with urllib.request.urlopen(
+            f"http://127.0.0.1:{port}/logs", timeout=10
+        ) as response:
+            logs = json.load(response)["logs"]
+        if any(needle in line for line in logs):
+            return
+        time.sleep(0.2)
+    pytest.fail(f"never saw {needle!r} in the workbench log")
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="SIGINT semantics differ")
+def test_ctrl_c_exits_promptly_while_a_script_is_running(tmp_path):
+    """Regression: Ctrl-C waited for the running script (here 60 s) to finish."""
+    proc, port, stderr_lines = _start_workbench(tmp_path)
+    try:
+        _post_compile_in_background(
+            port, 'INPUT FROM echo[data="1"] | sleep[seconds=60] | print'
+        )
+        _wait_for_log_line(port, "Executing non-interactive script")
+
+        started = time.monotonic()
+        proc.send_signal(signal.SIGINT)
+        proc.wait(timeout=30)
+        elapsed = time.monotonic() - started
+    finally:
+        if proc.poll() is None:
+            proc.kill()
+            proc.wait()
+
+    stderr = "".join(stderr_lines)
+    assert proc.returncode == 0, stderr
+    assert elapsed < 20, f"took {elapsed:.1f}s to exit:\n{stderr}"
+    assert "Exiting without waiting for 1 running request" in stderr
+    assert "Exception in ASGI application" not in stderr

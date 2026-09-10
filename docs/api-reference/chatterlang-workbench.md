@@ -16,6 +16,8 @@ chatterlang_workbench [options]
 
 Then open the printed URL (default `http://127.0.0.1:4143`) in a browser.
 
+Stop it with `Ctrl-C`. A request that is still running — a script started from the editor, or the suggestions sidebar's LLM call — gets two seconds to finish; after that the workbench exits without waiting for it.
+
 ### Command Line Options
 
 | Option | Type | Default | Description |

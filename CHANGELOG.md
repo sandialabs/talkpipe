@@ -2,6 +2,14 @@
 
 ## 1.0.2
 
+- `chatterlang_workbench` now exits within a couple of seconds of Ctrl-C even
+  while a request is still running. It used to wait for that request to
+  finish — a script started from the editor, or the suggestions sidebar's LLM
+  call, could hold the process for a minute or more — because uvicorn's
+  graceful shutdown had no time limit, and a second Ctrl-C did not help
+  because Python then waited for the worker thread the request ran on before
+  exiting. Running requests now get a two-second grace period, after which
+  the workbench exits without waiting for them.
 - The `pypdf` extra now requires pypdf 6.16.1 or later. Earlier releases can
   be driven into an infinite loop by a crafted PDF through
   `TreeObject.insert_child`; the floor is a security minimum, and every
