@@ -124,7 +124,7 @@ The following are the main breakdown of the codebase. These should be considered
 * **talkpipe.data** - Contains components having to do with complex, type-specific data manipulation.
   * Example: extracting text from files.
 * **talkpipe.llm** - Contains the abstract classes and implementations for accessing LLMs, both code for accessing specific LLMs and code for doing prompting.
-  * Example: Code for talking with Ollama or OpenAI
+  * Example: Code for talking with Ollama, OpenAI, or Anthropic
 * **talkpipe.pipe** - Code that implements the core classes and decorators for the pipe api as well and misc implementations of helper segments and sources.
   * Example: echo and the definition of the @segment decorator
 * **talkpipe.chatterlang** - The definition, parsers, and compiler for the chatterlang language as well as any chatterlang specific segments and sources
@@ -193,7 +193,7 @@ For how `model`, `source`, and LLM defaults interact across segments and CLIs, s
 * **default_embedding_model_name** - The name of the LLM model to be used for creating sentence embeddings.
 * **MODEL2VEC_REVISION**, **MODEL2VEC_CACHE_DIR** - Optional settings for `source="model2vec"` embeddings. See [Model2vec embeddings](../guides/model2vec-embeddings.md).
 * **default_model_name** - The default name of a LLM model to be used in chat
-* **default_model_source** - The default source (e.g. ollama) to be used in chat
+* **default_model_source** - The default source (e.g. ollama, openai, or anthropic) to be used in chat
 * **email_password** - Password for the SMTP server
 * **logger_files** - Files to store logs, in the form logger1:fname1,logger2:fname2,...
 * **logger_levels** - Logger levels in the form logger1:level1,logger2:level2

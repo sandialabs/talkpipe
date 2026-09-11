@@ -27,7 +27,7 @@ Stop it with `Ctrl-C`. A request that is still running — a script started from
 | `--reload` | flag | `false` | Enable auto-reload for development |
 | `--load-module` | string | | Path to custom module file to import (can be used multiple times) |
 | `--workspace` | string | `~/.talkpipe/workbench` | Directory for saved pipelines and workbench settings |
-| `--suggest-source` | string | | LLM source for the suggestions sidebar (e.g. `ollama`) |
+| `--suggest-source` | string | | LLM source for the suggestions sidebar (e.g. `ollama`, `openai`, or `anthropic`) |
 | `--suggest-model` | string | | LLM model name for the suggestions sidebar |
 | `--no-llm-suggestions` | flag | `false` | Disable LLM-driven suggestions entirely (heuristic suggestions remain) |
 | `--allow-remote` | flag | `false` | Permit a non-loopback `--host`. Without it the workbench refuses to start on anything but `127.0.0.1`/`localhost`/`::1` |
@@ -202,7 +202,7 @@ Everything the UI does is available over HTTP on the same port:
 
 **Interactive mode not working**
 - Ensure script starts with `|` character
-- Verify LLM connectivity (Ollama/OpenAI)
+- Verify LLM connectivity (Ollama server reachable, or `OPENAI_API_KEY` / `ANTHROPIC_API_KEY` set for OpenAI / Anthropic)
 - Check API key configuration
 
 **AI suggestions say no LLM endpoint is configured**

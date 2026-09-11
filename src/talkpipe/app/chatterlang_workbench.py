@@ -246,7 +246,7 @@ EXAMPLE_SCRIPTS = {
         {
             "name": "Simple Chat",
             "description": "Interactive conversation with an LLM",
-            "code": '| llmPrompt[model="llama3.2", source="ollama", multi_turn=True]',
+            "code": '# Any provider works: swap source and model, e.g.\n# source="openai", model="gpt-4o-mini" (with OPENAI_API_KEY set).\n| llmPrompt[model="llama3.2", source="ollama", multi_turn=True]',
         },
         {
             "name": "Agent Conversation",
@@ -263,7 +263,7 @@ EXAMPLE_SCRIPTS = {
         {
             "name": "Describe the TalkPipe Logo",
             "description": "Fetch the workbench's own logo image and ask a vision LLM to describe it",
-            "code": '# Pulls the logo image from this running TalkPipe workbench server.\n# $workbench_logo_url is populated by chatterlang_workbench at startup\n# based on the --host and --port arguments.\n# Example assumes that ollama is installed and the gemma4:31b-cloud has been pulled.\nINPUT FROM echo[data=$workbench_logo_url]\n    | toDict[field_list="_:image"]\n    | llmVisionPrompt[\n        image_field="image",\n        model="gemma4:31b-cloud",\n        source="ollama",\n        prompt="Describe what you see in this image in two or three sentences.",\n        set_as="answer"\n      ]\n    | print',
+            "code": '# Pulls the logo image from this running TalkPipe workbench server.\n# $workbench_logo_url is populated by chatterlang_workbench at startup\n# based on the --host and --port arguments.\n# Example assumes that ollama is installed and the gemma4:31b-cloud has been pulled.\n# A vision-capable OpenAI or Anthropic model works too: change source and model.\nINPUT FROM echo[data=$workbench_logo_url]\n    | toDict[field_list="_:image"]\n    | llmVisionPrompt[\n        image_field="image",\n        model="gemma4:31b-cloud",\n        source="ollama",\n        prompt="Describe what you see in this image in two or three sentences.",\n        set_as="answer"\n      ]\n    | print',
         }
     ],
     "Advanced Examples": [
@@ -280,7 +280,7 @@ EXAMPLE_SCRIPTS = {
         {
             "name": "RAG Pipeline with Vector Database",
             "description": "Build a complete RAG system with document indexing and querying",
-            "code": '# This example demonstrates a complete RAG (Retrieval-Augmented Generation) workflow.\n# It indexes documents into a vector database and then queries them with an LLM.\n\n# Sample knowledge base documents (in a real scenario, these would be from files or a database)\nCONST docs = "TalkPipe is a Python toolkit for building AI workflows. It provides a Unix-like pipeline syntax for chaining data transformations and LLM operations.|TalkPipe supports multiple LLM providers including OpenAI, Ollama, and Anthropic. You can switch between providers easily using configuration.|With TalkPipe, you can build RAG systems, multi-agent debates, and document processing pipelines. It uses Python generators for memory-efficient streaming.";\n\n# Step 1: Index documents into a vector database\nINPUT FROM echo[data=docs, delimiter="|"] \n    | toDict[field_list="_:text"] \n    | makeVectorDatabase[\n        path="tmp://demo_knowledge_base",\n        embedding_model="nomic-embed-text",\n        embedding_source="ollama",\n        embedding_field="text"\n      ] \n    | print;\n\n# Step 2: Query the knowledge base with RAG\nINPUT FROM echo[data="What are the key benefits of using TalkPipe?"] \n    | toDict[field_list="_:text"] \n    | ragToText[\n        path="tmp://demo_knowledge_base",\n        embedding_model="nomic-embed-text",\n        embedding_source="ollama",\n        completion_model="llama3.2",\n        completion_source="ollama",\n        content_field="text",\n        prompt_directive="Answer the question based on the background information provided.",\n        limit=3\n      ] \n    | print',
+            "code": '# This example demonstrates a complete RAG (Retrieval-Augmented Generation) workflow.\n# It indexes documents into a vector database and then queries them with an LLM.\n# Ollama is one option: embedding_source and completion_source take any\n# supported provider (openai, anthropic for completion, model2vec for embeddings).\n\n# Sample knowledge base documents (in a real scenario, these would be from files or a database)\nCONST docs = "TalkPipe is a Python toolkit for building AI workflows. It provides a Unix-like pipeline syntax for chaining data transformations and LLM operations.|TalkPipe supports multiple LLM providers including OpenAI, Ollama, and Anthropic. You can switch between providers easily using configuration.|With TalkPipe, you can build RAG systems, multi-agent debates, and document processing pipelines. It uses Python generators for memory-efficient streaming.";\n\n# Step 1: Index documents into a vector database\nINPUT FROM echo[data=docs, delimiter="|"] \n    | toDict[field_list="_:text"] \n    | makeVectorDatabase[\n        path="tmp://demo_knowledge_base",\n        embedding_model="nomic-embed-text",\n        embedding_source="ollama",\n        embedding_field="text"\n      ] \n    | print;\n\n# Step 2: Query the knowledge base with RAG\nINPUT FROM echo[data="What are the key benefits of using TalkPipe?"] \n    | toDict[field_list="_:text"] \n    | ragToText[\n        path="tmp://demo_knowledge_base",\n        embedding_model="nomic-embed-text",\n        embedding_source="ollama",\n        completion_model="llama3.2",\n        completion_source="ollama",\n        content_field="text",\n        prompt_directive="Answer the question based on the background information provided.",\n        limit=3\n      ] \n    | print',
         },
     ],
 }
@@ -583,7 +583,8 @@ def main() -> None:
         "--suggest-source",
         type=str,
         default=None,
-        help="LLM source for the suggestions sidebar (e.g. ollama); defaults to the standard "
+        help="LLM source for the suggestions sidebar (e.g. ollama, openai, or anthropic); "
+        "defaults to the standard "
         "TalkPipe model configuration. A source saved in the workbench Settings dialog "
         "takes precedence over this flag.",
     )

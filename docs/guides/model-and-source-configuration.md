@@ -1,18 +1,21 @@
 # Model and source configuration
 
-TalkPipe LLM segments need two values for every call:
+TalkPipe is **provider-neutral**: it does not require Ollama or any other particular backend. Every LLM segment needs two values for every call:
 
-- **`source`** — which backend provides the model (for example `ollama`, `openai`, or `anthropic` for chat).
-- **`model`** — the model id on that backend (for example `llama3.2`, `gpt-4o`, or `mxbai-embed-large`).
+- **`source`** — which provider serves the model: `ollama`, `openai`, or `anthropic` for chat; `ollama`, `openai`, or `model2vec` for embeddings.
+- **`model`** — the model id on that provider (for example `llama3.2`, `gpt-4o`, `claude-haiku-4-5`, or `mxbai-embed-large`).
 
-You can set these on each segment, in `~/.talkpipe.toml`, via `TALKPIPE_*` environment variables, or through ChatterLang `$key` substitution. This guide explains how those layers interact. For logging, security, and general config mechanics, see [Configuration architecture](../architecture/configuration.md).
+You can set these on each segment, in `~/.talkpipe.toml`, via `TALKPIPE_*` environment variables, or through ChatterLang `$key` substitution. This guide lists the providers and what each one needs, then explains how those layers interact. For logging, security, and general config mechanics, see [Configuration architecture](../architecture/configuration.md).
 
 ## Contents
 
+- [LLM providers](#llm-providers)
+  - [Choosing a provider](#choosing-a-provider)
+  - [Provider notes](#provider-notes)
+  - [Adding a provider](#adding-a-provider)
 - [Day-to-day usage](#day-to-day-usage)
   - [Example: Ollama-first, occasional OpenAI](#example-ollama-first-occasional-openai)
   - [Why this layout](#why-this-layout)
-- [Supported sources](#supported-sources)
 - [How values are resolved](#how-values-are-resolved)
   - [Precedence (highest first)](#precedence-highest-first)
 - [Configuration keys](#configuration-keys)
@@ -27,6 +30,61 @@ You can set these on each segment, in `~/.talkpipe.toml`, via `TALKPIPE_*` envir
 - [Examples](#examples)
 - [Troubleshooting](#troubleshooting)
 - [Related documentation](#related-documentation)
+
+---
+
+## LLM providers
+
+These providers ship with TalkPipe (they are registered in `talkpipe.llm.config`). None of them is built in as a default, and none is required: install and configure only the ones you use.
+
+| Provider | `source` | Chat (`llmPrompt`, `llmScore`, RAG completion, …) | Vision (`llmVisionPrompt`) | Embeddings (`llmEmbed`, vector databases) | Install | Needs |
+|----------|----------|:--:|:--:|:--:|---------|-------|
+| [Ollama](https://ollama.com) | `ollama` | ✓ | ✓ | ✓ | `talkpipe[ollama]` | A running Ollama server (local or remote) with the model pulled on it. No API key. |
+| OpenAI | `openai` | ✓ | ✓ | ✓ | `talkpipe[openai]` | `OPENAI_API_KEY` |
+| Anthropic | `anthropic` | ✓ | ✓ | — | `talkpipe[anthropic]` | `ANTHROPIC_API_KEY` |
+| [model2vec](model2vec-embeddings.md) | `model2vec` | — | — | ✓ | `talkpipe[model2vec]` | Nothing: runs inside your Python process. The first use of a model downloads it from Hugging Face; later runs use the local cache. |
+| Eliza | `eliza` | scripted | scripted | — | (base install) | Nothing. **Not an LLM**: a local, deterministic script for trying out pipeline syntax and multi-turn flow (it replies to the text of a turn and ignores any image). |
+
+`pip install talkpipe[all]` installs every provider integration at once (plus PDF and image support), so you can switch or mix providers without installing anything else. Extras combine: `pip install "talkpipe[anthropic,model2vec]"`.
+
+Because Anthropic has no embeddings API, a pipeline that uses Anthropic for chat and also needs embeddings (RAG, vector search) pairs it with `openai`, `ollama`, or `model2vec` for the embedding step.
+
+### Choosing a provider
+
+The provider is a parameter, not a code change:
+
+- **Per segment:** `llmPrompt[model="gpt-4o", source="openai"]`, `llmEmbed[model="minishlab/potion-base-8M", source="model2vec"]`, or the same keyword arguments in the Pipe API (`LLMPrompt(model=..., source=...)`).
+- **RAG and vector segments** take the choice twice, as `embedding_source` / `embedding_model` and `completion_source` / `completion_model`; the two are independent. The `makevectordatabase` and `serverag` commands take the same values as `--embedding_source`, `--completion_source`, and so on.
+- **Defaults:** set `default_model_source` / `default_model_name` (chat and vision) and `default_embedding_model_source` / `default_embedding_model_name` (embeddings) in `~/.talkpipe.toml`, or as `TALKPIPE_default_model_source` and friends in the environment. Segments that omit `model` / `source` use them — see [Configuration keys](#configuration-keys).
+
+If neither the segment nor the configuration supplies a source, the segment raises an error when it is constructed; TalkPipe never picks a provider for you. Each segment resolves its own provider, so different segments in one pipeline can use different providers.
+
+For example, a setup with no Ollama at all — Anthropic for chat, in-process embeddings:
+
+```toml
+# ~/.talkpipe.toml
+default_model_name = "claude-haiku-4-5"
+default_model_source = "anthropic"
+default_embedding_model_name = "minishlab/potion-base-8M"
+default_embedding_model_source = "model2vec"
+```
+
+```bash
+pip install "talkpipe[anthropic,model2vec]"
+export ANTHROPIC_API_KEY=...
+```
+
+### Provider notes
+
+- **Ollama.** Ollama is a separate application, not just the `talkpipe[ollama]` Python package: [install it](https://ollama.com/download), start it, and `ollama pull` each model you use. TalkPipe connects to `http://localhost:11434` unless you set `OLLAMA_SERVER_URL` in `~/.talkpipe.toml` or `TALKPIPE_OLLAMA_SERVER_URL` in the environment; with a remote server, pull the models **on that server**.
+- **OpenAI.** The official `openai` SDK reads `OPENAI_API_KEY` from the environment; TalkPipe does not take the key from `~/.talkpipe.toml`. TalkPipe has no base-URL setting of its own, but it creates the SDK client with the SDK's defaults, so the SDK's `OPENAI_BASE_URL` environment variable points it at another endpoint. Chat segments call OpenAI's Responses API, so such an endpoint must implement `/v1/responses` for `llmPrompt`; embeddings use `/v1/embeddings`.
+- **Anthropic.** The official `anthropic` SDK reads `ANTHROPIC_API_KEY` from the environment. Anthropic is chat and vision only (see above). The Anthropic API no longer accepts sampling parameters on current models, so TalkPipe does not send `temperature` to it; a configured temperature is ignored with a warning in the log.
+- **model2vec.** Static embeddings computed in-process: no server, no API key, and no network once the model is cached. See [Model2vec embeddings](model2vec-embeddings.md) for model choices and precaching for offline use.
+- **Eliza.** Useful when you have no provider yet, or in tests: `llmPrompt[model="Dr. Eliza", source="eliza"]` answers without any network access. It pattern-matches on the text it is given rather than understanding it, so its output says nothing about answer quality.
+
+### Adding a provider
+
+Other providers plug in without changes to TalkPipe. Subclass `AbstractLLMPromptAdapter` (implement `execute()` and `is_available()`, plus `execute_turn()` for `llmVisionPrompt`) or `AbstractEmbeddingAdapter` (implement `execute_one()`, and `execute_batch()` if the provider batches), then register the class under a new `source` name with `registerPromptAdapter` or `registerEmbeddingAdapter` from `talkpipe.llm.config`. Chat adapters are constructed with the segment's options as keyword arguments (`model`, `system_prompt`, `multi_turn`, `temperature`, `output_format`, …); embedding adapters with `model`. The built-in adapters in `talkpipe.llm` are the reference implementations. To make the new source available to every script, register it from a module loaded through the `talkpipe.plugins` entry point (see [Extending TalkPipe](../architecture/extending-talkpipe.md#talkpipeplugins-optional)).
 
 ---
 
@@ -107,38 +165,7 @@ list(careful.as_function(single_out=False)())
 - `default_*` keys belong in `~/.talkpipe.toml` because they are stable preferences, not secrets, and you want them shared across every shell, notebook, and script.
 - Per-segment overrides belong in code because the choice of model is usually tied to the specific task — and the segment parameter is the highest-precedence layer, so it always wins.
 
-The remaining sections fill in the details behind that pattern: which `source` values are actually accepted, exactly how `model` and `source` are resolved when you omit them, every configuration key that participates, and the segment-by-segment parameter reference.
-
----
-
-## Supported sources
-
-The first piece of the pattern above is the `source` value itself. Sources are registered in `talkpipe.llm.config`:
-
-| Segment | Registered sources |
-|---------|-------------------|
-| **`llmPrompt`** (chat) | `ollama`, `openai`, `anthropic`, `eliza` |
-| **`llmVisionPrompt`** (multimodal chat) | `ollama`, `openai`, `anthropic` |
-| **`llmEmbed`** (embeddings) | `ollama`, `openai`, `model2vec` |
-
-Additional sources can be registered at runtime with `registerPromptAdapter` or `registerEmbeddingAdapter` (see [Extending TalkPipe](../architecture/extending-talkpipe.md)).
-
-Install optional provider dependencies as needed:
-
-| Extra | Purpose |
-|-------|---------|
-| `talkpipe[ollama]` | Ollama chat and embeddings |
-| `talkpipe[openai]` | OpenAI chat and embeddings |
-| `talkpipe[anthropic]` | Anthropic chat |
-| `talkpipe[model2vec]` | In-process static embeddings via model2vec (lightweight; included in `[all]`) |
-| `talkpipe[all]` | All optional features including model2vec, providers, PDF, and images |
-
-```bash
-pip install talkpipe[ollama]
-pip install talkpipe[openai]
-pip install talkpipe[model2vec]
-pip install talkpipe[all]   # includes model2vec
-```
+The remaining sections fill in the details behind that pattern: exactly how `model` and `source` are resolved when you omit them, every configuration key that participates, and the segment-by-segment parameter reference. The accepted `source` values are listed under [LLM providers](#llm-providers).
 
 ---
 
@@ -410,7 +437,7 @@ segment = LLMPrompt(system_prompt="You are helpful.")
 | Symptom | What to check |
 |---------|----------------|
 | `Model name and source must be provided` | Set `model` and `source` on the segment, or add `default_model_name` and `default_model_source` (or embedding equivalents for `llmEmbed`). |
-| `Unknown source` | Chat / vision: use `ollama`, `openai`, `anthropic`, or `eliza` (chat only). Embeddings: use `ollama`, `openai`, or `model2vec` (or register additional adapters). |
+| `Unknown source` | Chat / vision: use `ollama`, `openai`, or `anthropic` (or `eliza` for scripted, non-LLM replies). Embeddings: use `ollama`, `openai`, or `model2vec`. Or register an adapter of your own — see [LLM providers](#llm-providers). |
 | `llmVisionPrompt` errors at the provider with model-not-found / unsupported-input | `llmVisionPrompt` reads `default_model_name` / `default_model_source` (the chat defaults). Set `model` and `source` explicitly on the segment, or change the chat defaults to a vision-capable model. |
 | Ollama connection refused | Run `ollama serve` or set `OLLAMA_SERVER_URL` / `TALKPIPE_OLLAMA_SERVER_URL`. |
 | OpenAI / Anthropic auth errors | Set `OPENAI_API_KEY` or `ANTHROPIC_API_KEY`; these are not read from `TALKPIPE_*` model keys. |

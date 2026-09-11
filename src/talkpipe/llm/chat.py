@@ -1,7 +1,9 @@
 """Classes for chatting with models from different sources.
 
-Contains an abstract class for a chat model, as well as two
-concrete classes for chatting with models from Ollama.
+Contains an abstract class for a chat model plus the segments built on it.
+The concrete provider adapters (Ollama, OpenAI, Anthropic, and the scripted
+eliza fallback) live in talkpipe.llm.prompt_adapters and are selected by the
+``source`` parameter; see talkpipe.llm.config for the registry.
 """
 
 import inspect

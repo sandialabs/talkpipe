@@ -2,6 +2,23 @@
 
 ## Unreleased
 
+- **Documentation: TalkPipe is provider-neutral, and the docs now say so.**
+  Several places read as though Ollama were required — prerequisite lists that
+  named only Ollama, a quickstart whose LLM section began "requires
+  `talkpipe[ollama]` and Ollama running", RAG prerequisites that asked for an
+  Ollama completion model, and an installation note that suggested provider
+  API keys could live in `~/.talkpipe.toml`. The model and source guide gained
+  an authoritative **LLM providers** section — the four built-in providers
+  (Ollama, OpenAI, and Anthropic for chat and vision; Ollama, OpenAI, and
+  in-process model2vec for embeddings, plus the scripted eliza fallback), what
+  each one needs, how to select it per segment or by default, and how to
+  register an adapter of your own — and the README, quickstart, docs index,
+  RAG guide, tutorials, and command references link to it instead of repeating
+  it. Existing examples still use Ollama; they now say so and show the
+  one-parameter switch. Segment docstrings, `serverag` /
+  `makevectordatabase` / `chatterlang_workbench` help text, and the workbench's
+  example scripts name the alternatives too.
+
 - **The TalkPipe App Center** (`appcenter/talkpipe_appcenter.py`), the part
   of TalkPipe that installs applications: one file, run with
   `uv run https://github.com/sandialabs/talkpipe/releases/latest/download/talkpipe_appcenter.py`,

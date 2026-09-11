@@ -102,7 +102,9 @@ class LLMEmbed(AbstractFieldSegment[Any, Any]):
         self,
         model: Annotated[str | None, "The name of the embedding model to use"] = None,
         source: Annotated[
-            str | None, "The source of the embedding model (e.g., 'ollama')"
+            str | None,
+            "The source of the embedding model (e.g. ollama, openai, or model2vec; "
+            "pluggable via registerEmbeddingAdapter)",
         ] = None,
         field: Annotated[
             str | None, "If provided, extract text from this field in the input items"

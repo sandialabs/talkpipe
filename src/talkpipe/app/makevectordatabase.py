@@ -70,7 +70,7 @@ def main() -> None:
     parser.add_argument(
         "--embedding_source",
         type=str,
-        help="Source of the embedding model (defaults to config)",
+        help="Embedding provider, e.g. ollama, openai, or model2vec (defaults to config)",
     )
     parser.add_argument(
         "--embedding_field",

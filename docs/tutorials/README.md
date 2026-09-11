@@ -19,7 +19,7 @@ Each tutorial builds on the previous. Tutorial 1's index feeds Tutorial 2; Tutor
 The 5-minute path skips Step 1 by using the pre-generated `stories.json` included with Tutorial 1; generating your own data in Step 1 adds ~5–10 minutes.
 
 1. **Get the tutorial files**: The tutorials ship with the repository, not the pip package: `git clone https://github.com/sandialabs/talkpipe.git && cd talkpipe`
-2. **Install**: See [Getting Started](../quickstart.md) for installation. For tutorials: `pip install "talkpipe[ollama]"` or `pip install "talkpipe[all]"`
+2. **Install**: See [Getting Started](../quickstart.md) for installation. For tutorials: `pip install "talkpipe[ollama]"` or `pip install "talkpipe[all]"`. The tutorial scripts use Ollama as written, but any supported provider works: each tutorial's "Using a Different LLM Provider" section shows the switch, and [LLM providers](../guides/model-and-source-configuration.md#llm-providers) lists what each provider needs
 3. **Run Tutorial 1** (from `docs/tutorials/Tutorial_1-Document_Indexing`):
    - `./Step_1_CreateSyntheticData.sh` — creates `stories.json` (~5–10 min; optional, a pre-generated `stories.json` is included)
    - `./Step_2_IndexStories.sh` — builds search index (~5 sec)
@@ -44,7 +44,7 @@ The 5-minute path skips Step 1 by using the pre-generated `stories.json` include
 ## Key Concepts
 
 - **Composability**: Each tutorial reuses the previous one's output. Tutorial 1's index → Tutorial 2's corpus → Tutorial 3's report source.
-- **Segment isolation**: Built-in segments (Whoosh, LanceDB) can be replaced with custom segments or plugins (e.g. Elasticsearch, cloud vector DBs) when you scale—pipeline logic stays the same. Switching LLM providers needs no custom code at all: `source`/`model` are segment parameters (e.g. `source="openai"` instead of `source="ollama"`); see [Model and source configuration](../guides/model-and-source-configuration.md).
+- **Segment isolation**: Built-in segments (Whoosh, LanceDB) can be replaced with custom segments or plugins (e.g. Elasticsearch, cloud vector DBs) when you scale—pipeline logic stays the same. Switching LLM providers needs no custom code at all: `source`/`model` are segment parameters (e.g. `source="openai"` instead of `source="ollama"`); see [LLM providers](../guides/model-and-source-configuration.md#llm-providers).
 - **Streaming**: Process large files, see results as they generate, chain without intermediate storage.
 - **Configuration over code**: YAML defines UIs; pipeline logic stays separate.
 

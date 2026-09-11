@@ -82,7 +82,7 @@ These are the entry points for different usage scenarios, from interactive devel
 pip install talkpipe
 ```
 
-For LLM support, install the provider(s) you need:
+TalkPipe is provider-neutral: it works with Ollama (local or remote), OpenAI, and Anthropic for chat, and with Ollama, OpenAI, and model2vec (in-process, no server) for embeddings. None of them is required; install the provider(s) you need:
 
 ```bash
 pip install talkpipe[openai]    # OpenAI
@@ -92,9 +92,11 @@ pip install talkpipe[model2vec] # In-process static embeddings (also in [all])
 # Or: pip install talkpipe[all]
 ```
 
+See **[LLM providers](docs/guides/model-and-source-configuration.md#llm-providers)** for what each provider needs and how to select it.
+
 > **Any provider works in any example.** The examples in this README mostly show `source="ollama"`, but that is just a per-segment parameter: swap in `source="openai"` or `source="anthropic"` (with a matching `model`) on any LLM segment — the RAG helpers take the same choice as `embedding_source`/`completion_source`. Different segments in one pipeline can even use different providers. Installing `talkpipe[all]` includes all provider integrations, so switching or mixing needs no further installs.
 
-Configure API keys and provider URLs via environment variables (for example `OPENAI_API_KEY` and `ANTHROPIC_API_KEY`) or `~/.talkpipe.toml`. If TalkPipe runs on a different machine than your Ollama server, set `TALKPIPE_OLLAMA_SERVER_URL` to that host, e.g. `export TALKPIPE_OLLAMA_SERVER_URL="http://<ollama host ip>:11434"` (a bare host/IP with no scheme or port, like `"myollamahost"`, also works). Note that the model must already be pulled **on that server** — run `ollama pull llama3.2` there, or `OLLAMA_HOST=http://<ollama host ip>:11434 ollama pull llama3.2` from your machine. See **[Configuration](docs/architecture/configuration.md)** for details and ChatterLang `$var` substitution.
+Provider API keys are read from the environment by the providers' own SDKs (`OPENAI_API_KEY`, `ANTHROPIC_API_KEY`), not from `~/.talkpipe.toml`. If TalkPipe runs on a different machine than your Ollama server, set `TALKPIPE_OLLAMA_SERVER_URL` to that host, e.g. `export TALKPIPE_OLLAMA_SERVER_URL="http://<ollama host ip>:11434"` (a bare host/IP with no scheme or port, like `"myollamahost"`, also works). Note that the model must already be pulled **on that server** — run `ollama pull llama3.2` there, or `OLLAMA_HOST=http://<ollama host ip>:11434 ollama pull llama3.2` from your machine. See **[Configuration](docs/architecture/configuration.md)** for details and ChatterLang `$var` substitution.
 
 Hello world (no LLM server required):
 
@@ -112,9 +114,9 @@ chat("What's my name?")
 
 > **Tip:** `from talkpipe.chatterlang import compile` is equivalent to the `compiler.compile(...)` style above — both styles work throughout the docs.
 
-Multi-turn chat (requires a local model server):
+Multi-turn chat (requires an LLM provider):
 
-> **Prerequisite:** this example uses Ollama, a separate application (not just the `talkpipe[ollama]` Python package). Install and start it from https://ollama.com/download, then pull the model with `ollama pull llama3.2`. Cloud users can skip Ollama and substitute `source="openai"` or `source="anthropic"` (see the commented variants below).
+> **Prerequisite:** as written, this example uses Ollama, a separate application (not just the `talkpipe[ollama]` Python package). Install and start it from https://ollama.com/download, then pull the model with `ollama pull llama3.2`. Ollama is not required: to use OpenAI or Anthropic instead, substitute `source="openai"` or `source="anthropic"` (see the commented variants below).
 
 <!-- doc-example: requires-ollama -->
 ```python
@@ -149,7 +151,7 @@ rag = compiler.compile(
 rag("What is TalkPipe?")
 ```
 
-> **No Ollama server?** Swap `embedding_source="model2vec"` and `embedding_model="minishlab/potion-base-8M"` for offline embeddings (included in `talkpipe[all]`). The first run downloads the model from Hugging Face (a few files, ~30 MB); after that it's cached and needs no network — see [Precache for offline use](docs/guides/model2vec-embeddings.md#precache-for-offline-use) to pre-download for air-gapped environments. Note: the `ragToText` completion step still requires an LLM provider. See the [model2vec guide](docs/guides/model2vec-embeddings.md).
+> **No Ollama server?** Swap `embedding_source="model2vec"` and `embedding_model="minishlab/potion-base-8M"` for offline embeddings (included in `talkpipe[all]`). The first run downloads the model from Hugging Face (a few files, ~30 MB); after that it's cached and needs no network — see [Precache for offline use](docs/guides/model2vec-embeddings.md#precache-for-offline-use) to pre-download for air-gapped environments. The `ragToText` completion step still needs a chat provider: set `completion_source="openai"` or `completion_source="anthropic"` with a matching `completion_model`. (OpenAI embeddings work too: `embedding_source="openai"`, `embedding_model="text-embedding-3-small"`.) See the [model2vec guide](docs/guides/model2vec-embeddings.md).
 
 > **Indexing large collections inside a container?** Building a vector
 > database over thousands of documents (`makevectordatabase`,
@@ -514,7 +516,7 @@ talkpipe/
 ├── app/          # Runnable applications (servers, CLIs)
 ├── chatterlang/  # ChatterLang parser, compiler, and components
 ├── data/         # Data manipulation and I/O components
-├── llm/          # LLM integrations (OpenAI, Ollama, Anthropic)
+├── llm/          # LLM and embedding integrations (Ollama, OpenAI, Anthropic, model2vec)
 ├── operations/   # Algorithms and data processing
 ├── pipe/         # Core pipeline infrastructure
 ├── pipelines/    # High-level pipeline components (RAG, vector DB)
@@ -524,7 +526,7 @@ talkpipe/
 
 ## Configuration
 
-TalkPipe uses a flexible configuration system via `~/.talkpipe.toml` or environment variables. For LLM and embedding `model` / `source` defaults, see [Model and source configuration](docs/guides/model-and-source-configuration.md).
+TalkPipe uses a flexible configuration system via `~/.talkpipe.toml` or environment variables. For LLM and embedding `model` / `source` defaults, see [Model and source configuration](docs/guides/model-and-source-configuration.md). The example below makes Ollama the default chat provider; `default_model_source = "openai"` or `"anthropic"` (with a matching `default_model_name`) works the same way.
 
 ```toml
 # ~/.talkpipe.toml

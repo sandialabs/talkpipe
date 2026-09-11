@@ -87,9 +87,10 @@ curl -fsSL .../install.sh | sh -s -- install vault
   tray icon or Quit command, so that window is how you stop them and see
   their messages. The launcher targets the stable `~/.local/bin` command, so
   it survives upgrades.
-- **Language models are not installed.** The catalog says which apps need
-  Ollama; the App Center detects it and shows the download link, or you enter an
-  OpenAI or Anthropic key in the app's own settings.
+- **Language models are not installed.** The catalog says which apps need a
+  language model; the App Center detects a local Ollama and shows its download
+  link when it is missing, or you enter an OpenAI or Anthropic key in the app's
+  own settings.
 - **The App Center needs the network** to start (uv fetches the file) and to show
   latest versions. Set `TALKPIPE_APPCENTER_OFFLINE=1` to skip the PyPI lookups;
   versions then show as `?`.

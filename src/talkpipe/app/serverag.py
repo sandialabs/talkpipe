@@ -42,7 +42,7 @@ def main() -> None:
     parser.add_argument(
         "--embedding_source",
         type=str,
-        help="Source of the embedding model (defaults to config)",
+        help="Embedding provider, e.g. ollama, openai, or model2vec (defaults to config)",
     )
     parser.add_argument(
         "--completion_model",
@@ -52,7 +52,8 @@ def main() -> None:
     parser.add_argument(
         "--completion_source",
         type=str,
-        help="Source of prompt for completion (defaults to config)",
+        help="Chat provider for the completion, e.g. ollama, openai, or anthropic "
+        "(defaults to config)",
     )
 
     # RAG settings

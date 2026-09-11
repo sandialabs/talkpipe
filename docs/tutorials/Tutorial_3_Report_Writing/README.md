@@ -29,9 +29,11 @@ Tutorial 2 showed how to answer questions with RAG. This tutorial goes further: 
 
 - **Tutorials 1 and 2 completed**: Vector index must exist at `../Tutorial_2-Search_by_Example_and_RAG/vector_index`
 - **TalkPipe** installed: See [Getting Started](../../quickstart.md). For this tutorial: `pip install talkpipe[ollama]`, or `pip install talkpipe[all]` to include every LLM provider integration (see [Using a Different LLM Provider](#using-a-different-llm-provider) below)
-- **[Ollama](https://ollama.com/download)** with these models, either installed locally or on a remote server you point TalkPipe at with `export TALKPIPE_OLLAMA_SERVER_URL=http://your-ollama-host:11434` — substitute your server's address (the models must be pulled on that server):
+- **An LLM provider.** As written, the scripts use **[Ollama](https://ollama.com/download)** with these models, either installed locally or on a remote server you point TalkPipe at with `export TALKPIPE_OLLAMA_SERVER_URL=http://your-ollama-host:11434` — substitute your server's address (the models must be pulled on that server):
   - `mxbai-embed-large` (embeddings): `ollama pull mxbai-embed-large`
   - `llama3.2` (generation): `ollama pull llama3.2`
+
+  OpenAI, Anthropic, and in-process model2vec embeddings work instead; see [Using a Different LLM Provider](#using-a-different-llm-provider).
 
 ---
 
@@ -44,7 +46,9 @@ The scripts in this tutorial specify `source="ollama"`, but the pipelines are no
 - `generateDetailedReport[source="openai", model="gpt-4o"]` (Step 2)
 - `generateMultiFormatReport[source="openai", model="gpt-4o"]` (Step 3)
 
-The custom segments that call an LLM (`generateDetailedReport`, `generateMultiFormatReport`) accept the same `source` and `model` parameters as the built-in LLM segments and pass them through to the underlying LLM, so they switch providers the same way; the prompt-building segments (`executiveSummaryPrompt`, `generateReportSectionPrompts`) make no LLM calls and need no changes. If you change the embedding `source` or `model`, rebuild the Tutorial 2 vector index with the same embedding model: the vectors stored in the index must come from the same model used for queries. See [Model and source configuration](../../guides/model-and-source-configuration.md) for the full list of supported sources and how to set defaults so scripts can omit `model`/`source` entirely.
+Anthropic works the same way for the generation steps (`pip install talkpipe[anthropic]`, set `ANTHROPIC_API_KEY`, and use e.g. `source="anthropic", model="claude-haiku-4-5"`), but it has no embeddings API, so keep `llmEmbed` on Ollama or OpenAI, or switch it to in-process model2vec embeddings, which need no server or API key: `llmEmbed[..., source="model2vec", model="minishlab/potion-base-8M", ...]` (`pip install talkpipe[model2vec]`; see [Model2vec embeddings](../../guides/model2vec-embeddings.md)).
+
+The custom segments that call an LLM (`generateDetailedReport`, `generateMultiFormatReport`) accept the same `source` and `model` parameters as the built-in LLM segments and pass them through to the underlying LLM, so they switch providers the same way; the prompt-building segments (`executiveSummaryPrompt`, `generateReportSectionPrompts`) make no LLM calls and need no changes. If you change the embedding `source` or `model`, rebuild the Tutorial 2 vector index with the same embedding model: the vectors stored in the index must come from the same model used for queries. See [LLM providers](../../guides/model-and-source-configuration.md#llm-providers) for the full list of supported providers, what each needs, and how to set defaults so scripts can omit `model`/`source` entirely.
 
 ---
 

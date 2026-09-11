@@ -8,13 +8,14 @@ This guide gets you up and running with TalkPipe's dual-language architecture fo
 pip install talkpipe
 ```
 
-The base install includes data processing, file I/O, search (Whoosh, LanceDB), and web serving. For LLM and PDF support, add optional extras:
+The base install includes data processing, file I/O, search (Whoosh, LanceDB), and web serving. For LLM and PDF support, add optional extras. TalkPipe does not depend on any one LLM provider — install whichever you use:
 
 ```bash
 # LLM providers (install one or more)
 pip install talkpipe[ollama]      # Local models via Ollama
 pip install talkpipe[openai]      # OpenAI (GPT-4, etc.)
 pip install talkpipe[anthropic]   # Anthropic Claude
+pip install talkpipe[model2vec]   # In-process embeddings (no server, no API key)
 
 # PDF extraction
 pip install talkpipe[pypdf]
@@ -23,17 +24,20 @@ pip install talkpipe[pypdf]
 pip install talkpipe[ollama,pypdf]
 pip install talkpipe[openai,anthropic]
 
-# Everything: all LLM providers + PDF
+# Everything: all LLM providers + PDF + images
 pip install talkpipe[all]
 ```
 
 | Extra | Adds |
 |-------|------|
-| `ollama` | `ollama` package for local models |
-| `openai` | `openai` package for OpenAI API |
-| `anthropic` | `anthropic` package for Claude |
+| `ollama` | `ollama` package for local models (chat and embeddings) |
+| `openai` | `openai` package for OpenAI API (chat and embeddings) |
+| `anthropic` | `anthropic` package for Claude (chat) |
+| `model2vec` | `model2vec` package for in-process static embeddings |
 | `pypdf` | `pypdf` for PDF text extraction |
-| `all` | All of the above |
+| `all` | All of the above, plus `Pillow` for images |
+
+Which provider needs what (servers, API keys) and how to select one is summarized under [LLM providers](guides/model-and-source-configuration.md#llm-providers).
 
 ## Basic Concepts
 
@@ -103,7 +107,14 @@ chat("What's my name?")
 
 ## Your First Pipeline (With LLM)
 
-Requires `talkpipe[ollama]` and Ollama running with a model (e.g. `ollama pull llama3.2`). If you point TalkPipe at a remote Ollama server via `TALKPIPE_OLLAMA_SERVER_URL`, the model must already be pulled on that server (run `ollama pull llama3.2` there, or `OLLAMA_HOST=http://your-ollama-host:11434 ollama pull llama3.2` from your machine, substituting your server's address).
+Any supported provider works; the provider is the `source` parameter on the LLM segment. The examples below use Ollama, which requires `talkpipe[ollama]` and Ollama running with a model (e.g. `ollama pull llama3.2`). If you point TalkPipe at a remote Ollama server via `TALKPIPE_OLLAMA_SERVER_URL`, the model must already be pulled on that server (run `ollama pull llama3.2` there, or `OLLAMA_HOST=http://your-ollama-host:11434 ollama pull llama3.2` from your machine, substituting your server's address).
+
+To use a hosted provider instead, no Ollama needed:
+
+| Provider | Install | Credentials | Segment parameters |
+|----------|---------|-------------|--------------------|
+| OpenAI | `pip install talkpipe[openai]` | `export OPENAI_API_KEY=...` | `source="openai", model="gpt-4o-mini"` |
+| Anthropic | `pip install talkpipe[anthropic]` | `export ANTHROPIC_API_KEY=...` | `source="anthropic", model="claude-haiku-4-5"` |
 
 ### ChatterLang
 
@@ -112,6 +123,8 @@ Requires `talkpipe[ollama]` and Ollama running with a model (e.g. `ollama pull l
 from talkpipe.chatterlang import compiler
 
 script = '| llmPrompt[model="llama3.2", source="ollama"] | print'
+# Using OpenAI:    model="gpt-4o-mini", source="openai"
+# Using Anthropic: model="claude-haiku-4-5", source="anthropic"
 chat = compiler.compile(script).as_function(single_in=True, single_out=True)
 
 response = chat("Hello! Tell me about the history of computers.")
@@ -152,7 +165,7 @@ Open http://localhost:2025/stream. Type in the form and submit; the pipeline ech
 chatterlang_serve --port 2025 --display-property prompt --script '| llmPrompt[model="llama3.2", source="ollama", field="prompt"] | print'
 ```
 
-Open http://localhost:2025/stream to chat with the LLM.
+Open http://localhost:2025/stream to chat with the LLM. With OpenAI or Anthropic, change `source` and `model` in the script as in the table above.
 
 ## RAG from Documents
 
@@ -164,6 +177,13 @@ serverag --path ./mydb --embedding_source ollama --embedding_model nomic-embed-t
 ```
 
 `serverag` needs both the embedding flags (to search the database) and the completion flags (to generate the answer) — these are required unless you set defaults in `~/.talkpipe.toml`. `serverag` validates this configuration at startup and exits with an actionable error if a model/source is missing or unsupported. The example above needs Ollama running with both models pulled (`ollama pull nomic-embed-text` and `ollama pull llama3.2`). Then open http://localhost:2026/stream. See [makevectordatabase and serverag](guides/makevectordatabase-and-serverag.md) for full options.
+
+The embedding and completion providers are independent, and neither has to be Ollama. For example, in-process model2vec embeddings with Anthropic answers (`pip install "talkpipe[model2vec,anthropic]"`, `ANTHROPIC_API_KEY` set):
+
+```bash
+makevectordatabase "docs/*.md" --path ./mydb --embedding_source model2vec --embedding_model minishlab/potion-base-8M
+serverag --path ./mydb --embedding_source model2vec --embedding_model minishlab/potion-base-8M --completion_source anthropic --completion_model claude-haiku-4-5
+```
 
 ## Next Steps
 

@@ -158,12 +158,15 @@ class AbstractRAGPipeline(AbstractSegment[Any, Any]):
             "Prompt to use for embedding.  If None (default), use the content_field.",
         ] = None,
         embedding_model: Annotated[str | None, "Embedding model to use"] = None,
-        embedding_source: Annotated[str | None, "Source of text to embed"] = None,
+        embedding_source: Annotated[
+            str | None, "Embedding provider (e.g. ollama, openai, or model2vec)"
+        ] = None,
         completion_model: Annotated[
             str | None, "LLM model to use for completion"
         ] = None,
         completion_source: Annotated[
-            str | None, "Source of prompt for completion"
+            str | None,
+            "Chat provider for the completion (e.g. ollama, openai, or anthropic)",
         ] = None,
         prompt_directive: Annotated[
             str, "Directive to guide the evaluation"
@@ -294,12 +297,15 @@ class RAGToText(AbstractRAGPipeline):
             "Prompt to use for embedding.  If None (default), use the content_field.",
         ] = None,
         embedding_model: Annotated[str | None, "Embedding model to use"] = None,
-        embedding_source: Annotated[str | None, "Source of text to embed"] = None,
+        embedding_source: Annotated[
+            str | None, "Embedding provider (e.g. ollama, openai, or model2vec)"
+        ] = None,
         completion_model: Annotated[
             str | None, "LLM model to use for completion"
         ] = None,
         completion_source: Annotated[
-            str | None, "Source of prompt for completion"
+            str | None,
+            "Chat provider for the completion (e.g. ollama, openai, or anthropic)",
         ] = None,
         prompt_directive: Annotated[
             str, "Directive to guide the evaluation"
@@ -408,9 +414,13 @@ class RAGToBinaryAnswer(AbstractRAGPipeline):
     def __init__(
         self,
         embedding_model: Annotated[str, "Embedding model to use"],
-        embedding_source: Annotated[str, "Source of text to embed"],
+        embedding_source: Annotated[
+            str, "Embedding provider (e.g. ollama, openai, or model2vec)"
+        ],
         completion_model: Annotated[str, "LLM model to use for completion"],
-        completion_source: Annotated[str, "Source of prompt for completion"],
+        completion_source: Annotated[
+            str, "Chat provider for the completion (e.g. ollama, openai, or anthropic)"
+        ],
         path: Annotated[
             str,
             "Path to LanceDB database. Supports file paths or 'tmp://name' for process-scoped temp (auto-cleanup)",
@@ -514,9 +524,13 @@ class RAGToScore(AbstractRAGPipeline):
     def __init__(
         self,
         embedding_model: Annotated[str, "Embedding model to use"],
-        embedding_source: Annotated[str, "Source of text to embed"],
+        embedding_source: Annotated[
+            str, "Embedding provider (e.g. ollama, openai, or model2vec)"
+        ],
         completion_model: Annotated[str, "LLM model to use for completion"],
-        completion_source: Annotated[str, "Source of prompt for completion"],
+        completion_source: Annotated[
+            str, "Chat provider for the completion (e.g. ollama, openai, or anthropic)"
+        ],
         path: Annotated[
             str,
             "Path to LanceDB database. Supports file paths or 'tmp://name' for process-scoped temp (auto-cleanup)",

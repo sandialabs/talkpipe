@@ -325,6 +325,8 @@ chatterlang_serve --port 8080 \
   --script '| llmPrompt[source="ollama", model="llama3.2", field="prompt"]' --display-property prompt 
 ```
 
+The script can use any supported provider: for example `source="openai", model="gpt-4o-mini"` (with `OPENAI_API_KEY` set) or `source="anthropic", model="claude-haiku-4-5"` (with `ANTHROPIC_API_KEY` set). See [LLM providers](../guides/model-and-source-configuration.md#llm-providers).
+
 ## Advanced Features
 
 ### Custom Display Properties

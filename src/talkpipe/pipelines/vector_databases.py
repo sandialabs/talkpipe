@@ -91,7 +91,9 @@ class MakeVectorDatabaseSegment(AbstractSegment[Any, Any]):
         self,
         embedding_field: Annotated[str, "Field to use for embeddings"],
         embedding_model: Annotated[str, "Embedding model to use"],
-        embedding_source: Annotated[str, "Source of text to embed"],
+        embedding_source: Annotated[
+            str, "Embedding provider (e.g. ollama, openai, or model2vec)"
+        ],
         path: Annotated[
             str, "Path to LanceDB database. Supports file paths or 'tmp://name'"
         ],
@@ -166,7 +168,9 @@ class SearchVectorDatabaseSegment(AbstractSegment[Any, Any]):
     def __init__(
         self,
         embedding_model: Annotated[str | None, "Embedding model to use"] = None,
-        embedding_source: Annotated[str | None, "Source of text to embed"] = None,
+        embedding_source: Annotated[
+            str | None, "Embedding provider (e.g. ollama, openai, or model2vec)"
+        ] = None,
         path: Annotated[
             str | None,
             "Path to LanceDB database. Supports file paths or 'tmp://name' for process-scoped temp (auto-cleanup)",

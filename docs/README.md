@@ -11,7 +11,7 @@ New to TalkPipe? Start here for installation, basic concepts, and your first pip
 Create vector databases and run RAG servers in two commands: `makevectordatabase` and `serverag`.
 
 ### ⚙️ [Model and source configuration](guides/model-and-source-configuration.md)
-Set default LLM and embedding providers via segment parameters, `~/.talkpipe.toml`, or environment variables.
+The supported LLM providers — Ollama, OpenAI, and Anthropic for chat; Ollama, OpenAI, and in-process model2vec for embeddings — what each needs, and how to select one per segment, in `~/.talkpipe.toml`, or with environment variables.
 
 ### 🐳 [Container images](guides/container-images.md)
 Pull multi-platform release images from GitHub Container Registry (`ghcr.io`), tags, and Docker/Podman usage.

@@ -19,10 +19,12 @@ Together they form a minimal path from raw documents to a queryable RAG interfac
 
 ## Prerequisites
 
-- **TalkPipe** with LLM support: `pip install talkpipe[ollama]` or `pip install talkpipe[all]`
-- **Embedding model**: Ollama with an embedding model (e.g. `ollama pull mxbai-embed-large`), or for offline in-process embeddings see [Model2vec embeddings](model2vec-embeddings.md) (`embedding_source=model2vec`, included in `talkpipe[all]`)
-- **Completion model** (for serverag): Ollama with an LLM (e.g. `ollama pull llama3.2`)
+- **TalkPipe** with the extras for the providers you use: for example `pip install talkpipe[ollama]`, `pip install "talkpipe[openai]"`, `pip install "talkpipe[model2vec,anthropic]"`, or `pip install talkpipe[all]` for all of them
+- **Embedding model** from any embedding provider: Ollama (e.g. `ollama pull mxbai-embed-large`), OpenAI (e.g. `text-embedding-3-small`, with `OPENAI_API_KEY` set), or in-process model2vec with no server or key (see [Model2vec embeddings](model2vec-embeddings.md); `embedding_source=model2vec`, included in `talkpipe[all]`)
+- **Completion model** (for serverag) from any chat provider: Ollama (e.g. `ollama pull llama3.2`), OpenAI (with `OPENAI_API_KEY` set), or Anthropic (with `ANTHROPIC_API_KEY` set)
 - **Configuration**: Set `default_embedding_model_name`, `default_embedding_model_source`, `default_model_name`, and `default_model_source` in `~/.talkpipe.toml` or pass them on the command line
+
+The embedding and completion providers are chosen independently. See [LLM providers](model-and-source-configuration.md#llm-providers) for what each provider needs.
 
 See [Model and source configuration](model-and-source-configuration.md) for how embedding and completion defaults work. For general config (logging, `$key` syntax), see [Configuration](../architecture/configuration.md).
 
@@ -47,7 +49,7 @@ makevectordatabase "docs/*.md" --path ./mydb
 |--------|-------------|---------|
 | `--path` | Path for the LanceDB database | Required |
 | `--embedding_model` | Embedding model name | Config default |
-| `--embedding_source` | Embedding source (e.g. `ollama`, `model2vec`) | Config default |
+| `--embedding_source` | Embedding provider, e.g. `ollama`, `openai`, or `model2vec` | Config default |
 | `--table_name` | Table name in the database | `docs` |
 | `--chunk_size` | Characters per text chunk | 300 |
 | `--overwrite` | Overwrite existing table | False |
@@ -112,9 +114,9 @@ serverag --path ./mydb --interactive
 | `--limit` | Number of search results to retrieve | 5 |
 | `--table_name` | Table name (must match makevectordatabase) | `docs` |
 | `--completion_model` | LLM for answers | Config default |
-| `--completion_source` | LLM source (e.g. `ollama`) | Config default |
+| `--completion_source` | Chat provider, e.g. `ollama`, `openai`, or `anthropic` | Config default |
 | `--embedding_model` | Embedding model (must match makevectordatabase) | Config default |
-| `--embedding_source` | Embedding source | Config default |
+| `--embedding_source` | Embedding provider (must match makevectordatabase) | Config default |
 | `--interactive` | Use CLI REPL instead of web server | False |
 | `--api_key` | API key for authentication | None |
 | `--require_auth` | Require API key | False |
@@ -244,6 +246,8 @@ export TALKPIPE_default_model_source="ollama"
 
 Or pass values on the command line to override.
 
+These examples use Ollama for both steps; any other provider works the same way, for example `default_embedding_model_source = "model2vec"` with `default_model_source = "anthropic"`. See [LLM providers](model-and-source-configuration.md#llm-providers).
+
 ---
 
 ## Relationship to Other Documentation
@@ -261,6 +265,7 @@ Or pass values on the command line to override.
 | "embedding_model not specified" | No config or CLI value | Set in `~/.talkpipe.toml` or pass `--embedding_model` |
 | Ollama connection error | Ollama not running | Start Ollama: `ollama serve` |
 | Model not found | Model not installed | Run `ollama pull mxbai-embed-large` and `ollama pull llama3.2` |
+| OpenAI / Anthropic authentication error | API key not set | Export `OPENAI_API_KEY` or `ANTHROPIC_API_KEY` in the environment the command runs in |
 | Port already in use | Another process on port | Use `--port 8080` (or another port) |
 | No relevant information found | Query not in documents | Try rephrasing or increasing `--limit` |
 
