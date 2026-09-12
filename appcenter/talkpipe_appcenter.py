@@ -111,11 +111,14 @@ OFFLINE_ENV = "TALKPIPE_APPCENTER_OFFLINE"
 """Set to skip every PyPI lookup (latest versions show as ``?``)."""
 
 CHANNEL_ENV = "TALKPIPE_APPCENTER_CHANNEL"
-"""``experimental`` to default to pre-release applications; anything else is stable.
+"""``experimental`` makes the bootstrap scripts run the pre-release copy of this file.
 
-The bootstrap scripts read it too, to choose which copy of this file to run --
-the only mechanism available on Windows, where a piped ``irm | iex`` cannot be
-given arguments.
+Only the scripts read it, to choose between :data:`APPCENTER_URL` and
+:data:`APPCENTER_EXPERIMENTAL_URL` -- the one mechanism available on Windows,
+where a piped ``irm | iex`` cannot be given arguments. It says nothing about
+which versions of the *applications* get installed: that is a choice per
+application (``--experimental`` on the command line, ``e`` on the screen),
+made from whichever copy is running, so the two layers stay independent.
 """
 
 EXPERIMENTAL = "experimental"
@@ -676,8 +679,9 @@ def write_channels(path: Path, channels: Mapping[str, str]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     header = (
         "# Which channel each application is installed from, one per line.\n"
-        "# Written by `install --experimental` / `--no-experimental`; an application\n"
-        "# listed here keeps its channel when it is upgraded.\n"
+        "# Written by `install --experimental` / `--no-experimental` and by the `e`\n"
+        "# key on the screen; an application listed here keeps its channel when it\n"
+        "# is upgraded.\n"
     )
     body = "".join(f"{name} {channel}\n" for name, channel in sorted(channels.items()))
     path.write_text(header + body, encoding="utf-8")
@@ -1564,16 +1568,35 @@ def explain_needs(entry: AppEntry, ctx: Context) -> list[str]:
     return notes
 
 
-def install_app(entry: AppEntry, ctx: Context, sink: LineSink) -> bool:
+def install_app(
+    entry: AppEntry, ctx: Context, sink: LineSink, *, prerelease: bool | None = None
+) -> bool:
+    """Install or upgrade ``entry``; ``prerelease`` picks its channel for this call.
+
+    None means "whatever the context says" (this run's flag, else the recorded
+    channel); True or False is an explicit choice, which the screen's ``e``
+    key makes per application without a flag for the whole run.
+    """
     view = ctx.view(entry)
     status = ctx.status(entry)
-    verb = "Upgrading" if status.installed else "Installing"
-    pre = ctx.experimental_for(entry)
+    pre = ctx.experimental_for(entry) if prerelease is None else prerelease
+    switching = bool(status.installed) and (status.channel == EXPERIMENTAL) != pre
+    if not status.installed:
+        verb = "Installing"
+    elif switching:
+        verb = "Switching"
+    else:
+        verb = "Upgrading"
     sink(f"==> {verb} {view.name} ({entry.install_requirement}) with uv")
     if pre:
         sink(
             "Experimental channel: uv may install pre-release versions of this "
             "application and of its dependencies."
+        )
+    elif switching:
+        sink(
+            "Release channel: uv installs the newest release over the pre-release, "
+            "and a plain upgrade will stay on releases from now on."
         )
     if not status.installed:
         sink(
@@ -1596,8 +1619,14 @@ def install_app(entry: AppEntry, ctx: Context, sink: LineSink) -> bool:
     refresh(ctx)
     after = ctx.status(entry)
     suffix = " (pre-release)" if pre else ""
+    channel = "pre-release" if pre else "release"
     if status.installed and status.installed == after.installed:
         sink(f"{view.name} {after.installed}{suffix} is already the newest version.")
+    elif switching:
+        sink(
+            f"Switched {view.name} to the {channel} channel: "
+            f"{status.installed} -> {after.installed}."
+        )
     elif status.installed:
         sink(f"Upgraded {view.name} {status.installed} -> {after.installed}{suffix}.")
     else:
@@ -1988,17 +2017,6 @@ def channel_options(args: argparse.Namespace) -> bool | None:
     return None
 
 
-def default_channel(env: Mapping[str, str] | None = None) -> str:
-    """The channel to use when nothing was asked for on the command line.
-
-    Only the environment decides, so that the two layers stay independent: a
-    pre-release copy of this file installs release applications unless it is
-    told otherwise, and a released copy can install pre-release ones.
-    """
-    env = os.environ if env is None else env
-    return EXPERIMENTAL if env.get(CHANNEL_ENV, "").strip() == EXPERIMENTAL else STABLE
-
-
 def catalog_options(args: argparse.Namespace) -> tuple[list[str], bool, bool]:
     """The catalog sources, whether to keep the built-in catalog, and whether to save."""
     sources = [*args.catalog, *getattr(args, "catalog_after", [])]
@@ -2308,6 +2326,7 @@ class AppCenterApp(App[None]):
     BINDINGS: ClassVar[list[BindingType]] = [
         Binding("i", "install", "Install/upgrade"),
         Binding("u", "upgrade", "Upgrade", show=False),
+        Binding("e", "channel", "Channel"),
         Binding("x", "uninstall", "Uninstall"),
         Binding("l", "launch", "Launch"),
         Binding("o", "open", "Open page"),
@@ -2418,7 +2437,9 @@ class AppCenterApp(App[None]):
                 "TalkPipe App Center\n\nThis program. Press s to add or remove a desktop launcher "
                 f"that runs it from\n{APPCENTER_URL}\n\n"
                 "That URL rolls: it serves whichever release it points at when the "
-                "launcher is opened."
+                "launcher is opened.\n\n"
+                "Any copy of the App Center installs either the release or the "
+                "pre-release of an application: press e on its row to choose."
             )
             needs.update(
                 f"This copy is the pre-release {__version__}. The launcher above "
@@ -2450,6 +2471,10 @@ class AppCenterApp(App[None]):
         )
         lines.append(f"latest:    {latest}")
         lines.append(f"installed: {status.installed or '-'}")
+        if status.channel == EXPERIMENTAL:
+            lines.append("channel:   experimental (press e to return to releases)")
+        else:
+            lines.append("channel:   stable (press e for the pre-release)")
         lines.append(f"launch:    {entry.command} {' '.join(entry.args)}".rstrip())
         if status.commands:
             lines.append(f"provides:  {', '.join(status.commands)}")
@@ -2542,6 +2567,36 @@ class AppCenterApp(App[None]):
             self._run_action("Upgrade", targets, install_app)
             self.selected.clear()
 
+    def action_channel(self) -> None:
+        """Install each target from the other channel: pre-release, or back to releases.
+
+        This is how one copy of the App Center serves both channels: the choice
+        is per application and recorded, so no flag, environment variable, or
+        second copy of the file is needed to get a beta of one application.
+        """
+        if not self._guard():
+            return
+        if self.ctx.experimental is not None:
+            flag = "--experimental" if self.ctx.experimental else "--no-experimental"
+            self.notify(
+                f"Started with {flag}: every install this run uses that channel. "
+                "Restart without it to choose per application.",
+                severity="warning",
+            )
+            return
+        targets = self._targets()
+        if not targets:
+            return
+        # Decided up front, per application, so a batch with mixed channels
+        # flips each one; the worker is exclusive, so it must be one call.
+        choice = {e.id: self.ctx.status(e).channel != EXPERIMENTAL for e in targets}
+
+        def switch(entry: AppEntry, ctx: Context, sink: LineSink) -> bool:
+            return install_app(entry, ctx, sink, prerelease=choice[entry.id])
+
+        self._run_action("Channel", targets, switch)
+        self.selected.clear()
+
     @work(group="modal")
     async def action_uninstall(self) -> None:
         if not self._guard():
@@ -2628,14 +2683,15 @@ def build_context(args: argparse.Namespace) -> Context:
     if remember:
         for item in save_catalogs(path, sources):
             _print(f"Saved catalog {item}; every run now loads it.")
-    experimental = channel_options(args)
-    if experimental is None and default_channel() == EXPERIMENTAL:
-        experimental = True
+    # Only the command line chooses this run's channel. CHANNEL_ENV is left to
+    # the bootstrap scripts on purpose: which copy of this file runs and which
+    # versions it installs are separate choices, and a pre-release copy fetched
+    # with that variable set must still install releases unless asked.
     return Context(
         catalog=catalog,
         uv=Uv(),
         offline=bool(os.environ.get(OFFLINE_ENV)),
-        experimental=experimental,
+        experimental=channel_options(args),
         channels=read_channels(channels_path()),
     )
 

@@ -44,6 +44,52 @@ uv run appcenter/talkpipe_appcenter.py
 
 ## Channels: stable and experimental
 
+**Any one copy of the App Center installs either the release or the
+pre-release of each application.** You never need a different copy of the App
+Center to get a beta of the vault, and running a beta of the App Center does
+not put betas of the applications on your computer. The two are separate
+choices, and only the second one comes up in normal use.
+
+### Which versions of the applications it installs
+
+Every application installs as its newest **release** unless you ask for its
+pre-release. On the screen, press `e` on an application's row: it installs
+(or switches to) the pre-release, and the row reads `installed
+(pre-release)`; press `e` again to return it to releases. The detail pane
+shows the channel each application is on. From the command line, ask with
+`--experimental` (or `--pre`), before or after the subcommand:
+
+```bash
+uv run <url> --experimental install vault
+uv run <url> install vault --pre
+```
+
+That passes `--prerelease allow` to uv, which applies to the application **and
+its dependencies** — a pre-release vault may require a pre-release talkpipe, and
+a narrower setting would reject it and fail to resolve at all.
+
+The choice is remembered per application, in `channels.txt` beside the saved
+catalogs, so a later `upgrade` keeps it: uv replays its own recorded settings
+for `uv tool upgrade`, but the App Center runs `uv tool install --upgrade`,
+which takes them from the command line, so without the record an upgrade would
+reinstall the newest release over your pre-release. Leave the channel with `e`
+on the screen or `--no-experimental` on the command line, either of which
+also forgets the record; so does `uninstall`.
+
+On that channel the App Center stops claiming to know the newest version —
+PyPI's own "latest" is the newest *release*, which is not an upgrade target
+for a pre-release — so the row reads `installed (pre-release)` with `?` for
+latest, and `info` prints the channel.
+
+`--experimental` placed before `ui` (or given with no subcommand) sets the
+channel for every install of that screen session and says so in the title;
+`e` then declines, since one flag for the run and a choice per application
+would contradict each other. Start without the flag to choose per
+application.
+
+### Which copy of the App Center you run
+
+This choice matters only while no full release carries the App Center.
 `releases/latest` is the newest release GitHub does *not* consider a
 pre-release, so those URLs serve the last full release even while a beta is
 out — and if the only release carrying the App Center is a beta, they return
@@ -70,31 +116,10 @@ $env:TALKPIPE_APPCENTER_CHANNEL="experimental"
 powershell -ExecutionPolicy Bypass -c "irm .../install.ps1 | iex"
 ```
 
-**Which copy you run and which versions it installs are separate choices.**
-A released App Center can install pre-release applications, and a pre-release
-one installs releases unless told otherwise. Ask for pre-release applications
-with `--experimental` (or `--pre`), before or after the subcommand:
-
-```bash
-uv run <url> --experimental install vault
-uv run <url> install vault --pre
-```
-
-That passes `--prerelease allow` to uv, which applies to the application **and
-its dependencies** — a pre-release vault may require a pre-release talkpipe, and
-a narrower setting would reject it and fail to resolve at all.
-
-The choice is remembered per application, in `channels.txt` beside the saved
-catalogs, so a later `upgrade` keeps it: uv replays its own recorded settings
-for `uv tool upgrade`, but the App Center runs `uv tool install --upgrade`,
-which takes them from the command line, so without the record an upgrade would
-reinstall the newest release over your pre-release. Leave the channel with
-`--no-experimental`, which also forgets the record; so does `uninstall`.
-
-On that channel the App Center stops claiming to know the newest version —
-PyPI's own "latest" is the newest *release*, which is not an upgrade target
-for a pre-release — so the row reads `installed (pre-release)` with `?` for
-latest, and `info` prints the channel.
+Both forms choose only which copy of the file runs. The App Center itself does
+not read `TALKPIPE_APPCENTER_CHANNEL`, so the pre-release copy fetched this way
+installs releases of the applications exactly like the released copy does,
+until you press `e` or pass `--experimental` for one of them.
 
 The experimental channel is published from github.com only; the Gitea mirror
 attaches no release assets.
@@ -107,6 +132,7 @@ desktop launcher. Keys:
 |---|---|
 | `i` | Install (or upgrade) the app under the cursor, or every selected app |
 | `u` | Upgrade only apps that are installed |
+| `e` | Switch the app to its pre-release, or back to releases (see [Channels](#channels-stable-and-experimental)) |
 | `x` | Uninstall (asks first; your data stays) |
 | `l` | Launch. Web apps start in the background and open in your browser |
 | `o` | Open a running web app in the browser |
@@ -128,6 +154,7 @@ typing. Arguments after `sh -s --` pass straight through the bootstrap script.
 uv run <url> list                  # every app and its status (--json for machines)
 uv run <url> info vault
 uv run <url> install vault writing-assistant
+uv run <url> install vault --experimental   # its pre-release; --no-experimental returns to releases
 uv run <url> upgrade --all
 uv run <url> launch vault
 uv run <url> stop vault
@@ -160,11 +187,13 @@ curl -fsSL .../install.sh | sh -s -- install vault
 - **The App Center needs the network** to start (uv fetches the file) and to show
   latest versions. Set `TALKPIPE_APPCENTER_OFFLINE=1` to skip the PyPI lookups;
   versions then show as `?`.
-- **`TALKPIPE_APPCENTER_CHANNEL=experimental`** defaults both the copy the
-  bootstrap scripts run and the versions it installs to the pre-release channel
-  (see [Channels](#channels-stable-and-experimental)). `UV_PRERELEASE` is uv's
-  own equivalent and is not used here, so that the setting reaches only the
-  installs meant to have it; setting it yourself is a power-user escape hatch.
+- **`TALKPIPE_APPCENTER_CHANNEL=experimental`** makes the bootstrap scripts
+  run the pre-release copy of the App Center, and nothing more: which versions
+  of the applications it installs is chosen per application with `e` or
+  `--experimental` (see [Channels](#channels-stable-and-experimental)).
+  `UV_PRERELEASE` is uv's own setting and is not used here, so that pre-release
+  resolution reaches only the installs meant to have it; setting it yourself
+  is a power-user escape hatch.
 
 uv is the only prerequisite. It must be at least 0.7.
 

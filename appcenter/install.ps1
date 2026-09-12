@@ -13,11 +13,18 @@ runs in its own cached environment:
 To act without the screen, run that `uv run` line yourself with arguments,
 e.g. `uv run <url> install vault` (a piped `irm | iex` cannot receive them).
 
-For pre-release versions, set the channel in the environment first -- the only
+The App Center it runs comes from the latest full release. To run the
+pre-release copy of the App Center itself instead (needed only while no full
+release carries it yet), set the channel in the environment first -- the only
 way here, since a piped `irm | iex` takes no arguments:
 
   $env:TALKPIPE_APPCENTER_CHANNEL="experimental"
   powershell -ExecutionPolicy Bypass -c "irm .../install.ps1 | iex"
+
+That chooses only which copy of the App Center runs. Either copy installs the
+release version of every application unless told otherwise: press `e` on an
+application's row, or run `uv run <url> install <app> --experimental`, to get
+its pre-release from any copy.
 
 uv is the only thing this script installs. The App Center installs applications
 with `uv tool install`, each into its own environment; nothing else on the
@@ -28,8 +35,11 @@ $ErrorActionPreference = "Stop"
 $AppCenterUrl = "https://github.com/sandialabs/talkpipe/releases/latest/download/talkpipe_appcenter.py"
 $AppCenterExperimentalUrl = "https://github.com/sandialabs/talkpipe/releases/download/experimental/talkpipe_appcenter.py"
 
-# `releases/latest` is the newest release GitHub does not consider a pre-release,
-# so it cannot serve a beta; the experimental release is where those assets go.
+# Which copy of the App Center to run. `releases/latest` is the newest release
+# GitHub does not consider a pre-release, so it cannot serve a beta; the
+# experimental release is where those assets go. The App Center itself does not
+# read the variable: the copy chosen here installs release applications unless
+# asked per application.
 if ($env:TALKPIPE_APPCENTER_CHANNEL -eq "experimental") { $AppCenterUrl = $AppCenterExperimentalUrl }
 
 function Start-AppCenter {

@@ -245,6 +245,59 @@ async def test_title_is_quiet_on_the_stable_channel(
         assert "experimental" not in str(app.query_one("#title", Static).content)
 
 
+async def test_channel_key_switches_one_app_between_channels(
+    ctx: ts.Context, fake_uv: FakeUv
+) -> None:
+    """One copy of the App Center serves both channels, per application.
+
+    No flag for the run, no environment variable, no second copy of the file:
+    ``e`` installs the pre-release of the app under the cursor, and ``e``
+    again returns it to releases. The record follows, so a later plain
+    upgrade keeps whichever channel was chosen.
+    """
+    fake_uv.set_latest("talkpipe-vault", "1.0.1")
+    fake_uv.set_latest_pre("talkpipe-vault", "1.1.0b1")
+    fake_uv.set_canned("talkpipe-vault", ["vault-server"])
+    app = ts.AppCenterApp(ctx)
+    async with app.run_test(size=SIZE) as pilot:
+        await _wait_workers(app, pilot)
+        detail = str(app.query_one("#detail", Static).content)
+        assert "channel:   stable (press e for the pre-release)" in detail
+
+        await pilot.press("e")
+        await _wait_workers(app, pilot)
+        assert _cell(app, "vault", 2) == "installed (pre-release)"
+        assert _cell(app, "vault", 3) == "1.1.0b1"
+        assert ts.read_channels(ts.channels_path()) == {
+            "talkpipe-vault": ts.EXPERIMENTAL
+        }
+        detail = str(app.query_one("#detail", Static).content)
+        assert "channel:   experimental (press e to return to releases)" in detail
+        # The other app is untouched: the choice is per application.
+        assert _cell(app, "tool", 2) == "not installed"
+
+        await pilot.press("e")
+        await _wait_workers(app, pilot)
+        assert _cell(app, "vault", 2) == "installed"
+        assert _cell(app, "vault", 3) == "1.0.1"
+        assert ts.read_channels(ts.channels_path()) == {}
+        assert "Switched talkpipe-vault to the release channel" in _log_text(app)
+
+
+async def test_channel_key_defers_to_a_flag_for_the_whole_run(
+    ctx: ts.Context, fake_uv: FakeUv
+) -> None:
+    """With ``--experimental`` for the run, every install is on that channel."""
+    ctx.experimental = True
+    app = ts.AppCenterApp(ctx)
+    async with app.run_test(size=SIZE) as pilot:
+        await _wait_workers(app, pilot)
+        await pilot.press("e")
+        await _wait_workers(app, pilot)
+        assert not [c for c in fake_uv.calls() if c[:2] == ["tool", "install"]]
+        assert _cell(app, "vault", 2) == "not installed"
+
+
 async def test_row_does_not_offer_to_downgrade_a_prerelease(
     ctx: ts.Context, fake_uv: FakeUv
 ) -> None:

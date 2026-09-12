@@ -112,6 +112,18 @@ def test_install_sh_channel_env_switches_the_url(tmp_path: Path) -> None:
     assert f"uv run {ts.APPCENTER_EXPERIMENTAL_URL}" in out
 
 
+@pytest.mark.parametrize("path", [INSTALL_SH, INSTALL_PS1])
+def test_scripts_say_the_channel_picks_only_the_copy(path: Path) -> None:
+    """The variable chooses which copy runs, never which app versions it installs.
+
+    Both scripts must say so, and neither may hand the variable on to the App
+    Center: it does not read it, so exporting it would only suggest otherwise.
+    """
+    text = path.read_text()
+    assert "chooses only which copy of the App Center runs" in text
+    assert "export TALKPIPE_APPCENTER_CHANNEL" not in text
+
+
 def test_install_sh_forwards_arguments_after_the_channel_flag(tmp_path: Path) -> None:
     out = _run_install_sh(tmp_path, "--experimental", "install", "vault")
     assert f"uv run {ts.APPCENTER_EXPERIMENTAL_URL} install vault" in out
