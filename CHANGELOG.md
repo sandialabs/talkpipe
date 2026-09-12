@@ -15,6 +15,37 @@
   input source of its own — a fork branch, a fork consumer
   (`fork_name -> print`), or a fragment such as `| print` — still begins with
   a bare segment, and spellings that were errors before are still errors.
+- **An experimental channel for the App Center, so pre-releases are reachable
+  at all.** `releases/latest/download/` resolves to the newest release GitHub
+  does not consider a pre-release, so a beta was not merely hard to get — the
+  documented one-liner returned "Not Found", which uv then ran as Python and
+  reported as `SyntaxError`. Release assets are now also attached to a rolling
+  `experimental` release, refreshed on every release, giving a stable URL that
+  serves the newest one of either kind:
+  `releases/download/experimental/talkpipe_appcenter.py`. The bootstrap scripts
+  take the channel by name — `install.sh --experimental`, or
+  `TALKPIPE_APPCENTER_CHANNEL=experimental` for both scripts, the only
+  mechanism Windows has since a piped `irm | iex` cannot receive arguments.
+
+  Installing pre-release *applications* is a separate choice, so that a
+  released App Center can install betas and a beta one installs releases unless
+  told otherwise: `--experimental` (or `--pre`), before or after the
+  subcommand, passes `--prerelease allow` to uv — which covers the application
+  and its dependencies, since a pre-release application may require a
+  pre-release library. The choice is recorded per application beside the saved
+  catalogs, because uv replays its own recorded settings for `uv tool upgrade`
+  but not for the `uv tool install --upgrade` the App Center runs; without the
+  record, a later upgrade would quietly reinstall the newest release over a
+  pre-release. `--no-experimental` leaves the channel and forgets the record.
+  On that channel the App Center no longer claims to know the latest version,
+  since PyPI's is the newest *release* and not an upgrade target for a
+  pre-release: the row reads `installed (pre-release)`.
+
+- **Fixed: `appcenter/install.sh` exited with status 2 instead of starting the
+  App Center** whenever the process had no controlling terminal — a CI runner, a
+  cron job, a detached session. `/dev/tty` exists and passes a readability test
+  in those cases, so the redirect that reattaches the keyboard for `curl | sh`
+  has to be guarded by actually opening it.
 
 - **Documentation: TalkPipe is provider-neutral, and the docs now say so.**
   Several places read as though Ollama were required — prerequisite lists that

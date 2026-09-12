@@ -69,7 +69,16 @@ def main(argv):
             print("Resolved 3 packages in 0.10s")
             print(f"error: Failed to build `{name}`", file=sys.stderr)
             return 1
-        version = spec.split("==", 1)[1] if "==" in spec else state.get("latest", {}).get(name, "1.2.3")
+        # Real uv only considers pre-releases when asked; without the flag it
+        # resolves to the newest release, which is what makes a plain upgrade
+        # able to move an installed pre-release backwards.
+        pre_ok = "--prerelease" in argv and argv[argv.index("--prerelease") + 1] == "allow"
+        if "==" in spec:
+            version = spec.split("==", 1)[1]
+        elif pre_ok and name in state.get("latest_pre", {}):
+            version = state["latest_pre"][name]
+        else:
+            version = state.get("latest", {}).get(name, "1.2.3")
         commands = state.get("canned_commands", {}).get(name, [name])
         icon = state.get("icons", {}).get(name)
         print("Resolved 12 packages in 0.42s")
@@ -167,6 +176,12 @@ class FakeUv:
     def set_latest(self, name: str, version: str) -> None:
         state = self.state
         state.setdefault("latest", {})[name] = version
+        self.state = state
+
+    def set_latest_pre(self, name: str, version: str) -> None:
+        """The version an install resolves to only when pre-releases are allowed."""
+        state = self.state
+        state.setdefault("latest_pre", {})[name] = version
         self.state = state
 
     def fail_next(self) -> None:

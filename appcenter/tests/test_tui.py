@@ -223,3 +223,35 @@ async def test_quit_key(ctx: ts.Context, fake_uv: FakeUv) -> None:
         await pilot.press("q")
         await _settle(pilot)
     assert app.return_code == 0 or app._exit
+
+
+async def test_title_states_the_experimental_channel(
+    ctx: ts.Context, fake_uv: FakeUv
+) -> None:
+    """The title is the only line visible at every terminal size."""
+    ctx.experimental = True
+    app = ts.AppCenterApp(ctx)
+    async with app.run_test(size=SIZE) as pilot:
+        await _wait_workers(app, pilot)
+        assert "experimental channel" in str(app.query_one("#title", Static).content)
+
+
+async def test_title_is_quiet_on_the_stable_channel(
+    ctx: ts.Context, fake_uv: FakeUv
+) -> None:
+    app = ts.AppCenterApp(ctx)
+    async with app.run_test(size=SIZE) as pilot:
+        await _wait_workers(app, pilot)
+        assert "experimental" not in str(app.query_one("#title", Static).content)
+
+
+async def test_row_does_not_offer_to_downgrade_a_prerelease(
+    ctx: ts.Context, fake_uv: FakeUv
+) -> None:
+    fake_uv.set_installed("talkpipe-vault", "1.1.0b1", ["vault-server"])
+    ctx.channels = {"talkpipe-vault": ts.EXPERIMENTAL}
+    app = ts.AppCenterApp(ctx)
+    async with app.run_test(size=SIZE) as pilot:
+        await _wait_workers(app, pilot)
+        assert _cell(app, "vault", 2) == "installed (pre-release)"
+        assert _cell(app, "vault", 3) == "1.1.0b1"

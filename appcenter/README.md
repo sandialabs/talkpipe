@@ -42,6 +42,63 @@ body as Python). From a checkout, run the file directly instead:
 uv run appcenter/talkpipe_appcenter.py
 ```
 
+## Channels: stable and experimental
+
+`releases/latest` is the newest release GitHub does *not* consider a
+pre-release, so those URLs serve the last full release even while a beta is
+out — and if the only release carrying the App Center is a beta, they return
+the "Not Found" described above. Pre-release assets live on their own rolling
+release instead:
+
+```bash
+uv run https://github.com/sandialabs/talkpipe/releases/download/experimental/talkpipe_appcenter.py
+```
+
+The bootstrap scripts take the channel by name. On Linux and macOS, either
+form works:
+
+```bash
+curl -fsSL .../install.sh | sh -s -- --experimental
+curl -fsSL .../install.sh | TALKPIPE_APPCENTER_CHANNEL=experimental sh
+```
+
+On Windows only the environment variable will do, because a piped
+`irm | iex` cannot be given arguments:
+
+```powershell
+$env:TALKPIPE_APPCENTER_CHANNEL="experimental"
+powershell -ExecutionPolicy Bypass -c "irm .../install.ps1 | iex"
+```
+
+**Which copy you run and which versions it installs are separate choices.**
+A released App Center can install pre-release applications, and a pre-release
+one installs releases unless told otherwise. Ask for pre-release applications
+with `--experimental` (or `--pre`), before or after the subcommand:
+
+```bash
+uv run <url> --experimental install vault
+uv run <url> install vault --pre
+```
+
+That passes `--prerelease allow` to uv, which applies to the application **and
+its dependencies** — a pre-release vault may require a pre-release talkpipe, and
+a narrower setting would reject it and fail to resolve at all.
+
+The choice is remembered per application, in `channels.txt` beside the saved
+catalogs, so a later `upgrade` keeps it: uv replays its own recorded settings
+for `uv tool upgrade`, but the App Center runs `uv tool install --upgrade`,
+which takes them from the command line, so without the record an upgrade would
+reinstall the newest release over your pre-release. Leave the channel with
+`--no-experimental`, which also forgets the record; so does `uninstall`.
+
+On that channel the App Center stops claiming to know the newest version —
+PyPI's own "latest" is the newest *release*, which is not an upgrade target
+for a pre-release — so the row reads `installed (pre-release)` with `?` for
+latest, and `info` prints the channel.
+
+The experimental channel is published from github.com only; the Gitea mirror
+attaches no release assets.
+
 You get an app-store-like screen: every application in the catalog with its
 installed and latest versions, whether it is running, and whether it has a
 desktop launcher. Keys:
@@ -103,6 +160,11 @@ curl -fsSL .../install.sh | sh -s -- install vault
 - **The App Center needs the network** to start (uv fetches the file) and to show
   latest versions. Set `TALKPIPE_APPCENTER_OFFLINE=1` to skip the PyPI lookups;
   versions then show as `?`.
+- **`TALKPIPE_APPCENTER_CHANNEL=experimental`** defaults both the copy the
+  bootstrap scripts run and the versions it installs to the pre-release channel
+  (see [Channels](#channels-stable-and-experimental)). `UV_PRERELEASE` is uv's
+  own equivalent and is not used here, so that the setting reaches only the
+  installs meant to have it; setting it yourself is a power-user escape hatch.
 
 uv is the only prerequisite. It must be at least 0.7.
 
@@ -191,8 +253,9 @@ plain `http://` is accepted only for `localhost`.
 ## Reproducibility and trust
 
 `uv run <url>` executes what it downloads, the same trust model as
-`curl | sh`. The `releases/latest/download/` URL always points at the newest
-talkpipe release. For a copy that never changes, use a release tag instead:
+`curl | sh`. Both channel URLs roll: `releases/latest/download/` follows the
+newest full release, and `releases/download/experimental/` the newest release
+of either kind. For a copy that never changes, use a release tag instead:
 
 ```
 https://github.com/sandialabs/talkpipe/releases/download/v1.1.0/talkpipe_appcenter.py

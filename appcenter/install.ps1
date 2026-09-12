@@ -13,6 +13,12 @@ runs in its own cached environment:
 To act without the screen, run that `uv run` line yourself with arguments,
 e.g. `uv run <url> install vault` (a piped `irm | iex` cannot receive them).
 
+For pre-release versions, set the channel in the environment first -- the only
+way here, since a piped `irm | iex` takes no arguments:
+
+  $env:TALKPIPE_APPCENTER_CHANNEL="experimental"
+  powershell -ExecutionPolicy Bypass -c "irm .../install.ps1 | iex"
+
 uv is the only thing this script installs. The App Center installs applications
 with `uv tool install`, each into its own environment; nothing else on the
 machine is touched.
@@ -20,6 +26,11 @@ machine is touched.
 $ErrorActionPreference = "Stop"
 
 $AppCenterUrl = "https://github.com/sandialabs/talkpipe/releases/latest/download/talkpipe_appcenter.py"
+$AppCenterExperimentalUrl = "https://github.com/sandialabs/talkpipe/releases/download/experimental/talkpipe_appcenter.py"
+
+# `releases/latest` is the newest release GitHub does not consider a pre-release,
+# so it cannot serve a beta; the experimental release is where those assets go.
+if ($env:TALKPIPE_APPCENTER_CHANNEL -eq "experimental") { $AppCenterUrl = $AppCenterExperimentalUrl }
 
 function Start-AppCenter {
     $localBin = Join-Path $env:USERPROFILE ".local\bin"

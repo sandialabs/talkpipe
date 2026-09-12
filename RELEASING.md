@@ -51,11 +51,23 @@ history and only made version sorting harder. Semantic versioning rules
    (GitHub only) run in the same workflow, and so does `release-assets`
    (GitHub only), which stamps the tag into `appcenter/talkpipe_appcenter.py` and
    attaches it with `appcenter/install.sh` and `appcenter/install.ps1` to the
-   release: that is what the App Center's `releases/latest/download/` URL serves.
+   release. Those per-tag assets are what
+   `releases/download/vX.Y.Z/` serves, and for a full release they are what
+   `releases/latest/download/` serves too — but **`latest` skips pre-releases**,
+   so a beta is reachable only by its own tag or through the rolling
+   `experimental` release, which the same job refreshes on every release.
+   `experimental` is a fixed anchor tag managed only by CI: its assets move,
+   its commit does not, and it is never hand-published (the release jobs ignore
+   any tag that does not start with `v`, so a stray publish cannot upload to
+   PyPI).
 5. **Verify** with a fresh environment: `pip install talkpipe==X.Y.Z`,
    `python -c "import talkpipe; print(talkpipe.__version__)"`, and
    `uv run https://github.com/sandialabs/talkpipe/releases/download/vX.Y.Z/talkpipe_appcenter.py --version`,
-   which must print `talkpipe-appcenter X.Y.Z`. Before a *final* release, also
+   which must print `talkpipe-appcenter X.Y.Z`. Check the same of the rolling
+   channel, which should now report this release either way:
+   `uv run https://github.com/sandialabs/talkpipe/releases/download/experimental/talkpipe_appcenter.py --version`.
+   For a pre-release, also confirm that `releases/latest/download/` still
+   serves the previous full release. Before a *final* release, also
    try the App Center by hand (`appcenter/README.md`, "Development") on a Linux
    desktop; its macOS and Windows launcher code paths are unit-tested only,
    so try those there when a machine is at hand.

@@ -76,10 +76,14 @@ These are the entry points for different usage scenarios, from interactive devel
   uv run https://github.com/sandialabs/talkpipe/releases/latest/download/talkpipe_appcenter.py
   ```
 
-  Each release attaches the version-stamped file, so the URL above needs a
-  release that post-dates the App Center — against an older one it returns
-  "Not Found" and uv reports that as a `SyntaxError`. From a checkout of this
-  branch, run the file directly instead: `uv run appcenter/talkpipe_appcenter.py`.
+  Each release attaches the version-stamped file, so the URL above needs a full
+  release that post-dates the App Center — against an older one, or where the
+  only such release so far is a pre-release, it returns "Not Found" and uv
+  reports that as a `SyntaxError`. Pre-releases are served by the experimental
+  channel instead (`releases/download/experimental/talkpipe_appcenter.py`; see
+  [Channels](appcenter/README.md#channels-stable-and-experimental)). From a
+  checkout of this branch, run the file directly:
+  `uv run appcenter/talkpipe_appcenter.py`.
 
 ## Quick Start
 
