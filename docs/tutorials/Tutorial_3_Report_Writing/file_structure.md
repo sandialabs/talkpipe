@@ -27,15 +27,15 @@ Tutorial_3_Report_Writing/
 
 **README.md**: Comprehensive tutorial guide explaining report generation concepts, pipeline architecture, and progression from simple summaries to complex multi-format documents.
 
-**Step_1_ExecutiveSummaryGeneration.sh / .bat**: Shell script (Linux/macOS) and batch file (Windows) that launch the executive summary generation web interface.
+**Step_1_ExecutiveSummaryGeneration.sh / .bat**: Launchers for the executive summary web interface — shell script for Linux/macOS, batch file for Windows.
 
 **Step_1_ExecutiveSummaryGeneration.script**: ChatterLang pipeline that creates professional executive summaries using RAG. Builds on Tutorial 2's vector search but focuses on structured business communication rather than Q&A.
 
-**Step_2_DetailedAnalysisReportGeneration.sh / .bat**: Shell script (Linux/macOS) and batch file (Windows) that launch the detailed analysis report generation web interface.
+**Step_2_DetailedAnalysisReportGeneration.sh / .bat**: Launchers for the detailed analysis report web interface (Linux/macOS and Windows).
 
 **Step_2_DetailedAnalysisReportGeneration.script**: ChatterLang pipeline that generates comprehensive multi-section reports with introduction, analysis, technology deep-dive, future implications, and recommendations sections.
 
-**Step_3_MultiFormatReportGeneration.sh / .bat**: Shell script (Linux/macOS) and batch file (Windows) that launch the multi-format report generation web interface.
+**Step_3_MultiFormatReportGeneration.sh / .bat**: Launchers for the multi-format report web interface (Linux/macOS and Windows).
 
 **Step_3_MultiFormatReportGeneration.script**: ChatterLang pipeline that creates the same report content in different formats (executive brief, technical report, client summary, research memo, presentation outline) based on user selection.
 
@@ -60,5 +60,3 @@ Tutorial_3_Report_Writing/
 4. **Modular Architecture**: Each report type is implemented as separate segments that can be independently modified or extended.
 
 5. **Professional Output**: All generated reports include proper formatting, source attribution, and metadata for business use.
-
-This tutorial demonstrates how TalkPipe's modular pipeline approach scales from simple document search to sophisticated document generation systems while maintaining clarity and maintainability.

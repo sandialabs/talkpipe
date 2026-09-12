@@ -39,7 +39,7 @@ Tutorial 2 showed how to answer questions with RAG. This tutorial goes further: 
 
 ## Using a Different LLM Provider
 
-The scripts in this tutorial specify `source="ollama"`, but the pipelines are not tied to Ollama—any supported provider works, and switching is a parameter change on the LLM segments, not a rewrite. Each LLM segment takes its own `source`/`model` parameters, so different parts of a pipeline can even use different providers (e.g. Ollama for embeddings and OpenAI for generation). Installing with `pip install talkpipe[all]` includes every provider integration (Ollama, OpenAI, Anthropic) up front, so you can switch or mix providers without installing anything else; otherwise install the provider's own extra. For example, to use OpenAI (`pip install talkpipe[openai]` and set `OPENAI_API_KEY` in your environment), edit the `.script` files:
+The scripts in this tutorial specify `source="ollama"`, but nothing in the pipelines is tied to Ollama: switching is a parameter change on the LLM segments, not a rewrite. Each segment takes its own `source`/`model`, so different parts of a pipeline can even use different providers (e.g. Ollama for embeddings and OpenAI for generation). `pip install talkpipe[all]` brings in every provider integration (Ollama, OpenAI, Anthropic) up front, so you can switch or mix providers without installing anything else; otherwise install the provider's own extra. To use OpenAI, for example (`pip install talkpipe[openai]`, with `OPENAI_API_KEY` set in your environment), edit the `.script` files:
 
 - `llmEmbed[..., source="openai", model="text-embedding-3-small", ...]` (all steps)
 - `llmPrompt[source="openai", model="gpt-4o"]` (Step 1)
