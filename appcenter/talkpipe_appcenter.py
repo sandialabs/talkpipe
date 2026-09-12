@@ -126,9 +126,18 @@ STABLE = "stable"
 
 PYPI_TIMEOUT = 3.0
 MAX_CATALOG_BYTES = 1024 * 1024
+MAX_FETCH_BYTES = 32 * 1024 * 1024
+"""The most any one HTTP body is read.
+
+Catalogs are capped separately at :data:`MAX_CATALOG_BYTES`; this larger bound
+is for PyPI's JSON, which lists every file of every release and runs to several
+megabytes for a long-lived package (ruff's is over 6 MB). A truncated body
+would fail to parse, and the row would read ``?`` for no visible reason.
+"""
+MIN_UV_VERSION = (0, 7)
+"""The oldest uv the App Center works with; ``--prerelease`` and the tool commands used here exist from 0.7."""
 ID_RE = re.compile(r"^[a-z0-9][a-z0-9-]{1,62}$")
 KINDS = ("cli", "web", "tui")
-HEALTH_FALLBACKS = ("/health", "/api/health")
 PORT_SEARCH_SPAN = 20
 """How many ports above a taken one to try when relocating a web app."""
 APPCENTER_ROW_ID = "appcenter"
@@ -139,6 +148,21 @@ DONE = "==> Done: "
 """Opens the *last* line of an action, so "it has finished" is legible in the scroll."""
 
 _PRERELEASE_RE = re.compile(r"^\d+(\.\d+)*(a|b|rc|alpha|beta|c|pre|preview)\d*", re.I)
+
+
+def _version_key(version: str) -> tuple[int, ...]:
+    """The leading numeric components of a version, for a floor comparison.
+
+    Enough for ``uv --version`` (``0.7.8``, ``0.11.29``); anything after the
+    numbers is ignored, and an unparseable string sorts as ``()``.
+    """
+    numbers: list[int] = []
+    for part in version.strip().lstrip("vV").split("."):
+        digits = re.match(r"\d+", part)
+        if not digits:
+            break
+        numbers.append(int(digits.group()))
+    return tuple(numbers)
 
 
 def is_prerelease(version: str) -> bool:
@@ -210,7 +234,7 @@ def _http_get(url: str, timeout: float) -> bytes:
         url, headers={"User-Agent": f"talkpipe-appcenter/{__version__}"}
     )
     with urllib.request.urlopen(request, timeout=timeout) as response:  # nosec B310
-        return bytes(response.read(MAX_CATALOG_BYTES + 1))
+        return bytes(response.read(MAX_FETCH_BYTES + 1))
 
 
 # --- catalog model ------------------------------------------------------------
@@ -901,17 +925,38 @@ class Uv:
         self.exe = exe or os.environ.get("UV") or shutil.which("uv") or ""
         self._run = run
         self._stream = stream
+        self._checked = False
 
     def require(self) -> str:
+        """The uv executable, after checking once that it is present and recent enough.
+
+        The README states the floor; an older uv would otherwise fail inside
+        ``tool install`` on a flag it does not know, with an error that never
+        mentions the version.
+        """
         if not self.exe:
             raise UvError(
                 "uv was not found. Install it from https://docs.astral.sh/uv/ "
                 "(one command), then run the App Center again."
             )
+        if not self._checked:
+            self._checked = True
+            found = self.version()
+            if found != "?" and _version_key(found) < MIN_UV_VERSION:
+                floor = ".".join(str(n) for n in MIN_UV_VERSION)
+                raise UvError(
+                    f"uv {found} is too old: the App Center needs uv {floor} or newer. "
+                    "Update it with `uv self update` (or reinstall from "
+                    "https://docs.astral.sh/uv/), then run the App Center again."
+                )
         return self.exe
 
     def version(self) -> str:
-        result = self._run([self.require(), "--version"])
+        """uv's version, or ``?`` when it cannot be asked (the next command says why)."""
+        try:
+            result = self._run([self.exe, "--version"])
+        except OSError:
+            return "?"
         return (
             result.stdout.strip().removeprefix("uv ").split()[0]
             if result.stdout
@@ -929,7 +974,9 @@ class Uv:
             return Path.home() / ".local" / "bin"
         return Path(text).resolve()
 
-    def install_argv(self, entry: AppEntry, *, prerelease: bool = False) -> list[str]:
+    def install_argv(
+        self, entry: AppEntry, *, prerelease: bool = False, reinstall: bool = False
+    ) -> list[str]:
         argv = [
             self.require(),
             "tool",
@@ -938,6 +985,13 @@ class Uv:
             DEFAULT_PYTHON,
             "--upgrade",
         ]
+        if reinstall:
+            # ``--upgrade`` only ever moves a package forward, and an installed
+            # pre-release satisfies an unpinned requirement, so leaving the
+            # experimental channel needs a resolution from scratch: this is
+            # the one flag that makes uv put the newest release *over* a beta.
+            # (``--prerelease disallow`` does not; uv still keeps what is there.)
+            argv.append("--reinstall")
         if prerelease:
             # ``allow`` rather than ``explicit``: a pre-release application may
             # require a pre-release of the library, and ``explicit`` rejects that
@@ -949,9 +1003,16 @@ class Uv:
         return argv
 
     def install(
-        self, entry: AppEntry, sink: LineSink, *, prerelease: bool = False
+        self,
+        entry: AppEntry,
+        sink: LineSink,
+        *,
+        prerelease: bool = False,
+        reinstall: bool = False,
     ) -> int:
-        return self._stream(self.install_argv(entry, prerelease=prerelease), sink)
+        return self._stream(
+            self.install_argv(entry, prerelease=prerelease, reinstall=reinstall), sink
+        )
 
     def uninstall(self, name: str, sink: LineSink) -> int:
         return self._stream([self.require(), "tool", "uninstall", name], sink)
@@ -1008,11 +1069,17 @@ def tcp_open(host: str, port: int, timeout: float = 0.5) -> bool:
         return False
 
 
-def health_ok(url: str, *, fetch: Fetcher = _http_get, timeout: float = 1.0) -> bool:
+def health_ok(
+    url: str, *, fetch: Fetcher = _http_get, timeout: float = 1.0
+) -> bool | None:
+    """True when ``url`` answers 200; False when something answered with another
+    status (so an HTTP server is there); None when nothing answered at all."""
     try:
         fetch(url, timeout)
-    except OSError:
+    except urllib.error.HTTPError:
         return False
+    except OSError:
+        return None
     return True
 
 
@@ -1022,25 +1089,31 @@ def app_running(
     """Whether a web app answers on its port; None for apps that cannot be probed.
 
     ``port`` overrides the catalog's, for an app the App Center had to start
-    somewhere else. A declared ``health`` path is authoritative; otherwise the
-    common health paths are tried before falling back to a plain TCP connect,
-    so an unrelated program on the port is usually (not always) told apart.
+    somewhere else. A declared ``health`` path that answers 200 settles it.
+    One that answers with any other status does not settle it the other way:
+    the catalog describes the newest version of the app, and an older release
+    (the vault before 1.0.1, say) serves the same port without that route, so
+    an HTTP answer of any kind -- or, with no path declared, anything
+    listening at all -- counts as running. An unrelated program on the port is
+    therefore not told apart; that is the price of never calling a running app
+    "down", which is what makes a launch start a second copy of it.
     """
     port = entry.port if port is None else port
     if not entry.is_web or port is None:
         return None
-    base = entry.url_for(port).rstrip("/")
     if entry.health:
-        return health_ok(base + entry.health, fetch=fetch)
-    if not tcp_open("127.0.0.1", port):
-        return False
-    return any(health_ok(base + path, fetch=fetch) for path in HEALTH_FALLBACKS) or True
+        answer = health_ok(entry.url_for(port).rstrip("/") + entry.health, fetch=fetch)
+        if answer is not False:
+            return bool(answer)
+    return tcp_open("127.0.0.1", port)
 
 
 def ollama_available(*, fetch: Fetcher = _http_get) -> bool:
     if shutil.which("ollama"):
         return True
-    return health_ok("http://127.0.0.1:11434/api/tags", fetch=fetch, timeout=1.0)
+    return (
+        health_ok("http://127.0.0.1:11434/api/tags", fetch=fetch, timeout=1.0) is True
+    )
 
 
 @dataclass(frozen=True)
@@ -1069,8 +1142,12 @@ class AppStatus:
         if self.channel == EXPERIMENTAL:
             # PyPI's ``info.version`` is the newest *stable* release, so on this
             # channel there is nothing honest to compare against: claiming an
-            # upgrade here would offer to move a beta backwards.
-            return "installed (pre-release)"
+            # upgrade here would offer to move a beta backwards. The suffix
+            # describes the version, not the channel: a release installed under
+            # ``--experimental`` is still a release.
+            if is_prerelease(self.installed):
+                return "installed (pre-release)"
+            return "installed"
         return "upgrade available" if self.upgradable else "installed"
 
 
@@ -1474,11 +1551,19 @@ class Context:
 
         An explicit choice this run wins; otherwise the application keeps the
         channel it was installed from, so an upgrade cannot quietly move a
-        pre-release back to the newest stable release.
+        pre-release back to the newest stable release. The record says which
+        that was; failing a record, the installed version does -- a beta put
+        there by hand, or by an older copy of the App Center, is on the
+        experimental channel whether or not anything wrote it down, and
+        calling it stable would offer its own release as an "upgrade".
         """
         if self.experimental is not None:
             return self.experimental
-        return self.channels.get(normalize_name(entry.package.name)) == EXPERIMENTAL
+        recorded = self.channels.get(normalize_name(entry.package.name))
+        if recorded is not None:
+            return recorded == EXPERIMENTAL
+        tool = self.tool_for(entry)
+        return tool is not None and is_prerelease(tool.version)
 
     def view(self, entry: AppEntry) -> AppView:
         return describe(entry, self.infos.get(entry.package.name))
@@ -1616,7 +1701,8 @@ def explain_needs(entry: AppEntry, ctx: Context) -> list[str]:
                 notes.append(
                     "Needs a language model: install Ollama from "
                     "https://ollama.com/download (then `ollama pull mistral-small`), "
-                    "or enter an OpenAI or Anthropic API key in the app's settings."
+                    "point the app at an Ollama server on another computer in its "
+                    "settings, or enter an OpenAI or Anthropic API key there."
                 )
         else:
             notes.append(f"Needs {need} (not something the App Center can install).")
@@ -1635,7 +1721,15 @@ def install_app(
     view = ctx.view(entry)
     status = ctx.status(entry)
     pre = ctx.experimental_for(entry) if prerelease is None else prerelease
-    switching = bool(status.installed) and (status.channel == EXPERIMENTAL) != pre
+    # Leaving a pre-release behind is the one move uv does not make on its own
+    # (see ``install_argv``); the installed version, not the record, says
+    # whether that is what is being asked -- and under ``--no-experimental``
+    # for the run the record already reads stable, so it is also what makes
+    # this a switch rather than an "upgrade" from 1.0.1b1 to 1.0.0.
+    leaving = not pre and is_prerelease(status.installed or "")
+    switching = bool(status.installed) and (
+        (status.channel == EXPERIMENTAL) != pre or leaving
+    )
     if not status.installed:
         verb = "Installing"
     elif switching:
@@ -1648,21 +1742,34 @@ def install_app(
             "Experimental channel: uv may install pre-release versions of this "
             "application and of its dependencies."
         )
-    elif switching:
+    elif leaving:
         sink(
-            "Release channel: uv installs the newest release over the pre-release, "
-            "and a plain upgrade will stay on releases from now on."
+            "Release channel: uv reinstalls the application's environment with the "
+            "newest release over the pre-release, and a plain upgrade will stay on "
+            "releases from now on."
         )
     if not status.installed:
         sink(
             f"This can take a few minutes the first time: uv fetches Python {DEFAULT_PYTHON} "
             "if needed, then the application and its dependencies."
         )
-    code = ctx.uv.install(entry, sink, prerelease=pre)
+    code = ctx.uv.install(entry, sink, prerelease=pre, reinstall=leaving)
     if code != 0:
         sink(f"uv tool install failed (exit code {code}).")
         return False
     ctx.uv.update_shell()
+    refresh(ctx)
+    after = ctx.status(entry)
+    if leaving and is_prerelease(after.installed or ""):
+        # Say so rather than "already the newest version": the record is kept
+        # too, so the row goes on reading pre-release instead of offering the
+        # release it could not install as an upgrade.
+        sink(
+            f"{DONE}uv kept {view.name} {after.installed}: no release of it "
+            "resolved, so it stays on the pre-release channel. Uninstall it "
+            "(x) and install again to force the newest release."
+        )
+        return False
     # Record the channel so a later plain `upgrade` keeps it: uv replays its own
     # recorded settings for `uv tool upgrade`, but not for the
     # `uv tool install --upgrade` used here, so without this a pre-release would
@@ -1673,7 +1780,7 @@ def install_app(
     ctx.channels = read_channels(channels_path(ctx.platform))
     refresh(ctx)
     after = ctx.status(entry)
-    suffix = " (pre-release)" if pre else ""
+    suffix = " (pre-release)" if is_prerelease(after.installed or "") else ""
     channel = "pre-release" if pre else "release"
     for note in explain_needs(entry, ctx):
         sink(note)
@@ -1708,6 +1815,11 @@ def uninstall_app(entry: AppEntry, ctx: Context, sink: LineSink) -> bool:
         return True
     if status.launcher:
         remove_shortcut(entry, ctx, sink)
+    if status.pid is not None:
+        # An instance this program started would otherwise go on serving out
+        # of an environment that no longer exists, with no row that says so.
+        sink(f"{view.name} is running; stopping it first.")
+        stop_app(entry, ctx, sink)
     sink(f"{STEP}Uninstalling {view.name} with uv")
     code = ctx.uv.uninstall(entry.package.name, sink)
     if code != 0:
@@ -1810,6 +1922,17 @@ def launch_app(entry: AppEntry, ctx: Context, sink: LineSink) -> LaunchResult:
         url = running_url(entry, ctx)
         ctx.open_url(url)
         return LaunchResult(True, f"{view.name} is already running; opened {url}", url)
+    if entry.is_web and status.pid is not None:
+        # Started by this program and still alive, but not answering: starting
+        # another copy would relocate it to the next port, overwrite this one's
+        # record, and leave a server nothing tracks.
+        return LaunchResult(
+            False,
+            f"{view.name} was started by the App Center (pid {status.pid}) but is "
+            f"not answering on port {status.port or entry.port}; see "
+            f"{_log_file(entry, ctx)}. Stop it (c, or `stop`) and launch again.",
+            pid=status.pid,
+        )
     argv = [str(status.command_path), *entry.args]
     if not entry.is_web:
         sink(f"{STEP}Running {' '.join(argv)}")
@@ -2211,7 +2334,7 @@ def cmd_list(args: argparse.Namespace, ctx: Context) -> int:
             f"{r['installed'] or '-':<12}  {r['latest'] or '?':<12}  {running}"
         )
     _print("")
-    _print("Install one with: talkpipe-appcenter install <id>")
+    _print("Install one with the same command, replacing `list` with `install <id>`.")
     return 0
 
 
@@ -2229,7 +2352,7 @@ def cmd_info(args: argparse.Namespace, ctx: Context) -> int:
         _print(f"  homepage:  {row['homepage']}")
     latest = (
         f"{row['latest']} ({row['released']})"
-        if row["released"]
+        if row["latest"] and row["released"]
         else (row["latest"] or "?")
     )
     _print(f"  latest:    {latest}")
@@ -2394,7 +2517,6 @@ from textual.widgets import (  # noqa: E402
     Button,
     DataTable,
     Footer,
-    Label,
     RichLog,
     Static,
 )
@@ -2433,7 +2555,9 @@ class ConfirmScreen(ModalScreen[bool]):
 
     def compose(self) -> ComposeResult:
         with Vertical(id="confirm"):
-            yield Label(self._question, markup=False)
+            # Static, not Label: a Label is as wide as its text and clips at the
+            # box, and the question lists every command the uninstall removes.
+            yield Static(self._question, markup=False)
             with Horizontal(id="confirm-buttons"):
                 yield Button("Yes", id="yes", variant="warning")
                 yield Button("No", id="no")
@@ -2463,7 +2587,14 @@ class AppCenterApp(App[None]):
         Binding("l", "launch", "Launch"),
         Binding("o", "open", "Open page"),
         Binding("s", "shortcut", "Launcher"),
-        Binding("c", "close", "Stop", show=False),
+        # Two bindings on one key, as for ``e``: the footer shows Stop only
+        # while the row's app is one this program started -- then it is the
+        # counterpart of Launch, and the only way to learn the key from the
+        # screen that started the app -- and the key still answers elsewhere
+        # ("not running", "not started by the App Center") instead of going
+        # dead. ``check_action`` leaves exactly one of the two dispatchable.
+        Binding("c", "close", "Stop"),
+        Binding("c", "close_elsewhere", "Stop", show=False),
         Binding("space", "select", "Select", show=False),
         Binding("r", "refresh", "Refresh", priority=True),
         Binding("q", "quit", "Quit", priority=True),
@@ -2560,6 +2691,13 @@ class AppCenterApp(App[None]):
                 return False
             on_experimental = self.ctx.status(entry).channel == EXPERIMENTAL
             return (action == "release") == on_experimental
+        if action in ("close", "close_elsewhere"):
+            try:
+                entry = self.ctx.catalog.find(self._cursor_id() or "")
+            except NoMatches:
+                return False
+            ours = entry is not None and self.ctx.status(entry).pid is not None
+            return (action == "close") == ours
         return True
 
     def _render_rows(self) -> None:
@@ -2580,7 +2718,14 @@ class AppCenterApp(App[None]):
                 "yes" if status.launcher else "",
             ]
             for column, value in enumerate(values):
-                table.update_cell(entry.id, table.ordered_columns[column].key, value)
+                # update_width: the columns were sized from the placeholders at
+                # mount, and "installed (pre-release)" is wider than "...".
+                table.update_cell(
+                    entry.id,
+                    table.ordered_columns[column].key,
+                    value,
+                    update_width=True,
+                )
         table.update_cell(
             APPCENTER_ROW_ID,
             table.ordered_columns[6].key,
@@ -2629,7 +2774,7 @@ class AppCenterApp(App[None]):
             lines.append(f"homepage:  {view.homepage}")
         latest = (
             f"{status.latest} ({view.released})"
-            if view.released
+            if status.latest and view.released
             else (status.latest or "?")
         )
         lines.append(f"latest:    {latest}")
@@ -2661,6 +2806,23 @@ class AppCenterApp(App[None]):
             self.notify("Wait for the current action to finish.", severity="warning")
             return False
         return True
+
+    def _app_targets(self) -> list[AppEntry]:
+        """The targets of an application action, or none plus a notice.
+
+        The App Center's own row is the one row that is not an application; a
+        key that does nothing there should say why, as ``e`` already does.
+        """
+        targets = self._targets()
+        if not targets:
+            self.notify("Move to an application's row first.")
+        return targets
+
+    def _app_here(self) -> AppEntry | None:
+        entry = self.ctx.catalog.find(self._cursor_id() or "")
+        if entry is None:
+            self.notify("Move to an application's row first.")
+        return entry
 
     # -- workers ----------------------------------------------------------------
 
@@ -2764,13 +2926,13 @@ class AppCenterApp(App[None]):
         self._render_rows()
 
     def action_install(self) -> None:
-        if self._guard():
-            self._run_action("Install", self._targets(), install_app)
+        if self._guard() and (targets := self._app_targets()):
+            self._run_action("Install", targets, install_app)
             self.selected.clear()
 
     def action_upgrade(self) -> None:
-        if self._guard():
-            targets = [e for e in self._targets() if self.ctx.status(e).installed]
+        if self._guard() and (targets := self._app_targets()):
+            targets = [e for e in targets if self.ctx.status(e).installed]
             self._run_action("Upgrade", targets, install_app)
             self.selected.clear()
 
@@ -2831,7 +2993,10 @@ class AppCenterApp(App[None]):
     async def action_uninstall(self) -> None:
         if not self._guard():
             return
-        targets = [e for e in self._targets() if self.ctx.status(e).installed]
+        apps = self._app_targets()
+        if not apps:
+            return
+        targets = [e for e in apps if self.ctx.status(e).installed]
         if not targets:
             self.notify("Nothing selected is installed.")
             return
@@ -2845,7 +3010,7 @@ class AppCenterApp(App[None]):
     def action_launch(self) -> None:
         if not self._guard():
             return
-        entry = self.ctx.catalog.find(self._cursor_id() or "")
+        entry = self._app_here()
         if entry is None:
             return
         if entry.is_web:
@@ -2857,16 +3022,20 @@ class AppCenterApp(App[None]):
             self._refresh_status()
 
     def action_open(self) -> None:
-        entry = self.ctx.catalog.find(self._cursor_id() or "")
+        entry = self._app_here()
         if entry is not None:
             open_app(entry, self.ctx, self.log_line)
 
     def action_close(self) -> None:
         if not self._guard():
             return
-        entry = self.ctx.catalog.find(self._cursor_id() or "")
+        entry = self._app_here()
         if entry is not None:
             self._run_action("Stop", [entry], stop_app)
+
+    def action_close_elsewhere(self) -> None:
+        """``c`` on a row with nothing of ours to stop: let ``stop_app`` say why."""
+        self.action_close()
 
     def action_shortcut(self) -> None:
         if not self._guard():

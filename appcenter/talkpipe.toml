@@ -18,8 +18,9 @@
 #                  With it the App Center starts the app on the next free port
 #                  when the default one is taken; without it a taken port is
 #                  reported instead.
-#   health         web only; a path that answers 200 when up. Absent: /health,
-#                  then /api/health, then a plain TCP connect are tried.
+#   health         web only; a path that answers 200 when up. Any HTTP answer
+#                  on the port counts as running too (an older release may lack
+#                  the route); absent, anything listening on the port counts.
 #   url            web only; default "http://127.0.0.1:{port}/"
 #   opens_browser  web only; true when the app opens the browser itself on
 #                  start, so the App Center does not open a second tab (default false)

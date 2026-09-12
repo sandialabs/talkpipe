@@ -174,8 +174,84 @@ def test_no_experimental_leaves_the_channel(
     assert fake_uv.state["tools"]["talkpipe-vault"]["version"] == "1.0.1"
     assert ts.read_channels(ts.channels_path()) == {}
     # Opting out passes no flag at all rather than `disallow`, which would also
-    # reject a dependency that publishes only pre-releases.
+    # reject a dependency that publishes only pre-releases...
     assert "--prerelease" not in _last_install(fake_uv)
+    # ...and it reinstalls: `--upgrade` alone never moves a package backwards,
+    # so without this uv keeps the beta and the switch is a no-op.
+    assert "--reinstall" in _last_install(fake_uv)
+
+
+def test_leaving_the_channel_says_so_when_uv_keeps_the_beta(
+    small_catalog_file: Path,
+    fake_uv: FakeUv,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """No "already the newest version" over a switch that did not happen.
+
+    The record is kept too, so the row goes on reading pre-release instead of
+    offering the release it could not install as an upgrade.
+    """
+    fake_uv.set_latest_pre("talkpipe-vault", "1.1.0b1")
+    assert _main("install", "vault", "--experimental", catalog=small_catalog_file) == 0
+    capsys.readouterr()
+    # Nothing but pre-releases resolves for this package (a fresh resolution
+    # still lands on one), which is the shape of an app whose only releases
+    # so far are betas.
+    fake_uv.set_latest("talkpipe-vault", "1.1.0b1")
+
+    assert (
+        _main("install", "vault", "--no-experimental", catalog=small_catalog_file) == 1
+    )
+    out = capsys.readouterr().out
+    assert "==> Done: uv kept talkpipe-vault 1.1.0b1" in out
+    assert "already the newest version" not in out
+    assert ts.read_channels(ts.channels_path()) == {"talkpipe-vault": ts.EXPERIMENTAL}
+
+
+def test_an_unrecorded_prerelease_is_on_the_experimental_channel(
+    small_catalog_file: Path,
+    fake_uv: FakeUv,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """A beta installed by hand, or by an older copy of the App Center, has no
+    record. It is still a beta: calling it stable would offer its own release
+    as an "upgrade" that a plain install cannot perform."""
+    fake_uv.set_installed("talkpipe-vault", "1.1.0b1", ["vault-server"])
+    fake_uv.set_latest("talkpipe-vault", "1.0.1")
+    assert ts.read_channels(ts.channels_path()) == {}
+
+    assert _main("info", "vault", catalog=small_catalog_file) == 0
+    out = capsys.readouterr().out
+    assert "installed: 1.1.0b1  [installed (pre-release)]" in out
+    assert "channel:   experimental" in out
+    assert "upgrade available" not in out
+    assert "latest:    ?" in out  # not "None (<date>)"
+
+    # A plain upgrade keeps it on betas, like a recorded one...
+    assert _main("upgrade", "vault", catalog=small_catalog_file) == 0
+    assert fake_uv.state["tools"]["talkpipe-vault"]["version"] == "1.1.0b1"
+    argv = _last_install(fake_uv)
+    assert argv[argv.index("--prerelease") + 1] == "allow"
+    # ...and the explicit way back works from here too.
+    assert (
+        _main("install", "vault", "--no-experimental", catalog=small_catalog_file) == 0
+    )
+    assert fake_uv.state["tools"]["talkpipe-vault"]["version"] == "1.0.1"
+    assert "--reinstall" in _last_install(fake_uv)
+
+
+def test_a_release_under_the_flag_is_not_called_a_prerelease(
+    small_catalog_file: Path,
+    fake_uv: FakeUv,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """The suffix describes the installed version, not the run's channel."""
+    fake_uv.set_installed("talkpipe-vault", "1.0.1", ["vault-server"])
+    assert _main("--experimental", "info", "vault", catalog=small_catalog_file) == 0
+    out = capsys.readouterr().out
+    assert "installed: 1.0.1  [installed]" in out
+    assert "(pre-release)" not in out
+    assert "channel:   experimental" in out
 
 
 def test_uninstall_forgets_the_channel(
@@ -237,6 +313,7 @@ def test_explicit_prerelease_argument_overrides_the_record(
     assert fake_uv.state["tools"]["talkpipe-vault"]["version"] == "1.0.1"
     assert ctx.channels == {}
     assert "--prerelease" not in _last_install(fake_uv)
+    assert "--reinstall" in _last_install(fake_uv)
     assert "==> Switching talkpipe-vault (talkpipe-vault) with uv" in lines
     assert (
         "==> Done: Switched talkpipe-vault to the release channel: 1.1.0b1 -> 1.0.1."

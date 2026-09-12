@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import dataclasses
+import subprocess
 from pathlib import Path
 
 import pytest
@@ -71,6 +72,26 @@ def test_install_argv_shapes() -> None:
         vault, package=ts.parse_package("talkpipe-vault @ /tmp/v.whl")
     )
     assert uv.install_argv(direct)[-3:] == ["--from", "/tmp/v.whl", "talkpipe-vault"]
+    # Leaving a pre-release behind needs a resolution from scratch.
+    assert uv.install_argv(vault, reinstall=True)[5:7] == ["--upgrade", "--reinstall"]
+
+
+def _uv_answering(version_line: str) -> ts.Uv:
+    def run(argv: list[str]) -> subprocess.CompletedProcess[str]:
+        return subprocess.CompletedProcess(list(argv), 0, version_line, "")
+
+    return ts.Uv("/bin/uv", run=run)
+
+
+@pytest.mark.parametrize("version_line", ["uv 0.7.0\n", "uv 0.11.29 (abc 2026)\n", ""])
+def test_require_accepts_a_recent_or_unknown_uv(version_line: str) -> None:
+    assert _uv_answering(version_line).require() == "/bin/uv"
+
+
+def test_require_names_the_floor_for_an_old_uv() -> None:
+    """The README states the floor; the error, not a flag uv does not know, says so."""
+    with pytest.raises(ts.UvError, match=r"uv 0\.5\.11 is too old.*0\.7 or newer"):
+        _uv_answering("uv 0.5.11\n").require()
 
 
 def test_missing_uv_is_a_clear_error(monkeypatch: pytest.MonkeyPatch) -> None:

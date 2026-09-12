@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 
 import pytest
@@ -434,3 +435,61 @@ async def test_row_does_not_offer_to_downgrade_a_prerelease(
         await _wait_workers(app, pilot)
         assert _cell(app, "vault", 2) == "installed (pre-release)"
         assert _cell(app, "vault", 3) == "1.1.0b1"
+        # The column grew to fit: it was sized from "..." at mount, and a
+        # status cut to "installed (p" hides the one word the channel
+        # section leans on.
+        table = app.query_one("#apps", DataTable)
+        assert table.ordered_columns[2].content_width >= len("installed (pre-release)")
+        detail = str(app.query_one("#detail", Static).content)
+        assert "latest:    ?" in detail
+        assert "None" not in detail
+
+
+async def test_row_reads_an_unrecorded_prerelease_as_experimental(
+    ctx: ts.Context, fake_uv: FakeUv
+) -> None:
+    """No channels.txt entry (a beta from an older copy, or from uv by hand):
+    the version says what it is, and ``e`` offers the way back."""
+    fake_uv.set_installed("talkpipe-vault", "1.1.0b1", ["vault-server"])
+    app = ts.AppCenterApp(ctx)
+    async with app.run_test(size=SIZE) as pilot:
+        await _wait_workers(app, pilot)
+        assert _cell(app, "vault", 2) == "installed (pre-release)"
+        assert _footer_keys(app)["e"] == "Release"
+
+
+async def test_stop_is_offered_only_for_an_instance_the_app_center_started(
+    ctx: ts.Context, fake_uv: FakeUv
+) -> None:
+    """The counterpart of Launch has to be learnable from the screen that
+    launched the app -- and only there is there anything to stop."""
+    fake_uv.set_installed("talkpipe-vault", "1.0.0", ["vault-server"])
+    app = ts.AppCenterApp(ctx)
+    async with app.run_test(size=SIZE) as pilot:
+        await _wait_workers(app, pilot)
+        assert "c" not in _footer_keys(app)
+
+        ctx.state_dir.mkdir(parents=True, exist_ok=True)
+        (ctx.state_dir / "vault.pid").write_text(f"{os.getpid()}\n")
+        await pilot.press("r")
+        await _wait_workers(app, pilot)
+        assert _footer_keys(app)["c"] == "Stop"
+
+        await pilot.press("down")  # the other app: nothing of ours runs there
+        await _settle(pilot)
+        assert "c" not in _footer_keys(app)
+
+
+async def test_application_keys_explain_themselves_on_the_app_center_row(
+    ctx: ts.Context, fake_uv: FakeUv
+) -> None:
+    app = ts.AppCenterApp(ctx)
+    async with app.run_test(size=SIZE) as pilot:
+        await _wait_workers(app, pilot)
+        await pilot.press("down", "down")  # the App Center's own row
+        await _settle(pilot)
+        for key in ("i", "l", "x", "o"):
+            await pilot.press(key)
+            await _settle(pilot)
+        assert _notices(app).count("Move to an application's row first.") == 4
+        assert not [c for c in fake_uv.calls() if c[:2] == ["tool", "install"]]

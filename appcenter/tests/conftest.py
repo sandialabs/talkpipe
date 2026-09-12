@@ -31,6 +31,17 @@ STATE = ROOT / "uv-state.json"
 CALLS = ROOT / "uv-calls.jsonl"
 
 
+def vkey(version):
+    """Order versions the way PEP 440 does for the shapes used here: a
+    pre-release sorts below the release it precedes."""
+    import re
+    m = re.match(r"(\d+(?:\.\d+)*)(?:(a|b|rc)(\d+))?", version)
+    numbers = tuple(int(x) for x in m.group(1).split("."))
+    if m.group(2):
+        return numbers + (0, {"a": 0, "b": 1, "rc": 2}[m.group(2)], int(m.group(3)))
+    return numbers + (1,)
+
+
 def load():
     return json.loads(STATE.read_text())
 
@@ -70,8 +81,7 @@ def main(argv):
             print(f"error: Failed to build `{name}`", file=sys.stderr)
             return 1
         # Real uv only considers pre-releases when asked; without the flag it
-        # resolves to the newest release, which is what makes a plain upgrade
-        # able to move an installed pre-release backwards.
+        # resolves to the newest release.
         pre_ok = "--prerelease" in argv and argv[argv.index("--prerelease") + 1] == "allow"
         if "==" in spec:
             version = spec.split("==", 1)[1]
@@ -79,6 +89,20 @@ def main(argv):
             version = state["latest_pre"][name]
         else:
             version = state.get("latest", {}).get(name, "1.2.3")
+        # ...but `--upgrade` never moves a package backwards: an installed
+        # pre-release satisfies the requirement, so without `--reinstall` real
+        # uv keeps it ("Checked N packages") even when pre-releases are no
+        # longer allowed. Verified against uv 0.11 with talkpipe-vault 1.0.1b1.
+        installed = state["tools"].get(name)
+        if (
+            installed
+            and "--reinstall" not in argv
+            and vkey(version) < vkey(installed["version"])
+        ):
+            print("Resolved 12 packages in 0.42s")
+            print("Checked 12 packages in 0.5ms")
+            print(f"Installed {len(installed['commands'])} executables: " + ", ".join(installed["commands"]))
+            return 0
         commands = state.get("canned_commands", {}).get(name, [name])
         icon = state.get("icons", {}).get(name)
         print("Resolved 12 packages in 0.42s")

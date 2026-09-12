@@ -51,7 +51,10 @@ def test_list_text_and_json(
         "not installed",
     ):
         assert expected in out
-    assert "Install one with: talkpipe-appcenter install <id>" in out
+    # No `talkpipe-appcenter` command exists for anyone who ran it the
+    # documented way (`uv run <url>`), so the hint names no command.
+    assert "replacing `list` with `install <id>`" in out
+    assert "talkpipe-appcenter install" not in out
 
     assert _main("list", "--json", catalog=small_catalog_file) == 0
     data = json.loads(capsys.readouterr().out)

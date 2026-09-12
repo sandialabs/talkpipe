@@ -2,6 +2,39 @@
 
 ## Unreleased
 
+- **App Center: the release channel launches, and the way back to it
+  works.** Found by a newcomer run against the released applications rather
+  than the checkouts. A catalog `health` path that answers 404 no longer
+  counts as "down": the catalog describes the newest version, and the
+  released vault 1.0.0 and writing assistant 1.1.0 serve their ports without
+  the routes their catalog entries name, so on the default channel every
+  launch was reported as a failure while the app sat open in the browser —
+  and from there `open` refused, a second launch treated the app as "another
+  program" on its port, started a second copy on the next one, overwrote the
+  pid record, and `stop` killed the wrong one. Any HTTP answer on the port
+  now counts as running, and a launch never starts a second copy while the
+  pid file names a live process of the App Center's own. Leaving the
+  experimental channel (`e` again, `--no-experimental`) passes
+  `--reinstall`: `uv tool install --upgrade` never moves a package backwards,
+  so the switch silently kept the beta, reported "already the newest version",
+  forgot the channel record, and left the row offering the release as an
+  "upgrade" that the next `i` could not perform. If a fresh resolution still
+  lands on a pre-release, the App Center says so and keeps the record. A
+  pre-release with no record (installed by hand, or by an earlier copy) now
+  counts as being on the experimental channel, and `(pre-release)` describes
+  the installed version rather than the run's flag. Also: uninstall stops an
+  instance the App Center started before removing its environment; PyPI
+  lookups are no longer capped at 1 MiB, which blanked the latest version and
+  summary of any long-lived package (ruff's record is over 6 MB); `latest`
+  reads `?` rather than `None (<date>)` on the experimental channel; the
+  table's columns grow to fit `installed (pre-release)` instead of clipping
+  it; `c Stop` appears in the footer while the row's app is one the App
+  Center started; the uninstall question wraps; `i`, `l`, `x`, and `o` on the
+  App Center's own row say to move to an application's row instead of doing
+  nothing; the `list` hint no longer names a `talkpipe-appcenter` command
+  that the documented `uv run <url>` never creates; the language-model note
+  mentions an Ollama server on another computer; and the documented uv floor
+  (0.7) is checked, with the version named in the error.
 - **Deprecated: omitting the `|` between an input source and the first
   segment.** `INPUT FROM echo[data="1,2"] print` has always parsed as though
   the pipe were there — an accident of the grammar, and an inconsistent one,

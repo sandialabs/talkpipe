@@ -76,9 +76,18 @@ The choice is remembered per application, in `channels.txt` beside the saved
 catalogs, so a later `upgrade` keeps it: uv replays its own recorded settings
 for `uv tool upgrade`, but the App Center runs `uv tool install --upgrade`,
 which takes them from the command line, so without the record an upgrade would
-reinstall the newest release over your pre-release. Leave the channel with `e`
-on the screen or `--no-experimental` on the command line, either of which
-also forgets the record; so does `uninstall`.
+reinstall the newest release over your pre-release. A pre-release that has no
+record — installed by hand with uv, say — counts as being on the channel all
+the same: the version decides, so the App Center never offers an application's
+own release to it as an "upgrade". Leave the channel with `e` on the screen or
+`--no-experimental` on the command line, either of which also forgets the
+record; so does `uninstall`. Going back reinstalls the application's
+environment (`uv tool install --reinstall`): uv never moves a package
+backwards on its own, and an installed pre-release satisfies the requirement,
+so only a resolution from scratch puts the release over it. If even that lands
+on a pre-release — an application whose only releases so far are betas — the
+App Center says so and keeps the record, rather than reporting the switch as
+done.
 
 On that channel the App Center stops claiming to know the newest version —
 PyPI's own "latest" is the newest *release*, which is not an upgrade target
@@ -141,7 +150,7 @@ desktop launcher. Keys:
 | `l` | Launch. Web apps start in the background and open in your browser |
 | `o` | Open a running web app in the browser |
 | `s` | Add or remove a desktop launcher (menu entry, `~/Applications`, or Start Menu) |
-| `c` | Stop a web app the App Center started |
+| `c` | Stop a web app the App Center started — the footer shows it while the row's app is one it started |
 | `space` | Select for a batch install |
 | `r` | Refresh |
 | `q` | Quit |
@@ -184,9 +193,10 @@ curl -fsSL .../install.sh | sh -s -- install vault
 
 - **Applications install with `uv tool install`**, each into its own
   environment with its own Python. Nothing else on the computer is touched,
-  and uninstalling removes exactly that environment and its commands. User
-  data (the vault's `~/.talkpipe-vault`, the writing assistant's
-  `~/.writing_assistant`) is never deleted; the App Center tells you where it is.
+  and uninstalling removes exactly that environment and its commands (stopping
+  the app first if the App Center started it). User data (the vault's
+  `~/.talkpipe-vault`, the writing assistant's `~/.writing_assistant`) is never
+  deleted; the App Center tells you where it is.
 - **Re-running an install upgrades.** "Latest" is read from PyPI every time
   the App Center starts, so the screen always knows whether an upgrade exists.
 - **Launchers open a visible terminal** on purpose: the applications have no
@@ -200,10 +210,20 @@ curl -fsSL .../install.sh | sh -s -- install vault
   port on); without it, the conflict is reported straight away instead of
   waiting out a server that will never come up. Either way you get an answer
   in seconds, with the last lines of the app's log when it failed to start.
+  An app the App Center itself started is never treated as "another program"
+  on its port: while that process is alive, a second launch reports it
+  instead of starting a second copy beside it.
+- **"Running" means something answers on the app's port.** A catalog `health`
+  path that answers 200 settles it; one that answers with any other status
+  does not count against the app, because the catalog describes the newest
+  version and an older release may serve the same port without that route.
+  The price is that an unrelated program on the port is not told apart — the
+  App Center would rather open the wrong page than call a running app down and
+  start a second one.
 - **Language models are not installed.** The catalog says which apps need a
   language model; the App Center detects a local Ollama and shows its download
-  link when it is missing, or you enter an OpenAI or Anthropic key in the app's
-  own settings.
+  link when it is missing. An Ollama server on another computer, or an OpenAI
+  or Anthropic key, is entered in the app's own settings.
 - **The App Center needs the network** to start (uv fetches the file) and to show
   latest versions. Set `TALKPIPE_APPCENTER_OFFLINE=1` to skip the PyPI lookups;
   versions then show as `?`.
@@ -215,7 +235,8 @@ curl -fsSL .../install.sh | sh -s -- install vault
   resolution reaches only the installs meant to have it; setting it yourself
   is a power-user escape hatch.
 
-uv is the only prerequisite. It must be at least 0.7.
+uv is the only prerequisite. It must be at least 0.7; the App Center checks,
+and says so if yours is older.
 
 ## The catalog: listing any pip-installable application
 
@@ -249,7 +270,10 @@ port = 8002                       # web only
 port_option = "--port"            # optional; how to ask the app for another port
                                   #   when this one is taken. Absent: a taken
                                   #   port is reported instead of launched into.
-health = "/api/health"            # optional; else /health, /api/health, then TCP
+health = "/api/health"            # optional; a path that answers 200 when up. Any
+                                  #   HTTP answer on the port counts too (an older
+                                  #   release may lack the route); absent, anything
+                                  #   listening on the port counts.
 opens_browser = true              # the app opens its own tab; the App Center won't
 icon = "talkpipe_vault/apps/static/icon-256.png"   # a PNG inside the package
 data = ["~/.talkpipe-vault"]      # shown on uninstall, never deleted

@@ -113,14 +113,31 @@ def test_app_running_with_declared_health(
     monkeypatch.setattr(_Handler, "ok_paths", {"/api/health"})
 
     assert ts.app_running(_web_entry(port, "/api/health")) is True
-    assert ts.app_running(_web_entry(port, "/other")) is False
+    # A declared path that answers 404 does not mean "down": the catalog
+    # describes the newest version, and the released vault 1.0.0 serves the
+    # same port without the route. Something answered, so it is running.
+    assert ts.app_running(_web_entry(port, "/other")) is True
     # An app the App Center had to move is probed where it actually runs.
     moved = _web_entry(port + 1, "/api/health")
     assert ts.app_running(moved) is False
     assert ts.app_running(moved, port=port) is True
 
 
-def test_app_running_falls_back_to_common_paths_then_tcp(
+def test_health_ok_tells_an_answer_from_silence(
+    http_server: http.server.HTTPServer, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    port = http_server.server_address[1]
+    monkeypatch.setattr(_Handler, "ok_paths", {"/api/health"})
+    assert ts.health_ok(f"http://127.0.0.1:{port}/api/health") is True
+    assert ts.health_ok(f"http://127.0.0.1:{port}/missing") is False
+    probe = socket.socket()
+    probe.bind(("127.0.0.1", 0))
+    free = probe.getsockname()[1]
+    probe.close()
+    assert ts.health_ok(f"http://127.0.0.1:{free}/api/health") is None
+
+
+def test_app_running_falls_back_to_tcp(
     http_server: http.server.HTTPServer, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     port = http_server.server_address[1]

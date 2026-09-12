@@ -159,8 +159,9 @@ def test_explain_needs(ctx: ts.Context, monkeypatch: pytest.MonkeyPatch) -> None
     assert ts.explain_needs(_vault(ctx), ctx) == [
         (
             "Needs a language model: install Ollama from https://ollama.com/download "
-            "(then `ollama pull mistral-small`), or enter an OpenAI or Anthropic API "
-            "key in the app's settings."
+            "(then `ollama pull mistral-small`), point the app at an Ollama server on "
+            "another computer in its settings, or enter an OpenAI or Anthropic API "
+            "key there."
         )
     ]
     monkeypatch.setattr(ts.shutil, "which", lambda name: "/usr/bin/ollama")
@@ -397,6 +398,73 @@ def test_launch_reports_an_app_that_dies_at_startup(
     assert "Error: cannot bind" in lines
     assert result.pid is None
     assert not (ctx.state_dir / "vault.pid").exists()
+
+
+def _alive_child(ctx: ts.Context) -> subprocess.Popen[bytes]:
+    """A process in its own session, recorded as the vault the App Center started."""
+    child = subprocess.Popen(
+        [sys.executable, "-c", "import time; time.sleep(60)"],
+        start_new_session=True,
+    )
+    ctx.state_dir.mkdir(parents=True, exist_ok=True)
+    (ctx.state_dir / "vault.pid").write_text(f"{child.pid}\n18002\n")
+    return child
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="POSIX process groups")
+def test_launch_does_not_start_a_second_copy_of_an_instance_it_owns(
+    ctx: ts.Context, fake_uv: FakeUv
+) -> None:
+    """A live process of ours that is not answering (still starting, or an
+    older release without the health route) is reported, not doubled: a
+    second start would relocate to the next port, overwrite the pid record,
+    and leave the first server with nothing tracking it."""
+    fake_uv.set_installed("talkpipe-vault", "1.0.0", ["vault-server"])
+    child = _alive_child(ctx)
+    try:
+        ts.refresh(ctx)
+        assert ctx.status(_vault(ctx)).pid == child.pid
+        assert ctx.status(_vault(ctx)).running is False
+        lines: list[str] = []
+
+        result = ts.launch_app(_vault(ctx), ctx, lines.append)
+
+        assert not result.ok
+        assert result.pid == child.pid
+        assert f"started by the App Center (pid {child.pid})" in result.message
+        assert "not answering on port 18002" in result.message
+        assert "Stop it" in result.message
+        assert not any("Starting" in line for line in lines)
+        assert (ctx.state_dir / "vault.pid").read_text() == f"{child.pid}\n18002\n"
+    finally:
+        with contextlib.suppress(OSError):
+            os.killpg(child.pid, 9)
+        child.wait()
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="POSIX process groups")
+def test_uninstall_stops_an_instance_it_started(
+    ctx: ts.Context, fake_uv: FakeUv
+) -> None:
+    """Otherwise the server keeps serving out of an environment that is gone,
+    with no row that says so."""
+    fake_uv.set_installed("talkpipe-vault", "1.0.0", ["vault-server"])
+    child = _alive_child(ctx)
+    try:
+        ts.refresh(ctx)
+        lines: list[str] = []
+
+        assert ts.uninstall_app(_vault(ctx), ctx, lines.append)
+
+        assert "talkpipe-vault is running; stopping it first." in lines
+        assert f"==> Stopping talkpipe-vault (pid {child.pid})" in lines
+        assert lines[-1] == "==> Done: Uninstalled talkpipe-vault."
+        assert not (ctx.state_dir / "vault.pid").exists()
+        assert child.wait(timeout=5) != 0
+        assert ctx.status(_vault(ctx)).pid is None
+    finally:
+        with contextlib.suppress(OSError):
+            os.killpg(child.pid, 9)
 
 
 def test_stop_without_pid_explains(ctx: ts.Context, fake_uv: FakeUv) -> None:
