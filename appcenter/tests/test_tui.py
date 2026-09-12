@@ -117,8 +117,12 @@ async def test_install_failure_is_announced_as_a_failure(
         await pilot.press("down", "i")
         await _wait_workers(app, pilot)
 
-        assert "uv tool install failed (exit code 1)." in _log_text(app)
-        assert _toasts(app) == ["Finished: Install failed: some-tool."]
+        log = _log_text(app)
+        assert log.splitlines()[-1] == (
+            "==> Failed: Installing some-tool: uv tool install failed (exit code 1)."
+        )
+        # The toast's title agrees with its body.
+        assert _toasts(app) == ["Failed: Install failed: some-tool."]
         assert _cell(app, "tool", 2) == "not installed"
 
 
@@ -253,6 +257,30 @@ async def test_refresh_key_reports_a_failed_refresh(
         log = _log_text(app)
         assert "Refresh failed: uv tool list exited 1" in log
         assert "Refreshed." not in log
+
+
+@pytest.mark.parametrize("size", [(120, 40), (160, 40)])
+async def test_narrow_terminals_put_the_detail_pane_under_the_table(
+    ctx: ts.Context, fake_uv: FakeUv, size: tuple[int, int]
+) -> None:
+    """At 120 columns a fixed side pane cut the table to "Lau"; the columns
+    the README promises (running, launcher) must stay on screen."""
+    fake_uv.set_installed("talkpipe-vault", "1.0.0b1", ["vault-server"])
+    app = ts.AppCenterApp(ctx)
+    async with app.run_test(size=size) as pilot:
+        await _wait_workers(app, pilot)
+        narrow = size[0] < ts.NARROW_COLUMNS
+        assert app.screen.has_class("narrow") == narrow
+        table = app.query_one("#apps", DataTable)
+        side = app.query_one("#side")
+        if narrow:
+            assert side.region.y >= table.region.bottom
+            assert side.region.width == table.region.width
+        else:
+            assert side.region.x >= table.region.right
+        assert _cell(app, "vault", 2) == "installed (pre-release)"
+        assert table.virtual_size.width <= table.region.width
+        assert app.query_one("#log", RichLog).region.bottom <= size[1]
 
 
 @pytest.mark.parametrize("size", [(80, 24), (80, 20)])

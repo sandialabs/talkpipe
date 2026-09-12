@@ -146,6 +146,8 @@ STEP = "==> "
 """Opens a line the App Center wrote, in a log that is otherwise uv's output."""
 DONE = "==> Done: "
 """Opens the *last* line of an action, so "it has finished" is legible in the scroll."""
+FAILED = "==> Failed: "
+"""Opens the last line of an action that did not succeed: the same marker, the other word."""
 
 _PRERELEASE_RE = re.compile(r"^\d+(\.\d+)*(a|b|rc|alpha|beta|c|pre|preview)\d*", re.I)
 
@@ -204,7 +206,7 @@ kind = "web"
 port = 8001
 port_option = "--port"
 health = "/health"
-opens_browser = true
+opens_browser = "1.1.1"
 icon = "writing_assistant/app/static/android-chrome-512x512.png"
 data = ["~/.writing_assistant"]
 needs = ["ollama"]
@@ -307,7 +309,7 @@ _APP_FIELDS: dict[str, type | tuple[type, ...]] = {
     "port_option": str,
     "health": str,
     "url": str,
-    "opens_browser": bool,
+    "opens_browser": (bool, str),
     "icon": str,
     "data": list,
     "needs": list,
@@ -340,7 +342,13 @@ class AppEntry:
     """
     health: str | None = None
     url: str | None = None
-    opens_browser: bool = False
+    opens_browser: bool | str = False
+    """Whether the app opens the browser itself on start.
+
+    A version string names the first version that does: the catalog describes
+    the newest version of the app, and the releases before it are still what
+    a plain install may get, so the App Center opens the page for those.
+    """
     icon: str | None = None
     data: tuple[str, ...] = ()
     needs: tuple[str, ...] = ()
@@ -365,6 +373,19 @@ class AppEntry:
         if self.url:
             return self.url.replace("{port}", str(port))
         return f"http://127.0.0.1:{port}/"
+
+    def opens_own_browser(self, installed: str | None) -> bool:
+        """Whether the *installed* version opens its own browser tab on start.
+
+        ``opens_browser = true`` says every version does; a version string says
+        from which one, so an older release still on PyPI gets its page opened
+        by the App Center instead of by nobody.
+        """
+        if isinstance(self.opens_browser, bool):
+            return self.opens_browser
+        if not installed:
+            return False
+        return _version_key(installed) >= _version_key(self.opens_browser)
 
     @property
     def install_requirement(self) -> str:
@@ -395,7 +416,8 @@ class Catalog:
 def _check_type(
     where: str, key: str, value: object, expected: type | tuple[type, ...]
 ) -> None:
-    if isinstance(value, bool) and expected is not bool:
+    allowed = expected if isinstance(expected, tuple) else (expected,)
+    if isinstance(value, bool) and bool not in allowed:
         raise CatalogError(
             f"{where}: {key} must be {_type_name(expected)}, not a boolean"
         )
@@ -450,6 +472,12 @@ def _parse_entry(raw: Mapping[str, Any], source: str, position: int) -> AppEntry
             f"{where}: port_option must be a command-line option, e.g. '--port'"
         )
     health = raw.get("health")
+    opens_browser = raw.get("opens_browser", False)
+    if isinstance(opens_browser, str) and not _version_key(opens_browser):
+        raise CatalogError(
+            f"{where}: opens_browser must be true, false, or the first version "
+            'that opens its own browser (e.g. "1.1.1")'
+        )
     if health is not None and not health.startswith("/"):
         raise CatalogError(f"{where}: health must be a path starting with /")
     index = raw.get("index")
@@ -470,7 +498,7 @@ def _parse_entry(raw: Mapping[str, Any], source: str, position: int) -> AppEntry
         port_option=port_option,
         health=health,
         url=raw.get("url"),
-        opens_browser=raw.get("opens_browser", False),
+        opens_browser=opens_browser,
         icon=raw.get("icon"),
         data=_string_list(where, "data", raw.get("data", [])),
         needs=_string_list(where, "needs", raw.get("needs", [])),
@@ -1334,8 +1362,10 @@ def _install_linux(spec: ShortcutSpec, home: Path, run: ShortcutRunner) -> list[
         f"Categories={spec.categories}",
         "StartupNotify=false",
     ]
-    if has_icon:
-        lines.append(f"Icon={spec.app_id}")
+    # A standard icon name when the package ships no PNG, so the entry is not
+    # the one blank tile in the menu (the catalog's path describes the newest
+    # version, which an older release may not have).
+    lines.append(f"Icon={spec.app_id}" if has_icon else "Icon=applications-other")
     desktop_file.parent.mkdir(parents=True, exist_ok=True)
     desktop_file.write_text("\n".join(lines) + "\n", encoding="utf-8")
     desktop_file.chmod(0o755)
@@ -1764,7 +1794,7 @@ def install_app(
         )
     code = ctx.uv.install(entry, sink, prerelease=pre, reinstall=leaving)
     if code != 0:
-        sink(f"uv tool install failed (exit code {code}).")
+        sink(f"{FAILED}{verb} {view.name}: uv tool install failed (exit code {code}).")
         return False
     ctx.uv.update_shell()
     refresh(ctx)
@@ -1836,7 +1866,9 @@ def uninstall_app(entry: AppEntry, ctx: Context, sink: LineSink) -> bool:
     sink(f"{STEP}Uninstalling {view.name} with uv")
     code = ctx.uv.uninstall(entry.package.name, sink)
     if code != 0:
-        sink(f"uv tool uninstall failed (exit code {code}).")
+        sink(
+            f"{FAILED}Uninstalling {view.name}: uv tool uninstall failed (exit code {code})."
+        )
         return False
     record_channel(channels_path(ctx.platform), entry.package.name, None)
     ctx.channels = read_channels(channels_path(ctx.platform))
@@ -1862,6 +1894,30 @@ class LaunchResult:
 def running_url(entry: AppEntry, ctx: Context) -> str:
     """Where this app's page is right now: its recorded port, else the catalog's."""
     return entry.url_for(ctx.status(entry).port or entry.port)
+
+
+def surely_running(entry: AppEntry, ctx: Context) -> bool:
+    """Whether what answers on the app's port is known to be the app.
+
+    It is when the App Center started the process itself, or when the
+    declared ``health`` path answers 200. Otherwise "running" only means that
+    something answered there (see ``app_running``), and what the App Center
+    says about it should claim no more than that.
+    """
+    status = ctx.status(entry)
+    if status.pid is not None:
+        return True
+    if entry.health:
+        url = running_url(entry, ctx).rstrip("/") + entry.health
+        return health_ok(url, fetch=ctx.fetch) is True
+    return False
+
+
+def _not_installed(entry: AppEntry, ctx: Context) -> str:
+    return (
+        f"{ctx.view(entry).name} is not installed; install it first "
+        f"(i on the screen, or `install {entry.id}`)."
+    )
 
 
 def wait_until_ready(
@@ -1930,11 +1986,22 @@ def launch_app(entry: AppEntry, ctx: Context, sink: LineSink) -> LaunchResult:
     view = ctx.view(entry)
     status = ctx.status(entry)
     if not status.command_path:
-        return LaunchResult(False, f"{view.name} is not installed.")
+        return LaunchResult(False, _not_installed(entry, ctx))
     if entry.is_web and status.running:
         url = running_url(entry, ctx)
         ctx.open_url(url)
-        return LaunchResult(True, f"{view.name} is already running; opened {url}", url)
+        if surely_running(entry, ctx):
+            return LaunchResult(
+                True, f"{view.name} is already running; opened {url}", url
+            )
+        return LaunchResult(
+            True,
+            f"Something answers on port {status.port or entry.port}, which may be "
+            f"{view.name} started outside the App Center, or another program; "
+            f"opened {url}. If that page is not {view.name}, stop whatever is "
+            "serving there and launch again.",
+            url,
+        )
     if entry.is_web and status.pid is not None:
         # Started by this program and still alive, but not answering: starting
         # another copy would relocate it to the next port, overwrite this one's
@@ -1992,7 +2059,7 @@ def launch_app(entry: AppEntry, ctx: Context, sink: LineSink) -> LaunchResult:
             f"{view.name} {reason}; see {log_path}",
             pid=process.pid if exit_code is None else None,
         )
-    if not entry.opens_browser:
+    if not entry.opens_own_browser(status.installed):
         ctx.open_url(url)
     refresh(ctx)
     return LaunchResult(True, f"{view.name} is running at {url}", url, process.pid)
@@ -2003,9 +2070,16 @@ def stop_app(entry: AppEntry, ctx: Context, sink: LineSink) -> bool:
     view = ctx.view(entry)
     pid, _ = _read_runtime(entry, ctx)
     if pid is None:
-        if ctx.status(entry).running:
+        status = ctx.status(entry)
+        if status.running and surely_running(entry, ctx):
             sink(
                 f"{view.name} is running but was not started by the App Center; close its terminal window to stop it."
+            )
+        elif status.running:
+            sink(
+                f"Something answers on port {status.port or entry.port} that the App "
+                f"Center did not start: {view.name} from a terminal window, or another "
+                "program. Stop it there."
             )
         else:
             sink(f"{view.name} is not running.")
@@ -2033,8 +2107,13 @@ def open_app(entry: AppEntry, ctx: Context, sink: LineSink) -> bool:
     if not entry.is_web:
         sink(f"{view.name} has no web page to open.")
         return False
+    if not ctx.status(entry).installed:
+        sink(_not_installed(entry, ctx))
+        return False
     if not ctx.status(entry).running:
-        sink(f"{view.name} is not running; launch it first.")
+        sink(
+            f"{view.name} is not running; launch it first (l, or `launch {entry.id}`)."
+        )
         return False
     url = running_url(entry, ctx)
     ctx.open_url(url)
@@ -2333,18 +2412,26 @@ def cmd_list(args: argparse.Namespace, ctx: Context) -> int:
     if args.json:
         _print(json.dumps({"catalog": ctx.catalog.name, "apps": rows}, indent=2))
         return 0
-    widths = {
-        "id": max(2, *(len(r["id"]) for r in rows)),
-        "name": max(4, *(len(r["name"]) for r in rows)),
-    }
-    _print(
-        f"{'ID':<{widths['id']}}  {'NAME':<{widths['name']}}  {'STATUS':<18}  {'INSTALLED':<12}  {'LATEST':<12}  RUNNING"
-    )
-    for r in rows:
-        running = "-" if r["running"] is None else ("yes" if r["running"] else "no")
+    cells = [
+        (
+            r["id"],
+            r["name"],
+            r["status"],
+            r["installed"] or "-",
+            r["latest"] or "?",
+            "-" if r["running"] is None else ("yes" if r["running"] else "no"),
+        )
+        for r in rows
+    ]
+    header = ("ID", "NAME", "STATUS", "INSTALLED", "LATEST", "RUNNING")
+    # Sized from the content, as the screen's table is: "installed
+    # (pre-release)" is wider than any fixed column worth the name.
+    widths = [max(len(row[i]) for row in (header, *cells)) for i in range(len(header))]
+    for row in (header, *cells):
         _print(
-            f"{r['id']:<{widths['id']}}  {r['name']:<{widths['name']}}  {r['status']:<18}  "
-            f"{r['installed'] or '-':<12}  {r['latest'] or '?':<12}  {running}"
+            "  ".join(
+                cell.ljust(width) for cell, width in zip(row, widths, strict=True)
+            ).rstrip()
         )
     _print("")
     _print("Install one with the same command, replacing `list` with `install <id>`.")
@@ -2437,7 +2524,7 @@ def cmd_launch(args: argparse.Namespace, ctx: Context) -> int:
     (entry,) = _entries_for([args.app], ctx)
     refresh(ctx)
     result = launch_app(entry, ctx, _print)
-    _print(result.message)
+    _print((DONE if result.ok else FAILED) + result.message)
     return 0 if result.ok else 1
 
 
@@ -2536,16 +2623,24 @@ from textual.widgets import (  # noqa: E402
 
 COMPACT_ROWS = 24
 """Below this many rows the detail pane gives up its height for the table and log."""
+NARROW_COLUMNS = 140
+"""Below this many columns the detail pane moves under the table, which keeps its columns.
+
+The table needs about 110 columns to show every one of them once Status reads
+"installed (pre-release)"; beside a 30-column pane that is 140.
+"""
 
 APPCENTER_CSS = """
 Screen { layout: vertical; }
 #title { height: 1; padding: 0 1; background: $primary; color: $text; text-style: bold; }
 #body { height: 1fr; }
-#apps { width: 3fr; height: 1fr; }
-#side { width: 1fr; height: 1fr; border-left: solid $secondary; padding: 0 1; }
+#apps { width: 1fr; height: 1fr; }
+#side { width: 30; height: 1fr; border-left: solid $secondary; padding: 0 1; }
 #detail { height: auto; }
 #needs { height: auto; color: $warning; margin-top: 1; }
 #log { height: 8; border-top: solid $secondary; }
+Screen.narrow #body { layout: vertical; }
+Screen.narrow #side { width: 1fr; height: auto; max-height: 50%; border-left: none; border-top: solid $secondary; }
 Screen.compact #log { height: 5; }
 Screen.compact #side { display: none; }
 ConfirmScreen { align: center middle; }
@@ -2663,6 +2758,7 @@ class AppCenterApp(App[None]):
 
     def _apply_size(self) -> None:
         self.screen.set_class(self.size.height < COMPACT_ROWS, "compact")
+        self.screen.set_class(self.size.width < NARROW_COLUMNS, "narrow")
 
     # -- helpers ---------------------------------------------------------------
 
@@ -2888,7 +2984,7 @@ class AppCenterApp(App[None]):
                 try:
                     ok = action(entry, self.ctx, sink) is not False
                 except (UvError, ShortcutError) as exc:
-                    sink(f"{label} failed: {exc}")
+                    sink(f"{FAILED}{label}: {exc}")
                     ok = False
                 (done if ok else failed).append(self.ctx.view(entry).name)
         finally:
@@ -2912,7 +3008,7 @@ class AppCenterApp(App[None]):
             self.notify(
                 f"{label} failed: {', '.join(failed)}."
                 + (f" Finished: {', '.join(done)}." if done else ""),
-                title="Finished",
+                title="Failed",
                 severity="error",
                 timeout=15.0,
                 markup=False,
@@ -3056,7 +3152,7 @@ class AppCenterApp(App[None]):
                 else:
                     add_appcenter_shortcut(self.ctx, self.log_line)
             except (ShortcutError, UvError) as exc:
-                self.log_line(f"Launcher failed: {exc}")
+                self.log_line(f"{FAILED}Launcher: {exc}")
             self._render_rows()
             return
         entry = self.ctx.catalog.find(app_id or "")
@@ -3068,7 +3164,7 @@ class AppCenterApp(App[None]):
 
 def _launch_and_report(entry: AppEntry, ctx: Context, sink: LineSink) -> bool:
     result = launch_app(entry, ctx, sink)
-    sink(result.message)
+    sink((DONE if result.ok else FAILED) + result.message)
     return result.ok
 
 

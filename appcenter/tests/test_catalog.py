@@ -35,6 +35,27 @@ def test_embedded_catalog_parses_with_three_entries() -> None:
     assert talkpipe.health is None
 
 
+def test_opens_browser_may_name_the_first_version_that_does() -> None:
+    """The catalog describes the newest version; older releases still on PyPI
+    may not open a browser, and then the App Center has to."""
+    since = ts.parse_catalog(_catalog_with('opens_browser = "1.1.1"\n')).apps[0]
+    assert since.opens_browser == "1.1.1"
+    assert not since.opens_own_browser(None)
+    assert not since.opens_own_browser("1.1.0")
+    assert since.opens_own_browser("1.1.1b1")
+    assert since.opens_own_browser("1.1.1")
+    assert since.opens_own_browser("2.0")
+    always = ts.parse_catalog(_catalog_with("opens_browser = true\n")).apps[0]
+    assert always.opens_own_browser(None)
+    assert always.opens_own_browser("0.1")
+    never = ts.parse_catalog(_catalog_with("")).apps[0]
+    assert not never.opens_own_browser("9.9")
+    # The released writing assistant 1.1.0 opens no browser; 1.1.1 does.
+    built_in = ts.parse_catalog(ts.EMBEDDED_CATALOG).find("writing-assistant")
+    assert built_in is not None
+    assert built_in.opens_browser == "1.1.1"
+
+
 def test_embedded_catalog_matches_the_repository_file() -> None:
     """The file in catalog/ is what deployers copy; it must equal the built-in."""
     on_disk = (Path(__file__).resolve().parent.parent / "talkpipe.toml").read_text()
@@ -124,7 +145,11 @@ def _catalog_with(entry_lines: str, extra_top: str = "") -> str:
         (_catalog_with("args = [1]\n"), "every item of args must be a string"),
         (
             _catalog_with('opens_browser = "yes"\n'),
-            "opens_browser must be true or false",
+            "opens_browser must be true, false, or the first version",
+        ),
+        (
+            _catalog_with("opens_browser = 1\n"),
+            "opens_browser must be true or false or a string",
         ),
         (
             _catalog_with('index = "http://example.com/simple/"\n'),

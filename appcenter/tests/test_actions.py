@@ -77,7 +77,10 @@ def test_install_failure_reports_and_returns_false(
     ts.refresh(ctx)
 
     assert not ts.install_app(_tool(ctx), ctx, lines.append)
-    assert "uv tool install failed (exit code 1)." in lines
+    # The closing marker, as for success: the log is otherwise uv's output.
+    assert lines[-1] == (
+        "==> Failed: Installing some-tool: uv tool install failed (exit code 1)."
+    )
     assert ctx.status(_tool(ctx)).installed is None
 
 
@@ -181,7 +184,17 @@ def test_open_app_only_when_running(ctx: ts.Context, fake_uv: FakeUv) -> None:
     assert not ts.open_app(_tool(ctx), ctx, lines.append)
     assert "no web page" in lines[-1]
     assert not ts.open_app(_vault(ctx), ctx, lines.append)
-    assert "not running" in lines[-1]
+    # Not "launch it first": launching a not-installed app says to install it.
+    assert lines[-1] == (
+        "talkpipe-vault is not installed; install it first "
+        "(i on the screen, or `install vault`)."
+    )
+    fake_uv.set_installed("talkpipe-vault", "1.0.0", ["vault-server"])
+    ts.refresh(ctx)
+    assert not ts.open_app(_vault(ctx), ctx, lines.append)
+    assert lines[-1] == (
+        "talkpipe-vault is not running; launch it first (l, or `launch vault`)."
+    )
     ctx.statuses["vault"] = dataclasses.replace(ctx.status(_vault(ctx)), running=True)
     assert ts.open_app(_vault(ctx), ctx, lines.append)
     assert ctx.opened == ["http://127.0.0.1:18002/"]  # type: ignore[attr-defined]
@@ -198,10 +211,37 @@ def test_launch_requires_install_and_opens_when_running(
     fake_uv.set_installed("talkpipe-vault", "1.0.0", ["vault-server"])
     ts.refresh(ctx)
     ctx.statuses["vault"] = dataclasses.replace(ctx.status(_vault(ctx)), running=True)
+    # Nothing of ours is running and the health path does not answer 200
+    # (the fixture's fetch fails), so all that is known is that something
+    # answers on the port -- and that is all the message claims.
     result = ts.launch_app(_vault(ctx), ctx, lambda line: None)
     assert result.ok
-    assert "already running" in result.message
+    assert result.message == (
+        "Something answers on port 18002, which may be talkpipe-vault started "
+        "outside the App Center, or another program; opened "
+        "http://127.0.0.1:18002/. If that page is not talkpipe-vault, stop "
+        "whatever is serving there and launch again."
+    )
     assert ctx.opened == ["http://127.0.0.1:18002/"]  # type: ignore[attr-defined]
+    lines: list[str] = []
+    assert not ts.stop_app(_vault(ctx), ctx, lines.append)
+    assert lines == [
+        (
+            "Something answers on port 18002 that the App Center did not start: "
+            "talkpipe-vault from a terminal window, or another program. Stop it there."
+        )
+    ]
+
+    # With the health path answering 200 it is the app, and the messages say so.
+    ctx.fetch = lambda url, timeout: b"ok"
+    result = ts.launch_app(_vault(ctx), ctx, lambda line: None)
+    assert result.ok
+    assert result.message == (
+        "talkpipe-vault is already running; opened http://127.0.0.1:18002/"
+    )
+    lines.clear()
+    assert not ts.stop_app(_vault(ctx), ctx, lines.append)
+    assert "was not started by the App Center" in lines[-1]
 
 
 @pytest.mark.skipif(sys.platform == "win32", reason="POSIX process groups")
@@ -256,6 +296,53 @@ def test_launch_web_app_detached_then_stop(
         if result.pid:
             with pytest.raises((ProcessLookupError, PermissionError)) as _:
                 os.killpg(result.pid, 9)
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="POSIX process groups")
+@pytest.mark.parametrize(
+    ("opens_browser", "installed", "opened_by_appcenter"),
+    [
+        ("1.1.1", "1.1.0", True),  # a release from before the app opened its own
+        ("1.1.1", "1.1.1b1", False),  # the first version that does, as a beta
+        (True, "1.0.0", False),  # every version does
+    ],
+)
+def test_launch_opens_the_page_when_the_installed_version_will_not(
+    ctx: ts.Context,
+    fake_uv: FakeUv,
+    opens_browser: bool | str,
+    installed: str,
+    opened_by_appcenter: bool,
+) -> None:
+    probe = socket.socket()
+    probe.bind(("127.0.0.1", 0))
+    port = probe.getsockname()[1]
+    probe.close()
+    fake_uv.set_installed("talkpipe-vault", installed, ["vault-server"])
+    server = fake_uv.bin / "vault-server"
+    server.write_text(
+        f"#!{sys.executable}\nimport http.server\n"
+        f"http.server.HTTPServer(('127.0.0.1', {port}), http.server.SimpleHTTPRequestHandler).serve_forever()\n"
+    )
+    server.chmod(0o755)
+    entry = dataclasses.replace(
+        _vault(ctx), port=port, health=None, args=(), opens_browser=opens_browser
+    )
+    ctx.catalog = dataclasses.replace(ctx.catalog, apps=(entry, ctx.catalog.apps[1]))
+    ctx.fetch = lambda url, timeout: (
+        b"ok"
+        if url.startswith(f"http://127.0.0.1:{port}")
+        else (_ for _ in ()).throw(OSError())
+    )
+    ts.refresh(ctx)
+
+    result = ts.launch_app(entry, ctx, lambda line: None)
+    try:
+        assert result.ok, result.message
+        expected = [f"http://127.0.0.1:{port}/"] if opened_by_appcenter else []
+        assert ctx.opened == expected  # type: ignore[attr-defined]
+    finally:
+        assert ts.stop_app(entry, ctx, lambda line: None)
 
 
 def _taken_port() -> tuple[socket.socket, int]:
@@ -474,7 +561,9 @@ def test_stop_without_pid_explains(ctx: ts.Context, fake_uv: FakeUv) -> None:
     assert lines == ["talkpipe-vault is not running."]
     ctx.statuses["vault"] = dataclasses.replace(ctx.status(_vault(ctx)), running=True)
     assert not ts.stop_app(_vault(ctx), ctx, lines.append)
-    assert "not started by the App Center" in lines[-1]
+    # Not a process of ours and no 200 from the health path: only "something
+    # answers" is known, and the message claims no more.
+    assert lines[-1].startswith("Something answers on port 18002 that the App Center")
 
 
 def test_launch_cli_app_runs_in_foreground(ctx: ts.Context, fake_uv: FakeUv) -> None:

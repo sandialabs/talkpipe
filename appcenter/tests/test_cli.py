@@ -67,6 +67,14 @@ def test_list_text_and_json(
     assert by_id["tool"]["status"] == "not installed"
     assert by_id["tool"]["url"] is None
 
+    # Columns are sized from their content: "installed (pre-release)" is
+    # wider than any fixed STATUS column and used to push its row right.
+    fake_uv.set_installed("talkpipe-vault", "1.1.0b1", ["vault-server"])
+    assert _main("list", catalog=small_catalog_file) == 0
+    table = capsys.readouterr().out.split("\n\n")[0].splitlines()
+    assert "installed (pre-release)" in table[1]
+    assert len({line.rfind("  ") for line in table}) == 1  # RUNNING lines up
+
 
 def test_info(
     fake_uv: FakeUv, small_catalog_file: Path, capsys: pytest.CaptureFixture[str]

@@ -170,10 +170,10 @@ An install can run for minutes, and uv's output scrolls through the pane at
 the bottom of the screen while it does. **You do not have to read it to know
 when it is over.** The App Center's own lines are the ones that begin `==>`,
 and the last one of an action begins `==> Done:` and says what happened —
-`==> Done: Installed talkpipe-vault 1.0.0.` A notification says the same
-thing over the screen, so an install you walked away from is still reporting
-itself when you come back. The same marker ends the run in the subcommands
-below.
+`==> Done: Installed talkpipe-vault 1.0.0.` — or `==> Failed:` and says what
+did not. A notification says the same thing over the screen, so an install
+you walked away from is still reporting itself when you come back. The same
+markers end the run in the subcommands below.
 
 ## Without the screen
 
@@ -227,7 +227,9 @@ curl -fsSL .../install.sh | sh -s -- install vault
   version and an older release may serve the same port without that route.
   The price is that an unrelated program on the port is not told apart — the
   App Center would rather open the wrong page than call a running app down and
-  start a second one.
+  start a second one — so when that is all it knows (no 200 from the health
+  path, and not a process it started itself), its messages say "something
+  answers on port 8002" rather than naming the app.
 - **Language models are not installed.** The catalog says which apps need a
   language model; the App Center detects a local Ollama and shows its download
   link when it is missing. An Ollama server on another computer, or an OpenAI
@@ -282,7 +284,9 @@ health = "/api/health"            # optional; a path that answers 200 when up. A
                                   #   HTTP answer on the port counts too (an older
                                   #   release may lack the route); absent, anything
                                   #   listening on the port counts.
-opens_browser = true              # the app opens its own tab; the App Center won't
+opens_browser = true              # the app opens its own tab; the App Center won't.
+                                  #   A version ("1.1.1") means from that version
+                                  #   on; older installs get the page opened for them.
 icon = "talkpipe_vault/apps/static/icon-256.png"   # a PNG inside the package
 data = ["~/.talkpipe-vault"]      # shown on uninstall, never deleted
 needs = ["ollama"]                # detected and explained, never installed

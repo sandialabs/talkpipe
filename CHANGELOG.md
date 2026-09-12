@@ -2,6 +2,27 @@
 
 ## Unreleased
 
+- **App Center: a launch opens the page of a released application that does
+  not open its own.** A second newcomer run against the PyPI releases. The
+  catalog's `opens_browser` describes the newest version of an application,
+  and the released writing assistant 1.1.0 has no browser-opening at all, so
+  a launch reported "is running at ..." and nothing appeared. `opens_browser`
+  now also takes a version (`"1.1.1"`): the first one that opens its own tab,
+  with the App Center opening the page for older installed versions; the
+  writing assistant's entry says `"1.1.1"`. Also: an action that fails ends
+  on a `==> Failed:` line, the counterpart of `==> Done:`, and its toast is
+  titled Failed rather than Finished; when all the App Center knows is that
+  something answers on an application's port (no 200 from the health path,
+  and not a process it started), `launch` and `stop` say "something answers
+  on port 8002" instead of stating that the application is running; `l` and
+  `o` on an application that is not installed both say to install it (`o`
+  used to say "launch it first", and `l` then "not installed"); `list` sizes
+  its columns from their content, so `installed (pre-release)` no longer
+  pushes its row out of line; the screen moves the detail pane under the
+  table below 140 columns, where a fixed side pane cut the Running and
+  Launcher columns off at the widths most terminals have; and a Linux
+  launcher for a package that ships no icon names a standard generic one,
+  which the README already promised.
 - **App Center: the release channel launches, and the way back to it
   works.** Found by a newcomer run against the released applications rather
   than the checkouts. A catalog `health` path that answers 404 no longer

@@ -107,7 +107,7 @@ def test_linux_honours_xdg_data_home(
     assert (data / "applications/talkpipe-vault-server.desktop").is_file()
 
 
-def test_linux_omits_icon_when_none_shipped(home, fake_command, spec, run):
+def test_linux_uses_a_generic_icon_when_none_shipped(home, fake_command, spec, run):
     bare = ShortcutSpec(
         app_id=spec.app_id,
         name=spec.name,
@@ -117,8 +117,9 @@ def test_linux_omits_icon_when_none_shipped(home, fake_command, spec, run):
 
     written = install_shortcut(bare, platform="linux", home=home, run=run)
 
-    assert len(written) == 1
-    assert "Icon=" not in written[0].read_text()
+    assert len(written) == 1  # no PNG copied
+    # A standard icon name rather than none: the README promises a generic icon.
+    assert "Icon=applications-other" in written[0].read_text()
 
 
 def test_linux_exec_quotes_special_characters(home, spec, run, monkeypatch, tmp_path):

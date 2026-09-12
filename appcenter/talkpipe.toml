@@ -23,7 +23,9 @@
 #                  the route); absent, anything listening on the port counts.
 #   url            web only; default "http://127.0.0.1:{port}/"
 #   opens_browser  web only; true when the app opens the browser itself on
-#                  start, so the App Center does not open a second tab (default false)
+#                  start, so the App Center does not open a second tab (default
+#                  false). A version ("1.1.1") means from that version on: the
+#                  App Center opens the page itself for older installed versions.
 #   icon           a PNG inside the installed package (site-packages-relative);
 #                  a .ico beside it is used for Windows. Absent or wrong: a
 #                  generic icon is used.
@@ -63,7 +65,7 @@ kind = "web"
 port = 8001
 port_option = "--port"
 health = "/health"
-opens_browser = true
+opens_browser = "1.1.1"
 icon = "writing_assistant/app/static/android-chrome-512x512.png"
 data = ["~/.writing_assistant"]
 needs = ["ollama"]
