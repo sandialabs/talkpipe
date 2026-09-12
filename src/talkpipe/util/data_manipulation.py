@@ -17,6 +17,43 @@ DocID = str
 
 logger = logging.getLogger(__name__)
 
+# Built-ins a compiled lambda expression may use. Module level so the table is
+# built once at import rather than on every compileLambda call.
+_SAFE_BUILTINS = MappingProxyType(
+    {
+        "abs": abs,
+        "all": all,
+        "any": any,
+        "bool": bool,
+        "dict": dict,
+        "enumerate": enumerate,
+        "filter": filter,
+        "float": float,
+        "frozenset": frozenset,
+        "int": int,
+        "isinstance": isinstance,
+        "issubclass": issubclass,
+        "len": len,
+        "list": list,
+        "map": map,
+        "max": max,
+        "min": min,
+        "ord": ord,
+        "pow": pow,
+        "range": range,
+        "repr": repr,
+        "reversed": reversed,
+        "round": round,
+        "set": set,
+        "slice": slice,
+        "sorted": sorted,
+        "str": str,
+        "sum": sum,
+        "tuple": tuple,
+        "zip": zip,
+    }
+)
+
 
 def get_all_attributes(
     obj: Any,
@@ -262,12 +299,9 @@ def toDict(
     """
     ans = {}
     parsed_field_list = parse_key_value_str(field_list)
-    for assignment in parsed_field_list.items():
-        ans[assignment[1]] = (
-            data
-            if assignment[0] == "_"
-            else extract_property(data, assignment[0], fail_on_missing)
-        )
+    for source, target in parsed_field_list.items():
+        # extract_property already returns `data` unchanged for the "_" path.
+        ans[target] = extract_property(data, source, fail_on_missing)
     return ans
 
 
@@ -439,43 +473,6 @@ def compileLambda(expression: str) -> Callable[[Any], Any]:
             "Security violation: Expression contains prohibited attribute access patterns"
         )
 
-    # Set of safe built-ins that can be used in expressions
-    _SAFE_BUILTINS = {
-        "abs": abs,
-        "all": all,
-        "any": any,
-        "bool": bool,
-        "dict": dict,
-        "enumerate": enumerate,
-        "filter": filter,
-        "float": float,
-        "frozenset": frozenset,
-        "int": int,
-        "isinstance": isinstance,
-        "issubclass": issubclass,
-        "len": len,
-        "list": list,
-        "map": map,
-        "max": max,
-        "min": min,
-        "ord": ord,
-        "pow": pow,
-        "range": range,
-        "repr": repr,
-        "reversed": reversed,
-        "round": round,
-        "set": set,
-        "slice": slice,
-        "sorted": sorted,
-        "str": str,
-        "sum": sum,
-        "tuple": tuple,
-        "zip": zip,
-    }
-
-    # Create an immutable view of the safe built-ins
-    SAFE_BUILTINS = MappingProxyType(_SAFE_BUILTINS)
-
     # Pre-compile the expression for efficiency
     try:
         compiled_code = compile(expression, "<string>", "eval")
@@ -503,8 +500,7 @@ def compileLambda(expression: str) -> Callable[[Any], Any]:
             locals_dict.update(safe_keys)
 
         # Create a completely restricted environment with no access to dangerous globals
-        restricted_globals: dict[str, Any] = {"__builtins__": {}}
-        restricted_globals.update(SAFE_BUILTINS)
+        restricted_globals: dict[str, Any] = {"__builtins__": {}, **_SAFE_BUILTINS}
 
         # Evaluate the expression in a heavily restricted environment
         # Note: eval() is used intentionally here with extensive security controls:

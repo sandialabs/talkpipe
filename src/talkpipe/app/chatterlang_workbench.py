@@ -158,9 +158,7 @@ async def _require_api_key(request: Request, call_next: Any) -> Any:
 # life of the process. When full, the oldest entry is dropped.
 LOG_QUEUE_MAXSIZE = 10_000
 log_queue: queue.Queue[str] = queue.Queue(maxsize=LOG_QUEUE_MAXSIZE)
-log_handler = logging.StreamHandler()
 formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
-log_handler.setFormatter(formatter)
 
 
 # Custom handler to capture logs

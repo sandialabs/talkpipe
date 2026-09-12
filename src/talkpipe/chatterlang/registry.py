@@ -465,6 +465,34 @@ segment_registry: HybridRegistry[Any] = HybridRegistry(
 )
 
 
+def _registration_decorator(
+    registry: HybridRegistry[Any], names: tuple[str, ...], name: str | None
+) -> Callable[[Registrable], Registrable]:
+    """Validate decorator names and return a decorator registering into ``registry``.
+
+    Shared by register_source and register_segment so the two keep identical
+    validation and error messages. Names are validated eagerly, when the
+    decorator is constructed, not when it is applied.
+    """
+    # Handle backward compatibility with name= keyword argument
+    if name is not None:
+        if names:
+            raise ValueError(
+                "Cannot specify both positional names and 'name' keyword argument"
+            )
+        names = (name,)
+
+    if not names:
+        raise ValueError("At least one name must be provided")
+
+    def wrap(cls: Registrable) -> Registrable:
+        for registered_name in names:
+            registry.register(cls, name=registered_name)
+        return cls
+
+    return wrap
+
+
 def register_source(
     *names: str, name: str | None = None
 ) -> Callable[[Registrable], Registrable]:
@@ -490,23 +518,7 @@ def register_source(
         *names: One or more names to register the source under (positional)
         name: Single name to register the source under (keyword, for backward compatibility)
     """
-    # Handle backward compatibility with name= keyword argument
-    if name is not None:
-        if names:
-            raise ValueError(
-                "Cannot specify both positional names and 'name' keyword argument"
-            )
-        names = (name,)
-
-    if not names:
-        raise ValueError("At least one name must be provided")
-
-    def wrap(cls: Registrable) -> Registrable:
-        for source_name in names:
-            input_registry.register(cls, name=source_name)
-        return cls
-
-    return wrap
+    return _registration_decorator(input_registry, names, name)
 
 
 def register_segment(
@@ -534,23 +546,7 @@ def register_segment(
         *names: One or more names to register the segment under (positional)
         name: Single name to register the segment under (keyword, for backward compatibility)
     """
-    # Handle backward compatibility with name= keyword argument
-    if name is not None:
-        if names:
-            raise ValueError(
-                "Cannot specify both positional names and 'name' keyword argument"
-            )
-        names = (name,)
-
-    if not names:
-        raise ValueError("At least one name must be provided")
-
-    def wrap(cls: Registrable) -> Registrable:
-        for segment_name in names:
-            segment_registry.register(cls, name=segment_name)
-        return cls
-
-    return wrap
+    return _registration_decorator(segment_registry, names, name)
 
 
 def get_registry_stats() -> dict[str, Any]:

@@ -171,11 +171,7 @@ bool_value = (regex(r"true|false|TRUE|FALSE|True|False")).map(
 """A parser for boolean values."""
 identifier = regex(r"[a-zA-Z][a-zA-Z0-9_]*").map(lambda s: Identifier(name=s))
 """A parser for identifiers.  Identifiers are used for operation names, variable names, etc."""
-variable = (
-    (string("@") >> identifier)
-    .map(lambda x: x)
-    .map(lambda x: VariableName(name=x.name))
-)
+variable = (string("@") >> identifier).map(lambda x: VariableName(name=x.name))
 """A parser for variable names.  Variables are used to store and retrieve data in the pipeline."""
 environmentVariable = (string("$") >> identifier).map(lambda x: get_config()[x.name])
 # quoted_string supports both double and single quotes with escaping
@@ -257,23 +253,6 @@ segment = seq(operation=identifier, bracket_content=bracket_parser).map(
     lambda x: SegmentNode(x["operation"], x["bracket_content"])
 )
 """A parser for the transform section of a pipeline."""
-
-# @generate
-# def fork_branch():
-#    """Parser for a single branch within a fork."""
-#    transforms = yield (
-#        # First transform can be without a leading pipe
-#        (segment | variable).map(lambda x: [x]) |
-#        # Subsequent transforms require a leading pipe
-#        (lexeme('|') >> (segment | variable)).many()
-#    )
-#    return transforms
-
-# @generate
-# def fork_branch():
-#    """Parser for a single branch within a fork."""
-#    transforms = yield pipeline
-#    return transforms
 
 
 @generate
