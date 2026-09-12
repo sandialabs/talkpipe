@@ -313,7 +313,16 @@ def _parse_mode_diagnostics(script: str) -> list[dict[str, Any]]:
     except ParseError as e:
         return [_syntax_error_diagnostic(preprocessed, e)]
 
-    diagnostics = []
+    diagnostics = [
+        {
+            "line": line,
+            "column": column,
+            "severity": "warning",
+            "message": message[0].upper() + message[1:],
+            "kind": "deprecated",
+        }
+        for line, column, message in chatterlang_compiler.iter_deprecated_syntax(parsed)
+    ]
     used_offsets: set[int] = set()
     registries = {
         "source": registry.input_registry,

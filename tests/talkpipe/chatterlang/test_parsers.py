@@ -315,3 +315,67 @@ def test_environmentVariables():
             "INPUT FROM somewhere | do_something[key=$my_string]"
         )
         assert ps.pipelines[0].transforms[0].params["key"] == "Some_String"
+
+
+class TestMissingPipeAfterSource:
+    """The pipe between an input source and the first segment.
+
+    It has always been optional, so scripts written without it must keep
+    parsing; the parser now records where it was left out so the compiler can
+    deprecate the spelling.
+    """
+
+    def test_omitted_pipe_still_parses_and_is_recorded(self):
+        parsed = parsers.script_parser.parse('INPUT FROM echo[data="1,2"] print')
+        pipeline = parsed.pipelines[0]
+        assert len(pipeline.transforms) == 1
+        assert pipeline.transforms[0].operation == parsers.Identifier("print")
+        # Column 29 is the 'p' of 'print'.
+        assert pipeline.missing_pipe_after_source == (1, 29)
+
+    def test_pipe_present_is_not_recorded(self):
+        parsed = parsers.script_parser.parse('INPUT FROM echo[data="1,2"] | print')
+        assert parsed.pipelines[0].missing_pipe_after_source is None
+
+    def test_location_is_the_first_transform(self):
+        parsed = parsers.script_parser.parse(
+            'INPUT FROM echo[data="1"] | print;\nINPUT FROM echo[data="2"] print'
+        )
+        assert parsed.pipelines[0].missing_pipe_after_source is None
+        assert parsed.pipelines[1].missing_pipe_after_source == (2, 27)
+
+    def test_recorded_for_variables_forks_and_loops(self):
+        parsed = parsers.script_parser.parse('INPUT FROM echo[data="1"] @x')
+        assert isinstance(parsed.pipelines[0].transforms[0], parsers.VariableName)
+        assert parsed.pipelines[0].missing_pipe_after_source == (1, 27)
+
+        parsed = parsers.script_parser.parse(
+            'fork(INPUT FROM echo[data="1"] print, INPUT FROM echo[data="2"] | print)'
+        )
+        branches = parsed.pipelines[0].transforms[0].branches
+        assert branches[0].missing_pipe_after_source == (1, 32)
+        assert branches[1].missing_pipe_after_source is None
+
+        parsed = parsers.script_parser.parse(
+            'LOOP 2 TIMES { INPUT FROM echo[data="1"] print }'
+        )
+        loop_pipeline = parsed.pipelines[0].pipelines.pipelines[0]
+        assert loop_pipeline.missing_pipe_after_source == (1, 42)
+
+    def test_only_the_first_pipe_was_ever_optional(self):
+        """Later pipes are still required -- accepting them would be a new hole."""
+        with pytest.raises(ParseError):
+            parsers.script_parser.parse('INPUT FROM echo[data="1"] print print')
+        with pytest.raises(ParseError):
+            parsers.script_parser.parse('INPUT FROM echo[data="1"] | | print')
+
+    def test_source_without_brackets_still_requires_the_pipe(self):
+        """`INPUT FROM @x print` has always been an error; it stays one."""
+        with pytest.raises(ParseError):
+            parsers.script_parser.parse("INPUT FROM @x print")
+
+    def test_a_pipeline_with_no_source_may_begin_with_a_bare_segment(self):
+        """Fork consumers and script fragments are not affected."""
+        for script in ("myfork -> print | print", "print | print", "| print"):
+            parsed = parsers.script_parser.parse(script)
+            assert parsed.pipelines[0].missing_pipe_after_source is None

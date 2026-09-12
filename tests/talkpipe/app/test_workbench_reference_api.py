@@ -288,3 +288,26 @@ def test_compile_error_plain_construction_still_works():
     assert str(err) == "boom"
     assert err.line is None
     assert err.kind is None
+
+
+# --- /api/lint: deprecated syntax ---------------------------------------------
+
+
+def test_lint_flags_the_missing_pipe_after_a_source(client):
+    response = client.post(
+        "/api/lint", json={"script": 'INPUT FROM echo[data="hi"] print'}
+    )
+    diagnostics = response.json()["diagnostics"]
+    assert len(diagnostics) == 1
+    d = diagnostics[0]
+    assert d["kind"] == "deprecated"
+    assert d["severity"] == "warning"
+    assert (d["line"], d["column"]) == (1, 28)
+    assert "TalkPipe 2.0" in d["message"]
+
+
+def test_lint_deprecation_location_survives_comments(client):
+    script = '# heading\nINPUT FROM echo[data="hi"] print  # tail\n'
+    response = client.post("/api/lint", json={"script": script})
+    diagnostics = response.json()["diagnostics"]
+    assert (diagnostics[0]["line"], diagnostics[0]["column"]) == (2, 28)

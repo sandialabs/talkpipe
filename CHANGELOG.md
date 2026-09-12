@@ -2,6 +2,20 @@
 
 ## Unreleased
 
+- **Deprecated: omitting the `|` between an input source and the first
+  segment.** `INPUT FROM echo[data="1,2"] print` has always parsed as though
+  the pipe were there — an accident of the grammar, and an inconsistent one,
+  since every *later* pipe was required and `INPUT FROM echo[data="1,2"] print
+  print` was a syntax error. Such scripts still compile and run unchanged, but
+  compiling one now emits a `DeprecationWarning` naming the line and column of
+  the segment that needs the pipe, logs the same message (so it is visible to
+  anyone running `chatterlang_script`, where Python hides deprecation warnings
+  by default), and marks the spot in the workbench editor. The spelling will
+  be a syntax error in TalkPipe 2.0. Nothing else changed: a pipeline with no
+  input source of its own — a fork branch, a fork consumer
+  (`fork_name -> print`), or a fragment such as `| print` — still begins with
+  a bare segment, and spellings that were errors before are still errors.
+
 - **Documentation: TalkPipe is provider-neutral, and the docs now say so.**
   Several places read as though Ollama were required — prerequisite lists that
   named only Ollama, a quickstart whose LLM section began "requires

@@ -62,6 +62,26 @@ INPUT FROM @variable_name
 | llmPrompt[system_prompt="Analyze this:"]
 ```
 
+**Every segment is introduced by a `|`, including the first one.** A source
+and the segment after it are separated by a pipe just like any other pair:
+
+```chatterlang
+INPUT FROM echo[data="1,2"] | print
+```
+
+> **Deprecated:** historically the pipe *immediately after an input source*
+> could be left out — `INPUT FROM echo[data="1,2"] print` parsed as though the
+> pipe were there, while every later pipe was still required, so
+> `INPUT FROM echo[data="1,2"] print print` was an error. Scripts written that
+> way still run, but compiling one emits a `DeprecationWarning` (and a logged
+> warning) naming the line and column, and the workbench editor marks it. The
+> omitted pipe will be a syntax error in TalkPipe 2.0; add the `|`.
+>
+> This only ever applied to a source's own first segment. A pipeline with no
+> source of its own still legitimately begins with a bare segment — a fork
+> branch, a fork consumer (`fork_name -> print`), or a fragment such as
+> `| print | formatItem[...]` passed to `chatterlang_serve --script`.
+
 #### `llmPrompt` conversation memory controls
 
 For `model`, `source`, and global defaults, see [Model and source configuration](../guides/model-and-source-configuration.md).

@@ -1,6 +1,7 @@
 import logging
 import os
 import time
+import warnings
 from unittest.mock import patch
 
 import numpy as np
@@ -687,3 +688,52 @@ def test_array_parameter_basic():
 
     result = list(script())
     assert result == [6]
+
+
+class TestDeprecatedMissingPipe:
+    """Omitting the '|' after an input source compiles, but is deprecated."""
+
+    SCRIPT = 'INPUT FROM echo[data="1,2"] print'
+
+    def test_it_still_compiles_and_runs(self):
+        with pytest.warns(DeprecationWarning, match="TalkPipe 2.0"):
+            compiled = compiler.compile(self.SCRIPT)
+        assert list(compiled()) == ["1", "2"]
+
+    def test_the_warning_locates_the_segment_and_names_the_removal(self):
+        with pytest.warns(DeprecationWarning, match="deprecated") as record:
+            compiler.compile(self.SCRIPT)
+        message = str(record[0].message)
+        assert "line 1, column 29" in message
+        assert "'| print'" in message
+        assert "TalkPipe 2.0" in message
+
+    def test_it_is_also_logged(self, caplog):
+        # A DeprecationWarning alone is invisible to someone running
+        # chatterlang_script, so the compiler logs it too.
+        with caplog.at_level(logging.WARNING, logger="talkpipe.chatterlang.compiler"):
+            compiler.compile(self.SCRIPT)
+        assert any("TalkPipe 2.0" in r.message for r in caplog.records)
+
+    def test_the_pipe_spelling_warns_about_nothing(self):
+        with warnings.catch_warnings():
+            warnings.simplefilter("error", DeprecationWarning)
+            compiled = compiler.compile('INPUT FROM echo[data="1,2"] | print')
+        assert list(compiled()) == ["1", "2"]
+
+    def test_one_warning_per_occurrence(self):
+        script = (
+            'INPUT FROM echo[data="1"] print;\n'
+            'INPUT FROM echo[data="2"] | print;\n'
+            'INPUT FROM echo[data="3"] print'
+        )
+        parsed = parsers.script_parser.parse(script)
+        found = list(compiler.iter_deprecated_syntax(parsed))
+        assert [(line, column) for line, column, _ in found] == [(1, 27), (3, 27)]
+
+    def test_comments_do_not_shift_the_reported_location(self):
+        script = '# a comment\nINPUT FROM echo[data="1"] print  # trailing\n'
+        parsed = parsers.script_parser.parse(compiler.remove_comments(script))
+        assert [
+            (line, col) for line, col, _ in compiler.iter_deprecated_syntax(parsed)
+        ] == [(2, 27)]

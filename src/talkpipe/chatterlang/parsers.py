@@ -115,6 +115,15 @@ class ParsedPipeline:
     """Optional fork name that this pipeline feeds into (for -> fork_name syntax)."""
     fork_source: str | None = None
     """Optional fork name that this pipeline reads from (for fork_name -> syntax)."""
+    missing_pipe_after_source: tuple[int, int] | None = None
+    """1-indexed (line, column) of a first transform written without its leading '|'.
+
+    ``INPUT FROM echo[data="1"] print`` has always parsed as though the pipe
+    were there.  That spelling is deprecated (see
+    ``talkpipe.chatterlang.compiler.warn_deprecated_syntax``); the location is
+    recorded here so the deprecation can be reported, and is ``None`` for a
+    pipeline written with the pipe.
+    """
 
 
 @dataclass
@@ -290,9 +299,11 @@ def fork_branch_pipeline() -> Any:
 
     # If we found an input source, parse the rest as a normal pipeline
     if input_node is not None:
-        transforms = yield transforms_section
+        transforms, missing_pipe = yield transforms_after_source
         yield whitespace.many()
-        return ParsedPipeline(input_node, transforms)
+        return ParsedPipeline(
+            input_node, transforms, missing_pipe_after_source=missing_pipe
+        )
 
     # If no input source, try to parse as a sequence of segments
     # First segment might not have a leading pipe
@@ -339,7 +350,14 @@ def fork_section() -> Any:
 
 @generate
 def transforms_section() -> Any:
-    """A parser for the transforms section.  Transforms are separated by the '|' character."""
+    """A parser for the transforms section.  Transforms are separated by the '|' character.
+
+    Used where a pipeline has no input source of its own and so legitimately
+    begins with a bare segment: a fork branch, a fork consumer
+    (``fork_name -> print``), or a script fragment such as ``| print``.  After
+    an input source, use :data:`transforms_after_source` instead, which treats
+    the omitted pipe as deprecated rather than as ordinary syntax.
+    """
     # First transform may or may not have a leading pipe (optional to allow empty transforms)
     first_transform = yield (
         lexeme("|").optional() >> (fork_section | segment | variable)
@@ -354,6 +372,41 @@ def transforms_section() -> Any:
     transforms.extend(remaining)
 
     return transforms
+
+
+@generate
+def transforms_after_source() -> Any:
+    """A parser for the transforms that follow an input source.
+
+    Returns ``(transforms, missing_pipe)``, where ``missing_pipe`` is the
+    1-indexed (line, column) of the first transform when its leading ``|`` was
+    omitted -- ``INPUT FROM echo[data="1"] print`` -- and ``None`` otherwise.
+    That spelling is accepted for backward compatibility and reported as
+    deprecated by the compiler; only the *first* pipe was ever optional, so
+    ``INPUT FROM echo[data="1"] print print`` remains a syntax error.
+    """
+    piped = yield (lexeme("|") >> (fork_section | segment | variable)).optional()
+    if piped is not None:
+        first_transform, missing_pipe = piped, None
+    else:
+        # No leading pipe.  Note the position before trying a bare transform so
+        # the deprecation can point at it.  Whitespace is deliberately not
+        # skipped here: the source parser consumes what follows a `]`, and
+        # skipping more would newly accept spellings (`INPUT FROM @x print`)
+        # that have always been errors.
+        line, column = yield line_info
+        first_transform = yield (fork_section | segment | variable).optional()
+        if first_transform is None:
+            return [], None
+        missing_pipe = (line + 1, column + 1)
+
+    transforms = [first_transform]
+
+    # Parse remaining segments (with leading pipes)
+    remaining = yield (lexeme("|") >> (fork_section | segment | variable)).many()
+    transforms.extend(remaining)
+
+    return transforms, missing_pipe
 
 
 # Parser for arrow fork target: -> identifier
@@ -373,14 +426,22 @@ def pipeline() -> Any:
     fork_source = yield arrow_fork_source.optional()
 
     input_node = yield source.optional()
-    transforms = yield transforms_section
+    if input_node is not None:
+        transforms, missing_pipe = yield transforms_after_source
+    else:
+        transforms = yield transforms_section
+        missing_pipe = None
 
     # Check for fork target at the end: -> fork_name
     fork_target = yield arrow_fork_target.optional()
 
     yield whitespace.many()
     return ParsedPipeline(
-        input_node or None, transforms, fork_target=fork_target, fork_source=fork_source
+        input_node or None,
+        transforms,
+        fork_target=fork_target,
+        fork_source=fork_source,
+        missing_pipe_after_source=missing_pipe,
     )
 
 

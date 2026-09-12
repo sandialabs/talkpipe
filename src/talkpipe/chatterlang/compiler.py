@@ -10,6 +10,7 @@ import difflib
 import inspect
 import logging
 import re
+import warnings
 from collections.abc import Iterable, Iterator
 from functools import singledispatch
 from typing import Any
@@ -23,6 +24,7 @@ from talkpipe.chatterlang.parsers import (
     Identifier,
     ParsedLoop,
     ParsedPipeline,
+    ParsedScript,
     SegmentNode,
     VariableName,
     script_parser,
@@ -156,6 +158,70 @@ def _not_found_message(kind: str, name: str, reg: registry.HybridRegistry[Any]) 
     return msg
 
 
+def _transform_label(transform: Any) -> str:
+    """How a transform should be spelled back to the user in a diagnostic."""
+    if isinstance(transform, SegmentNode):
+        return transform.operation.name
+    if isinstance(transform, VariableName):
+        return f"@{transform.name}"
+    if isinstance(transform, ForkNode):
+        return "fork(...)"
+    return "the first segment"
+
+
+def iter_deprecated_syntax(script: ParsedScript) -> Iterator[tuple[int, int, str]]:
+    """Yield (line, column, message) for each deprecated spelling in a script.
+
+    Locations are 1-indexed and refer to the comment-stripped script text,
+    which ``remove_comments`` keeps line- and column-aligned with the original.
+    Separate from the warning itself so tooling -- the workbench lint endpoint
+    -- can render the same diagnostics in an editor.
+    """
+
+    def walk(node: Any) -> Iterator[tuple[int, int, str]]:
+        if isinstance(node, ParsedLoop):
+            for inner in node.pipelines:
+                yield from walk(inner)
+            return
+        if not isinstance(node, ParsedPipeline):
+            return
+        if node.missing_pipe_after_source is not None and node.transforms:
+            line, column = node.missing_pipe_after_source
+            label = _transform_label(node.transforms[0])
+            message = (
+                f"whitespace where '|' was expected, before '{label}'. Omitting "
+                "the pipe between an input source and the first segment is "
+                "deprecated and will be a syntax error in TalkPipe 2.0; write "
+                f"'| {label}' instead."
+            )
+            yield line, column, message
+        for transform in node.transforms:
+            if isinstance(transform, ForkNode):
+                for branch in transform.branches:
+                    yield from walk(branch)
+
+    for pipeline in script.pipelines:
+        yield from walk(pipeline)
+
+
+def warn_deprecated_syntax(script: ParsedScript) -> None:
+    """Report every deprecated spelling in a parsed script.
+
+    Each is raised as a ``DeprecationWarning`` (the project's deprecation
+    policy) *and* logged at WARNING, because the audience is a ChatterLang
+    author running ``chatterlang_script`` or the workbench: Python hides
+    ``DeprecationWarning`` outside ``__main__``, and a warning nobody sees
+    would not give anyone a chance to fix a script before 2.0.
+    """
+    for line, column, message in iter_deprecated_syntax(script):
+        located = f"ChatterLang, line {line}, column {column}: {message}"
+        # stacklevel points at compile() rather than at whoever called it:
+        # singledispatch puts a varying number of functools frames in between,
+        # and the location that matters is the one in the message anyway.
+        warnings.warn(located, DeprecationWarning, stacklevel=2)
+        logger.warning(located)
+
+
 def parse_error_location(
     script: str, error: ParseError
 ) -> tuple[int, int] | tuple[None, None]:
@@ -218,6 +284,8 @@ def compile(
         v_store (VariableStore): The variable store to use
     """
     logger.debug(f"Compiling script with {len(script.pipelines)} pipelines")
+    if isinstance(script, ParsedScript):
+        warn_deprecated_syntax(script)
     runtime = runtime or RuntimeComponent()
     # Add script constants without overriding existing runtime constants
     runtime.add_constants(script.constants, override=False)

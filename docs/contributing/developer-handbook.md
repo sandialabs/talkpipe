@@ -104,8 +104,10 @@ exceptions. These may change in any release.
 stays for at least one MINOR release; it is removed no earlier than the next
 MAJOR release. Currently deprecated: the misspelled aliases `addToLancDB` /
 `searchLancDB` (use `addToLanceDB` / `searchLanceDB`), the alias `fileToText`
-(use `readFile`), and `AbstractEmbeddingAdapter.execute()` (use
-`execute_one()` / `execute_batch()`) — all scheduled for removal in 2.0.
+(use `readFile`), `AbstractEmbeddingAdapter.execute()` (use `execute_one()` /
+`execute_batch()`), and the ChatterLang spelling that omits the `|` between an
+input source and the first segment (`INPUT FROM echo[data="1"] print`; write
+`INPUT FROM echo[data="1"] | print`) — all scheduled for removal in 2.0.
 
 **Two names, one case apart.** `readJsonl` (`talkpipe.pipe.io`) yields the
 parsed JSON object from each line; `readjsonl` (`talkpipe.data.extraction`)
