@@ -307,7 +307,6 @@ class MongoSearch(core.AbstractSegment[Any, Any]):
         try:
             for item in input_iter:
                 query_string = extract_property(item, self.field)
-                actual_query = query_string
                 actual_query = json.loads(query_string)
 
                 logger.debug(

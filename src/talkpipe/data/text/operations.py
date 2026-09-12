@@ -40,6 +40,21 @@ def shingle_generator(
         # count mode
         return len(shingles) == shingle_size
 
+    def should_flush() -> bool:
+        """Whether the buffered shingle should be emitted at a key change or EOF.
+
+        Yield if complete, or if incomplete but we never yielded anything for
+        this key, or if overlap=0 (no overlap means boundaries should be
+        yielded), or (in count mode only) if we have new data beyond the
+        overlap from the last shingle.
+        """
+        return bool(shingles) and (
+            is_shingle_complete()
+            or not has_yielded_for_key
+            or overlap == 0
+            or (size_mode == "count" and len(shingles) > overlap)
+        )
+
     def yield_shingle() -> tuple[Any, ...]:
         """Yield current shingle with appropriate format."""
         yield_item = last_item.copy() if isinstance(last_item, dict) else last_item
@@ -56,15 +71,7 @@ def shingle_generator(
             item_key = extract_property(item, key_field)
             if current_key is not None and item_key != current_key:
                 # Yield remaining shingle before resetting for new key
-                # Yield if complete, or if incomplete but we never yielded anything for this key,
-                # or if overlap=0 (no overlap means boundaries should be yielded),
-                # or (in count mode only) if we have new data beyond the overlap from the last shingle
-                if shingles and (
-                    is_shingle_complete()
-                    or not has_yielded_for_key
-                    or overlap == 0
-                    or (size_mode == "count" and len(shingles) > overlap)
-                ):
+                if should_flush():
                     yield yield_shingle()
                 shingles = []
                 paragraph_numbers = []
@@ -85,13 +92,5 @@ def shingle_generator(
             paragraph_numbers = paragraph_numbers[-overlap:] if overlap > 0 else []
 
     # Yield final shingle at end of stream
-    # Yield if complete, or if incomplete but we never yielded anything for this key,
-    # or if overlap=0 (no overlap means boundaries should be yielded),
-    # or (in count mode only) if we have new data beyond the overlap from the last shingle
-    if shingles and (
-        is_shingle_complete()
-        or not has_yielded_for_key
-        or overlap == 0
-        or (size_mode == "count" and len(shingles) > overlap)
-    ):
+    if should_flush():
         yield yield_shingle()
