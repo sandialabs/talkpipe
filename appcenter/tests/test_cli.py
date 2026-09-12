@@ -97,8 +97,8 @@ def test_install_upgrade_uninstall_flow(
 
     assert _main("install", "vault", "tool", catalog=small_catalog_file) == 0
     out = capsys.readouterr().out
-    assert "Installed talkpipe-vault 1.0.0." in out
-    assert "Installed some-tool 1.2.3." in out
+    assert "==> Done: Installed talkpipe-vault 1.0.0." in out
+    assert "==> Done: Installed some-tool 1.2.3." in out
     assert "Open a NEW terminal" in out
     installs = [c for c in fake_uv.calls() if c[:2] == ["tool", "install"]]
     assert installs[0] == [
@@ -118,11 +118,11 @@ def test_install_upgrade_uninstall_flow(
     fake_uv.set_latest("talkpipe-vault", "1.1.0")
     assert _main("upgrade", "--all", catalog=small_catalog_file) == 0
     out = capsys.readouterr().out
-    assert "Upgraded talkpipe-vault 1.0.0 -> 1.1.0." in out
-    assert "some-tool 1.2.3 is already the newest version." in out
+    assert "==> Done: Upgraded talkpipe-vault 1.0.0 -> 1.1.0." in out
+    assert "==> Done: some-tool 1.2.3 is already the newest version." in out
 
     assert _main("uninstall", "-y", "vault", catalog=small_catalog_file) == 0
-    assert "Uninstalled talkpipe-vault." in capsys.readouterr().out
+    assert "==> Done: Uninstalled talkpipe-vault." in capsys.readouterr().out
     assert "talkpipe-vault" not in fake_uv.state["tools"]
 
 

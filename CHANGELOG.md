@@ -50,6 +50,17 @@
   version, since PyPI's is the newest *release* and not an upgrade target for
   a pre-release: the row reads `installed (pre-release)`.
 
+- **Fixed: the App Center never said an install had finished.** uv's output
+  scrolled through the log for minutes and then simply stopped, and its own
+  last lines start with "Installed", so the App Center's summary of what had
+  happened was one indistinguishable line in the middle of it — leaving
+  "is it still working?" unanswered. Every action now ends with a line marked
+  `==> Done:` that says what it did (`==> Done: Installed talkpipe-vault
+  1.0.0.`), placed last, after any notes about what the application still
+  needs. On the screen a notification carries the same news over the top of
+  the log, so an install walked away from still reports itself — including
+  when it failed, which the screen also never used to say out loud.
+
 - **Fixed: the App Center left a launch that hit a busy port to time out.** An
   application whose port is already held by another program — a second copy of
   it, or an unrelated server — either failed to bind or quietly relocated to a

@@ -226,7 +226,7 @@ def test_explicit_prerelease_argument_overrides_the_record(
     assert ts.install_app(entry, ctx, lines.append, prerelease=True)
     assert fake_uv.state["tools"]["talkpipe-vault"]["version"] == "1.1.0b1"
     assert ctx.channels == {"talkpipe-vault": ts.EXPERIMENTAL}
-    assert "Installed talkpipe-vault 1.1.0b1 (pre-release)." in lines
+    assert "==> Done: Installed talkpipe-vault 1.1.0b1 (pre-release)." in lines
 
     # The record now says experimental; an unqualified call keeps it...
     assert ts.install_app(entry, ctx, lines.append)
@@ -238,7 +238,10 @@ def test_explicit_prerelease_argument_overrides_the_record(
     assert ctx.channels == {}
     assert "--prerelease" not in _last_install(fake_uv)
     assert "==> Switching talkpipe-vault (talkpipe-vault) with uv" in lines
-    assert "Switched talkpipe-vault to the release channel: 1.1.0b1 -> 1.0.1." in lines
+    assert (
+        "==> Done: Switched talkpipe-vault to the release channel: 1.1.0b1 -> 1.0.1."
+        in lines
+    )
 
 
 def test_status_does_not_offer_to_downgrade_a_prerelease(

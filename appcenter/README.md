@@ -149,6 +149,15 @@ desktop launcher. Keys:
 The last row is the App Center itself: press `s` there to give the App Center a launcher
 of its own, so nobody has to type a URL twice.
 
+An install can run for minutes, and uv's output scrolls through the pane at
+the bottom of the screen while it does. **You do not have to read it to know
+when it is over.** The App Center's own lines are the ones that begin `==>`,
+and the last one of an action begins `==> Done:` and says what happened —
+`==> Done: Installed talkpipe-vault 1.0.0.` A notification says the same
+thing over the screen, so an install you walked away from is still reporting
+itself when you come back. The same marker ends the run in the subcommands
+below.
+
 ## Without the screen
 
 Every action is also a subcommand, for scripts and for people who prefer
