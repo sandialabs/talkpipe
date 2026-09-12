@@ -133,6 +133,10 @@ PORT_SEARCH_SPAN = 20
 """How many ports above a taken one to try when relocating a web app."""
 APPCENTER_ROW_ID = "appcenter"
 """Id of the built-in row for the App Center itself (launcher only, never installed)."""
+STEP = "==> "
+"""Opens a line the App Center wrote, in a log that is otherwise uv's output."""
+DONE = "==> Done: "
+"""Opens the *last* line of an action, so "it has finished" is legible in the scroll."""
 
 _PRERELEASE_RE = re.compile(r"^\d+(\.\d+)*(a|b|rc|alpha|beta|c|pre|preview)\d*", re.I)
 
@@ -1638,7 +1642,7 @@ def install_app(
         verb = "Switching"
     else:
         verb = "Upgrading"
-    sink(f"==> {verb} {view.name} ({entry.install_requirement}) with uv")
+    sink(f"{STEP}{verb} {view.name} ({entry.install_requirement}) with uv")
     if pre:
         sink(
             "Experimental channel: uv may install pre-release versions of this "
@@ -1671,19 +1675,28 @@ def install_app(
     after = ctx.status(entry)
     suffix = " (pre-release)" if pre else ""
     channel = "pre-release" if pre else "release"
+    for note in explain_needs(entry, ctx):
+        sink(note)
+    # Last, and banner-marked like the "==>" line this opened with: uv's own
+    # output scrolls for minutes and ends in lines of its own that start with
+    # "Installed", so without a marker of its own the outcome is invisible.
     if status.installed and status.installed == after.installed:
-        sink(f"{view.name} {after.installed}{suffix} is already the newest version.")
+        sink(
+            f"{DONE}{view.name} {after.installed}{suffix} "
+            "is already the newest version."
+        )
     elif switching:
         sink(
-            f"Switched {view.name} to the {channel} channel: "
+            f"{DONE}Switched {view.name} to the {channel} channel: "
             f"{status.installed} -> {after.installed}."
         )
     elif status.installed:
-        sink(f"Upgraded {view.name} {status.installed} -> {after.installed}{suffix}.")
+        sink(
+            f"{DONE}Upgraded {view.name} {status.installed} -> "
+            f"{after.installed}{suffix}."
+        )
     else:
-        sink(f"Installed {view.name} {after.installed}{suffix}.")
-    for note in explain_needs(entry, ctx):
-        sink(note)
+        sink(f"{DONE}Installed {view.name} {after.installed}{suffix}.")
     return True
 
 
@@ -1695,7 +1708,7 @@ def uninstall_app(entry: AppEntry, ctx: Context, sink: LineSink) -> bool:
         return True
     if status.launcher:
         remove_shortcut(entry, ctx, sink)
-    sink(f"==> Uninstalling {view.name} with uv")
+    sink(f"{STEP}Uninstalling {view.name} with uv")
     code = ctx.uv.uninstall(entry.package.name, sink)
     if code != 0:
         sink(f"uv tool uninstall failed (exit code {code}).")
@@ -1709,7 +1722,7 @@ def uninstall_app(entry: AppEntry, ctx: Context, sink: LineSink) -> bool:
             + ". Delete those folders yourself if you want them gone."
         )
     refresh(ctx)
-    sink(f"Uninstalled {view.name}.")
+    sink(f"{DONE}Uninstalled {view.name}.")
     return True
 
 
@@ -1799,7 +1812,7 @@ def launch_app(entry: AppEntry, ctx: Context, sink: LineSink) -> LaunchResult:
         return LaunchResult(True, f"{view.name} is already running; opened {url}", url)
     argv = [str(status.command_path), *entry.args]
     if not entry.is_web:
-        sink(f"==> Running {' '.join(argv)}")
+        sink(f"{STEP}Running {' '.join(argv)}")
         code = subprocess.call(argv)  # nosec B603 - resolved command path, no shell
         return LaunchResult(code == 0, f"{view.name} exited with status {code}.")
     port, refusal = choose_launch_port(entry, sink)
@@ -1810,7 +1823,7 @@ def launch_app(entry: AppEntry, ctx: Context, sink: LineSink) -> LaunchResult:
     url = entry.url_for(port)
     ctx.state_dir.mkdir(parents=True, exist_ok=True)
     log_path = _log_file(entry, ctx)
-    sink(f"==> Starting {view.name}: {' '.join(argv)}")
+    sink(f"{STEP}Starting {view.name}: {' '.join(argv)}")
     sink(f"Output goes to {log_path}")
     with log_path.open("ab") as log:
         kwargs: dict[str, Any] = {
@@ -1861,7 +1874,7 @@ def stop_app(entry: AppEntry, ctx: Context, sink: LineSink) -> bool:
         else:
             sink(f"{view.name} is not running.")
         return False
-    sink(f"==> Stopping {view.name} (pid {pid})")
+    sink(f"{STEP}Stopping {view.name} (pid {pid})")
     try:
         if ctx.platform == "win32":
             _run_capture(["taskkill", "/PID", str(pid), "/T", "/F"])
@@ -2679,7 +2692,15 @@ class AppCenterApp(App[None]):
         entries: list[AppEntry],
         action: Callable[[AppEntry, Context, LineSink], object],
     ) -> None:
+        """Run ``action`` over ``entries``, then say plainly that it has finished.
+
+        An action returning ``False`` failed; anything else (``None``, a list of
+        launcher paths) worked -- only the functions that report success do so
+        with a bool.
+        """
         self._busy = True
+        done: list[str] = []
+        failed: list[str] = []
 
         def sink(line: str) -> None:
             self.call_from_thread(self.log_line, line)
@@ -2687,12 +2708,44 @@ class AppCenterApp(App[None]):
         try:
             for entry in entries:
                 try:
-                    action(entry, self.ctx, sink)
+                    ok = action(entry, self.ctx, sink) is not False
                 except (UvError, ShortcutError) as exc:
                     sink(f"{label} failed: {exc}")
+                    ok = False
+                (done if ok else failed).append(self.ctx.view(entry).name)
         finally:
             self._busy = False
             self.call_from_thread(self._render_rows)
+            self.call_from_thread(self._announce_finished, label, done, failed)
+
+    def _announce_finished(
+        self, label: str, done: list[str], failed: list[str]
+    ) -> None:
+        """Raise a toast when an action ends.
+
+        An install runs for minutes and its last log line is one line among
+        hundreds, so the log alone leaves "is it still working?" unanswered.
+        The toast is addressed to someone who looked away and is back: it
+        outlives the scroll and stays up long enough to be read.
+        """
+        # markup=False throughout: these carry catalog names, and a name with
+        # brackets in it is text, not Rich markup.
+        if failed:
+            self.notify(
+                f"{label} failed: {', '.join(failed)}."
+                + (f" Finished: {', '.join(done)}." if done else ""),
+                title="Finished",
+                severity="error",
+                timeout=15.0,
+                markup=False,
+            )
+        elif done:
+            self.notify(
+                f"{label} finished: {', '.join(done)}.",
+                title="Done",
+                timeout=10.0,
+                markup=False,
+            )
 
     # -- actions ------------------------------------------------------------------
 
@@ -2836,9 +2889,10 @@ class AppCenterApp(App[None]):
         self._run_action("Launcher", [entry], action)
 
 
-def _launch_and_report(entry: AppEntry, ctx: Context, sink: LineSink) -> None:
+def _launch_and_report(entry: AppEntry, ctx: Context, sink: LineSink) -> bool:
     result = launch_app(entry, ctx, sink)
     sink(result.message)
+    return result.ok
 
 
 def run_tui(ctx: Context) -> int:

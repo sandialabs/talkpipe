@@ -56,6 +56,10 @@ def _notices(app: ts.AppCenterApp) -> str:
     return "\n".join(n.message for n in app._notifications)
 
 
+def _toasts(app: ts.AppCenterApp) -> list[str]:
+    return [f"{n.title}: {n.message}" for n in app._notifications]
+
+
 async def test_screen_lists_apps_with_status(ctx: ts.Context, fake_uv: FakeUv) -> None:
     fake_uv.set_installed("talkpipe-vault", "1.0.0", ["vault-server"])
     app = ts.AppCenterApp(ctx)
@@ -79,7 +83,9 @@ async def test_install_key_streams_uv_output_and_updates_row(
 ) -> None:
     fake_uv.set_canned("some-tool", ["some-tool"])
     app = ts.AppCenterApp(ctx)
-    async with app.run_test(size=SIZE) as pilot:
+    # notifications=True: Pilot suppresses toasts by default, and the point
+    # here is that the one announcing the end of the install reaches the screen.
+    async with app.run_test(size=SIZE, notifications=True) as pilot:
         await _wait_workers(app, pilot)
         await pilot.press("down")  # cursor on "tool"
         await _settle(pilot)
@@ -89,10 +95,46 @@ async def test_install_key_streams_uv_output_and_updates_row(
         log = _log_text(app)
         assert "==> Installing some-tool" in log
         assert "Resolved 12 packages" in log
-        assert "Installed some-tool 1.2.3." in log
         assert " + somedep" not in log
         assert _cell(app, "tool", 2) == "installed"
         assert _cell(app, "tool", 3) == "1.2.3"
+        # The log ends by saying so, and a toast says so too: uv's output
+        # scrolls for minutes, and one more line in it is easy to miss.
+        assert log.splitlines()[-1] == "==> Done: Installed some-tool 1.2.3."
+        assert _toasts(app) == ["Done: Install finished: some-tool."]
+        toast = app.screen.query("Toast").first()  # on screen, not just recorded
+        assert toast.region in app.screen.region
+
+
+async def test_install_failure_is_announced_as_a_failure(
+    ctx: ts.Context, fake_uv: FakeUv
+) -> None:
+    app = ts.AppCenterApp(ctx)
+    async with app.run_test(size=SIZE) as pilot:
+        await _wait_workers(app, pilot)
+        fake_uv.fail_next()
+        await pilot.press("down", "i")
+        await _wait_workers(app, pilot)
+
+        assert "uv tool install failed (exit code 1)." in _log_text(app)
+        assert _toasts(app) == ["Finished: Install failed: some-tool."]
+        assert _cell(app, "tool", 2) == "not installed"
+
+
+async def test_batch_install_announces_every_app_once(
+    ctx: ts.Context, fake_uv: FakeUv
+) -> None:
+    fake_uv.set_canned("talkpipe-vault", ["vault-server"])
+    fake_uv.set_canned("some-tool", ["some-tool"])
+    app = ts.AppCenterApp(ctx)
+    async with app.run_test(size=SIZE) as pilot:
+        await _wait_workers(app, pilot)
+        await pilot.press("space", "down", "space")
+        await _settle(pilot)
+        await pilot.press("i")
+        await _wait_workers(app, pilot)
+
+        assert _toasts(app) == ["Done: Install finished: some-tool, talkpipe-vault."]
 
 
 async def test_space_selects_for_batch_install(
@@ -135,7 +177,7 @@ async def test_uninstall_asks_and_honours_no_then_yes(
         await _wait_workers(app, pilot)
         assert "some-tool" not in fake_uv.state["tools"]
         assert _cell(app, "tool", 2) == "not installed"
-        assert "Uninstalled some-tool." in _log_text(app)
+        assert "==> Done: Uninstalled some-tool." in _log_text(app)
 
 
 async def test_shortcut_key_toggles_launcher(

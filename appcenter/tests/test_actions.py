@@ -43,27 +43,29 @@ def test_install_then_uninstall(ctx: ts.Context, fake_uv: FakeUv) -> None:
 
     assert lines[0].startswith("==> Installing talkpipe-vault (talkpipe-vault) with uv")
     assert any("take a few minutes" in line for line in lines)
-    assert "Installed talkpipe-vault 1.0.0." in lines
     assert any("Needs a language model" in line for line in lines)
+    # The outcome is the last line, and marked: uv's own output scrolls past it
+    # and ends in lines that themselves start with "Installed".
+    assert lines[-1] == "==> Done: Installed talkpipe-vault 1.0.0."
     assert ctx.status(_vault(ctx)).installed == "1.0.0"
     assert ["tool", "update-shell"] in fake_uv.calls()
 
     lines.clear()
     assert ts.install_app(_vault(ctx), ctx, lines.append)
-    assert "talkpipe-vault 1.0.0 is already the newest version." in lines
+    assert lines[-1] == "==> Done: talkpipe-vault 1.0.0 is already the newest version."
 
     fake_uv.set_latest("talkpipe-vault", "1.1.0")
     lines.clear()
     assert ts.install_app(_vault(ctx), ctx, lines.append)
     assert lines[0].startswith("==> Upgrading")
-    assert "Upgraded talkpipe-vault 1.0.0 -> 1.1.0." in lines
+    assert lines[-1] == "==> Done: Upgraded talkpipe-vault 1.0.0 -> 1.1.0."
 
     lines.clear()
     assert ts.uninstall_app(_vault(ctx), ctx, lines.append)
     assert any(
         "Your data was left in place: ~/.talkpipe-vault" in line for line in lines
     )
-    assert "Uninstalled talkpipe-vault." in lines
+    assert lines[-1] == "==> Done: Uninstalled talkpipe-vault."
     assert ctx.status(_vault(ctx)).installed is None
 
 
