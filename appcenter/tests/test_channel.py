@@ -205,7 +205,23 @@ def test_leaving_the_channel_says_so_when_uv_keeps_the_beta(
     out = capsys.readouterr().out
     assert "==> Done: uv kept talkpipe-vault 1.1.0b1" in out
     assert "already the newest version" not in out
-    assert ts.read_channels(ts.channels_path()) == {"talkpipe-vault": ts.EXPERIMENTAL}
+    # The choice stands: the row says what is installed and what was chosen.
+    assert ts.read_channels(ts.channels_path()) == {"talkpipe-vault": ts.STABLE}
+    assert _main("info", "vault", catalog=small_catalog_file) == 0
+    assert "[installed (pre-release)]" in capsys.readouterr().out
+
+
+def test_a_prerelease_under_a_chosen_release_channel_reads_release_available() -> None:
+    """The install key would put the release over it -- when PyPI says one exists."""
+    chosen = ts.AppStatus(installed="1.1.0b1", latest="1.0.1", channel=ts.STABLE)
+    assert chosen.label == "release available"
+    # Offline, or an application whose only versions are pre-releases: no
+    # release to promise, and never the old "upgrade available" downgrade offer.
+    assert ts.AppStatus(installed="1.1.0b1", channel=ts.STABLE).label == (
+        "installed (pre-release)"
+    )
+    only_betas = ts.AppStatus(installed="1.1.0b1", latest="1.1.0b2", channel=ts.STABLE)
+    assert only_betas.label == "installed (pre-release)"
 
 
 def test_an_unrecorded_prerelease_is_on_the_experimental_channel(

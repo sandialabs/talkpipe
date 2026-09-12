@@ -942,7 +942,10 @@ class Uv:
         if not self._checked:
             self._checked = True
             found = self.version()
-            if found != "?" and _version_key(found) < MIN_UV_VERSION:
+            # Only a version that parses is held to the floor: a stand-in
+            # that answers ``--version`` with words (CI runs the file with
+            # ``UV=/bin/true``) is not an old uv.
+            if _version_key(found) and _version_key(found) < MIN_UV_VERSION:
                 floor = ".".join(str(n) for n in MIN_UV_VERSION)
                 raise UvError(
                     f"uv {found} is too old: the App Center needs uv {floor} or newer. "
@@ -1148,6 +1151,12 @@ class AppStatus:
             if is_prerelease(self.installed):
                 return "installed (pre-release)"
             return "installed"
+        if is_prerelease(self.installed):
+            # The release channel is chosen but a pre-release is what is
+            # installed: the install key would put the release over it.
+            if self.latest and not is_prerelease(self.latest):
+                return "release available"
+            return "installed (pre-release)"
         return "upgrade available" if self.upgradable else "installed"
 
 
@@ -1761,13 +1770,17 @@ def install_app(
     refresh(ctx)
     after = ctx.status(entry)
     if leaving and is_prerelease(after.installed or ""):
-        # Say so rather than "already the newest version": the record is kept
-        # too, so the row goes on reading pre-release instead of offering the
-        # release it could not install as an upgrade.
+        # Say so rather than "already the newest version". The choice of the
+        # release channel is kept on record, so the row goes on saying which
+        # version is installed and which channel is chosen, and a later
+        # install tries again.
+        record_channel(channels_path(ctx.platform), entry.package.name, STABLE)
+        ctx.channels = read_channels(channels_path(ctx.platform))
+        refresh(ctx)
         sink(
             f"{DONE}uv kept {view.name} {after.installed}: no release of it "
-            "resolved, so it stays on the pre-release channel. Uninstall it "
-            "(x) and install again to force the newest release."
+            "resolved, even from scratch (its only versions may be "
+            "pre-releases). It stays as it is."
         )
         return False
     # Record the channel so a later plain `upgrade` keeps it: uv replays its own
@@ -2528,7 +2541,7 @@ APPCENTER_CSS = """
 Screen { layout: vertical; }
 #title { height: 1; padding: 0 1; background: $primary; color: $text; text-style: bold; }
 #body { height: 1fr; }
-#apps { width: 2fr; height: 1fr; }
+#apps { width: 3fr; height: 1fr; }
 #side { width: 1fr; height: 1fr; border-left: solid $secondary; padding: 0 1; }
 #detail { height: auto; }
 #needs { height: auto; color: $warning; margin-top: 1; }
@@ -2575,13 +2588,12 @@ class AppCenterApp(App[None]):
     BINDINGS: ClassVar[list[BindingType]] = [
         Binding("i", "install", "Install/upgrade"),
         Binding("u", "upgrade", "Upgrade", show=False),
-        # Three bindings on one key so the footer names the direction ``e``
-        # goes for the row under the cursor, rather than the direction-less
-        # "Channel": the way back to releases used to be stated only in the
-        # detail pane, which a short terminal hides altogether.
-        # ``check_action`` leaves exactly one of the three dispatchable.
-        Binding("e", "prerelease", "Pre-release"),
-        Binding("e", "release", "Release"),
+        # ``e`` only chooses the channel the row's ``i`` installs from; it
+        # installs nothing itself. The choice is a column of the table, so the
+        # footer can name the key without a direction. The hidden twin answers
+        # where there is no channel to choose (``check_action`` leaves exactly
+        # one of the two dispatchable).
+        Binding("e", "channel", "Channel"),
         Binding("e", "channel_here", "Channel", show=False),
         Binding("x", "uninstall", "Uninstall"),
         Binding("l", "launch", "Launch"),
@@ -2623,15 +2635,18 @@ class AppCenterApp(App[None]):
 
     def on_mount(self) -> None:
         table = self.query_one("#apps", DataTable)
+        # Channel sits beside Status: the two are read together ("installed
+        # (pre-release)" on "stable" means the install key would move it).
         table.add_columns(
-            "", "App", "Status", "Installed", "Latest", "Running", "Launcher"
+            "", "App", "Status", "Channel", "Installed", "Latest", "Running", "Launcher"
         )
         for entry in self.ctx.catalog.apps:
-            table.add_row("", entry.id, "...", "", "", "", "", key=entry.id)
+            table.add_row("", entry.id, "...", "", "", "", "", "", key=entry.id)
         table.add_row(
             "",
             "TalkPipe App Center",
             "this program",
+            "",
             __version__,
             "",
             "",
@@ -2666,7 +2681,7 @@ class AppCenterApp(App[None]):
         return [e for e in (self.ctx.catalog.find(i) for i in ids) if e is not None]
 
     def _channel_entry(self) -> AppEntry | None:
-        """The application whose channel decides which way ``e`` goes.
+        """The application whose channel ``e`` toggles (and, in a batch, leads).
 
         The first of a selection, else the row under the cursor; None when
         there is no application at all — the App Center's own row — or before
@@ -2680,17 +2695,14 @@ class AppCenterApp(App[None]):
         return targets[0] if targets else None
 
     def check_action(self, action: str, parameters: tuple[object, ...]) -> bool | None:
-        """Offer only the channel ``e``'s targets can actually move to.
+        """Offer ``e`` only where there is a channel to choose.
 
-        A run started with ``--experimental`` or ``--no-experimental`` offers
-        neither: that flag decides every install, and ``channel_here`` says so.
+        A run started with ``--experimental`` or ``--no-experimental`` has
+        none: that flag decides every install, and ``channel_here`` says so.
         """
-        if action in ("prerelease", "release"):
-            entry = self._channel_entry()
-            if entry is None or self.ctx.experimental is not None:
-                return False
-            on_experimental = self.ctx.status(entry).channel == EXPERIMENTAL
-            return (action == "release") == on_experimental
+        if action in ("channel", "channel_here"):
+            can = self._channel_entry() is not None and self.ctx.experimental is None
+            return (action == "channel") == can
         if action in ("close", "close_elsewhere"):
             try:
                 entry = self.ctx.catalog.find(self._cursor_id() or "")
@@ -2712,6 +2724,7 @@ class AppCenterApp(App[None]):
                 "*" if entry.id in self.selected else "",
                 view.name,
                 status.label,
+                "pre-release" if status.channel == EXPERIMENTAL else "stable",
                 status.installed or "-",
                 status.latest or "?",
                 running,
@@ -2728,7 +2741,7 @@ class AppCenterApp(App[None]):
                 )
         table.update_cell(
             APPCENTER_ROW_ID,
-            table.ordered_columns[6].key,
+            table.ordered_columns[7].key,
             "yes" if appcenter_launcher_present(self.ctx) else "",
         )
         self._render_detail()
@@ -2747,7 +2760,8 @@ class AppCenterApp(App[None]):
                 "That URL rolls: it serves whichever release it points at when the "
                 "launcher is opened.\n\n"
                 "Any copy of the App Center installs either the release or the "
-                "pre-release of an application: press e on its row to choose."
+                "pre-release of an application: press e on its row to choose "
+                "the channel, then i to install from it."
             )
             needs.update(
                 f"This copy is the pre-release {__version__}. The launcher above "
@@ -2784,9 +2798,11 @@ class AppCenterApp(App[None]):
             flag = "--experimental" if self.ctx.experimental else "--no-experimental"
             lines.append(f"channel:   {status.channel} (this run: {flag})")
         elif status.channel == EXPERIMENTAL:
-            lines.append("channel:   experimental (press e to return to releases)")
+            lines.append("channel:   pre-release (i installs from it; e for releases)")
         else:
-            lines.append("channel:   stable (press e for the pre-release)")
+            lines.append(
+                "channel:   stable (i installs from it; e for the pre-release)"
+            )
         lines.append(f"launch:    {entry.command} {' '.join(entry.args)}".rstrip())
         if status.commands:
             lines.append(f"provides:  {', '.join(status.commands)}")
@@ -2936,14 +2952,38 @@ class AppCenterApp(App[None]):
             self._run_action("Upgrade", targets, install_app)
             self.selected.clear()
 
-    def action_prerelease(self) -> None:
-        self._switch_channel(prerelease=True)
+    def action_channel(self) -> None:
+        """Choose the channel ``i`` installs the targets from; install nothing.
 
-    def action_release(self) -> None:
-        self._switch_channel(prerelease=False)
+        This is how one copy of the App Center serves both channels: the choice
+        is per application and recorded, so no flag, environment variable, or
+        second copy of the file is needed to get a beta of one application.
+        Choosing and installing are separate keys on purpose: ``e`` used to
+        install as it switched, and a key that changes what you are looking at
+        *and* acts on it at once is a surprise. A batch goes one way: to the
+        pre-release channel unless every one of it is there already.
+        """
+        if not self._guard():
+            return
+        targets = self._app_targets()
+        if not targets:
+            return
+        to_pre = any(self.ctx.status(e).channel != EXPERIMENTAL for e in targets)
+        path = channels_path(self.ctx.platform)
+        for entry in targets:
+            record_channel(path, entry.package.name, EXPERIMENTAL if to_pre else STABLE)
+            name = self.ctx.view(entry).name
+            self.log_line(
+                f"Channel for {name}: pre-release. Press i to install (or switch to) it."
+                if to_pre
+                else f"Channel for {name}: release. Press i to install (or return to) it."
+            )
+        self.ctx.channels = read_channels(path)
+        self.selected.clear()
+        self._refresh_status()
 
     def action_channel_here(self) -> None:
-        """``e`` where it cannot switch anything: say where the choice lives."""
+        """``e`` where there is no channel to choose: say where the choice lives."""
         if self.ctx.experimental is not None:
             flag = "--experimental" if self.ctx.experimental else "--no-experimental"
             self.notify(
@@ -2954,40 +2994,8 @@ class AppCenterApp(App[None]):
         else:
             self.notify(
                 "The channel is chosen per application: move to an "
-                "application's row and press e."
+                "application's row and press e, then i to install from it."
             )
-
-    def _switch_channel(self, *, prerelease: bool) -> None:
-        """Install every target from the channel the footer named.
-
-        This is how one copy of the App Center serves both channels: the choice
-        is per application and recorded, so no flag, environment variable, or
-        second copy of the file is needed to get a beta of one application —
-        and ``e`` goes back the same way it came. A batch goes where the key
-        says it goes, which is the channel :meth:`_channel_entry` is leaving.
-        """
-        if not self._guard():
-            return
-        targets = self._targets()
-        if not targets:
-            return
-
-        def switch(entry: AppEntry, ctx: Context, sink: LineSink) -> bool:
-            done = install_app(entry, ctx, sink, prerelease=prerelease)
-            if done:
-                # The keystroke that undoes this one, said where the user is
-                # already reading: the footer names it too, but only until the
-                # cursor moves.
-                name = ctx.view(entry).name
-                sink(
-                    f"Press e on the {name} row for its release again."
-                    if prerelease
-                    else f"Press e on the {name} row for its pre-release again."
-                )
-            return done
-
-        self._run_action("Channel", targets, switch)
-        self.selected.clear()
 
     @work(group="modal")
     async def action_uninstall(self) -> None:

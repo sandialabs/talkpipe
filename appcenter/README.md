@@ -53,15 +53,18 @@ choices, and only the second one comes up in normal use.
 ### Which versions of the applications it installs
 
 Every application installs as its newest **release** unless you ask for its
-pre-release. On the screen, press `e` on an application's row: it installs
-(or switches to) the pre-release, and the row reads `installed
-(pre-release)`; press `e` again to return it to releases. The footer names
-which way the key goes for the row under the cursor — `e Pre-release`
-before, `e Release` after — so the way back is there even on a terminal too
-short to show the detail pane, which also states the channel each
-application is on. With several applications selected, `e` puts them all on
-the channel it names. From the command line, ask with
-`--experimental` (or `--pre`), before or after the subcommand:
+pre-release. On the screen the choice is a column of the table, `Channel`,
+and two keys: `e` on an application's row toggles its channel between
+`stable` and `pre-release` (installing nothing), and `i` installs — or
+switches, or upgrades — from whichever channel the row shows. So to try the
+vault's beta, press `e` then `i` on its row; to go back, `e` then `i` again.
+The Status column says where the two disagree: `installed (pre-release)`
+while a beta is installed on the pre-release channel, `release available`
+once the release channel is chosen over it (when PyPI knows of one). With
+several applications selected, `e` puts them all on the pre-release channel,
+unless every one of them is there already, in which case all back. From the
+command line, ask with `--experimental` (or `--pre`), before or after the
+subcommand:
 
 ```bash
 uv run <url> --experimental install vault
@@ -79,15 +82,15 @@ which takes them from the command line, so without the record an upgrade would
 reinstall the newest release over your pre-release. A pre-release that has no
 record — installed by hand with uv, say — counts as being on the channel all
 the same: the version decides, so the App Center never offers an application's
-own release to it as an "upgrade". Leave the channel with `e` on the screen or
-`--no-experimental` on the command line, either of which also forgets the
-record; so does `uninstall`. Going back reinstalls the application's
-environment (`uv tool install --reinstall`): uv never moves a package
-backwards on its own, and an installed pre-release satisfies the requirement,
-so only a resolution from scratch puts the release over it. If even that lands
-on a pre-release — an application whose only releases so far are betas — the
-App Center says so and keeps the record, rather than reporting the switch as
-done.
+own release to it as an "upgrade". Choose the release channel again with `e`
+on the screen (then `i` to install it) or with `--no-experimental` on the
+command line; installing the release forgets the record, and so does
+`uninstall`. Going back reinstalls the application's environment (`uv tool
+install --reinstall`): uv never moves a package backwards on its own, and an
+installed pre-release satisfies the requirement, so only a resolution from
+scratch puts the release over it. If even that lands on a pre-release — an
+application whose only releases so far are betas — the App Center says so and
+leaves the choice standing, rather than reporting the switch as done.
 
 On that channel the App Center stops claiming to know the newest version —
 PyPI's own "latest" is the newest *release*, which is not an upgrade target
@@ -99,6 +102,10 @@ channel for every install of that screen session and says so in the title;
 `e` then declines, since one flag for the run and a choice per application
 would contradict each other — the footer leaves the key out and pressing it
 says why. Start without the flag to choose per application.
+
+`--experimental` before `install`, or `--pre` after it, is the command line's
+`e` and `i` in one: it both chooses the channel for that application and
+installs from it.
 
 ### Which copy of the App Center you run
 
@@ -132,7 +139,8 @@ powershell -ExecutionPolicy Bypass -c "irm .../install.ps1 | iex"
 Both forms choose only which copy of the file runs. The App Center itself does
 not read `TALKPIPE_APPCENTER_CHANNEL`, so the pre-release copy fetched this way
 installs releases of the applications exactly like the released copy does,
-until you press `e` or pass `--experimental` for one of them.
+until you choose the pre-release channel with `e` (and install with `i`) or
+pass `--experimental` for one of them.
 
 The experimental channel is published from github.com only; the Gitea mirror
 attaches no release assets.
@@ -145,7 +153,7 @@ desktop launcher. Keys:
 |---|---|
 | `i` | Install (or upgrade) the app under the cursor, or every selected app |
 | `u` | Upgrade only apps that are installed |
-| `e` | Switch the app to its pre-release, or back to releases — the footer names which (see [Channels](#channels-stable-and-experimental)) |
+| `e` | Choose the app's channel, `stable` or `pre-release` (the `Channel` column); `i` then installs from it (see [Channels](#channels-stable-and-experimental)) |
 | `x` | Uninstall (asks first; your data stays) |
 | `l` | Launch. Web apps start in the background and open in your browser |
 | `o` | Open a running web app in the browser |
@@ -229,8 +237,8 @@ curl -fsSL .../install.sh | sh -s -- install vault
   versions then show as `?`.
 - **`TALKPIPE_APPCENTER_CHANNEL=experimental`** makes the bootstrap scripts
   run the pre-release copy of the App Center, and nothing more: which versions
-  of the applications it installs is chosen per application with `e` or
-  `--experimental` (see [Channels](#channels-stable-and-experimental)).
+  of the applications it installs is chosen per application with `e` (then
+  `i`) or `--experimental` (see [Channels](#channels-stable-and-experimental)).
   `UV_PRERELEASE` is uv's own setting and is not used here, so that pre-release
   resolution reaches only the installs meant to have it; setting it yourself
   is a power-user escape hatch.

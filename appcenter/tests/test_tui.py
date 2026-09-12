@@ -69,8 +69,8 @@ async def test_screen_lists_apps_with_status(ctx: ts.Context, fake_uv: FakeUv) -
 
         assert _cell(app, "vault", 1) == "talkpipe-vault"
         assert _cell(app, "vault", 2) == "installed"
-        assert _cell(app, "vault", 3) == "1.0.0"
-        assert _cell(app, "vault", 4) == "?"  # offline
+        assert _cell(app, "vault", 4) == "1.0.0"
+        assert _cell(app, "vault", 5) == "?"  # offline
         assert _cell(app, "tool", 2) == "not installed"
         assert _cell(app, ts.APPCENTER_ROW_ID, 1) == "TalkPipe App Center"
         detail = str(app.query_one("#detail", Static).content)
@@ -98,7 +98,7 @@ async def test_install_key_streams_uv_output_and_updates_row(
         assert "Resolved 12 packages" in log
         assert " + somedep" not in log
         assert _cell(app, "tool", 2) == "installed"
-        assert _cell(app, "tool", 3) == "1.2.3"
+        assert _cell(app, "tool", 4) == "1.2.3"
         # The log ends by saying so, and a toast says so too: uv's output
         # scrolls for minutes, and one more line in it is easy to miss.
         assert log.splitlines()[-1] == "==> Done: Installed some-tool 1.2.3."
@@ -192,17 +192,17 @@ async def test_shortcut_key_toggles_launcher(
         await pilot.press("s")
         await _wait_workers(app, pilot)
         assert desktop.exists()
-        assert _cell(app, "vault", 6) == "yes"
+        assert _cell(app, "vault", 7) == "yes"
 
         await pilot.press("s")
         await _wait_workers(app, pilot)
         assert not desktop.exists()
-        assert _cell(app, "vault", 6) == ""
+        assert _cell(app, "vault", 7) == ""
 
         await pilot.press("down", "down", "s")  # the App Center's own row (last)
         await _settle(pilot)
         assert (home / ".local/share/applications/talkpipe-appcenter.desktop").exists()
-        assert _cell(app, ts.APPCENTER_ROW_ID, 6) == "yes"
+        assert _cell(app, ts.APPCENTER_ROW_ID, 7) == "yes"
 
 
 async def test_open_and_stop_report_when_not_running(
@@ -315,76 +315,97 @@ async def test_channel_key_switches_one_app_between_channels(
     app = ts.AppCenterApp(ctx)
     async with app.run_test(size=SIZE) as pilot:
         await _wait_workers(app, pilot)
+        assert _cell(app, "vault", 3) == "stable"
         detail = str(app.query_one("#detail", Static).content)
-        assert "channel:   stable (press e for the pre-release)" in detail
+        assert "channel:   stable (i installs from it; e for the pre-release)" in detail
 
+        # ``e`` chooses; it installs nothing.
         await pilot.press("e")
         await _wait_workers(app, pilot)
-        assert _cell(app, "vault", 2) == "installed (pre-release)"
-        assert _cell(app, "vault", 3) == "1.1.0b1"
+        assert not [c for c in fake_uv.calls() if c[:2] == ["tool", "install"]]
+        assert _cell(app, "vault", 3) == "pre-release"
+        assert _cell(app, "vault", 2) == "not installed"
         assert ts.read_channels(ts.channels_path()) == {
             "talkpipe-vault": ts.EXPERIMENTAL
         }
         detail = str(app.query_one("#detail", Static).content)
-        assert "channel:   experimental (press e to return to releases)" in detail
-        assert "Press e on the talkpipe-vault row for its release again." in _log_text(
-            app
+        assert "channel:   pre-release (i installs from it; e for releases)" in detail
+        assert (
+            "Channel for talkpipe-vault: pre-release. Press i to install (or switch to) it."
+            in _log_text(app)
         )
         # The other app is untouched: the choice is per application.
-        assert _cell(app, "tool", 2) == "not installed"
+        assert _cell(app, "tool", 3) == "stable"
 
+        # ``i`` installs from the chosen channel.
+        await pilot.press("i")
+        await _wait_workers(app, pilot)
+        assert _cell(app, "vault", 2) == "installed (pre-release)"
+        assert _cell(app, "vault", 4) == "1.1.0b1"
+
+        # ``e`` again chooses the release; the row shows the two disagreeing
+        # (offline, so it cannot promise a release exists)...
         await pilot.press("e")
         await _wait_workers(app, pilot)
+        assert _cell(app, "vault", 3) == "stable"
+        assert _cell(app, "vault", 2) == "installed (pre-release)"
+        assert _cell(app, "vault", 4) == "1.1.0b1"
+        assert ts.read_channels(ts.channels_path()) == {"talkpipe-vault": ts.STABLE}
+        assert (
+            "Channel for talkpipe-vault: release. Press i to install (or return to) it."
+            in _log_text(app)
+        )
+
+        # ...and ``i`` puts it there.
+        await pilot.press("i")
+        await _wait_workers(app, pilot)
         assert _cell(app, "vault", 2) == "installed"
-        assert _cell(app, "vault", 3) == "1.0.1"
+        assert _cell(app, "vault", 4) == "1.0.1"
         assert ts.read_channels(ts.channels_path()) == {}
         assert "Switched talkpipe-vault to the release channel" in _log_text(app)
 
 
-async def test_footer_names_the_channel_the_key_moves_to(
+async def test_footer_offers_the_channel_key_on_application_rows(
     ctx: ts.Context, fake_uv: FakeUv
 ) -> None:
-    """The way back has to be visible without the detail pane, which a short
-    terminal hides: the footer names the direction ``e`` goes for this row."""
-    fake_uv.set_latest_pre("talkpipe-vault", "1.1.0b1")
-    fake_uv.set_canned("talkpipe-vault", ["vault-server"])
+    """The key has no direction to name: the choice is a column of the table."""
     app = ts.AppCenterApp(ctx)
     async with app.run_test(size=SIZE) as pilot:
         await _wait_workers(app, pilot)
-        assert _footer_keys(app)["e"] == "Pre-release"
-
+        assert _footer_keys(app)["e"] == "Channel"
         await pilot.press("e")
         await _wait_workers(app, pilot)
-        assert _footer_keys(app)["e"] == "Release"
-
-        # Per application: the row below is still on releases.
-        await pilot.press("down")
-        await _settle(pilot)
-        assert _footer_keys(app)["e"] == "Pre-release"
+        assert _footer_keys(app)["e"] == "Channel"
+        assert _cell(app, "vault", 3) == "pre-release"
 
 
 async def test_channel_key_moves_a_whole_selection_one_way(
     ctx: ts.Context, fake_uv: FakeUv
 ) -> None:
-    """A batch goes where the key says it goes, not one flip per application."""
-    for name in ("talkpipe-vault", "some-tool"):
-        fake_uv.set_latest_pre(name, "9.9.9b1")
-        fake_uv.set_canned(name, [name])
+    """A batch goes to pre-release unless every one of it is there already."""
+    ts.record_channel(ts.channels_path(), "some-tool", ts.EXPERIMENTAL)
+    ctx.channels = ts.read_channels(ts.channels_path())
     app = ts.AppCenterApp(ctx)
     async with app.run_test(size=SIZE) as pilot:
         await _wait_workers(app, pilot)
         await pilot.press("space", "down", "space")
         await _settle(pilot)
-        assert _footer_keys(app)["e"] == "Pre-release"
 
         await pilot.press("e")
         await _wait_workers(app, pilot)
-        assert _cell(app, "vault", 2) == "installed (pre-release)"
-        assert _cell(app, "tool", 2) == "installed (pre-release)"
+        assert _cell(app, "vault", 3) == "pre-release"
+        assert _cell(app, "tool", 3) == "pre-release"
         assert ts.read_channels(ts.channels_path()) == {
             "talkpipe-vault": ts.EXPERIMENTAL,
             "some-tool": ts.EXPERIMENTAL,
         }
+        assert not [c for c in fake_uv.calls() if c[:2] == ["tool", "install"]]
+
+        # Both there now: the next press brings both back.
+        await pilot.press("space", "up", "space", "e")
+        await _wait_workers(app, pilot)
+        assert _cell(app, "vault", 3) == "stable"
+        assert _cell(app, "tool", 3) == "stable"
 
 
 async def test_channel_key_says_where_the_choice_lives_off_an_app_row(
@@ -434,7 +455,7 @@ async def test_row_does_not_offer_to_downgrade_a_prerelease(
     async with app.run_test(size=SIZE) as pilot:
         await _wait_workers(app, pilot)
         assert _cell(app, "vault", 2) == "installed (pre-release)"
-        assert _cell(app, "vault", 3) == "1.1.0b1"
+        assert _cell(app, "vault", 4) == "1.1.0b1"
         # The column grew to fit: it was sized from "..." at mount, and a
         # status cut to "installed (p" hides the one word the channel
         # section leans on.
@@ -455,7 +476,8 @@ async def test_row_reads_an_unrecorded_prerelease_as_experimental(
     async with app.run_test(size=SIZE) as pilot:
         await _wait_workers(app, pilot)
         assert _cell(app, "vault", 2) == "installed (pre-release)"
-        assert _footer_keys(app)["e"] == "Release"
+        assert _cell(app, "vault", 3) == "pre-release"
+        assert _footer_keys(app)["e"] == "Channel"
 
 
 async def test_stop_is_offered_only_for_an_instance_the_app_center_started(

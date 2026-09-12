@@ -83,7 +83,16 @@ def _uv_answering(version_line: str) -> ts.Uv:
     return ts.Uv("/bin/uv", run=run)
 
 
-@pytest.mark.parametrize("version_line", ["uv 0.7.0\n", "uv 0.11.29 (abc 2026)\n", ""])
+@pytest.mark.parametrize(
+    "version_line",
+    [
+        "uv 0.7.0\n",
+        "uv 0.11.29 (abc 2026)\n",
+        "",
+        # CI runs the file with ``UV=/bin/true``, whose --version is words.
+        "true (GNU coreutils) 9.4\n",
+    ],
+)
 def test_require_accepts_a_recent_or_unknown_uv(version_line: str) -> None:
     assert _uv_answering(version_line).require() == "/bin/uv"
 

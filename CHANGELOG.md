@@ -34,7 +34,9 @@
   nothing; the `list` hint no longer names a `talkpipe-appcenter` command
   that the documented `uv run <url>` never creates; the language-model note
   mentions an Ollama server on another computer; and the documented uv floor
-  (0.7) is checked, with the version named in the error.
+  (0.7) is checked, with the version named in the error — only when the
+  version parses, so a stand-in whose `--version` answers with words is not
+  mistaken for an old uv.
 - **Deprecated: omitting the `|` between an input source and the first
   segment.** `INPUT FROM echo[data="1,2"] print` has always parsed as though
   the pipe were there — an accident of the grammar, and an inconsistent one,
@@ -65,23 +67,26 @@
   **Any one copy of the App Center installs either the release or the
   pre-release of each application**, so a released App Center can install
   betas and a beta one installs releases unless told otherwise. On the
-  screen, `e` on an application's row installs (or switches to) its
-  pre-release and `e` again returns it to releases. The footer names which
-  way the key goes for the row under the cursor — `e Pre-release`, then
-  `e Release` once the application is on one — so the way back is visible
-  even on a terminal too short to show the detail pane, which also states
-  the channel each application is on. On the command line, `--experimental`
-  (or `--pre`), before or after the subcommand, does the same. Both pass
-  `--prerelease allow` to uv — which covers the application and its
-  dependencies, since a pre-release application may require a pre-release
-  library. The choice is recorded per application beside the saved catalogs,
-  because uv replays its own recorded settings for `uv tool upgrade` but not
-  for the `uv tool install --upgrade` the App Center runs; without the
-  record, a later upgrade would quietly reinstall the newest release over a
-  pre-release. `e` or `--no-experimental` leaves the channel and forgets the
-  record. On that channel the App Center no longer claims to know the latest
-  version, since PyPI's is the newest *release* and not an upgrade target for
-  a pre-release: the row reads `installed (pre-release)`.
+  screen the choice is a `Channel` column and two keys: `e` on an
+  application's row toggles its channel between `stable` and `pre-release`
+  and installs nothing, and `i` installs (or switches, or upgrades) from
+  whichever channel the row shows — choosing and acting are separate keys,
+  because one key that changed what you were looking at and installed it in
+  the same stroke proved confusing. The Status column says where the two
+  disagree (`installed (pre-release)`, `release available`), and the detail
+  pane repeats the channel. On the command line, `--experimental` (or
+  `--pre`), before or after the subcommand, chooses and installs in one.
+  Both pass `--prerelease allow` to uv — which covers the application and
+  its dependencies, since a pre-release application may require a
+  pre-release library. The choice is recorded per application beside the
+  saved catalogs, because uv replays its own recorded settings for `uv tool
+  upgrade` but not for the `uv tool install --upgrade` the App Center runs;
+  without the record, a later upgrade would quietly reinstall the newest
+  release over a pre-release. Installing the release again (`e` then `i`, or
+  `--no-experimental`) forgets the record. On the pre-release channel the
+  App Center no longer claims to know the latest version, since PyPI's is
+  the newest *release* and not an upgrade target for a pre-release: the row
+  reads `installed (pre-release)`.
 
 - **Fixed: the App Center never said an install had finished.** uv's output
   scrolled through the log for minutes and then simply stopped, and its own

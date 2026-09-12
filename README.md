@@ -83,7 +83,8 @@ Entry points for different usage scenarios, from interactive development to prod
   served by the experimental channel instead
   (`releases/download/experimental/talkpipe_appcenter.py`). Either copy
   installs the release or the pre-release of each application — press `e` on
-  its row, or pass `--experimental` — so you never need a particular copy to
+  its row to choose the channel and `i` to install, or pass
+  `--experimental` — so you never need a particular copy to
   get a beta of an application (see
   [Channels](appcenter/README.md#channels-stable-and-experimental)). From a
   checkout of this branch, run the file directly:

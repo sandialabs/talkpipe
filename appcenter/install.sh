@@ -16,8 +16,9 @@
 #
 # That chooses only which copy of the App Center runs. Either copy installs the
 # release version of every application unless told otherwise: press `e` on an
-# application's row, or pass `install <app> --experimental`, to get its
-# pre-release from any copy.
+# application's row to choose its pre-release channel and `i` to install from
+# it, or pass `install <app> --experimental`, to get its pre-release from any
+# copy.
 #
 # What it does: installs uv (https://docs.astral.sh/uv/) into ~/.local/bin if it
 # is missing, then hands over to the App Center itself, one Python file that uv runs
