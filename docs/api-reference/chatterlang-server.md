@@ -1,6 +1,6 @@
 # ChatterLang Server
 
-ChatterLang Server is Talkpipe's web API system for creating interactive web interfaces and REST APIs that process JSON data through ChatterLang pipelines. It provides both a user-friendly web form and a REST API endpoint that can integrate with external systems.
+ChatterLang Server is TalkPipe's web API system for creating interactive web interfaces and REST APIs that process JSON data through ChatterLang pipelines — a friendly web form for people, and an endpoint other systems can call.
 
 ## Overview
 
@@ -360,7 +360,7 @@ chatterlang_serve --display-property "prompt" \
   --script "| llmPrompt[field=\"prompt\"]"
 ```
 
-This displays just the prompt text instead of the full JSON object in the chat history.
+The chat history then shows just the prompt text rather than the full JSON object.
 
 ### Loading Custom Modules
 

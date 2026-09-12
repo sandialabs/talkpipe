@@ -97,7 +97,7 @@ When TalkPipe discovers a plugin, it performs the following steps:
 2. **Automatic registration**: During import, any sources and segments defined or imported by the module are automatically registered with TalkPipe's registry system through decorators like `@registry.register_segment()`
 3. **Optional initialization**: If the loaded object has an `initialize_plugin` function attribute, it will be called for additional setup
 
-The key insight is that **simply importing the plugin module triggers component registration**. This happens through TalkPipe's decorator-based registry system.
+The key insight is that **simply importing the plugin module triggers component registration**, through TalkPipe's decorator-based registry system.
 
 **Important**: The entry point should reference either:
 - A **module** (e.g., `my_plugin.plugin`) that can have a module-level `initialize_plugin()` function
@@ -197,7 +197,9 @@ talkpipe_plugins --list
 
 ## Integration with TalkPipe
 
-Plugins are automatically loaded when you import TalkPipe.
+Plugins are loaded automatically when you import TalkPipe — see
+[Plugin Discovery](#plugin-discovery) and
+[How Plugin Loading Works](#how-plugin-loading-works).
 
 
 ## Troubleshooting

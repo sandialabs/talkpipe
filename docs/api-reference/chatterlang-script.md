@@ -4,7 +4,7 @@
 
 ## Overview
 
-ChatterLang Script is a command-line interface for running ChatterLang pipeline scripts. It compiles and executes scripts written in TalkPipe's external DSL. This tool is useful for automation, batch data processing, and integration into shell scripts or CI/CD pipelines. It supports inline scripts, file-based scripts, configuration-based scripts, and custom module loading.
+`chatterlang_script` compiles and executes scripts written in TalkPipe's external DSL, which makes it useful for automation, batch data processing, and integration into shell scripts or CI/CD pipelines. A script can come from a file, a configuration key, or inline text, and custom modules can be loaded alongside it.
 
 ## Usage
 
@@ -97,7 +97,7 @@ This feature is useful for parameterizing scripts without editing configuration 
 
 ### Debug Mode
 
-Enable comprehensive logging:
+Enable detailed logging:
 
 ```bash
 chatterlang_script \
