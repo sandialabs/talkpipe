@@ -573,7 +573,7 @@ class LanceDBDocumentStore(DocumentStore, VectorAddable, VectorSearchable):
         """Delete a document by ID."""
         try:
             table, _created_and_updated = self._get_table()
-            table = table.delete(f"id = '{doc_id}'")
+            table.delete(f"id = '{doc_id}'")
             return True
         except Exception as e:
             logger.warning(

@@ -10,11 +10,21 @@ Usage:
 import argparse
 import ast
 import sys
+from collections import Counter
 from pathlib import Path
 
 # Factory functions that create segments with dynamic names.
 # Format: func(name: str, ...) -> segment. We extract the name from the first arg.
 SEGMENT_FACTORY_FUNCTIONS = frozenset(["_make_comparison_segment"])
+
+
+def _ast_func_name(func_node: ast.expr) -> str | None:
+    """The called name from an AST node: a bare name, or the attribute of a dotted one."""
+    if isinstance(func_node, ast.Name):
+        return func_node.id
+    if isinstance(func_node, ast.Attribute):
+        return func_node.attr
+    return None
 
 
 class DecoratorFinder(ast.NodeVisitor):
@@ -31,7 +41,7 @@ class DecoratorFinder(ast.NodeVisitor):
             # Handle @register_source("name") or @register_segment("name")
             # Now also handles multiple names: @register_source("name1", "name2")
             if isinstance(decorator, ast.Call):
-                decorator_name = self._get_decorator_name(decorator.func)
+                decorator_name = _ast_func_name(decorator.func)
                 registration_names = self._get_registration_names(decorator)
 
                 if decorator_name == "register_source" and registration_names:
@@ -50,14 +60,6 @@ class DecoratorFinder(ast.NodeVisitor):
         """Visit function definitions and check for our decorators."""
         self._process_decorators(node)
         self.generic_visit(node)
-
-    def _get_decorator_name(self, func_node: ast.expr) -> str | None:
-        """Extract decorator function name from AST node."""
-        if isinstance(func_node, ast.Name):
-            return func_node.id
-        if isinstance(func_node, ast.Attribute):
-            return func_node.attr
-        return None
 
     def _get_registration_names(self, call_node: ast.Call) -> list[str]:
         """
@@ -112,7 +114,7 @@ class FactoryCallFinder(ast.NodeVisitor):
             self.generic_visit(node)
             return
         call = node.value
-        func_name = self._get_call_func_name(call.func)
+        func_name = _ast_func_name(call.func)
         if func_name not in SEGMENT_FACTORY_FUNCTIONS:
             self.generic_visit(node)
             return
@@ -128,14 +130,6 @@ class FactoryCallFinder(ast.NodeVisitor):
         reg_name = first_arg.value
         self.segments.append((reg_name, object_name))
         self.generic_visit(node)
-
-    def _get_call_func_name(self, func_node: ast.expr) -> str | None:
-        """Get the function name from a call (handles local func or attr like module.func)."""
-        if isinstance(func_node, ast.Name):
-            return func_node.id
-        if isinstance(func_node, ast.Attribute):
-            return func_node.attr
-        return None
 
 
 def scan_file(
@@ -252,17 +246,15 @@ def generate_toml_section(
     sources = sorted(sources, key=lambda x: x[0])
     segments = sorted(segments, key=lambda x: x[0])
 
-    if sources:
-        lines.append('[project.entry-points."talkpipe.sources"]')
-        for reg_name, class_name, module_path in sources:
-            lines.append(f'{reg_name} = "{module_path}:{class_name}"')
-        lines.append("")
-
-    if segments:
-        lines.append('[project.entry-points."talkpipe.segments"]')
-        for reg_name, class_name, module_path in segments:
-            lines.append(f'{reg_name} = "{module_path}:{class_name}"')
-        lines.append("")
+    for group, entries in (
+        ("talkpipe.sources", sources),
+        ("talkpipe.segments", segments),
+    ):
+        if entries:
+            lines.append(f'[project.entry-points."{group}"]')
+            for reg_name, class_name, module_path in entries:
+                lines.append(f'{reg_name} = "{module_path}:{class_name}"')
+            lines.append("")
 
     return "\n".join(lines)
 
@@ -322,8 +314,8 @@ def main() -> None:
     source_names = [name for name, _, _ in results["sources"]]
     segment_names = [name for name, _, _ in results["segments"]]
 
-    source_dupes = [name for name in source_names if source_names.count(name) > 1]
-    segment_dupes = [name for name in segment_names if segment_names.count(name) > 1]
+    source_dupes = [name for name, n in Counter(source_names).items() if n > 1]
+    segment_dupes = [name for name, n in Counter(segment_names).items() if n > 1]
 
     if source_dupes or segment_dupes:
         print("\n⚠️  WARNING: Duplicate registrations found!", file=sys.stderr)

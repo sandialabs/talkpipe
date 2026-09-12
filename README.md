@@ -39,7 +39,7 @@ For the full story, see **[Architecture](docs/architecture/)**.
 
 ### Key Applications
 
-These are the entry points for different usage scenarios, from interactive development to production deployment:
+Entry points for different usage scenarios, from interactive development to production deployment:
 
 - **[chatterlang_workbench](docs/api-reference/chatterlang-workbench.md)**
   A browser-based IDE for writing, testing, and running ChatterLang scripts: editor with autocomplete and live error checking, real-time execution, pipeline save/load, next-component suggestions, logging, and documentation lookup.
@@ -70,7 +70,7 @@ These are the entry points for different usage scenarios, from interactive devel
   Pull release images from GitHub Container Registry (multi-platform on each GitHub release).
 
 - **[TalkPipe App Center](appcenter/README.md)**
-  The part of TalkPipe that installs applications: an app-store-like terminal screen that installs, upgrades, launches, and uninstalls them with [uv](https://docs.astral.sh/uv/), each into its own environment, with desktop launchers. It is designed to make the TalkPipe-based applications (the vault, the writing assistant, the workbench) easy to install and ships with a catalog of them, but it is just as easy to use for any pip-installable Python application that has a command of its own, listed in a catalog of your own. One file, nothing to install first but uv:
+  The part of TalkPipe that installs applications: an app-store-like terminal screen that installs, upgrades, launches, and uninstalls them with [uv](https://docs.astral.sh/uv/), each into its own environment, with desktop launchers. It ships with a catalog of the TalkPipe-based applications (the vault, the writing assistant, the workbench), and works just as well for any pip-installable Python application with a command of its own, listed in a catalog of your own. One file, nothing to install first but uv:
 
   ```bash
   uv run https://github.com/sandialabs/talkpipe/releases/latest/download/talkpipe_appcenter.py
@@ -87,7 +87,7 @@ These are the entry points for different usage scenarios, from interactive devel
 
 ## Quick Start
 
-**Requirements:** Python 3.11 or newer; 3.11, 3.12, and 3.13 are the versions tested in CI. Check your version first with `python3 --version` — it must report 3.11 or higher before installing.
+**Requirements:** Python 3.11 or newer (3.11, 3.12, and 3.13 are the versions tested in CI). Check yours with `python3 --version` before installing.
 
 ```bash
 pip install talkpipe
@@ -109,7 +109,7 @@ See **[LLM providers](docs/guides/model-and-source-configuration.md#llm-provider
 
 > **Any provider works in any example.** The examples in this README mostly show `source="ollama"`, but that is just a per-segment parameter: swap in `source="openai"` or `source="anthropic"` (with a matching `model`) on any LLM segment — the RAG helpers take the same choice as `embedding_source`/`completion_source`. Different segments in one pipeline can even use different providers. Installing `talkpipe[all]` includes all provider integrations, so switching or mixing needs no further installs.
 
-Provider API keys are read from the environment by the providers' own SDKs (`OPENAI_API_KEY`, `ANTHROPIC_API_KEY`), not from `~/.talkpipe.toml`. If TalkPipe runs on a different machine than your Ollama server, set `TALKPIPE_OLLAMA_SERVER_URL` to that host, e.g. `export TALKPIPE_OLLAMA_SERVER_URL="http://<ollama host ip>:11434"` (a bare host/IP with no scheme or port, like `"myollamahost"`, also works). Note that the model must already be pulled **on that server** — run `ollama pull llama3.2` there, or `OLLAMA_HOST=http://<ollama host ip>:11434 ollama pull llama3.2` from your machine. See **[Configuration](docs/architecture/configuration.md)** for details and ChatterLang `$var` substitution.
+Provider API keys are read from the environment by the providers' own SDKs (`OPENAI_API_KEY`, `ANTHROPIC_API_KEY`), not from `~/.talkpipe.toml`. If TalkPipe runs on a different machine than your Ollama server, set `TALKPIPE_OLLAMA_SERVER_URL` to that host, e.g. `export TALKPIPE_OLLAMA_SERVER_URL="http://<ollama host ip>:11434"` (a bare host/IP with no scheme or port, like `"myollamahost"`, also works). The model must already be pulled **on that server** — run `ollama pull llama3.2` there, or `OLLAMA_HOST=http://<ollama host ip>:11434 ollama pull llama3.2` from your machine. See **[Configuration](docs/architecture/configuration.md)** for details and ChatterLang `$var` substitution.
 
 Hello world (no LLM server required):
 
@@ -254,7 +254,7 @@ result = pipeline()
 # Returns: ['HELLO', 'WORLD']
 ```
 
-The `@registry.register_segment()` decorator makes your component discoverable by ChatterLang's compiler, allowing you to use it in scripts alongside built-in segments.
+The `@registry.register_segment()` decorator makes your component discoverable by ChatterLang's compiler, so scripts can use it alongside built-in segments.
 
 ### Key ChatterLang Features
 
@@ -668,8 +668,8 @@ uv sync --all-extras
 **CI does not use the lockfile.** It installs with pip (`pip install -e
 ".[dev,all]"`) and resolves dependencies fresh, on purpose: that is what
 someone running `pip install talkpipe` gets, so the build breaks when *they*
-would break. A dependency problem that only the lockfile hides is a problem
-we want CI to see.
+would break — a dependency problem the lockfile would hide is exactly what we
+want CI to see.
 
 Two consequences worth remembering:
 

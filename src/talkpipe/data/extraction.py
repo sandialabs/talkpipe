@@ -20,6 +20,25 @@ from .html import htmlToText
 
 logger = logging.getLogger(__name__)
 
+# The declared ExtractionResult fields; anything else in a record is an extra.
+_EXTRACTION_FIELDS = frozenset({"content", "source", "id", "title"})
+
+
+def _resolve_readable_file(file_path: str | Path) -> Path:
+    """Return ``file_path`` as a ``Path``, rejecting anything but an existing file.
+
+    Shared by every extractor so a missing path and a non-file path (a
+    directory, say) are always reported the same way.
+    """
+    p = Path(file_path)
+    if not p.exists():
+        logger.error(f"Path does not exist: {file_path}")
+        raise FileNotFoundError(f"Path does not exist: {file_path}")
+    if not p.is_file():
+        logger.error(f"Unsupported path type: {file_path}")
+        raise FileNotFoundError(f"Unsupported path type: {file_path}")
+    return p
+
 
 class ExtractionResult(BaseModel):
     """Model representing the result of a file extraction."""
@@ -146,13 +165,7 @@ def extract_text(file_path: str | Path) -> Iterator[ExtractionResult]:
     Raises:
         FileNotFoundError: If the file does not exist.
     """
-    p = Path(file_path)
-    if not p.exists():
-        logger.error(f"Path does not exist: {file_path}")
-        raise FileNotFoundError(f"Path does not exist: {file_path}")
-    if not p.is_file():
-        logger.error(f"Unsupported path type: {file_path}")
-        raise FileNotFoundError(f"Unsupported path type: {file_path}")
+    p = _resolve_readable_file(file_path)
 
     logger.debug(f"Reading text file: {p}")
     source_str = str(p.resolve())
@@ -188,13 +201,7 @@ def extract_docx(file_path: str | Path) -> Iterator[ExtractionResult]:
     Raises:
         FileNotFoundError: If the file does not exist.
     """
-    p = Path(file_path)
-    if not p.exists():
-        logger.error(f"Path does not exist: {file_path}")
-        raise FileNotFoundError(f"Path does not exist: {file_path}")
-    if not p.is_file():
-        logger.error(f"Unsupported path type: {file_path}")
-        raise FileNotFoundError(f"Unsupported path type: {file_path}")
+    p = _resolve_readable_file(file_path)
 
     # Imported here, not at module level: only .docx extraction needs
     # python-docx, so the rest of this module works without it.
@@ -234,17 +241,10 @@ def extract_csv(
     Raises:
         FileNotFoundError: If the file does not exist.
     """
-    p = Path(file_path)
-    if not p.exists():
-        logger.error(f"Path does not exist: {file_path}")
-        raise FileNotFoundError(f"Path does not exist: {file_path}")
-    if not p.is_file():
-        logger.error(f"Unsupported path type: {file_path}")
-        raise FileNotFoundError(f"Unsupported path type: {file_path}")
+    p = _resolve_readable_file(file_path)
 
     logger.debug(f"Reading CSV file: {p}")
     source_str = str(p.resolve())
-    extraction_fields = {"content", "source", "id", "title"}
 
     with p.open("r", newline="", encoding="utf-8") as file:
         reader = csv.DictReader(file, delimiter=delimiter)
@@ -275,7 +275,7 @@ def extract_csv(
                 result_fields["title"] = f"{p.name}:{row_num}"
 
             # Add all CSV fields as extra fields (excluding ones already in result_fields)
-            extra_fields = {k: v for k, v in row.items() if k not in extraction_fields}
+            extra_fields = {k: v for k, v in row.items() if k not in _EXTRACTION_FIELDS}
             yield ExtractionResult(**result_fields, **extra_fields)
 
 
@@ -303,17 +303,10 @@ def extract_jsonl(file_path: str | Path) -> Iterator[ExtractionResult]:
     Raises:
         FileNotFoundError: If the file does not exist.
     """
-    p = Path(file_path)
-    if not p.exists():
-        logger.error(f"Path does not exist: {file_path}")
-        raise FileNotFoundError(f"Path does not exist: {file_path}")
-    if not p.is_file():
-        logger.error(f"Unsupported path type: {file_path}")
-        raise FileNotFoundError(f"Unsupported path type: {file_path}")
+    p = _resolve_readable_file(file_path)
 
     logger.debug(f"Reading JSONL file: {p}")
     source_str = str(p.resolve())
-    extraction_fields = {"content", "source", "id", "title"}
 
     with p.open("r", encoding="utf-8") as file:
         for line_num, line in enumerate(file, start=1):
@@ -352,7 +345,7 @@ def extract_jsonl(file_path: str | Path) -> Iterator[ExtractionResult]:
 
                 # Add all dict fields as extra fields (excluding standard fields)
                 extra_fields = {
-                    k: v for k, v in data.items() if k not in extraction_fields
+                    k: v for k, v in data.items() if k not in _EXTRACTION_FIELDS
                 }
             else:
                 # Non-dict: use value directly for content if string, else JSON representation
@@ -393,17 +386,10 @@ def extract_json(file_path: str | Path) -> Iterator[ExtractionResult]:
     Raises:
         FileNotFoundError: If the file does not exist.
     """
-    p = Path(file_path)
-    if not p.exists():
-        logger.error(f"Path does not exist: {file_path}")
-        raise FileNotFoundError(f"Path does not exist: {file_path}")
-    if not p.is_file():
-        logger.error(f"Unsupported path type: {file_path}")
-        raise FileNotFoundError(f"Unsupported path type: {file_path}")
+    p = _resolve_readable_file(file_path)
 
     logger.debug(f"Reading JSON file: {p}")
     source_str = str(p.resolve())
-    extraction_fields = {"content", "source", "id", "title"}
 
     with p.open("r", encoding="utf-8") as f:
         data = json.load(f)
@@ -422,7 +408,7 @@ def extract_json(file_path: str | Path) -> Iterator[ExtractionResult]:
         )
         result_fields["id"] = str(data["id"]) if "id" in data else source_str
         result_fields["title"] = str(data["title"]) if "title" in data else p.name
-        extra_fields = {k: v for k, v in data.items() if k not in extraction_fields}
+        extra_fields = {k: v for k, v in data.items() if k not in _EXTRACTION_FIELDS}
     else:
         result_fields["content"] = data if isinstance(data, str) else json.dumps(data)
         result_fields["source"] = source_str
@@ -456,13 +442,7 @@ def extract_pdf(file_path: str | Path) -> Iterator[ExtractionResult]:
             "PDF extraction requires pypdf. Install it with: pip install talkpipe[pypdf]"
         ) from None
 
-    p = Path(file_path)
-    if not p.exists():
-        logger.error(f"Path does not exist: {file_path}")
-        raise FileNotFoundError(f"Path does not exist: {file_path}")
-    if not p.is_file():
-        logger.error(f"Unsupported path type: {file_path}")
-        raise FileNotFoundError(f"Unsupported path type: {file_path}")
+    p = _resolve_readable_file(file_path)
 
     def read_all_pages(path: Path) -> str:
         reader = PdfReader(path)

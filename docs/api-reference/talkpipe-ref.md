@@ -4,7 +4,7 @@
 
 ## Overview
 
-The TalkPipe reference tools provide comprehensive documentation generation and browsing capabilities for TalkPipe's library of sources, segments, and field segments. These tools automatically discover and document all registered components in the TalkPipe ecosystem, making it easy to explore available functionality and understand how to use each component.
+These two tools discover every registered source, segment, and field segment in the TalkPipe ecosystem and document it, so you can see what is available and how to use it:
 
 - **Reference Generator** - Scans Python code to automatically extract and document TalkPipe components
 - **Reference Browser** - Interactive terminal-based browser for exploring generated documentation
@@ -101,7 +101,7 @@ For each discovered component, extracts:
 
 #### Parameter Processing
 
-The generator intelligently processes function parameters:
+The generator processes function parameters as follows:
 
 - **Excludes common parameters**: `self`, `items`, `item` 
 - **Segment function handling**: Skips first parameter after `self` for segment functions
@@ -363,11 +363,9 @@ def my_segment(item: str, multiplier: int = 1,
 3. **Explore packages**: `list talkpipe.llm` to see organization
 4. **Check details**: `show llmPrompt` for usage information
 
-**Documentation Workflow**:
-1. **Discovery**: Use search to find relevant components
-2. **Investigation**: Use show to understand parameters and usage
-3. **Implementation**: Apply knowledge in ChatterLang scripts
-4. **Validation**: Return to browser to verify understanding
+**Documentation workflow**: `search` to find a component, `show` it to learn its
+parameters and usage, apply it in a ChatterLang script, then come back to the
+browser to check anything that surprised you.
 
 ---
 

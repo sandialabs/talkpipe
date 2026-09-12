@@ -53,11 +53,20 @@ class OpenAIPromptAdapter(AbstractLLMPromptAdapter):
 
         Handles its own multi-turn conversation state.
         """
-        openai = self._require_dependency("openai", "OpenAI", "openai")
+        self._require_dependency("openai", "OpenAI", "openai")
+        self._append_user_prompt(prompt)
+        return self._complete_from_history()
 
-        logger.debug(f"Adding user message to chat history: {prompt}")
-        self._messages.append({"role": "user", "content": prompt})
-        self._compact_context_if_needed()
+    def execute_turn(self, user_turn: UserTurn) -> str | BaseModel:
+        """Execute the chat model with a multimodal user turn."""
+        self._require_dependency("openai", "OpenAI", "openai")
+        self._append_user_message(to_openai_user_message(user_turn))
+        return self._complete_from_history()
+
+    def _complete_from_history(self) -> str | BaseModel:
+        # Shared dispatch for execute() and execute_turn(): both send the same
+        # assembled history and parse the reply the same way.
+        openai = self._require_dependency("openai", "OpenAI", "openai")
 
         logger.debug(f"Sending chat request to OpenAI model {self._model_name}")
 
@@ -77,34 +86,6 @@ class OpenAIPromptAdapter(AbstractLLMPromptAdapter):
 
         self._record_assistant_response(response.output_text)
 
-        result: str | BaseModel = (
-            response.output_parsed if self._output_format else response.output_text
-        )
-        logger.debug(f"Returning response: {result}")
-        return result
-
-    def execute_turn(self, user_turn: UserTurn) -> str | BaseModel:
-        """Execute the chat model with a multimodal user turn."""
-        openai = self._require_dependency("openai", "OpenAI", "openai")
-
-        user_message = to_openai_user_message(user_turn)
-        logger.debug("Adding multimodal user message to chat history")
-        self._messages.append(user_message)
-        self._compact_context_if_needed()
-
-        logger.debug(f"Sending chat request to OpenAI model {self._model_name}")
-        request_params: dict[str, Any] = {
-            "model": self._model_name,
-            "input": self._request_messages(),
-            "text_format": openai.NOT_GIVEN
-            if self._output_format is None
-            else self._output_format,
-        }
-        self._apply_temperature_if_explicit(request_params)
-        self._log_message_payload("input", request_params["input"])
-        response = self._responses_request(parse=True, **request_params)
-
-        self._record_assistant_response(response.output_text)
         result: str | BaseModel = (
             response.output_parsed if self._output_format else response.output_text
         )

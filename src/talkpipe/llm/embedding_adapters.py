@@ -6,8 +6,10 @@ from typing import Any, overload
 
 import numpy as np
 
-from talkpipe.util.config import get_config, resolve_timeout
-from talkpipe.util.constants import DEFAULT_LLM_TIMEOUT, LLM_TIMEOUT, OLLAMA_SERVER_URL
+from talkpipe.util.config import resolve_timeout
+from talkpipe.util.constants import DEFAULT_LLM_TIMEOUT, LLM_TIMEOUT
+
+from ._ollama_common import ollama_connection_error, resolve_ollama_server_url
 
 
 def _vector_to_list(vec: Any) -> list[float]:
@@ -106,10 +108,7 @@ class OllamaEmbedderAdapter(AbstractEmbeddingAdapter):
         self._timeout = resolve_timeout(timeout, LLM_TIMEOUT, DEFAULT_LLM_TIMEOUT)
 
     def _resolve_server_url(self) -> str | None:
-        server_url = self._server_url
-        if not server_url:
-            server_url = get_config().get(OLLAMA_SERVER_URL, None)
-        return server_url
+        return resolve_ollama_server_url(self._server_url)
 
     def _import_ollama(self) -> Any:
         try:
@@ -133,14 +132,7 @@ class OllamaEmbedderAdapter(AbstractEmbeddingAdapter):
         try:
             response = client.embed(model=self.model_name, input=list(texts))
         except ConnectionError as exc:
-            server_url = self._resolve_server_url()
-            raise ConnectionError(
-                f"Failed to connect to Ollama at '{server_url or 'http://localhost:11434'}'. "
-                "If your Ollama server is remote, set the TALKPIPE_OLLAMA_SERVER_URL environment "
-                "variable (e.g. `export TALKPIPE_OLLAMA_SERVER_URL=http://your-ollama-host:11434`) "
-                "or OLLAMA_SERVER_URL in ~/.talkpipe.toml. "
-                f"Original error: {exc}"
-            ) from exc
+            raise ollama_connection_error(self._resolve_server_url(), exc) from exc
         return _vectors_to_lists(response["embeddings"])
 
     def execute_one(self, text: str) -> list[float]:

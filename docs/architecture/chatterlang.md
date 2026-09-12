@@ -2,7 +2,7 @@
 
 ## Overview
 
-ChatterLang is TalkPipe's external Domain-Specific Language (DSL) that provides a high-level, declarative syntax for building data processing pipelines. It abstracts away Python implementation details and allows users to express complex workflows using simple, human-readable commands.
+ChatterLang is TalkPipe's external Domain-Specific Language (DSL): a high-level, declarative syntax for building data processing pipelines. It hides Python implementation details so complex workflows can be expressed in simple, human-readable commands.
 
 The LLM examples on this page happen to use `source="ollama"`. Nothing here is
 Ollama-specific: `source` and `model` are ordinary segment parameters, so
@@ -169,7 +169,7 @@ The registry maps ChatterLang identifiers to Python implementation classes. It s
 
 #### Registration Decorators
 
-Components register themselves using decorators.  This makes it trivial to add new sources and segments to TalkPipe, whether in new modules or in a jupyter notebook:
+Components register themselves using decorators, so adding a new source or segment is trivial — in a new module or in a Jupyter notebook:
 
 ```python
 from talkpipe.chatterlang import registry
@@ -196,7 +196,7 @@ class ExamplePrint(AbstractSegment):
 
 ### 4. Variable Management
 
-ChatterLang provides sophisticated variable handling for intermediate data storage and reuse.
+ChatterLang handles variables for storing and reusing intermediate data.
 
 #### Variable Sources
 
@@ -347,7 +347,7 @@ class UserSession:
 
 ## Example Scripts
 
-To try ChatterLang scripts and explore examples interactively, use the **ChatterLang Workbench** (`chatterlang_workbench`). It provides a script editor with syntax highlighting, real-time execution, and an example script library. See [ChatterLang Workbench](../api-reference/chatterlang-workbench.md) for details.
+To try ChatterLang scripts and explore examples interactively, use the **ChatterLang Workbench** (`chatterlang_workbench`), whose built-in example library and editor are described in [ChatterLang Workbench](../api-reference/chatterlang-workbench.md).
 
 ## Key Benefits
 
@@ -414,11 +414,12 @@ except Exception as e:
 
 ## Conclusion
 
-ChatterLang demonstrates how a well-designed DSL can make powerful functionality accessible to a broader audience. By providing a natural language-inspired syntax that compiles to the robust Pipe API, it bridges the gap between ease of use and computational power.
-
-The architecture's layered design—parser, compiler, registry, and applications—creates a maintainable and extensible system that can evolve with user needs while maintaining backward compatibility.
-
-Through its integration with web applications, command-line tools, and interactive environments, ChatterLang enables TalkPipe's data processing capabilities to be deployed across diverse use cases and user scenarios.
+ChatterLang bridges ease of use and computational power: a natural
+language-inspired syntax that compiles to the Pipe API. Its layered
+design—parser, compiler, registry, and applications—keeps the system
+maintainable, extensible, and backward compatible as it evolves, and its
+integration with web applications, command-line tools, and interactive
+environments lets TalkPipe's data processing reach a wide range of use cases.
 
 ---
 Last Reviewed: 20250817

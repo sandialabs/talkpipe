@@ -4,7 +4,7 @@
 
 ## Overview
 
-The ChatterLang Workbench provides a development environment for TalkPipe's external DSL. It features a code editor with syntax highlighting, context-aware autocomplete, hover help, and live error checking; real-time script execution (including interactive, chat-style scripts); a pipeline workspace for saving and reloading scripts; and a suggestions sidebar that recommends the next pipeline component. This tool is perfect for experimenting with ChatterLang syntax, prototyping pipelines, and learning TalkPipe concepts interactively.
+The ChatterLang Workbench is a development environment for TalkPipe's external DSL, built for experimenting with ChatterLang syntax, prototyping pipelines, and learning TalkPipe interactively. It features a code editor with syntax highlighting, context-aware autocomplete, hover help, and live error checking; real-time script execution (including interactive, chat-style scripts); a pipeline workspace for saving and reloading scripts; and a suggestions sidebar that recommends the next pipeline component.
 
 ## Usage
 
@@ -154,10 +154,8 @@ Load custom TalkPipe components before starting the server:
 chatterlang_workbench --load-module ./my_custom_segments.py
 ```
 
-This allows you to:
-- Test custom sources and segments
-- Prototype new functionality
-- Integrate domain-specific components
+Use it to test custom sources and segments, prototype new functionality, or
+integrate domain-specific components.
 
 Custom components participate fully in the workbench: they compile and run, and they appear in autocomplete, hover help, lint, and the generated documentation.
 

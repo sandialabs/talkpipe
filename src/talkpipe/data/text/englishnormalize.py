@@ -105,9 +105,7 @@ def summarize(
         ("Other context", "other", 8),
     ]
     section_lines: dict[str, list[str]] = {}
-    section_titles: dict[str, str] = {}
-    for title, key, limit in section_defs:
-        section_titles[key] = title
+    for _title, key, limit in section_defs:
         section_lines[key] = [line for _, _, line in buckets[key][:limit]]
 
     def render() -> str:

@@ -336,14 +336,13 @@ class LLMEmbed(AbstractFieldSegment[Any, Any]):
                 return self._embed_truncate(item, text)
             return self._embed_chunk_pool(item, text)
 
-    def _yield_results(self, item: Any, results: list[Any]) -> Iterator[Any]:
-        """Emit results using AbstractFieldSegment assign/yield semantics."""
-        for result in results:
-            if self.set_as:
-                assign_property(item, self.set_as, result)
-                yield item
-            else:
-                yield result
+    def _yield_result(self, item: Any, result: Any) -> Iterator[Any]:
+        """Emit one result using AbstractFieldSegment assign/yield semantics."""
+        if self.set_as:
+            assign_property(item, self.set_as, result)
+            yield item
+        else:
+            yield result
 
     def _embed_items_pair(self, items: list[Any], texts: list[str]) -> Iterator[Any]:
         for item, text in zip(items, texts, strict=False):
@@ -356,7 +355,7 @@ class LLMEmbed(AbstractFieldSegment[Any, Any]):
                 if self.fail_on_error:
                     raise
                 continue
-            yield from self._yield_results(item, [vector])
+            yield from self._yield_result(item, vector)
 
     def _embed_buffered(self, items: list[Any], texts: list[str]) -> Iterator[Any]:
         if not items or not texts:
@@ -368,7 +367,7 @@ class LLMEmbed(AbstractFieldSegment[Any, Any]):
         try:
             vectors = self.embedder.execute_batch(texts)
             for item, vector in zip(items, vectors, strict=False):
-                yield from self._yield_results(item, [vector])
+                yield from self._yield_result(item, vector)
         except Exception as e:
             logger.info(f"Error during batch embedding: {e}")
             yield from self._embed_items_pair(items, texts)

@@ -165,11 +165,8 @@ class MakeLists(AbstractSegment[Any, Any]):
                 continue
             accumulated.append(item)
 
-            if (
-                self.num_items is not None
-                and len(accumulated) > 0
-                and len(accumulated) % self.num_items == 0
-            ):
+            # `accumulated` was just appended to, so it is never empty here.
+            if self.num_items is not None and len(accumulated) % self.num_items == 0:
                 ans = accumulated.copy()
                 if not self.cumulative:
                     accumulated = []

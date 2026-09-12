@@ -29,6 +29,11 @@ from .abstract import DocumentStore, MutableDocumentStore, SearchResult, TextSea
 logger = logging.getLogger(__name__)
 
 
+def _doc_fields(fields: Iterable[str], doc: Document) -> dict[str, str]:
+    """The indexable subset of ``doc``: the named fields it has, as strings."""
+    return {field: str(doc.get(field, "")) for field in fields if field in doc}
+
+
 class WhooshIndexError(Exception):
     pass
 
@@ -85,9 +90,7 @@ class WhooshFullTextIndex(DocumentStore, MutableDocumentStore, TextSearchable):
         if doc_id is None:
             doc_id = str(uuid.uuid4())
 
-        doc_fields = {
-            field: str(doc.get(field, "")) for field in self.fields if field in doc
-        }
+        doc_fields = _doc_fields(self.fields, doc)
 
         with self.ix.writer() as writer:
             writer.update_document(doc_id=doc_id, **doc_fields)
@@ -100,9 +103,7 @@ class WhooshFullTextIndex(DocumentStore, MutableDocumentStore, TextSearchable):
             return False
 
         try:
-            doc_fields = {
-                field: str(doc.get(field, "")) for field in self.fields if field in doc
-            }
+            doc_fields = _doc_fields(self.fields, doc)
             with self.ix.writer() as writer:
                 writer.update_document(doc_id=doc_id, **doc_fields)
             return True
@@ -231,11 +232,7 @@ def WhooshWriter(
             # Add document using the writer directly
             if doc_id is None:
                 doc_id = str(uuid.uuid4())
-            doc_fields = {
-                field: str(doc.get(field, ""))
-                for field in self.idx.fields
-                if field in doc
-            }
+            doc_fields = _doc_fields(self.idx.fields, doc)
             if upsert:
                 # Searches all committed segments for an existing doc_id
                 self.writer.update_document(doc_id=doc_id, **doc_fields)

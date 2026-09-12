@@ -2,9 +2,10 @@ from typing import Any
 
 from pydantic import BaseModel
 
-from talkpipe.util.config import get_config, resolve_timeout
-from talkpipe.util.constants import DEFAULT_LLM_TIMEOUT, LLM_TIMEOUT, OLLAMA_SERVER_URL
+from talkpipe.util.config import resolve_timeout
+from talkpipe.util.constants import DEFAULT_LLM_TIMEOUT, LLM_TIMEOUT
 
+from ._ollama_common import ollama_connection_error, resolve_ollama_server_url
 from .content import UserTurn
 from .multimodal import to_ollama_user_message
 from .prompt_adapter_base import AbstractLLMPromptAdapter, logger
@@ -61,42 +62,18 @@ class OllamaPromptAdapter(AbstractLLMPromptAdapter):
         Handles its own multi-turn conversation state.
         """
         self._require_dependency("ollama", "Ollama", "ollama")
-
-        logger.debug(f"Adding user message to chat history: {prompt}")
-        self._messages.append({"role": "user", "content": prompt})
-        # Memory compaction may update `_summary_message` and trim `_messages` before request dispatch.
-        self._compact_context_if_needed()
-
-        logger.debug(f"Sending chat request to Ollama model {self._model_name}")
-        self._log_message_payload("messages", self._request_messages())
-        response = self._chat_completion(
-            model=self._model_name,
-            messages=self._request_messages(),
-            format_schema=self._output_format.model_json_schema()
-            if self._output_format
-            else None,
-            options={"temperature": self._temperature},
-        )
-
-        self._record_assistant_response(str(response.message.content))
-
-        result = (
-            self._output_format.model_validate_json(response.message.content)
-            if self._output_format
-            else response.message.content
-        )
-        logger.debug(f"Returning response: {result}")
-        return result
+        self._append_user_prompt(prompt)
+        return self._complete_from_history()
 
     def execute_turn(self, user_turn: UserTurn) -> str | BaseModel:
         """Execute the chat model with a multimodal user turn."""
         self._require_dependency("ollama", "Ollama", "ollama")
+        self._append_user_message(to_ollama_user_message(user_turn))
+        return self._complete_from_history()
 
-        user_message = to_ollama_user_message(user_turn)
-        logger.debug("Adding multimodal user message to chat history")
-        self._messages.append(user_message)
-        self._compact_context_if_needed()
-
+    def _complete_from_history(self) -> str | BaseModel:
+        # Shared dispatch for execute() and execute_turn(): both send the same
+        # assembled history and parse the reply the same way.
         logger.debug(f"Sending chat request to Ollama model {self._model_name}")
         self._log_message_payload("messages", self._request_messages())
         response = self._chat_completion(
@@ -127,9 +104,7 @@ class OllamaPromptAdapter(AbstractLLMPromptAdapter):
     ) -> Any:
         ollama = self._require_dependency("ollama", "Ollama", "ollama")
 
-        server_url = self._server_url
-        if not server_url:
-            server_url = get_config().get(OLLAMA_SERVER_URL, None)
+        server_url = resolve_ollama_server_url(self._server_url)
         # Always go through a Client (never the module-level default) so the
         # request timeout applies; host=None means the SDK's own default.
         client = ollama.Client(host=server_url or None, timeout=self._timeout)
@@ -138,13 +113,7 @@ class OllamaPromptAdapter(AbstractLLMPromptAdapter):
                 model, messages=messages, format=format_schema, options=options
             )
         except ConnectionError as exc:
-            raise ConnectionError(
-                f"Failed to connect to Ollama at '{server_url or 'http://localhost:11434'}'. "
-                "If your Ollama server is remote, set the TALKPIPE_OLLAMA_SERVER_URL environment "
-                "variable (e.g. `export TALKPIPE_OLLAMA_SERVER_URL=http://your-ollama-host:11434`) "
-                "or OLLAMA_SERVER_URL in ~/.talkpipe.toml. "
-                f"Original error: {exc}"
-            ) from exc
+            raise ollama_connection_error(server_url, exc) from exc
         except ollama.ResponseError as exc:
             if exc.status_code == 404:
                 raise ollama.ResponseError(

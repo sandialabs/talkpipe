@@ -90,7 +90,7 @@ Other providers plug in without changes to TalkPipe. Subclass `AbstractLLMPrompt
 
 ## Day-to-day usage
 
-TalkPipe gives you several ways to configure `model` and `source` — segment parameters, ChatterLang `$key` substitution, `TALKPIPE_*` environment variables, and `~/.talkpipe.toml`. The setup below is not the only valid one; it is intended to be the simplest, lowest-maintenance path for day-to-day usage. The rest of this guide details each layer so you can deviate when you need to.
+TalkPipe gives you several ways to configure `model` and `source` — segment parameters, ChatterLang `$key` substitution, `TALKPIPE_*` environment variables, and `~/.talkpipe.toml`. The setup below is not the only valid one; it is meant to be the simplest, lowest-maintenance path for day-to-day usage.
 
 The pattern assumes you have a single "main" LLM source for most calls and only reach for alternatives occasionally:
 
@@ -171,9 +171,7 @@ The remaining sections fill in the details behind that pattern: exactly how `mod
 
 ## How values are resolved
 
-The day-to-day pattern relies on TalkPipe quietly filling in `model` and `source` when you omit them. Here is the full rule it uses.
-
-When `LLMPrompt` or `LLMEmbed` is constructed, TalkPipe fills in missing `model` / `source` from `get_config()` (merged `~/.talkpipe.toml` plus `TALKPIPE_*` environment variables). If either is still missing, construction raises an error.
+The day-to-day pattern relies on TalkPipe quietly filling in `model` and `source` when you omit them. The full rule: when `LLMPrompt` or `LLMEmbed` is constructed, TalkPipe fills in missing `model` / `source` from `get_config()` (merged `~/.talkpipe.toml` plus `TALKPIPE_*` environment variables). If either is still missing, construction raises an error.
 
 ```mermaid
 flowchart TD
@@ -264,7 +262,7 @@ Memory and compaction options (`memory_mode`, `context_token_trigger`, etc.) are
 
 Required (directly or via config): `model`, `source`. Required as a segment parameter: `image_field` (the item field holding the image path, URL, bytes, or `ImageResult`).
 
-`llmVisionPrompt` resolves `model` / `source` from the same `default_model_name` / `default_model_source` keys as `llmPrompt`. There is no separate vision-specific default, so if your chat default is text-only you should override `model` (and usually `source`) on `llmVisionPrompt`:
+There is no vision-specific default: `llmVisionPrompt` shares the chat defaults, so override `model` (and usually `source`) on the segment when the chat default is text-only — see [Segment defaults](#segment-defaults-default_).
 
 ```chatterlang
 INPUT FROM loadImage[path="/path/to/diagram.png", set_as="image"]

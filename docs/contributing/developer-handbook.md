@@ -117,7 +117,7 @@ want raw objects or the extraction wrapper.
 
 ### Codebase Structure
 
-The following are the main breakdown of the codebase. These should be considered firm but not strict breakdowns. Sometimes a source could fit within either operations or data, for example.
+The main breakdown of the codebase — firm but not strict, since a source could sometimes fit in either operations or data.
 
 * **talkpipe.app** - Contains the primary runnable applications.
   * Example: chatterlang_script
@@ -180,14 +180,18 @@ on their data.
 
 ### Source and Segment Reference
 
-The chatterlang_workbench command starts a web service designed for experimentation.  It also contains links to HTML and text versions
-of all the sources and segments included in TalkPipe.
+The `chatterlang_workbench` command starts a web service designed for
+experimentation, and links to HTML and text versions of every source and
+segment included in TalkPipe.
 
-After talkpipe is installed, a script called "chatterlang_reference_browser" is available that provides an interactive command-line search and exploration of sources and segments.  The command "chatterlang_reference_generator" will generate single page HTML and text versions of all the source and segment documentation.
+Two more scripts installed with talkpipe cover the same reference material from
+the terminal: `chatterlang_reference_browser` searches and explores sources and
+segments interactively, and `chatterlang_reference_generator` writes
+single-page HTML and text versions of all of that documentation.
 
 ### Standard Configuration File Items
 
-Configuration constants can be defined either in ~/.talkpipe.toml or in environment variables.  Any constant defined in an environment variable needs to be prefixed with TALKPIPE_.  So email_password, stored in an environment variable, needs to be TALKPIPE_email_password.  Note that in ChatterLang, any key defined in ~/.talkpipe.toml or set via a TALKPIPE_* environment variable can be referenced in scripts as a parameter using $var_name.  That reference resolves to the environment variable TALKPIPE_var_name or to var_name in talkpipe.toml.
+Configuration constants can be defined either in ~/.talkpipe.toml or in environment variables.  Any constant defined in an environment variable needs to be prefixed with TALKPIPE_, so email_password becomes TALKPIPE_email_password.  In ChatterLang, a script can reference any such key as a parameter with $var_name, which resolves to the environment variable TALKPIPE_var_name or to var_name in talkpipe.toml.
 
 For how `model`, `source`, and LLM defaults interact across segments and CLIs, see [Model and source configuration](../guides/model-and-source-configuration.md).
 

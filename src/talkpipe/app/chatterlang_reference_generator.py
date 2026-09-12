@@ -139,24 +139,65 @@ def get_first_docstring_line(docstring: str) -> str:
     return ""
 
 
-def generate_html(analyzed_items: list[AnalyzedItem], output_file: str) -> None:
-    """
-    Generate a styled HTML file with a table of contents, raw HTML docstrings,
-    skipping 'self', and skipping first param for segment functions.
-    """
-    # Group by type (Source/Segment), then sort by chatterlang name
+def _one_line(text: object) -> str:
+    """Collapse every run of whitespace in a value to a single space."""
+    if text is None:
+        return ""
+    s = str(text)
+    return " ".join(s.split())
+
+
+def _group_by_type(
+    analyzed_items: list[AnalyzedItem],
+) -> dict[str, list[AnalyzedItem]]:
+    """Group items by type (Source/Segment), each group sorted by chatterlang name."""
     items_by_type: dict[str, list[AnalyzedItem]] = {}
     for item in analyzed_items:
         type_key = item.type
         items_by_type.setdefault(type_key, []).append(item)
 
-    # Sort items within each type by chatterlang name
     for type_items in items_by_type.values():
         type_items.sort(
             key=lambda x: (
                 x.chatterlang_name.lower() if x.chatterlang_name else x.name.lower()
             )
         )
+    return items_by_type
+
+
+def _display_type(item: AnalyzedItem) -> str:
+    """The heading label for an item: its decorator kind, else its type."""
+    if item.decorator_type == "segment":
+        return "Segment"
+    if item.decorator_type == "source":
+        return "Source"
+    if item.decorator_type == "field_segment":
+        return "Field Segment"
+    return item.type
+
+
+def _visible_params(item: AnalyzedItem, skip: list[str]) -> list[ParamSpec]:
+    """Parameters to document: drop the ``skip`` names, then drop the leading
+    data parameter for plain segments.
+
+    The two renderers skip different names, so the caller supplies the list.
+    """
+    filtered_params = [p for p in item.parameters if p.name not in skip]
+    if item.is_segment and len(filtered_params) > 0:
+        # For segments, the first param is often the data being processed
+        filtered_params = (
+            filtered_params[1:] if len(filtered_params) > 1 else filtered_params
+        )
+    return filtered_params
+
+
+def generate_html(analyzed_items: list[AnalyzedItem], output_file: str) -> None:
+    """
+    Generate a styled HTML file with a table of contents, raw HTML docstrings,
+    skipping 'self', and skipping first param for segment functions.
+    """
+    # Group by type (Source/Segment), then sort by chatterlang name
+    items_by_type = _group_by_type(analyzed_items)
 
     html_content = """\
 <!DOCTYPE html>
@@ -312,14 +353,7 @@ def generate_html(analyzed_items: list[AnalyzedItem], output_file: str) -> None:
         )
 
         for item in type_items:
-            if item.decorator_type == "segment":
-                disp_type = "Segment"
-            elif item.decorator_type == "source":
-                disp_type = "Source"
-            elif item.decorator_type == "field_segment":
-                disp_type = "Field Segment"
-            else:
-                disp_type = item.type
+            disp_type = _display_type(item)
 
             item_id = f"{type_id}-{sanitize_id(item.chatterlang_name or item.name)}"
             html_content += f'<div class="item" id="{item_id}">\n'
@@ -335,23 +369,9 @@ def generate_html(analyzed_items: list[AnalyzedItem], output_file: str) -> None:
                 )
 
             # Process parameters - skip 'self' and for segments skip first param if it's the data param
-            filtered_params = [
-                p for p in item.parameters if p.name not in ["self", "items", "item"]
-            ]
-            if item.is_segment and len(filtered_params) > 0:
-                # For segments, the first param is often the data being processed
-                filtered_params = (
-                    filtered_params[1:] if len(filtered_params) > 1 else filtered_params
-                )
+            filtered_params = _visible_params(item, ["self", "items", "item"])
 
             if filtered_params:
-
-                def _one_line(text: object) -> str:
-                    if text is None:
-                        return ""
-                    s = str(text)
-                    return " ".join(s.split())
-
                 html_content += '  <h3>Parameters:</h3>\n  <ul class="param-list">\n'
                 for p in filtered_params:
                     line_parts = [p.name]
@@ -387,18 +407,7 @@ def generate_text(analyzed_items: list[AnalyzedItem], output_file: str) -> None:
     No table of contents here - just a linear, grouped listing.
     """
     # Group by type (Source/Segment), then sort by chatterlang name
-    items_by_type: dict[str, list[AnalyzedItem]] = {}
-    for item in analyzed_items:
-        type_key = item.type
-        items_by_type.setdefault(type_key, []).append(item)
-
-    # Sort items within each type by chatterlang name
-    for type_items in items_by_type.values():
-        type_items.sort(
-            key=lambda x: (
-                x.chatterlang_name.lower() if x.chatterlang_name else x.name.lower()
-            )
-        )
+    items_by_type = _group_by_type(analyzed_items)
 
     lines = []
     lines.append("Chatterlang Reference Documentation (Text Version)")
@@ -413,14 +422,7 @@ def generate_text(analyzed_items: list[AnalyzedItem], output_file: str) -> None:
         lines.append("")
 
         for item in type_items:
-            if item.decorator_type == "segment":
-                disp_type = "Segment"
-            elif item.decorator_type == "source":
-                disp_type = "Source"
-            elif item.decorator_type == "field_segment":
-                disp_type = "Field Segment"
-            else:
-                disp_type = item.type
+            disp_type = _display_type(item)
 
             lines.append(f"{disp_type}: {item.name}")
             if item.chatterlang_name:
@@ -437,20 +439,9 @@ def generate_text(analyzed_items: list[AnalyzedItem], output_file: str) -> None:
             else:
                 lines.append("  Docstring: (none)")
 
-            filtered_params = [p for p in item.parameters if p.name != "self"]
-            if item.is_segment and len(filtered_params) > 0:
-                filtered_params = (
-                    filtered_params[1:] if len(filtered_params) > 1 else filtered_params
-                )
+            filtered_params = _visible_params(item, ["self"])
 
             if filtered_params:
-
-                def _one_line(text: object) -> str:
-                    if text is None:
-                        return ""
-                    s = str(text)
-                    return " ".join(s.split())
-
                 lines.append("  Parameters:")
                 for p in filtered_params:
                     param_str = f"    {p.name}"
