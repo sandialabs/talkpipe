@@ -52,15 +52,6 @@ _reference_cache = None
 _reference_lock = threading.Lock()
 
 
-def _first_line(docstring: str | None) -> str:
-    if not docstring:
-        return ""
-    for line in docstring.strip().splitlines():
-        if line.strip():
-            return line.strip()
-    return ""
-
-
 def _component_type(item: chatterlang_reference_generator.AnalyzedItem) -> str:
     if item.is_field_segment:
         return "field_segment"
@@ -83,7 +74,9 @@ def _build_reference() -> dict[str, Any]:
                     "aliases": [n for n in names if n != name],
                     "type": _component_type(item),
                     "class_name": item.name,
-                    "summary": _first_line(item.docstring),
+                    "summary": chatterlang_reference_generator.get_first_docstring_line(
+                        item.docstring
+                    ),
                     "docstring": item.docstring or "",
                     "params": [
                         {

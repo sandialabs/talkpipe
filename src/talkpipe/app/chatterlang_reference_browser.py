@@ -15,9 +15,17 @@ from talkpipe.util.doc_extraction import (
     ComponentInfo,
     detect_component_type,
     extract_component_info,
-    extract_parameters_dict,
 )
 from talkpipe.util.plugin_loader import load_plugins
+
+
+def _type_icon(doc_type: str) -> str:
+    """The listing icon for a component type."""
+    if doc_type == "Source":
+        return "🔌"
+    if doc_type == "Field Segment":
+        return "🔧"
+    return "⚙️"
 
 
 class TalkPipeDoc:
@@ -63,10 +71,6 @@ class TalkPipeBrowser:
         self.name_to_primary: dict[str, str] = {}  # Maps any name to primary name
         self.modules: dict[str, list[str]] = {}
         self.load_components()
-
-    def _extract_parameters(self, cls: type) -> dict[str, str]:
-        """Extract parameter information from a class or function."""
-        return extract_parameters_dict(cls)
 
     def load_components(self) -> None:
         """Load all components from the plugin system, grouping multiple names for the same class."""
@@ -298,12 +302,7 @@ class TalkPipeBrowser:
 
         for comp_name in sorted(components):
             comp = self.components[comp_name]
-            if comp.doc_type == "Source":
-                type_icon = "🔌"
-            elif comp.doc_type == "Field Segment":
-                type_icon = "🔧"
-            else:
-                type_icon = "⚙️"
+            type_icon = _type_icon(comp.doc_type)
             print(f"{type_icon} {comp.all_names_display:<30} ({comp.name})")
         print()
 
@@ -394,12 +393,7 @@ class TalkPipeBrowser:
         print("-" * 60)
 
         for component in sorted(matches, key=lambda x: x.primary_name):
-            if component.doc_type == "Source":
-                type_icon = "🔌"
-            elif component.doc_type == "Field Segment":
-                type_icon = "🔧"
-            else:
-                type_icon = "⚙️"
+            type_icon = _type_icon(component.doc_type)
             print(f"{type_icon} {component.all_names_display:<30} ({component.module})")
 
             # Show brief description

@@ -14,6 +14,10 @@ from typing import Any, get_args, get_origin
 
 logger = logging.getLogger(__name__)
 
+# Distinguishes "attribute absent" from "attribute present but falsy/None", so
+# lookups keep the precedence the hasattr chain they replaced had.
+_MISSING = object()
+
 
 @dataclass
 class ParamSpec:
@@ -42,6 +46,44 @@ class ComponentInfo:
     original_function: Callable[..., Any] | None = None
 
 
+def _annotation_and_description(param: inspect.Parameter) -> tuple[str, str]:
+    """Return the display type and description for one parameter.
+
+    For ``Annotated[T, "desc"]`` the type is ``T``'s name (or its ``str()``)
+    and the description is the first string in the metadata. Any other
+    annotation stringifies as-is and has no description; an unannotated
+    parameter yields two empty strings.
+    """
+    if param.annotation != param.empty:
+        # Check if it's an Annotated type
+        if get_origin(param.annotation) is not None:
+            # This could be Annotated[Type, metadata]
+            origin = get_origin(param.annotation)
+            args = get_args(param.annotation)
+
+            # Handle Annotated types from typing_extensions or typing
+            if hasattr(origin, "__name__") and "Annotated" in str(origin):
+                if args:
+                    # First argument is the actual type, formatted nicely
+                    type_arg = args[0]
+                    annotation_str = (
+                        type_arg.__name__
+                        if hasattr(type_arg, "__name__")
+                        else str(type_arg)
+                    )
+                    # Additional arguments are metadata (descriptions): look
+                    # for the first string among them.
+                    for metadata in args[1:]:
+                        if isinstance(metadata, str):
+                            return annotation_str, metadata
+                    return annotation_str, ""
+            else:
+                return str(param.annotation), ""
+        else:
+            return str(param.annotation), ""
+    return "", ""
+
+
 def extract_function_info(func: Callable[..., Any]) -> dict[str, Any]:
     """Extract docstring and parameters from a callable via inspect.
 
@@ -56,38 +98,7 @@ def extract_function_info(func: Callable[..., Any]) -> dict[str, Any]:
             if param_name in ["self", "items", "item"]:
                 continue  # Skip common parameter names
 
-            annotation_str = ""
-            description = ""
-
-            if param.annotation != param.empty:
-                # Check if it's an Annotated type
-                if get_origin(param.annotation) is not None:
-                    # This could be Annotated[Type, metadata]
-                    origin = get_origin(param.annotation)
-                    args = get_args(param.annotation)
-
-                    # Handle Annotated types from typing_extensions or typing
-                    if hasattr(origin, "__name__") and "Annotated" in str(origin):
-                        if args:
-                            # First argument is the actual type
-                            type_arg = args[0]
-                            # Format the type nicely
-                            if hasattr(type_arg, "__name__"):
-                                annotation_str = type_arg.__name__
-                            else:
-                                annotation_str = str(type_arg)
-
-                            # Additional arguments are metadata (descriptions)
-                            if len(args) > 1:
-                                # Look for string descriptions in the metadata
-                                for metadata in args[1:]:
-                                    if isinstance(metadata, str):
-                                        description = metadata
-                                        break
-                    else:
-                        annotation_str = str(param.annotation)
-                else:
-                    annotation_str = str(param.annotation)
+            annotation_str, description = _annotation_and_description(param)
 
             param_info = ParamSpec(
                 name=param_name,
@@ -265,36 +276,7 @@ def extract_parameters_dict(cls: type) -> dict[str, str]:
     def _process_parameter(param_name: str, param: inspect.Parameter) -> str:
         """Format a single parameter as 'name: type = default  # description'."""
         param_str = param_name
-        annotation_str = ""
-        description = ""
-
-        if param.annotation != param.empty:
-            # Check if it's an Annotated type
-            if get_origin(param.annotation) is not None:
-                origin = get_origin(param.annotation)
-                args = get_args(param.annotation)
-
-                # Handle Annotated types
-                if hasattr(origin, "__name__") and "Annotated" in str(origin):
-                    if args:
-                        # First argument is the actual type
-                        type_arg = args[0]
-                        # Format the type nicely
-                        if hasattr(type_arg, "__name__"):
-                            annotation_str = type_arg.__name__
-                        else:
-                            annotation_str = str(type_arg)
-
-                        # Additional arguments are metadata (descriptions)
-                        if len(args) > 1:
-                            for metadata in args[1:]:
-                                if isinstance(metadata, str):
-                                    description = metadata
-                                    break
-                else:
-                    annotation_str = str(param.annotation)
-            else:
-                annotation_str = str(param.annotation)
+        annotation_str, description = _annotation_and_description(param)
 
         if annotation_str:
             param_str += f": {annotation_str}"
@@ -306,23 +288,15 @@ def extract_parameters_dict(cls: type) -> dict[str, str]:
         return param_str
 
     try:
-        # Check if it's a field segment with preserved original function
-        if hasattr(cls, "_original_func"):
-            sig = inspect.signature(cls._original_func)
-            for param_name, param in sig.parameters.items():
-                if param_name in ["self", "items", "item"]:
-                    continue
-                parameters[param_name] = _process_parameter(param_name, param)
-        # Check if it's a decorated function with original function
-        elif hasattr(cls, "_func"):
-            original_func = cls._func
-            sig = inspect.signature(original_func)
-            for param_name, param in sig.parameters.items():
-                if param_name in ["self", "items", "item"]:
-                    continue
-                parameters[param_name] = _process_parameter(param_name, param)
-        elif hasattr(cls, "__wrapped__"):
-            original_func = cls.__wrapped__
+        # A field segment or decorated function keeps its original callable under
+        # one of these names; the first present wins.
+        original_func: Any = _MISSING
+        for attr_name in ("_original_func", "_func", "__wrapped__"):
+            if hasattr(cls, attr_name):
+                original_func = getattr(cls, attr_name)
+                break
+
+        if original_func is not _MISSING:
             sig = inspect.signature(original_func)
             for param_name, param in sig.parameters.items():
                 if param_name in ["self", "items", "item"]:
