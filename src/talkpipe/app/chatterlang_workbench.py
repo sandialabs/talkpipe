@@ -2,14 +2,16 @@ import argparse
 import asyncio
 import atexit
 import contextlib
+import html
 import logging
 import os
 import queue
 import sys
+import tempfile
 import threading
 import uuid
 from collections import OrderedDict
-from collections.abc import AsyncIterator, Iterator
+from collections.abc import AsyncIterator, Callable, Iterator
 from contextlib import asynccontextmanager
 from typing import Any
 
@@ -24,6 +26,7 @@ from fastapi.responses import (
 from pydantic import BaseModel
 
 from talkpipe.app.chatterlang_reference_generator import (
+    AnalyzedItem,
     analyze_registered_items,
     generate_html,
     generate_text,
@@ -63,7 +66,6 @@ def _load_configured_modules() -> None:
     configured = get_config().get(WORKBENCH_LOAD_MODULES)
     if not configured:
         return
-    import os
 
     for module_file in configured.split(os.pathsep):
         if module_file:
@@ -299,37 +301,37 @@ def get_examples() -> JSONResponse:
     return JSONResponse(content={"examples": EXAMPLE_SCRIPTS})
 
 
-@app.get("/docs/html")
-def get_docs_html() -> HTMLResponse:
-    """Generate and return HTML documentation using live introspection"""
-    import os
-    import tempfile
+def _render_reference(
+    generate: Callable[[list[AnalyzedItem], str], None],
+    suffix: str,
+    log_message: str,
+) -> str:
+    """Generate a reference document to a temp file and return its contents.
 
+    Shared by the two /docs routes: both introspect the registry, hand the
+    result to a generator, read the file back and always remove it.
+    """
     try:
         # Generate documentation using the shared extraction mechanism
         analyzed_items = analyze_registered_items()
 
-        # Create temporary file for HTML output
         with tempfile.NamedTemporaryFile(
-            mode="w", suffix=".html", delete=False
+            mode="w", suffix=suffix, delete=False
         ) as temp_file:
             temp_path = temp_file.name
 
         try:
-            generate_html(analyzed_items, temp_path)
+            generate(analyzed_items, temp_path)
 
-            # Read the generated HTML
             with open(temp_path, encoding="utf-8") as f:
-                html_content = f.read()
-
-            return HTMLResponse(content=html_content)
+                return f.read()
         finally:
             # Clean up temporary file
             if os.path.exists(temp_path):
                 os.unlink(temp_path)
 
     except Exception as e:
-        logger.exception("Error generating HTML documentation")
+        logger.exception(log_message)
         raise HTTPException(
             status_code=500,
             detail="Documentation generation failed; details are in the "
@@ -337,32 +339,26 @@ def get_docs_html() -> HTMLResponse:
         ) from e
 
 
+@app.get("/docs/html")
+def get_docs_html() -> HTMLResponse:
+    """Generate and return HTML documentation using live introspection"""
+    return HTMLResponse(
+        content=_render_reference(
+            generate_html, ".html", "Error generating HTML documentation"
+        )
+    )
+
+
 @app.get("/docs/text", response_class=HTMLResponse)
 def get_docs_text() -> HTMLResponse:
     """Generate and return text documentation using live introspection"""
-    import html
-    import os
-    import tempfile
 
-    try:
-        # Generate documentation using the shared extraction mechanism
-        analyzed_items = analyze_registered_items()
+    text_content = _render_reference(
+        generate_text, ".txt", "Error generating text documentation"
+    )
 
-        # Create temporary file for text output
-        with tempfile.NamedTemporaryFile(
-            mode="w", suffix=".txt", delete=False
-        ) as temp_file:
-            temp_path = temp_file.name
-
-        try:
-            generate_text(analyzed_items, temp_path)
-
-            # Read the generated text and wrap in HTML for browser display
-            with open(temp_path, encoding="utf-8") as f:
-                text_content = f.read()
-
-            # Wrap text content in a simple HTML page for better browser display
-            html_wrapped = f"""<!DOCTYPE html>
+    # Wrap text content in a simple HTML page for better browser display
+    html_wrapped = f"""<!DOCTYPE html>
 <html>
 <head>
     <title>TalkPipe Documentation (Text)</title>
@@ -387,19 +383,7 @@ def get_docs_text() -> HTMLResponse:
 </body>
 </html>"""
 
-            return HTMLResponse(content=html_wrapped)
-        finally:
-            # Clean up temporary file
-            if os.path.exists(temp_path):
-                os.unlink(temp_path)
-
-    except Exception as e:
-        logger.exception("Error generating text documentation")
-        raise HTTPException(
-            status_code=500,
-            detail="Documentation generation failed; details are in the "
-            "workbench server log.",
-        ) from e
+    return HTMLResponse(content=html_wrapped)
 
 
 @app.get("/logs")
@@ -648,8 +632,6 @@ def main() -> None:
     if args.no_llm_suggestions:
         workbench_settings["workbench_llm_suggestions"] = "false"
     if workbench_settings:
-        import os
-
         for key, value in workbench_settings.items():
             os.environ[f"TALKPIPE_{key}"] = value
         add_config_values(workbench_settings, override=True)
@@ -657,7 +639,6 @@ def main() -> None:
     if args.load_module:
         # Recorded in the environment and imported at app startup (see
         # _load_configured_modules) so custom modules survive --reload.
-        import os
 
         os.environ["TALKPIPE_WORKBENCH_LOAD_MODULES"] = os.pathsep.join(
             args.load_module
@@ -668,8 +649,6 @@ def main() -> None:
         )
 
     if args.api_key:
-        import os
-
         os.environ["TALKPIPE_WORKBENCH_API_KEY"] = args.api_key
         add_config_values({"workbench_api_key": args.api_key}, override=True)
 

@@ -52,6 +52,19 @@ _reference_cache = None
 _reference_lock = threading.Lock()
 
 
+def _diag(
+    line: int, column: int, severity: str, message: str, kind: str
+) -> dict[str, Any]:
+    """One lint diagnostic. Shared so every site emits the same key set."""
+    return {
+        "line": line,
+        "column": column,
+        "severity": severity,
+        "message": message,
+        "kind": kind,
+    }
+
+
 def _component_type(item: chatterlang_reference_generator.AnalyzedItem) -> str:
     if item.is_field_segment:
         return "field_segment"
@@ -290,13 +303,7 @@ def _syntax_error_diagnostic(preprocessed: str, e: ParseError) -> dict[str, Any]
         )
     else:
         message += " Run the script to see the full parser message."
-    return {
-        "line": line or 1,
-        "column": column or 1,
-        "severity": "error",
-        "message": message,
-        "kind": "syntax",
-    }
+    return _diag(line or 1, column or 1, "error", message, "syntax")
 
 
 def _parse_mode_diagnostics(script: str) -> list[dict[str, Any]]:
@@ -319,15 +326,7 @@ def _parse_mode_diagnostics(script: str) -> list[dict[str, Any]]:
             message = chatterlang_compiler._not_found_message(
                 kind.capitalize(), name, reg
             )
-            diagnostics.append(
-                {
-                    "line": line,
-                    "column": column,
-                    "severity": "error",
-                    "message": message,
-                    "kind": "unknown_name",
-                }
-            )
+            diagnostics.append(_diag(line, column, "error", message, "unknown_name"))
             continue
 
         # Param-name check: imports the class (no instantiation). Skip when
@@ -351,14 +350,14 @@ def _parse_mode_diagnostics(script: str) -> list[dict[str, Any]]:
                 close = difflib.get_close_matches(param, sorted(allowed), n=1)
                 hint = f" Did you mean '{close[0]}'?" if close else ""
                 diagnostics.append(
-                    {
-                        "line": line,
-                        "column": column,
-                        "severity": "warning",
-                        "message": f"'{param}' is not a parameter of {kind} '{name}'."
+                    _diag(
+                        line,
+                        column,
+                        "warning",
+                        f"'{param}' is not a parameter of {kind} '{name}'."
                         f"{hint} Valid parameters: {', '.join(valid)}.",
-                        "kind": "bad_param",
-                    }
+                        "bad_param",
+                    )
                 )
     return diagnostics
 
@@ -371,17 +370,15 @@ def _full_mode_diagnostics(script: str) -> list[dict[str, Any]]:
     except Exception:
         logger.exception("Compiler failed unexpectedly during full-mode lint")
         return [
-            {
-                "line": 1,
-                "column": 1,
-                "severity": "error",
-                "message": (
-                    "Compilation failed with an unexpected internal error — "
-                    "likely a bug in a component or the compiler. The full "
-                    "traceback is in the workbench server log."
-                ),
-                "kind": "compile",
-            }
+            _diag(
+                1,
+                1,
+                "error",
+                "Compilation failed with an unexpected internal error — "
+                "likely a bug in a component or the compiler. The full "
+                "traceback is in the workbench server log.",
+                "compile",
+            )
         ]
     # The compiler can't see bad parameter names on function-based components
     # (their kwargs bind lazily at run time), so a clean compile still gets
@@ -419,17 +416,15 @@ def _compile_error_diagnostics(script: str, e: CompileError) -> list[dict[str, A
     if line is None and e.bad_name:
         line, column = _locate(script, e.bad_name, used)
     diagnostics.append(
-        {
-            "line": int(line or 1),
-            "column": int(column or 1),
-            "severity": "error",
-            "message": (
-                "Compilation failed here. Run the script to see the "
-                "compiler's full error message (it is also in the workbench "
-                "server log)."
-            ),
-            "kind": _COMPILE_ERROR_KINDS.get(e.kind or "", "compile"),
-        }
+        _diag(
+            int(line or 1),
+            int(column or 1),
+            "error",
+            "Compilation failed here. Run the script to see the "
+            "compiler's full error message (it is also in the workbench "
+            "server log).",
+            _COMPILE_ERROR_KINDS.get(e.kind or "", "compile"),
+        )
     )
     return diagnostics
 

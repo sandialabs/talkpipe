@@ -97,6 +97,13 @@ class WorkspaceStore:
             raise WorkspaceError(f"Invalid pipeline id: {pipeline_id!r}")
         return path
 
+    def _existing_path(self, pipeline_id: str) -> Path:
+        """The path for a stored pipeline, or a 404 WorkspaceError if absent."""
+        path = self._path_for(pipeline_id)
+        if not path.is_file():
+            raise WorkspaceError(f"Pipeline '{pipeline_id}' not found", status=404)
+        return path
+
     def _record(self, path: Path, include_script: bool) -> dict[str, Any]:
         text = path.read_text(encoding="utf-8")
         meta, body = split_header(text)
@@ -124,9 +131,7 @@ class WorkspaceStore:
         return records
 
     def load(self, pipeline_id: str) -> dict[str, Any]:
-        path = self._path_for(pipeline_id)
-        if not path.is_file():
-            raise WorkspaceError(f"Pipeline '{pipeline_id}' not found", status=404)
+        path = self._existing_path(pipeline_id)
         return self._record(path, include_script=True)
 
     def scripts(self) -> builtins.list[str]:
@@ -161,9 +166,7 @@ class WorkspaceStore:
         description: str | None = None,
         script: str | None = None,
     ) -> dict[str, Any]:
-        path = self._path_for(pipeline_id)
-        if not path.is_file():
-            raise WorkspaceError(f"Pipeline '{pipeline_id}' not found", status=404)
+        path = self._existing_path(pipeline_id)
         meta, body = split_header(path.read_text(encoding="utf-8"))
         self._write(
             path,
@@ -179,9 +182,7 @@ class WorkspaceStore:
     def rename(self, pipeline_id: str, new_name: str) -> dict[str, Any]:
         if not new_name.strip():
             raise WorkspaceError("New name is required")
-        path = self._path_for(pipeline_id)
-        if not path.is_file():
-            raise WorkspaceError(f"Pipeline '{pipeline_id}' not found", status=404)
+        path = self._existing_path(pipeline_id)
         new_id = slugify(new_name)
         new_path = self._path_for(new_id)
         if new_path != path and new_path.exists():
@@ -201,9 +202,7 @@ class WorkspaceStore:
         return self._record(new_path, include_script=False)
 
     def delete(self, pipeline_id: str) -> None:
-        path = self._path_for(pipeline_id)
-        if not path.is_file():
-            raise WorkspaceError(f"Pipeline '{pipeline_id}' not found", status=404)
+        path = self._existing_path(pipeline_id)
         path.unlink()
 
     def _write(
