@@ -221,7 +221,7 @@ Plugins are automatically loaded when you import TalkPipe.
 ## See Also
 
 - [Extending TalkPipe](../architecture/extending-talkpipe.md) - Creating custom components and plugins
-- [Plugin Architecture](../architecture/extending-talkpipe.md#plugin-architecture) - Technical details on the plugin system
+- [Registry, ChatterLang names, and entry points](../architecture/extending-talkpipe.md#registry-chatterlang-names-and-entry-points) - Technical details on the plugin system
 - [ChatterLang Registry](../architecture/chatterlang.md) - Component registration system
 
 ---

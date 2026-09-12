@@ -13,6 +13,9 @@ Create vector databases and run RAG servers in two commands: `makevectordatabase
 ### ⚙️ [Model and source configuration](guides/model-and-source-configuration.md)
 The supported LLM providers — Ollama, OpenAI, and Anthropic for chat; Ollama, OpenAI, and in-process model2vec for embeddings — what each needs, and how to select one per segment, in `~/.talkpipe.toml`, or with environment variables.
 
+### 🧮 [Model2vec embeddings](guides/model2vec-embeddings.md)
+In-process static embeddings: no server, no API key, and no network once the model is cached — including how to precache for air-gapped environments.
+
 ### 🐳 [Container images](guides/container-images.md)
 Pull multi-platform release images from GitHub Container Registry (`ghcr.io`), tags, and Docker/Podman usage.
 
@@ -30,6 +33,7 @@ Complete documentation for all TalkPipe commands and components:
 - [ChatterLang Script Runner](api-reference/chatterlang-script.md) - Run a script from the command line
 - [Documentation Generator](api-reference/talkpipe-ref.md) - Generate reference documentation for Segments and Sources
 - [Plugin Manager](api-reference/talkpipe-plugin-manager.md) - Manage and inspect TalkPipe plugins
+- [Lazy loading](api-reference/lazy-loading.md) - How the registry imports a component's module only when it is named
 
 ### 🏗️ [Architecture](architecture/)
 Deep technical documentation:

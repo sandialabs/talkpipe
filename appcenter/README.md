@@ -33,6 +33,15 @@ curl -fsSL https://github.com/sandialabs/talkpipe/releases/latest/download/insta
 powershell -ExecutionPolicy Bypass -c "irm https://github.com/sandialabs/talkpipe/releases/latest/download/install.ps1 | iex"
 ```
 
+All three URLs are release assets, attached by CI to each release, so they need
+a release that post-dates the App Center; against an older `latest` they return
+"Not Found" (uv reports that as a `SyntaxError`, since it tries to run the 404
+body as Python). From a checkout, run the file directly instead:
+
+```bash
+uv run appcenter/talkpipe_appcenter.py
+```
+
 You get an app-store-like screen: every application in the catalog with its
 installed and latest versions, whether it is running, and whether it has a
 desktop launcher. Keys:

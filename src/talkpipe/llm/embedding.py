@@ -146,9 +146,8 @@ class LLMEmbed(AbstractFieldSegment[Any, Any]):
         model = model or cfg.get(TALKPIPE_EMBEDDING_MODEL_NAME, None)
         source = source or cfg.get(TALKPIPE_EMBEDDING_MODEL_SOURCE, None)
         if source not in getEmbeddingSources():
-            logger.error(
-                f"Source '{source}' is not supported. Supported sources are: {getEmbeddingSources()}"
-            )
+            # Not logged as well as raised: the caller surfaces the exception
+            # message, so logging it here only prints it twice.
             raise ValueError(
                 f"Source '{source}' is not supported. Supported sources are: {getEmbeddingSources()}"
             )

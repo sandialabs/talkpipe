@@ -43,6 +43,15 @@ makevectordatabase "docs/*.md" --path ./mydb
 - **First argument**: File path or glob pattern (e.g. `"docs/*.md"`, `"data/*.pdf"`, `"/path/to/file.txt"`)
 - **`--path`**: Directory where the LanceDB database will be created (required)
 
+It prints each file as it is read, a row of progress ticks, and a summary line:
+
+```
+/path/to/docs/pipes.md
+/path/to/docs/providers.md
+..
+Indexed 2 chunk(s) from 2 file(s) into './mydb' (table 'docs') using ollama/nomic-embed-text.
+```
+
 ### Common Options
 
 | Option | Description | Default |
@@ -262,6 +271,7 @@ These examples use Ollama for both steps; any other provider works the same way,
 
 | Issue | Cause | Fix |
 |-------|-------|-----|
+| `Error: Failed to initialize RAG pipeline: Source 'None' is not supported` (serverag, exit 1) | No embedding/completion model or source configured | Pass `--embedding_model` / `--embedding_source` / `--completion_model` / `--completion_source`, or set the `default_*` keys |
 | "embedding_model not specified" | No config or CLI value | Set in `~/.talkpipe.toml` or pass `--embedding_model` |
 | Ollama connection error | Ollama not running | Start Ollama: `ollama serve` |
 | Model not found | Model not installed | Run `ollama pull mxbai-embed-large` and `ollama pull llama3.2` |

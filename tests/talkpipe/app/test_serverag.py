@@ -171,7 +171,14 @@ def test_cli_api_key_wins_over_config(monkeypatch: pytest.MonkeyPatch) -> None:
     assert FakeServer.last.kwargs["api_key"] == "cli-key"
 
 
-def test_bad_provider_config_exits_nonzero(caplog: pytest.LogCaptureFixture) -> None:
+def test_bad_provider_config_exits_nonzero(capsys: pytest.CaptureFixture[str]) -> None:
+    """A bad provider config must say so on stderr, not just in a log record.
+
+    talkpipe attaches a NullHandler to its own logger, so logging.lastResort
+    never fires: reporting this failure only through ``logger.error`` left the
+    command exiting 1 with no output at all.
+    """
+
     class BrokenRAG(FakeRAG):
         def make_pipeline(self) -> None:
             raise ValueError("no such embedding source")
@@ -184,8 +191,31 @@ def test_bad_provider_config_exits_nonzero(caplog: pytest.LogCaptureFixture) -> 
     ):
         serverag.main()
     assert excinfo.value.code == 1
-    assert "Failed to initialize RAG pipeline" in caplog.text
+    stderr = capsys.readouterr().err
+    assert "Failed to initialize RAG pipeline" in stderr
+    assert "no such embedding source" in stderr
+    assert "--embedding_source" in stderr
     assert FakeServer.last is None
+
+
+def test_bad_provider_config_reports_in_interactive_mode(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """The same failure is reported when --interactive is used."""
+
+    class BrokenRAG(FakeRAG):
+        def make_pipeline(self) -> None:
+            raise ValueError("no such embedding source")
+
+    with (
+        patch.object(serverag, "RAGToText", BrokenRAG),
+        patch.object(serverag, "ChatterlangServer", FakeServer),
+        patch("sys.argv", ["serverag", "--path", "/tmp/db", "--interactive"]),
+        pytest.raises(SystemExit) as excinfo,
+    ):
+        serverag.main()
+    assert excinfo.value.code == 1
+    assert "Failed to initialize RAG pipeline" in capsys.readouterr().err
 
 
 def test_processor_answers_through_a_real_chatterlang_server() -> None:

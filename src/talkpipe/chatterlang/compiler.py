@@ -92,6 +92,18 @@ def _bad_param_message(kind: str, name: str, component: Any, error: TypeError) -
     return msg
 
 
+def _construction_failed_message(kind: str, name: str, error: Exception) -> str:
+    """Build a CompileError message for a component that rejected its options.
+
+    Covers everything a component's constructor can raise other than a bad
+    keyword (which ``_bad_param_message`` handles): an unsupported ``source``,
+    a missing model, an out-of-range value. Without this, such errors escape
+    compilation as raw exceptions and reach the user as a Python traceback.
+    """
+    detail = str(error) or type(error).__name__
+    return f"{kind} '{name}' could not be created: {detail}"
+
+
 def _not_found_message(kind: str, name: str, reg: registry.HybridRegistry[Any]) -> str:
     """Build a CompileError message for an unknown segment/source name."""
     try:
@@ -450,6 +462,13 @@ def _(
                     kind="bad_param",
                     bad_name=source_name,
                 ) from None
+            except CompileError:
+                raise
+            except Exception as e:
+                raise CompileError(
+                    _construction_failed_message("Source", source_name, e),
+                    bad_name=source_name,
+                ) from None
             logger.debug(f"Created registered input {source_name}")
         ans.runtime = runtime
 
@@ -479,6 +498,13 @@ def _(
                 raise CompileError(
                     _bad_param_message("Segment", segment_name, segment_cls, e),
                     kind="bad_param",
+                    bad_name=segment_name,
+                ) from None
+            except CompileError:
+                raise
+            except Exception as e:
+                raise CompileError(
+                    _construction_failed_message("Segment", segment_name, e),
                     bad_name=segment_name,
                 ) from None
             logger.debug(f"Created segment {segment_name}")

@@ -40,7 +40,7 @@ chatterlang_serve --form-config config.yaml
 
 | Argument | Description | Default |
 |----------|-------------|---------|
-| `--script` | ChatterLang script to process data. Can be an inline script, environment variable, or path to a file containing the script. | None, required |
+| `--script` | ChatterLang script to process data. Can be an inline script, environment variable, or path to a file containing the script. | None — without it the server starts and acknowledges submissions (`Data received: ...`) without processing them |
 | `-p, --port` | Port to listen on | 2025 |
 | `-o, --host` | Host to bind to | localhost |
 | `--api-key` | API key clients must send as `X-API-Key`. Falls back to the `API_KEY` configuration value | None |
@@ -224,6 +224,8 @@ fields:
 - Content-Type: `application/json`
 - Optional Header: `X-API-Key` (if authentication enabled)
 - Body: JSON object matching your form fields
+- Response: the pipeline's output for this submission, under `data.output` — this
+  is where results come back
 
 **GET /history** - Retrieve processing history
 - Optional Query: `?limit=10` 
@@ -234,7 +236,24 @@ fields:
 
 **GET /health** - Health check endpoint
 
-**GET /output-stream** - Server-Sent Events stream for real-time output
+**GET /output-stream** - Server-Sent Events stream the `/stream` page keeps open
+for status and error events (plus periodic `: heartbeat` comments). Pipeline
+results are *not* pushed over it; read them from the `/process` response.
+
+**GET /docs** - FastAPI's interactive API documentation (linked from the startup banner)
+
+### Sessions and history
+
+Each client gets a `talkpipe_session_id` cookie on its first request, and
+`/history` (and the SSE stream) are scoped to it: a client that does not send
+the cookie back sees an empty history, even right after a successful `/process`.
+With `curl`, keep a cookie jar:
+
+```bash
+curl -s -c jar.txt -b jar.txt -X POST http://localhost:2025/process \
+  -H "Content-Type: application/json" -d '{"prompt": "Hello world"}'
+curl -s -c jar.txt -b jar.txt 'http://localhost:2025/history?limit=5'
+```
 
 ### curl Examples
 
@@ -253,9 +272,10 @@ curl -X POST http://localhost:2025/process \
   -d '{"topic": "AI developments", "style": "Professional"}'
 ```
 
-**Get processing history:**
+**Get processing history** (needs the session cookie — see
+[Sessions and history](#sessions-and-history)):
 ```bash
-curl http://localhost:2025/history?limit=5 \
+curl -c jar.txt -b jar.txt 'http://localhost:2025/history?limit=5' \
   -H "X-API-Key: mysecretkey"
 ```
 
@@ -299,7 +319,8 @@ Click "Submit" or "Send Message" to process your data. The interface will:
 ### 6. Stream Interface Features
 
 The `/stream` interface provides:
-- **Real-time output**: See results as they're generated
+- **Output as each submission finishes**: the page renders the `/process`
+  response and uses the SSE stream for status and errors
 - **Chat history**: Conversation-style display of interactions
 - **Markdown rendering**: Responses are rendered as Markdown and sanitised
 - **Auto-scroll**: Automatically scrolls to new messages (toggleable)

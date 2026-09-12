@@ -563,6 +563,55 @@ def test_compile_error_invalid_parameter_lists_valid_params():
     assert "cast_type" in msg  # valid parameter of the Cast segment
 
 
+def test_compile_error_when_component_rejects_its_options():
+    """A constructor that raises (not a bad keyword) still yields a CompileError.
+
+    ``llmPrompt[source=<unknown>]`` used to escape compilation as a raw
+    ValueError, so the CLI printed a Python traceback and --verbose made no
+    difference.
+    """
+
+    @registry.register_segment("pickySegment")
+    class PickySegment(io.AbstractSegment):
+        def __init__(self, mode: str = "ok"):
+            super().__init__()
+            if mode != "ok":
+                raise ValueError(f"mode '{mode}' is not supported")
+
+        def transform(self, input_iter):
+            yield from input_iter
+
+    with pytest.raises(compiler.CompileError) as excinfo:
+        compiler.compile('INPUT FROM echo[data="hi"] | pickySegment[mode="nope"]')
+    msg = str(excinfo.value)
+    assert "Segment 'pickySegment' could not be created" in msg
+    assert "mode 'nope' is not supported" in msg
+    assert excinfo.value.bad_name == "pickySegment"
+    # Same no-chaining convention as the other compile errors.
+    assert excinfo.value.__cause__ is None
+    assert excinfo.value.__suppress_context__
+
+
+def test_compile_error_when_source_rejects_its_options():
+    """The same wrapping applies to a source constructor."""
+
+    @registry.register_source("pickySource")
+    class PickySource(io.AbstractSource):
+        def __init__(self, mode: str = "ok"):
+            super().__init__()
+            if mode != "ok":
+                raise ValueError(f"mode '{mode}' is not supported")
+
+        def generate(self):
+            yield "x"
+
+    with pytest.raises(compiler.CompileError) as excinfo:
+        compiler.compile('INPUT FROM pickySource[mode="nope"] | print')
+    msg = str(excinfo.value)
+    assert "Source 'pickySource' could not be created" in msg
+    assert "mode 'nope' is not supported" in msg
+
+
 def test_compile_error_does_not_chain_internal_exceptions():
     """CompileError already embeds the underlying cause in its message, so the
     internal KeyError/TypeError/ParseError must not be chained (F-003)."""

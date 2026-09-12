@@ -36,7 +36,7 @@ fn = compile(
 ).as_function(single_in=True, single_out=False)
 
 vector = list(fn("A paragraph to embed."))[0]
-print(len(vector))  # 256 for the default model
+print(len(vector))  # 256 for potion-base-8M
 ```
 
 Or set defaults in `~/.talkpipe.toml`:
@@ -52,19 +52,21 @@ Then use `| llmEmbed` without explicit `model` / `source`.
 
 ## Default model
 
-The default model is **`minishlab/potion-base-8M`**:
+When you omit `model` (and no `default_embedding_model_name` is configured), the
+model used is **`minishlab/potion-retrieval-32M`**:
 
-- ~7.5M params, ~30 MB on disk
-- 256 dimensions, L2-normalized (`model.normalize == True`)
-- English; distilled from `BAAI/bge-base-en-v1.5`
+- ~32M params, ~125 MB of weights
+- 512 dimensions, L2-normalized (`model.normalize == True`)
+- English; tuned for retrieval, from the `BAAI/bge-base-en-v1.5` tokenizer
 
 Other options from [MinishLab on Hugging Face](https://huggingface.co/minishlab):
 
-| Model | Params | Notes |
-|-------|--------|-------|
-| `minishlab/potion-base-4M` | 3.7M | Smaller/faster |
-| `minishlab/potion-base-2M` | 1.8M | Smallest English potion |
-| `minishlab/M2V_multilingual_output` | 471M | Multilingual; much larger |
+| Model | Params | Dimensions | Notes |
+|-------|--------|-----------|-------|
+| `minishlab/potion-base-8M` | 7.5M | 256 | Smaller; used in the examples above |
+| `minishlab/potion-base-4M` | 3.7M | 128 | Smaller/faster |
+| `minishlab/potion-base-2M` | 1.8M | 64 | Smallest English potion |
+| `minishlab/M2V_multilingual_output` | 471M | 256 | Multilingual; much larger, not normalized |
 
 Switching models changes vector dimension — **re-index** existing vector databases.
 
@@ -88,6 +90,14 @@ ENV HF_HUB_OFFLINE=1
 ```
 
 Pin `--revision` to a commit SHA for reproducible builds.
+
+**Precache every model the image will actually ask for.** With
+`HF_HUB_OFFLINE=1` set, a model that is not in the cache fails with
+`huggingface_hub.errors.LocalEntryNotFoundError`, which does not name the model
+it wanted. In particular, precaching `potion-base-8M` does not cover a pipeline
+that omits `model` — that resolves to `potion-retrieval-32M` (see
+[Default model](#default-model)) — so either precache that too or name the
+model explicitly everywhere.
 
 ---
 
@@ -113,7 +123,9 @@ from talkpipe.llm.model2vec_embeddings import Model2VecEmbedder, precache_model
 
 precache_model("minishlab/potion-base-8M")
 
-embedder = Model2VecEmbedder()
+# Pass the same model you precached: Model2VecEmbedder() with no arguments
+# loads the default model instead (potion-retrieval-32M).
+embedder = Model2VecEmbedder("minishlab/potion-base-8M")
 vector = embedder.embed_one("Paragraph text.")
 batch = embedder.embed(["first", "second"])
 
@@ -141,6 +153,10 @@ ChatterLang:
 ```python
 "| makeVectorDatabase[path='tmp://kb', embedding_model='minishlab/potion-base-8M', embedding_source='model2vec', embedding_field='text']"
 ```
+
+`tmp://<name>` is an in-process store: it is discarded when the interpreter
+exits, so indexing and querying must happen in the same process. Use a
+directory path to keep the index.
 
 See [makevectordatabase and serverag](makevectordatabase-and-serverag.md) and
 [Model and source configuration](model-and-source-configuration.md).

@@ -20,7 +20,7 @@ You can set these on each segment, in `~/.talkpipe.toml`, via `TALKPIPE_*` envir
   - [Precedence (highest first)](#precedence-highest-first)
 - [Configuration keys](#configuration-keys)
   - [Segment defaults (`default_*`)](#segment-defaults-default_)
-  - [RAG CLI defaults (`DEFAULT_*`)](#rag-cli-defaults-default_)
+  - [RAG CLI defaults](#rag-cli-defaults)
 - [Segment parameters](#segment-parameters)
   - [`llmPrompt` / `LLMPrompt`](#llmprompt--llmprompt)
   - [`llmVisionPrompt` / `LLMVisionPrompt`](#llmvisionprompt--llmvisionprompt)
@@ -441,7 +441,7 @@ segment = LLMPrompt(system_prompt="You are helpful.")
 | `llmVisionPrompt` errors at the provider with model-not-found / unsupported-input | `llmVisionPrompt` reads `default_model_name` / `default_model_source` (the chat defaults). Set `model` and `source` explicitly on the segment, or change the chat defaults to a vision-capable model. |
 | Ollama connection refused | Run `ollama serve` or set `OLLAMA_SERVER_URL` / `TALKPIPE_OLLAMA_SERVER_URL`. |
 | OpenAI / Anthropic auth errors | Set `OPENAI_API_KEY` or `ANTHROPIC_API_KEY`; these are not read from `TALKPIPE_*` model keys. |
-| RAG CLI uses unexpected models | Check `DEFAULT_*` keys and CLI flags; then check segment `default_*` fallbacks. |
+| RAG CLI uses unexpected models | Check the `--embedding_*` / `--completion_*` flags, then the `default_embedding_model_*` / `default_model_*` config values they fall back to — there are no separate `DEFAULT_*` keys. |
 
 ---
 

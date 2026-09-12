@@ -22,6 +22,7 @@ chatterlang_script --script "script_content" [options]
 | `--load-module` | string | Path to custom module file to import before execution (can be specified multiple times) |
 | `--logger_levels` | string | Logger level configuration in format 'logger:level,logger:level,...' |
 | `--logger_files` | string | Logger file output configuration in format 'logger:file,logger:file,...' |
+| `--verbose` | flag | Show the full Python traceback on compile and runtime errors instead of just the one-line `Error: ...` message |
 | `--<key>` | any | Any additional argument becomes a configuration value accessible via `$key` syntax in the script |
 
 ## Script Sources
@@ -86,6 +87,8 @@ This feature is useful for parameterizing scripts without editing configuration 
 - Check input data format matches expected types
 - Verify external service connectivity (APIs, URLs)
 - Review ChatterLang syntax for typos
+- Errors are reported as a single `Error: ...` line; add `--verbose` for the full
+  Python traceback
 
 **Performance issues:**
 - Monitor memory usage with large datasets

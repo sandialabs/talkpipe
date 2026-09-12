@@ -148,28 +148,31 @@ Commands:
 
 #### Module Exploration
 
-**List all modules** (output illustrative):
+The module list, and the counts in it, depend on what is installed — plugins add
+their own modules — so treat the transcripts below as the shape of the output
+rather than an inventory.
+
+**List all modules**:
 ```
 talkpipe> list
 
-Available Modules (15):
+Available Modules (31):
 ------------------------------
-📦 talkpipe.data.email        (3 components)
-📦 talkpipe.data.html         (4 components)  
-📦 talkpipe.data.mongo        (2 components)
-📦 talkpipe.llm.chat          (6 components)
-📦 talkpipe.pipe.basic        (12 components)
+📦 talkpipe.data.email                 (2 components)
+📦 talkpipe.data.extraction            (10 components)
+📦 talkpipe.data.mongo                 (2 components)
+📦 talkpipe.llm.chat                   (4 components)
+📦 talkpipe.pipe.fields                (13 components)
 ```
 
 **List module contents** (partial module names match if unambiguous):
 ```
 talkpipe> list talkpipe.data.email
 
-Components in talkpipe.data.email (3):
+Components in talkpipe.data.email (2):
 --------------------------------------------------
-🔌 readEmail             (EmailReader)
-⚙️ filterEmails          (FilterEmails)  
-⚙️ extractAttachments    (ExtractAttachments)
+🔌 readEmail                      (readEmail)
+⚙️ sendEmail                      (sendEmail)
 ```
 
 #### Component Details
@@ -181,26 +184,31 @@ talkpipe> show readEmail
 ============================================================
 📋 readEmail
 ============================================================
-Class/Function: EmailReader
+Class/Function: readEmail
 Type:           Source
 Module:         talkpipe.data.email
-Base Classes:   io.AbstractSource
+Base Classes:   AbstractSource
 
 Description:
 ------------
-  Read emails from IMAP server with optional filtering.
-  
-  Supports both IMAP and IMAPS protocols with various
-  authentication methods including OAuth2.
+  A source that monitors an email inbox and yields new unread emails.
+
+  This source periodically checks for new unread emails, marks them as read,
+  and yields their content and metadata. It connects using IMAP and can be
+  configured to poll at specific intervals.
+  ...
 
 Parameters:
 -----------
-  server                   = "imap.gmail.com"
-  port                     = 993
-  username
-  password                 = None
-  use_ssl                  = True
-  folder                   = "INBOX"
+  poll_interval_minutes: int          = 10     // Minutes between email checks
+  folder               : str          = INBOX  // Mailbox folder to check
+  mark_as_read         : bool         = True   // Whether to mark emails as read
+  limit                : int          = 100    // Maximum number of emails to fetch per check. If -1, fetch all
+  unseen_only          : bool         = True   // Whether to only fetch unseen emails
+  imap_server          : str | None   = None   // IMAP server address. If None, uses config
+  email_address        : str | None   = None   // Email address. If None, uses config
+  password             : str | None   = None   // Password. If None, uses config
+  timeout              : float | None = None   // IMAP socket timeout in seconds
 ```
 
 #### Search Functionality
@@ -211,11 +219,11 @@ talkpipe> search mongodb
 
 Search Results for 'mongodb' (2 found):
 ------------------------------------------------------------
-🔌 mongoConnect          (talkpipe.data.mongo)
-   Connect to MongoDB database with authentication
+⚙️ mongoInsert                    (talkpipe.data.mongo)
+   Insert items from the input stream into a MongoDB collect...
 
-⚙️ mongoQuery            (talkpipe.data.mongo)  
-   Execute MongoDB queries with result processing
+⚙️ mongoSearch                    (talkpipe.data.mongo)
+   Search a MongoDB collection and yield results.
 ```
 
 **Search examples**:
@@ -240,14 +248,13 @@ talkpipe> show email
 
 Component 'email' not found. Did you mean:
   readEmail
-  filterEmails  
-  parseEmailHeaders
+  sendEmail
 ```
 
 #### Component Type Icons
 
-- **🔌 Sources** - Data input components (e.g., `readEmail`, `mongoConnect`)
-- **⚙️ Segments** - Data transformation components (e.g., `filterEmails`, `scale`)
+- **🔌 Sources** - Data input components (e.g., `readEmail`, `rss`)
+- **⚙️ Segments** - Data transformation components (e.g., `mongoSearch`, `scale`)
 - **🔧 Field Segments** - Per-field transformation components
 
 Exit with `quit` or `exit` (or Ctrl-D / Ctrl-C).

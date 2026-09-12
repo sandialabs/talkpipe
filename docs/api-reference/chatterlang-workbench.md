@@ -178,7 +178,7 @@ Everything the UI does is available over HTTP on the same port:
 | Endpoint | Method | Purpose and request body |
 |----------|--------|--------------------------|
 | `/compile` | POST | Compile (and, for non-interactive scripts, run) `{"script": ...}`; returns `{"id", "interactive", "output"?}` |
-| `/go` | POST | Send input to a compiled interactive script: `{"id": <from /compile>, "user_input": ...}` |
+| `/go` | POST | Send input to a compiled interactive script: `{"id": <from /compile>, "user_input": ...}`; returns the turn's output as plain text |
 | `/api/lint` | POST | Diagnostics for a script: `{"script": ..., "mode": "parse" \| "full"}` |
 | `/api/reference` | GET | Component reference (names, types, parameters, docs) |
 | `/api/pipelines` | GET/POST | List / create (`{"name", "description"?, "script"}`) saved pipelines (`PUT`/`DELETE`/`POST .../rename` per id) |

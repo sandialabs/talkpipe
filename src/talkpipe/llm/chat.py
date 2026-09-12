@@ -123,15 +123,19 @@ class LLMPrompt(AbstractSegment[Any, Any]):
         source = source or cfg.get(TALKPIPE_SOURCE, None)
         logger.debug(f"Resolved model name={model}, source={source}")
 
+        # Neither branch logs: the message is carried by the exception, which
+        # the CLI and the workbench both surface, so logging it as well only
+        # prints it twice.
         if model is None or source is None:
-            logger.error("Model name and source must be provided")
             raise ValueError(
                 "Model name and source must be provided, specified in the configuration file, or in environment variables."
             )
 
         if source not in getPromptSources():
-            logger.error(f"Unknown source: {source}")
-            raise ValueError(f"Unknown source: {source}")
+            raise ValueError(
+                f"Source '{source}' is not supported. "
+                f"Supported sources are: {sorted(getPromptSources())}"
+            )
 
         logger.debug(f"Creating chat model with name: {model}")
         adapter_kwargs = {

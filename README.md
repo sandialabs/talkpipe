@@ -49,6 +49,8 @@ These are the entry points for different usage scenarios, from interactive devel
   Your browser does not support the video tag.
 </video>
 
+  ([workbench demo video](docs/workbench_demo.mp4) — direct link, for renderers that strip the embed above.)
+
 - **[chatterlang_script](docs/api-reference/chatterlang-script.md)**
   Runs ChatterLang scripts from files or directly from the command line, for batch processing and automation.
 
@@ -74,9 +76,14 @@ These are the entry points for different usage scenarios, from interactive devel
   uv run https://github.com/sandialabs/talkpipe/releases/latest/download/talkpipe_appcenter.py
   ```
 
+  Each release attaches the version-stamped file, so the URL above needs a
+  release that post-dates the App Center — against an older one it returns
+  "Not Found" and uv reports that as a `SyntaxError`. From a checkout of this
+  branch, run the file directly instead: `uv run appcenter/talkpipe_appcenter.py`.
+
 ## Quick Start
 
-**Requirements:** Python 3.11 or newer. Check your version first with `python3 --version` — it must report 3.11 or higher before installing.
+**Requirements:** Python 3.11 or newer; 3.11, 3.12, and 3.13 are the versions tested in CI. Check your version first with `python3 --version` — it must report 3.11 or higher before installing.
 
 ```bash
 pip install talkpipe
@@ -85,12 +92,14 @@ pip install talkpipe
 TalkPipe is provider-neutral: it works with Ollama (local or remote), OpenAI, and Anthropic for chat, and with Ollama, OpenAI, and model2vec (in-process, no server) for embeddings. None of them is required; install the provider(s) you need:
 
 ```bash
-pip install talkpipe[openai]    # OpenAI
-pip install talkpipe[ollama]    # Ollama
-pip install talkpipe[anthropic] # Anthropic Claude
-pip install talkpipe[model2vec] # In-process static embeddings (also in [all])
-# Or: pip install talkpipe[all]
+pip install "talkpipe[openai]"    # OpenAI
+pip install "talkpipe[ollama]"    # Ollama
+pip install "talkpipe[anthropic]" # Anthropic Claude
+pip install "talkpipe[model2vec]" # In-process static embeddings (also in [all])
+# Or: pip install "talkpipe[all]"
 ```
+
+(The quotes matter in zsh, where an unquoted `[...]` is a glob.)
 
 See **[LLM providers](docs/guides/model-and-source-configuration.md#llm-providers)** for what each provider needs and how to select it.
 
@@ -133,7 +142,7 @@ response = chat("What's my name?")  # Will remember context
 
 ### RAG at a glance
 
-Index a list of strings, then ask questions against the App Center (expand with options in [Example 5](#example-5-rag-pipeline-with-vector-database)):
+Index a list of strings, then ask questions against that vector store (expand with options in [Example 5](#example-5-rag-pipeline-with-vector-database)). `tmp://my_kb` is an in-process store that lives only as long as the interpreter — both halves below must run in the same process; use a directory path (as [Example 5](#example-5-rag-pipeline-with-vector-database) does) to keep the index:
 
 <!-- doc-example: requires-ollama -->
 ```python
@@ -151,7 +160,7 @@ rag = compiler.compile(
 rag("What is TalkPipe?")
 ```
 
-> **No Ollama server?** Swap `embedding_source="model2vec"` and `embedding_model="minishlab/potion-base-8M"` for offline embeddings (included in `talkpipe[all]`). The first run downloads the model from Hugging Face (a few files, ~30 MB); after that it's cached and needs no network — see [Precache for offline use](docs/guides/model2vec-embeddings.md#precache-for-offline-use) to pre-download for air-gapped environments. The `ragToText` completion step still needs a chat provider: set `completion_source="openai"` or `completion_source="anthropic"` with a matching `completion_model`. (OpenAI embeddings work too: `embedding_source="openai"`, `embedding_model="text-embedding-3-small"`.) See the [model2vec guide](docs/guides/model2vec-embeddings.md).
+> **No Ollama server?** Swap `embedding_source="model2vec"` and `embedding_model="minishlab/potion-base-8M"` for offline embeddings (included in `talkpipe[all]`). The first run downloads that model from Hugging Face (a few files, tens of MB); after that it's cached and needs no network — see [Precache for offline use](docs/guides/model2vec-embeddings.md#precache-for-offline-use) to pre-download for air-gapped environments. The `ragToText` completion step still needs a chat provider: set `completion_source="openai"` or `completion_source="anthropic"` with a matching `completion_model`. (OpenAI embeddings work too: `embedding_source="openai"`, `embedding_model="text-embedding-3-small"`.) See the [model2vec guide](docs/guides/model2vec-embeddings.md).
 
 > **Indexing large collections inside a container?** Building a vector
 > database over thousands of documents (`makevectordatabase`,

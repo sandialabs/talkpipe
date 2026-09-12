@@ -148,8 +148,8 @@ def test_a_discussion_example(requires_ollama, capsys):
     CONST theologian_prompt="You are a reformed theologian debating a proposition. Reply in one sentence.";
     INPUT FROM echo[data="The US should give free puppies to all children."] | @next_utterance | accum[variable=@conv] | print;
     LOOP 3 TIMES {
-        INPUT FROM @next_utterance | llmPrompt[system_prompt=economist_prompt] | @next_utterance | accum[variable=@conv] | print;
-        INPUT FROM @next_utterance | llmPrompt[system_prompt=theologian_prompt] | @next_utterance | accum[variable=@conv] | print;
+        INPUT FROM @next_utterance | llmPrompt[system_prompt=economist_prompt, model="llama3.2", source="ollama"] | @next_utterance | accum[variable=@conv] | print;
+        INPUT FROM @next_utterance | llmPrompt[system_prompt=theologian_prompt, model="llama3.2", source="ollama"] | @next_utterance | accum[variable=@conv] | print;
     };
     INPUT FROM @conv
     """
@@ -192,7 +192,7 @@ def test_a_crawler_example(requires_ollama):
     script = """
     CONST explainPrompt = "Explain whether the content of the title and description fields in the following json is related to canines.";
     CONST scorePrompt = "On a scale of 1 to 10, how related to canines is the combination of the content in the title, description, and explanation fields?";
-    | loadsJsonl | llmScore[system_prompt=scorePrompt, model="llama3.1", set_as="canine", temperature=0.0] | setAs[field_list="canine.score:canine_score"] | toDataFrame
+    | loadsJsonl | llmScore[system_prompt=scorePrompt, model="llama3.1", source="ollama", set_as="canine", temperature=0.0] | setAs[field_list="canine.score:canine_score"] | toDataFrame
     """
 
     pipeline = compiler.compile(script).as_function(single_in=False, single_out=True)

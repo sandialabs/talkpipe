@@ -4,6 +4,11 @@
 
 ChatterLang is TalkPipe's external Domain-Specific Language (DSL) that provides a high-level, declarative syntax for building data processing pipelines. It abstracts away Python implementation details and allows users to express complex workflows using simple, human-readable commands.
 
+The LLM examples on this page happen to use `source="ollama"`. Nothing here is
+Ollama-specific: `source` and `model` are ordinary segment parameters, so
+`source="openai"` or `source="anthropic"` works the same way — see
+[LLM providers](../guides/model-and-source-configuration.md#llm-providers).
+
 While the Pipe API requires Python programming knowledge, ChatterLang enables data analysts, researchers, and non-programmers to create sophisticated pipelines through text-based scripts.
 
 ## Design Philosophy

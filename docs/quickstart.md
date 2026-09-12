@@ -12,21 +12,24 @@ The base install includes data processing, file I/O, search (Whoosh, LanceDB), a
 
 ```bash
 # LLM providers (install one or more)
-pip install talkpipe[ollama]      # Local models via Ollama
-pip install talkpipe[openai]      # OpenAI (GPT-4, etc.)
-pip install talkpipe[anthropic]   # Anthropic Claude
-pip install talkpipe[model2vec]   # In-process embeddings (no server, no API key)
+pip install "talkpipe[ollama]"      # Local models via Ollama
+pip install "talkpipe[openai]"      # OpenAI (GPT-4, etc.)
+pip install "talkpipe[anthropic]"   # Anthropic Claude
+pip install "talkpipe[model2vec]"   # In-process embeddings (no server, no API key)
 
 # PDF extraction
-pip install talkpipe[pypdf]
+pip install "talkpipe[pypdf]"
 
 # Combine extras
-pip install talkpipe[ollama,pypdf]
-pip install talkpipe[openai,anthropic]
+pip install "talkpipe[ollama,pypdf]"
+pip install "talkpipe[openai,anthropic]"
 
 # Everything: all LLM providers + PDF + images
-pip install talkpipe[all]
+pip install "talkpipe[all]"
 ```
+
+Quote the extras: in zsh (the default shell on macOS) an unquoted `[...]` is a
+glob and the command fails with "no matches found" before pip runs.
 
 | Extra | Adds |
 |-------|------|
@@ -184,6 +187,10 @@ The embedding and completion providers are independent, and neither has to be Ol
 makevectordatabase "docs/*.md" --path ./mydb --embedding_source model2vec --embedding_model minishlab/potion-base-8M
 serverag --path ./mydb --embedding_source model2vec --embedding_model minishlab/potion-base-8M --completion_source anthropic --completion_model claude-haiku-4-5
 ```
+
+Both commands report a missing or unsupported provider on stderr and exit
+non-zero, so a configuration mistake shows up at startup rather than on the
+first query.
 
 ## Next Steps
 

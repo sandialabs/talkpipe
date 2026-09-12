@@ -227,6 +227,24 @@ def test_invalid_source(monkeypatched_env, patch_get_config):
         LLMPrompt(model="llama3.2", source=None, temperature=0.0)
 
 
+def test_invalid_source_message_lists_supported_sources(
+    monkeypatched_env, patch_get_config
+):
+    """An unsupported chat source names the sources that are supported.
+
+    ``llmEmbed`` has always done this; ``llmPrompt`` used to say only
+    "Unknown source: fake", leaving the reader to go looking in the docs.
+    """
+    monkeypatched_env({})
+
+    with pytest.raises(ValueError) as excinfo:
+        LLMPrompt(model="llama3.2", source="fake", temperature=0.0)
+    message = str(excinfo.value)
+    assert "Source 'fake' is not supported" in message
+    assert "ollama" in message
+    assert "openai" in message
+
+
 def test_role_map_in_llmprompt_segment():
     """Test that role_map is passed through LLMPrompt segment to the adapter."""
     chat = LLMPrompt(

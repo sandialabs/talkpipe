@@ -144,9 +144,11 @@ def main() -> None:
 
     args, unknown_args = parser.parse_known_args()
 
-    # Process logger settings
-    if args.logger_levels:
-        configure_logger(args.logger_levels)
+    # Process logger settings. Always configure, as makevectordatabase and
+    # chatterlang_script do: the talkpipe package attaches a NullHandler to its
+    # own logger, so logging.lastResort never fires and, without a handler,
+    # every logger.error() below would be discarded silently.
+    configure_logger(args.logger_levels)
 
     # Process settings with env/config/cli override priority
     config = get_config()
@@ -187,10 +189,18 @@ def main() -> None:
         # instead of on the first request.
         rag_pipeline.make_pipeline()
     except Exception as e:
-        logger.error(
-            f"Failed to initialize RAG pipeline: {e}. Check --embedding_model/--embedding_source "
-            "and --completion_model/--completion_source (or the corresponding default_embedding_* "
-            "/ default_model_* config values)."
+        # Straight to stderr rather than through the logger: talkpipe attaches a
+        # NullHandler to its own logger, so a logged startup failure is silently
+        # discarded unless the user happens to pass --logger_levels, and a
+        # console script that dies must say why. The traceback stays on the
+        # debug log for anyone diagnosing it.
+        logger.debug("RAG pipeline initialization failed", exc_info=True)
+        print(
+            f"Error: Failed to initialize RAG pipeline: {e}. "
+            "Check --embedding_model/--embedding_source and "
+            "--completion_model/--completion_source (or the corresponding "
+            "default_embedding_* / default_model_* config values).",
+            file=sys.stderr,
         )
         sys.exit(1)
 

@@ -71,7 +71,10 @@ class LLMVisionPrompt(AbstractSegment[Any, Any]):
                 "or in environment variables."
             )
         if source not in getPromptSources():
-            raise ValueError(f"Unknown source: {source}")
+            raise ValueError(
+                f"Source '{source}' is not supported. "
+                f"Supported sources are: {sorted(getPromptSources())}"
+            )
 
         adapter_kwargs: dict[str, Any] = {
             "model": model,

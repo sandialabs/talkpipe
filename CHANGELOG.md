@@ -42,6 +42,72 @@
   with the release version, and the two scripts. The library gained no
   runtime dependency; Textual and pytest-asyncio joined the `dev` extra.
 
+- **`serverag` no longer fails silently.** With no embedding or completion
+  model configured — the state a first-time user is in — it exited 1 with
+  nothing on stdout or stderr, in both web and `--interactive` mode. The
+  validation message existed but went only to `logger.error`, and the library
+  attaches a `NullHandler` to its own logger, so `logging.lastResort` never
+  fired and the message was discarded unless the user happened to pass
+  `--logger_levels`. The startup failure now goes straight to stderr
+  (`Error: Failed to initialize RAG pipeline: ... Check
+  --embedding_model/--embedding_source ...`), the traceback stays on the debug
+  log, and logging is configured on every run as `makevectordatabase` and
+  `chatterlang_script` already did.
+
+- **A component that rejects its options is now a `CompileError`, not a
+  traceback.** ChatterLang compilation wrapped only `TypeError` from a
+  segment's or source's constructor, so the most common newcomer mistakes —
+  `llmPrompt[source="llamacpp"]`, or `llmPrompt` with no model configured —
+  escaped as raw `ValueError`s: `chatterlang_script` printed a full Python
+  traceback, and `--verbose` made no difference because the friendly handler
+  never saw them. Such failures now read
+  `Error: Segment 'llmPrompt' could not be created: <why>`, with the traceback
+  behind `--verbose`, and the workbench's lint endpoint reports them like any
+  other compile error.
+
+- **Unsupported LLM sources say what is supported.** `llmPrompt` and
+  `llmVisionPrompt` reported only `Unknown source: <name>`; they now match
+  `llmEmbed`: `Source 'llamacpp' is not supported. Supported sources are:
+  ['anthropic', 'eliza', 'ollama', 'openai']`. The chat and embedding segments
+  also no longer log these messages in addition to raising them, which printed
+  them twice.
+
+- **Documentation corrections**, mostly found by walking the docs as a
+  first-time reader:
+  - The README's RAG-at-a-glance intro said questions were asked "against the
+    App Center" — a find/replace slip; it is the vector store. The `tmp://`
+    scheme it uses is now explained (in-process, discarded at exit) there and
+    in the model2vec guide, where splitting the example across two processes
+    silently returned "No relevant information found."
+  - The model2vec guide named `potion-base-8M` as the default model with 256
+    dimensions; the default is `potion-retrieval-32M` with 512. The model
+    table gained a dimensions column, the "256" comment now names the model
+    the snippet actually passes, the Python-API example passes the model it
+    precaches, and the offline section warns that a model missing from the
+    cache fails under `HF_HUB_OFFLINE=1` with an error that does not name it.
+  - The App Center's `uv run <release asset>` commands are documented as
+    needing a release that post-dates the App Center, with the checkout
+    invocation as the alternative; against an older release the URL 404s and
+    uv reports it as a `SyntaxError`.
+  - The reference-browser walkthrough showed invented transcripts —
+    `filterEmails`, `extractAttachments`, `mongoConnect`, `mongoQuery`,
+    `parseEmailHeaders`, and a `readEmail` parameter list the source never
+    had. Replaced with real output.
+  - `chatterlang_serve`'s reference now says that `/history` and the SSE
+    stream are scoped to the `talkpipe_session_id` cookie (its own `curl`
+    example returned an empty history), that results come back in the
+    `/process` response rather than over `/output-stream`, that `--script` is
+    optional, and that `/docs` exists.
+  - Fixed two dead anchors (the model/source guide's own table of contents,
+    and the plugin manager's link into the extension guide), removed a
+    troubleshooting row that told readers to check `DEFAULT_*` keys the same
+    page says do not exist, documented `chatterlang_script --verbose`, noted
+    that the ChatterLang architecture page's Ollama examples work with any
+    provider, added the model2vec and lazy-loading pages to the docs index,
+    showed `makevectordatabase`'s expected output, quoted the
+    `pip install "talkpipe[...]"` extras so they work in zsh, and pointed the
+    Python prerequisite at the versions CI actually tests.
+
 ## 1.0.2
 
 - `chatterlang_workbench` now exits within a couple of seconds of Ctrl-C even
