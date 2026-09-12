@@ -6,7 +6,8 @@ from pathlib import Path
 
 import pytest
 from textual.pilot import Pilot
-from textual.widgets import DataTable, RichLog, Static
+from textual.widgets import DataTable, Footer, RichLog, Static
+from textual.widgets._footer import FooterKey
 
 import talkpipe_appcenter as ts
 from conftest import FakeUv
@@ -43,6 +44,16 @@ def _cell(app: ts.AppCenterApp, row: str, column: int) -> str:
 def _log_text(app: ts.AppCenterApp) -> str:
     log = app.query_one("#log", RichLog)
     return "\n".join(line.text for line in log.lines)
+
+
+def _footer_keys(app: ts.AppCenterApp) -> dict[str, str]:
+    """What the footer offers right now: key -> description, as rendered."""
+    footer = app.query_one(Footer)
+    return {item.key: item.description for item in footer.query(FooterKey)}
+
+
+def _notices(app: ts.AppCenterApp) -> str:
+    return "\n".join(n.message for n in app._notifications)
 
 
 async def test_screen_lists_apps_with_status(ctx: ts.Context, fake_uv: FakeUv) -> None:
@@ -273,6 +284,9 @@ async def test_channel_key_switches_one_app_between_channels(
         }
         detail = str(app.query_one("#detail", Static).content)
         assert "channel:   experimental (press e to return to releases)" in detail
+        assert "Press e on the talkpipe-vault row for its release again." in _log_text(
+            app
+        )
         # The other app is untouched: the choice is per application.
         assert _cell(app, "tool", 2) == "not installed"
 
@@ -284,6 +298,70 @@ async def test_channel_key_switches_one_app_between_channels(
         assert "Switched talkpipe-vault to the release channel" in _log_text(app)
 
 
+async def test_footer_names_the_channel_the_key_moves_to(
+    ctx: ts.Context, fake_uv: FakeUv
+) -> None:
+    """The way back has to be visible without the detail pane, which a short
+    terminal hides: the footer names the direction ``e`` goes for this row."""
+    fake_uv.set_latest_pre("talkpipe-vault", "1.1.0b1")
+    fake_uv.set_canned("talkpipe-vault", ["vault-server"])
+    app = ts.AppCenterApp(ctx)
+    async with app.run_test(size=SIZE) as pilot:
+        await _wait_workers(app, pilot)
+        assert _footer_keys(app)["e"] == "Pre-release"
+
+        await pilot.press("e")
+        await _wait_workers(app, pilot)
+        assert _footer_keys(app)["e"] == "Release"
+
+        # Per application: the row below is still on releases.
+        await pilot.press("down")
+        await _settle(pilot)
+        assert _footer_keys(app)["e"] == "Pre-release"
+
+
+async def test_channel_key_moves_a_whole_selection_one_way(
+    ctx: ts.Context, fake_uv: FakeUv
+) -> None:
+    """A batch goes where the key says it goes, not one flip per application."""
+    for name in ("talkpipe-vault", "some-tool"):
+        fake_uv.set_latest_pre(name, "9.9.9b1")
+        fake_uv.set_canned(name, [name])
+    app = ts.AppCenterApp(ctx)
+    async with app.run_test(size=SIZE) as pilot:
+        await _wait_workers(app, pilot)
+        await pilot.press("space", "down", "space")
+        await _settle(pilot)
+        assert _footer_keys(app)["e"] == "Pre-release"
+
+        await pilot.press("e")
+        await _wait_workers(app, pilot)
+        assert _cell(app, "vault", 2) == "installed (pre-release)"
+        assert _cell(app, "tool", 2) == "installed (pre-release)"
+        assert ts.read_channels(ts.channels_path()) == {
+            "talkpipe-vault": ts.EXPERIMENTAL,
+            "some-tool": ts.EXPERIMENTAL,
+        }
+
+
+async def test_channel_key_says_where_the_choice_lives_off_an_app_row(
+    ctx: ts.Context, fake_uv: FakeUv
+) -> None:
+    """The App Center's own row has no channel to switch, so ``e`` explains
+    rather than silently doing nothing, and the footer does not offer it."""
+    app = ts.AppCenterApp(ctx)
+    async with app.run_test(size=SIZE) as pilot:
+        await _wait_workers(app, pilot)
+        await pilot.press("down", "down")  # past both apps, onto the last row
+        await _settle(pilot)
+        assert "e" not in _footer_keys(app)
+
+        await pilot.press("e")
+        await _settle(pilot)
+        assert "chosen per application" in _notices(app)
+        assert not [c for c in fake_uv.calls() if c[:2] == ["tool", "install"]]
+
+
 async def test_channel_key_defers_to_a_flag_for_the_whole_run(
     ctx: ts.Context, fake_uv: FakeUv
 ) -> None:
@@ -292,8 +370,14 @@ async def test_channel_key_defers_to_a_flag_for_the_whole_run(
     app = ts.AppCenterApp(ctx)
     async with app.run_test(size=SIZE) as pilot:
         await _wait_workers(app, pilot)
+        # Nothing to toggle, so nothing is advertised in either place.
+        assert "e" not in _footer_keys(app)
+        detail = str(app.query_one("#detail", Static).content)
+        assert "channel:   experimental (this run: --experimental)" in detail
+
         await pilot.press("e")
         await _wait_workers(app, pilot)
+        assert "--experimental" in _notices(app)
         assert not [c for c in fake_uv.calls() if c[:2] == ["tool", "install"]]
         assert _cell(app, "vault", 2) == "not installed"
 

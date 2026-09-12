@@ -2375,6 +2375,7 @@ from textual import (  # noqa: E402 - the sections above are usable without Text
 from textual.app import App, ComposeResult  # noqa: E402
 from textual.binding import Binding, BindingType  # noqa: E402
 from textual.containers import Horizontal, Vertical  # noqa: E402
+from textual.css.query import NoMatches  # noqa: E402
 from textual.screen import ModalScreen  # noqa: E402
 from textual.widgets import (  # noqa: E402
     Button,
@@ -2437,7 +2438,14 @@ class AppCenterApp(App[None]):
     BINDINGS: ClassVar[list[BindingType]] = [
         Binding("i", "install", "Install/upgrade"),
         Binding("u", "upgrade", "Upgrade", show=False),
-        Binding("e", "channel", "Channel"),
+        # Three bindings on one key so the footer names the direction ``e``
+        # goes for the row under the cursor, rather than the direction-less
+        # "Channel": the way back to releases used to be stated only in the
+        # detail pane, which a short terminal hides altogether.
+        # ``check_action`` leaves exactly one of the three dispatchable.
+        Binding("e", "prerelease", "Pre-release"),
+        Binding("e", "release", "Release"),
+        Binding("e", "channel_here", "Channel", show=False),
         Binding("x", "uninstall", "Uninstall"),
         Binding("l", "launch", "Launch"),
         Binding("o", "open", "Open page"),
@@ -2513,6 +2521,34 @@ class AppCenterApp(App[None]):
         ids = sorted(self.selected) if self.selected else [self._cursor_id() or ""]
         return [e for e in (self.ctx.catalog.find(i) for i in ids) if e is not None]
 
+    def _channel_entry(self) -> AppEntry | None:
+        """The application whose channel decides which way ``e`` goes.
+
+        The first of a selection, else the row under the cursor; None when
+        there is no application at all — the App Center's own row — or before
+        the table exists, which ``check_action`` can be asked about while the
+        screen is still being composed.
+        """
+        try:
+            targets = self._targets()
+        except NoMatches:
+            return None
+        return targets[0] if targets else None
+
+    def check_action(self, action: str, parameters: tuple[object, ...]) -> bool | None:
+        """Offer only the channel ``e``'s targets can actually move to.
+
+        A run started with ``--experimental`` or ``--no-experimental`` offers
+        neither: that flag decides every install, and ``channel_here`` says so.
+        """
+        if action in ("prerelease", "release"):
+            entry = self._channel_entry()
+            if entry is None or self.ctx.experimental is not None:
+                return False
+            on_experimental = self.ctx.status(entry).channel == EXPERIMENTAL
+            return (action == "release") == on_experimental
+        return True
+
     def _render_rows(self) -> None:
         table = self.query_one("#apps", DataTable)
         for entry in self.ctx.catalog.apps:
@@ -2540,6 +2576,9 @@ class AppCenterApp(App[None]):
         self._render_detail()
 
     def _render_detail(self) -> None:
+        # Both the cursor moving and a status change alter which channel ``e``
+        # offers, and both land here, so the footer is re-asked here too.
+        self.refresh_bindings()
         detail = self.query_one("#detail", Static)
         needs = self.query_one("#needs", Static)
         app_id = self._cursor_id()
@@ -2582,7 +2621,11 @@ class AppCenterApp(App[None]):
         )
         lines.append(f"latest:    {latest}")
         lines.append(f"installed: {status.installed or '-'}")
-        if status.channel == EXPERIMENTAL:
+        if self.ctx.experimental is not None:
+            # ``e`` declines for the whole run, so it must not be advertised.
+            flag = "--experimental" if self.ctx.experimental else "--no-experimental"
+            lines.append(f"channel:   {status.channel} (this run: {flag})")
+        elif status.channel == EXPERIMENTAL:
             lines.append("channel:   experimental (press e to return to releases)")
         else:
             lines.append("channel:   stable (press e for the pre-release)")
@@ -2678,15 +2721,14 @@ class AppCenterApp(App[None]):
             self._run_action("Upgrade", targets, install_app)
             self.selected.clear()
 
-    def action_channel(self) -> None:
-        """Install each target from the other channel: pre-release, or back to releases.
+    def action_prerelease(self) -> None:
+        self._switch_channel(prerelease=True)
 
-        This is how one copy of the App Center serves both channels: the choice
-        is per application and recorded, so no flag, environment variable, or
-        second copy of the file is needed to get a beta of one application.
-        """
-        if not self._guard():
-            return
+    def action_release(self) -> None:
+        self._switch_channel(prerelease=False)
+
+    def action_channel_here(self) -> None:
+        """``e`` where it cannot switch anything: say where the choice lives."""
         if self.ctx.experimental is not None:
             flag = "--experimental" if self.ctx.experimental else "--no-experimental"
             self.notify(
@@ -2694,16 +2736,40 @@ class AppCenterApp(App[None]):
                 "Restart without it to choose per application.",
                 severity="warning",
             )
+        else:
+            self.notify(
+                "The channel is chosen per application: move to an "
+                "application's row and press e."
+            )
+
+    def _switch_channel(self, *, prerelease: bool) -> None:
+        """Install every target from the channel the footer named.
+
+        This is how one copy of the App Center serves both channels: the choice
+        is per application and recorded, so no flag, environment variable, or
+        second copy of the file is needed to get a beta of one application —
+        and ``e`` goes back the same way it came. A batch goes where the key
+        says it goes, which is the channel :meth:`_channel_entry` is leaving.
+        """
+        if not self._guard():
             return
         targets = self._targets()
         if not targets:
             return
-        # Decided up front, per application, so a batch with mixed channels
-        # flips each one; the worker is exclusive, so it must be one call.
-        choice = {e.id: self.ctx.status(e).channel != EXPERIMENTAL for e in targets}
 
         def switch(entry: AppEntry, ctx: Context, sink: LineSink) -> bool:
-            return install_app(entry, ctx, sink, prerelease=choice[entry.id])
+            done = install_app(entry, ctx, sink, prerelease=prerelease)
+            if done:
+                # The keystroke that undoes this one, said where the user is
+                # already reading: the footer names it too, but only until the
+                # cursor moves.
+                name = ctx.view(entry).name
+                sink(
+                    f"Press e on the {name} row for its release again."
+                    if prerelease
+                    else f"Press e on the {name} row for its pre-release again."
+                )
+            return done
 
         self._run_action("Channel", targets, switch)
         self.selected.clear()

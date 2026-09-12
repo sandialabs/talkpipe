@@ -33,7 +33,10 @@
   pre-release of each application**, so a released App Center can install
   betas and a beta one installs releases unless told otherwise. On the
   screen, `e` on an application's row installs (or switches to) its
-  pre-release and `e` again returns it to releases; the detail pane shows
+  pre-release and `e` again returns it to releases. The footer names which
+  way the key goes for the row under the cursor — `e Pre-release`, then
+  `e Release` once the application is on one — so the way back is visible
+  even on a terminal too short to show the detail pane, which also states
   the channel each application is on. On the command line, `--experimental`
   (or `--pre`), before or after the subcommand, does the same. Both pass
   `--prerelease allow` to uv — which covers the application and its

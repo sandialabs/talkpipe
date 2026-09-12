@@ -55,8 +55,12 @@ choices, and only the second one comes up in normal use.
 Every application installs as its newest **release** unless you ask for its
 pre-release. On the screen, press `e` on an application's row: it installs
 (or switches to) the pre-release, and the row reads `installed
-(pre-release)`; press `e` again to return it to releases. The detail pane
-shows the channel each application is on. From the command line, ask with
+(pre-release)`; press `e` again to return it to releases. The footer names
+which way the key goes for the row under the cursor — `e Pre-release`
+before, `e Release` after — so the way back is there even on a terminal too
+short to show the detail pane, which also states the channel each
+application is on. With several applications selected, `e` puts them all on
+the channel it names. From the command line, ask with
 `--experimental` (or `--pre`), before or after the subcommand:
 
 ```bash
@@ -84,8 +88,8 @@ latest, and `info` prints the channel.
 `--experimental` placed before `ui` (or given with no subcommand) sets the
 channel for every install of that screen session and says so in the title;
 `e` then declines, since one flag for the run and a choice per application
-would contradict each other. Start without the flag to choose per
-application.
+would contradict each other — the footer leaves the key out and pressing it
+says why. Start without the flag to choose per application.
 
 ### Which copy of the App Center you run
 
@@ -132,7 +136,7 @@ desktop launcher. Keys:
 |---|---|
 | `i` | Install (or upgrade) the app under the cursor, or every selected app |
 | `u` | Upgrade only apps that are installed |
-| `e` | Switch the app to its pre-release, or back to releases (see [Channels](#channels-stable-and-experimental)) |
+| `e` | Switch the app to its pre-release, or back to releases — the footer names which (see [Channels](#channels-stable-and-experimental)) |
 | `x` | Uninstall (asks first; your data stays) |
 | `l` | Launch. Web apps start in the background and open in your browser |
 | `o` | Open a running web app in the browser |
