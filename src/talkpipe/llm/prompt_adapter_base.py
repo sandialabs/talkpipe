@@ -108,6 +108,21 @@ class AbstractLLMPromptAdapter(PromptAdapterMemoryMixin, ABC):
         summary_messages = [self._summary_message] if self._summary_message else []
         return self._prefix_messages + summary_messages + self._messages
 
+    def _append_user_prompt(self, prompt: str) -> None:
+        # Shared by every provider's execute(): record the turn, then let memory
+        # compaction update `_summary_message` and trim `_messages` before the
+        # request is assembled.
+        logger.debug(f"Adding user message to chat history: {prompt}")
+        self._messages.append({"role": "user", "content": prompt})
+        self._compact_context_if_needed()
+
+    def _append_user_message(self, user_message: dict[str, Any]) -> None:
+        # Same as _append_user_prompt, for a provider-shaped multimodal turn
+        # that the caller has already built.
+        logger.debug("Adding multimodal user message to chat history")
+        self._messages.append(user_message)
+        self._compact_context_if_needed()
+
     def _require_dependency(
         self, module_name: str, display_name: str, extra_name: str
     ) -> Any:

@@ -69,48 +69,22 @@ class AnthropicPromptAdapter(AbstractLLMPromptAdapter):
         Handles its own multi-turn conversation state.
         """
         self._require_dependency("anthropic", "Anthropic", "anthropic")
-
-        logger.debug(f"Adding user message to chat history: {prompt}")
-        self._messages.append({"role": "user", "content": prompt})
-        self._compact_context_if_needed()
-
-        logger.debug(f"Sending chat request to Anthropic model {self._model_name}")
-
-        request_params = self._build_messages_request_params()
-
-        self._log_message_payload("messages", request_params["messages"])
-        if self._debug_messages and "system" in request_params:
-            logger.debug(
-                "LLM outbound payload (system) for %s (%s): %s",
-                self._model_name,
-                self._source,
-                self._clip_debug_text(str(request_params["system"])),
-            )
-        response = self._messages_create(**request_params)
-
-        response_text = self._extract_anthropic_text(response)
-        self._record_assistant_response(response_text)
-
-        result: str | BaseModel
-        if self._output_format:
-            result = self._output_format.model_validate_json(response_text)
-        else:
-            result = response_text
-
-        logger.debug(f"Returning response: {result}")
-        return result
+        self._append_user_prompt(prompt)
+        return self._complete_from_history()
 
     def execute_turn(self, user_turn: UserTurn) -> str | BaseModel:
         """Execute the chat model with a multimodal user turn."""
         self._require_dependency("anthropic", "Anthropic", "anthropic")
+        self._append_user_message(to_anthropic_user_message(user_turn))
+        return self._complete_from_history()
 
-        user_message = to_anthropic_user_message(user_turn)
-        logger.debug("Adding multimodal user message to chat history")
-        self._messages.append(user_message)
-        self._compact_context_if_needed()
-
+    def _complete_from_history(self) -> str | BaseModel:
+        # Shared dispatch for execute() and execute_turn(): both send the same
+        # assembled history and parse the reply the same way.
         logger.debug(f"Sending chat request to Anthropic model {self._model_name}")
+
         request_params = self._build_messages_request_params()
+
         self._log_message_payload("messages", request_params["messages"])
         if self._debug_messages and "system" in request_params:
             logger.debug(
