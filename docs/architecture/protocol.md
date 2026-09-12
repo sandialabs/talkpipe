@@ -123,7 +123,7 @@ item = {
 
 #### Using Pydantic Models
 
-Instead of plain dicts, you can use **Pydantic models** with `extra="allow"`:
+Instead of plain dicts, you can use **Pydantic models** with `extra="allow"`, which enforces the required fields and documents them, while still letting segments add fields dynamically:
 
 ```python
 from pydantic import BaseModel, ConfigDict
