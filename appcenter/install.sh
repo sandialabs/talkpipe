@@ -7,10 +7,17 @@
 #
 #   curl -fsSL .../install.sh | sh -s -- install vault
 #
-# For pre-release versions, pass --experimental first, or set
+# The App Center it runs comes from the latest full release. To run the
+# pre-release copy of the App Center itself instead (needed only while no full
+# release carries it yet), pass --experimental first, or set
 # TALKPIPE_APPCENTER_CHANNEL=experimental in the environment:
 #
 #   curl -fsSL .../install.sh | sh -s -- --experimental
+#
+# That chooses only which copy of the App Center runs. Either copy installs the
+# release version of every application unless told otherwise: press `e` on an
+# application's row, or pass `install <app> --experimental`, to get its
+# pre-release from any copy.
 #
 # What it does: installs uv (https://docs.astral.sh/uv/) into ~/.local/bin if it
 # is missing, then hands over to the App Center itself, one Python file that uv runs
@@ -38,18 +45,19 @@ download() {
 }
 
 main() {
-    # Channel choice. `releases/latest` is the newest release GitHub does not
-    # consider a pre-release, so it cannot serve a beta at all; the experimental
-    # release is where those assets go. A channel name rather than a URL, on
-    # purpose: this script runs what it downloads, so the URLs it will fetch stay
-    # the two literals above.
+    # Which copy of the App Center to run. `releases/latest` is the newest
+    # release GitHub does not consider a pre-release, so it cannot serve a beta
+    # at all; the experimental release is where those assets go. A channel name
+    # rather than a URL, on purpose: this script runs what it downloads, so the
+    # URLs it will fetch stay the two literals above. The choice ends here: the
+    # App Center does not read the variable, and the copy it picks installs
+    # release applications unless asked per application.
     if [ "${1:-}" = "--experimental" ]; then
         shift
         TALKPIPE_APPCENTER_CHANNEL=experimental
     fi
     if [ "${TALKPIPE_APPCENTER_CHANNEL:-}" = "experimental" ]; then
         APPCENTER_URL="$APPCENTER_EXPERIMENTAL_URL"
-        export TALKPIPE_APPCENTER_CHANNEL
     fi
 
     local_bin="$HOME/.local/bin"

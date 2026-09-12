@@ -26,20 +26,26 @@
   take the channel by name — `install.sh --experimental`, or
   `TALKPIPE_APPCENTER_CHANNEL=experimental` for both scripts, the only
   mechanism Windows has since a piped `irm | iex` cannot receive arguments.
+  That variable chooses only which copy of the App Center runs; the App
+  Center itself does not read it.
 
-  Installing pre-release *applications* is a separate choice, so that a
-  released App Center can install betas and a beta one installs releases unless
-  told otherwise: `--experimental` (or `--pre`), before or after the
-  subcommand, passes `--prerelease allow` to uv — which covers the application
-  and its dependencies, since a pre-release application may require a
-  pre-release library. The choice is recorded per application beside the saved
-  catalogs, because uv replays its own recorded settings for `uv tool upgrade`
-  but not for the `uv tool install --upgrade` the App Center runs; without the
+  **Any one copy of the App Center installs either the release or the
+  pre-release of each application**, so a released App Center can install
+  betas and a beta one installs releases unless told otherwise. On the
+  screen, `e` on an application's row installs (or switches to) its
+  pre-release and `e` again returns it to releases; the detail pane shows
+  the channel each application is on. On the command line, `--experimental`
+  (or `--pre`), before or after the subcommand, does the same. Both pass
+  `--prerelease allow` to uv — which covers the application and its
+  dependencies, since a pre-release application may require a pre-release
+  library. The choice is recorded per application beside the saved catalogs,
+  because uv replays its own recorded settings for `uv tool upgrade` but not
+  for the `uv tool install --upgrade` the App Center runs; without the
   record, a later upgrade would quietly reinstall the newest release over a
-  pre-release. `--no-experimental` leaves the channel and forgets the record.
-  On that channel the App Center no longer claims to know the latest version,
-  since PyPI's is the newest *release* and not an upgrade target for a
-  pre-release: the row reads `installed (pre-release)`.
+  pre-release. `e` or `--no-experimental` leaves the channel and forgets the
+  record. On that channel the App Center no longer claims to know the latest
+  version, since PyPI's is the newest *release* and not an upgrade target for
+  a pre-release: the row reads `installed (pre-release)`.
 
 - **Fixed: the App Center left a launch that hit a busy port to time out.** An
   application whose port is already held by another program — a second copy of
