@@ -4,7 +4,7 @@ How TalkPipe processes data efficiently using Python generators.
 
 ## Overview
 
-TalkPipe's streaming architecture is built on Python generators and iterators, enabling efficient processing of data streams without loading entire datasets into memory. This approach allows TalkPipe to handle large datasets, infinite streams, and real-time data processing with minimal resource consumption.
+TalkPipe's streaming architecture is built on Python generators and iterators, so data streams are processed without loading entire datasets into memory. That is what lets TalkPipe handle large datasets, infinite streams, and real-time data with minimal resource consumption.
 
 ## Memory-Efficient Data Processing
 
@@ -76,7 +76,7 @@ This allows TalkPipe to:
 
 ### On-Demand Processing
 
-TalkPipe employs lazy evaluation where:
+TalkPipe evaluates lazily:
 
 - **No computation occurs until data is consumed** - Pipelines are constructed but don't execute until terminal operations
 - **Items flow through the pipeline individually** - Each item is processed through all stages before the next item begins
@@ -113,7 +113,7 @@ Python's iterator protocol provides built-in backpressure handling:
 
 ### Iterator Consumption Patterns
 
-Different consumption patterns can be used to provide natural backpressure:
+Different consumption patterns give different amounts of backpressure:
 
 ```python
 # skip-extract  (illustrative fragment)
@@ -196,7 +196,7 @@ class ErrorFilterSegment:
 - **Vertical scaling** - memory usage doesn't grow with data volume
 - **Resource predictability** - memory usage determined by pipeline structure
 
-This streaming architecture makes TalkPipe suitable for processing large datasets, real-time data streams, and building memory-efficient data processing pipelines that can run in resource-constrained environments.
+Together, these properties let TalkPipe pipelines handle large datasets and real-time streams in resource-constrained environments.
 
 ---
 

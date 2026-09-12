@@ -6,7 +6,7 @@ This document describes the data protocol used for communication between sources
 
 ### 1. Generators and Streams
 
-At its foundation, TalkPipe operates on **generators** and **streams of independent objects**:
+TalkPipe operates on **generators** and **streams of independent objects**:
 
 - **Sources** are generators that yield objects (`Iterator[U]`)
 - **Segments** are transformers that consume an iterable and yield objects (`Iterable[T] -> Iterator[U]`)
@@ -123,7 +123,7 @@ item = {
 
 #### Using Pydantic Models
 
-For stronger type safety and clearer documentation of required fields, you can use **Pydantic models** with `extra="allow"`. This enforces required fields while still allowing segments to add additional fields dynamically.
+Instead of plain dicts, you can use **Pydantic models** with `extra="allow"`:
 
 ```python
 from pydantic import BaseModel, ConfigDict

@@ -1,6 +1,6 @@
 # TalkPipe Configuration Architecture
 
-This document describes how TalkPipe manages configuration across different environments, including configuration file formats, environment variable handling, and precedence rules.
+How TalkPipe manages configuration across environments: file formats, environment variable handling, and precedence rules.
 
 ## Overview
 
@@ -158,7 +158,7 @@ Several components resolve embedding and chat model defaults from `get_config()`
 - **Segment defaults** — `LLMEmbed` and `LLMPrompt` fall back to these keys when `model` / `source` arguments are omitted.
 - **`serverag` / `makevectordatabase` defaults** — When you omit `--embedding_model`, `--embedding_source`, `--completion_model`, and `--completion_source`, these commands read the same four keys from the merged config.
 
-Set them once in `~/.talkpipe.toml` (or as `TALKPIPE_*` environment variables) for one consistent set of defaults across every pipeline and CLI. Environment variables use the usual `TALKPIPE_` prefix and map to the key name after the prefix, case-insensitively (for example, `TALKPIPE_default_model_name` or `TALKPIPE_DEFAULT_MODEL_NAME` both work).
+Set them once in `~/.talkpipe.toml` (or as `TALKPIPE_*` environment variables, spelled as described under [Environment Variable Format](#environment-variable-format)) for one consistent set of defaults across every pipeline and CLI.
 
 ### ChatterLang Script Variable Access
 
@@ -419,8 +419,6 @@ logging, either leave `configureLogger` out of the pipeline or accept that it
 replaces the handlers on the loggers it names. talkpipe itself installs only a
 `logging.NullHandler` on the `talkpipe` logger at import time and never
 touches the root logger unless you call this function.
-
-This comprehensive configuration system provides flexibility for different deployment scenarios while maintaining security and ease of use.
 
 ---
 Last Reviewed: 20250820

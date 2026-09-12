@@ -2,7 +2,7 @@
 
 ## Overview
 
-The metadata stream feature enables pipelines to carry control signals and metadata alongside regular data items. This is particularly useful for implementing features like flushing buffers, sending end-of-stream signals, or passing configuration updates through pipelines.
+The metadata stream lets pipelines carry control signals and metadata alongside regular data items — for example to flush buffers, signal end of stream, or pass configuration updates down a pipeline.
 
 ## Key Design Principles
 
@@ -15,7 +15,7 @@ The metadata stream feature enables pipelines to carry control signals and metad
 
 ### Metadata Class
 
-The `Metadata` class is a Pydantic BaseModel that allows arbitrary fields to be added dynamically. This makes it easy to create metadata with specific attributes while maintaining type safety:
+The `Metadata` class is a Pydantic BaseModel that accepts arbitrary fields added dynamically, so metadata can carry whatever attributes you need while staying type safe:
 
 ```python
 from talkpipe.pipe.core import Metadata, create_metadata, is_metadata
@@ -261,7 +261,6 @@ pipeline = source_with_metadata() | passthrough_transform()
 
 ## Backward Compatibility
 
-- All existing segments continue to work unchanged (default `process_metadata=False`)
-- Existing pipelines that don't use metadata are unaffected
-- The API remains backward compatible - metadata support is purely additive
+- Existing segments and pipelines continue to work unchanged, because `process_metadata` defaults to `False`
+- Metadata support is purely additive, so the API remains backward compatible
 
