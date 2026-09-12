@@ -52,3 +52,11 @@ def test_store_url_is_the_latest_talkpipe_release_asset() -> None:
     assert ts.APPCENTER_URL == (
         "https://github.com/sandialabs/talkpipe/releases/latest/download/talkpipe_appcenter.py"
     )
+
+
+def test_experimental_url_is_the_rolling_prerelease_asset() -> None:
+    """``releases/latest`` skips pre-releases, so a beta needs its own release."""
+    assert ts.APPCENTER_EXPERIMENTAL_URL == (
+        "https://github.com/sandialabs/talkpipe/releases/download/experimental/talkpipe_appcenter.py"
+    )
+    assert ts.ROLLING_URLS == (ts.APPCENTER_URL, ts.APPCENTER_EXPERIMENTAL_URL)

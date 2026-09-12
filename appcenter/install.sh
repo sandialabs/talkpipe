@@ -7,6 +7,11 @@
 #
 #   curl -fsSL .../install.sh | sh -s -- install vault
 #
+# For pre-release versions, pass --experimental first, or set
+# TALKPIPE_APPCENTER_CHANNEL=experimental in the environment:
+#
+#   curl -fsSL .../install.sh | sh -s -- --experimental
+#
 # What it does: installs uv (https://docs.astral.sh/uv/) into ~/.local/bin if it
 # is missing, then hands over to the App Center itself, one Python file that uv runs
 # in its own cached environment:
@@ -19,6 +24,7 @@
 set -eu
 
 APPCENTER_URL="https://github.com/sandialabs/talkpipe/releases/latest/download/talkpipe_appcenter.py"
+APPCENTER_EXPERIMENTAL_URL="https://github.com/sandialabs/talkpipe/releases/download/experimental/talkpipe_appcenter.py"
 
 download() {
     if command -v curl >/dev/null 2>&1; then
@@ -32,6 +38,20 @@ download() {
 }
 
 main() {
+    # Channel choice. `releases/latest` is the newest release GitHub does not
+    # consider a pre-release, so it cannot serve a beta at all; the experimental
+    # release is where those assets go. A channel name rather than a URL, on
+    # purpose: this script runs what it downloads, so the URLs it will fetch stay
+    # the two literals above.
+    if [ "${1:-}" = "--experimental" ]; then
+        shift
+        TALKPIPE_APPCENTER_CHANNEL=experimental
+    fi
+    if [ "${TALKPIPE_APPCENTER_CHANNEL:-}" = "experimental" ]; then
+        APPCENTER_URL="$APPCENTER_EXPERIMENTAL_URL"
+        export TALKPIPE_APPCENTER_CHANNEL
+    fi
+
     local_bin="$HOME/.local/bin"
     echo "==> [1/2] Checking for uv, the Python package manager the App Center uses"
     if command -v uv >/dev/null 2>&1; then
@@ -55,7 +75,10 @@ main() {
     echo "(the first run fetches its Python and one library; later runs are quick)"
     # `curl ... | sh` leaves stdin connected to the pipe, not the keyboard; the
     # App Center's screen needs the terminal, so reattach stdin to it when we can.
-    if [ ! -t 0 ] && [ -r /dev/tty ]; then
+    # Opening it is the only real test: /dev/tty exists and looks readable even
+    # where there is no controlling terminal to open (a CI runner, a cron job, a
+    # detached session), and the redirect below would then fail the whole script.
+    if [ ! -t 0 ] && (exec </dev/tty) 2>/dev/null; then
         exec "$uv" run "$APPCENTER_URL" "$@" </dev/tty
     fi
     exec "$uv" run "$APPCENTER_URL" "$@"

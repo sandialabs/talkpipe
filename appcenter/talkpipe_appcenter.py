@@ -74,7 +74,26 @@ means "development copy" (a file taken from the repository's main branch).
 __version__ = STAMPED_VERSION
 
 APPCENTER_URL = "https://github.com/sandialabs/talkpipe/releases/latest/download/talkpipe_appcenter.py"
-"""Where the released copy of this file lives; the desktop launcher runs it."""
+"""Where the released copy of this file lives; the desktop launcher runs it.
+
+``releases/latest`` is the newest release GitHub does *not* consider a
+pre-release, so this URL serves the last stable release even while a beta is out.
+"""
+
+APPCENTER_EXPERIMENTAL_URL = "https://github.com/sandialabs/talkpipe/releases/download/experimental/talkpipe_appcenter.py"
+"""The same file from the experimental channel: the newest release of either kind.
+
+``experimental`` is a rolling release CI re-attaches these assets to, because
+``releases/latest`` skips pre-releases and so cannot serve a beta at all.
+"""
+
+ROLLING_URLS = (APPCENTER_URL, APPCENTER_EXPERIMENTAL_URL)
+"""URLs whose content changes under you, so a launcher built from one moves too.
+
+Both channels roll: ``latest`` follows stable releases exactly as ``experimental``
+follows every release. A pinned ``releases/download/v1.2.3/`` URL is the only
+fixed one, which is why it is what we tell people to use for reproducibility.
+"""
 
 DEFAULT_PYTHON = "3.12"
 """The Python uv installs applications with (inside the CI matrix of the suite)."""
@@ -85,8 +104,22 @@ CATALOG_ENV = "TALKPIPE_APPCENTER_CATALOG"
 SAVED_CATALOGS_FILENAME = "catalogs.txt"
 """Catalogs saved with ``--remember`` / ``catalog add``, one per line, in the config dir."""
 
+CHANNELS_FILENAME = "channels.txt"
+"""Per-application channel choices, ``<package-name> <channel>`` per line, in the config dir."""
+
 OFFLINE_ENV = "TALKPIPE_APPCENTER_OFFLINE"
 """Set to skip every PyPI lookup (latest versions show as ``?``)."""
+
+CHANNEL_ENV = "TALKPIPE_APPCENTER_CHANNEL"
+"""``experimental`` to default to pre-release applications; anything else is stable.
+
+The bootstrap scripts read it too, to choose which copy of this file to run --
+the only mechanism available on Windows, where a piped ``irm | iex`` cannot be
+given arguments.
+"""
+
+EXPERIMENTAL = "experimental"
+STABLE = "stable"
 
 PYPI_TIMEOUT = 3.0
 MAX_CATALOG_BYTES = 1024 * 1024
@@ -95,6 +128,19 @@ KINDS = ("cli", "web", "tui")
 HEALTH_FALLBACKS = ("/health", "/api/health")
 APPCENTER_ROW_ID = "appcenter"
 """Id of the built-in row for the App Center itself (launcher only, never installed)."""
+
+_PRERELEASE_RE = re.compile(r"^\d+(\.\d+)*(a|b|rc|alpha|beta|c|pre|preview)\d*", re.I)
+
+
+def is_prerelease(version: str) -> bool:
+    """Whether a version string is a PEP 440 pre-release (``1.1.0b1``, ``2.0rc2``).
+
+    Only the alpha/beta/rc spellings matter here, so this is a subset of PEP 440,
+    not a parser: local versions such as the ``0.0.0+unknown`` of a development
+    copy are *not* pre-releases, which keeps a checkout on the stable channel.
+    """
+    return bool(_PRERELEASE_RE.match(version.strip().lstrip("vV")))
+
 
 EMBEDDED_CATALOG = """\
 schema_version = 1
@@ -594,6 +640,60 @@ def forget_catalog(path: Path, source: str) -> bool:
     return True
 
 
+# --- the channel an application is installed from -------------------------------
+
+
+def channels_path(
+    platform: str = sys.platform, env: Mapping[str, str] | None = None
+) -> Path:
+    return default_config_dir(platform, env) / CHANNELS_FILENAME
+
+
+def read_channels(path: Path) -> dict[str, str]:
+    """The recorded channel per package name; an unreadable file means "nothing recorded".
+
+    A record is durable user intent, so it lives beside the saved catalogs rather
+    than in the state directory, which holds machine facts (pids, log files).
+    Lines naming a channel this version does not know are ignored, so the file
+    survives a future release that adds more of them.
+    """
+    try:
+        text = path.read_text(encoding="utf-8")
+    except OSError:
+        return {}
+    channels: dict[str, str] = {}
+    for line in text.splitlines():
+        item = line.strip()
+        if not item or item.startswith("#"):
+            continue
+        name, _, channel = item.partition(" ")
+        if name and channel.strip() in (STABLE, EXPERIMENTAL):
+            channels[normalize_name(name)] = channel.strip()
+    return channels
+
+
+def write_channels(path: Path, channels: Mapping[str, str]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    header = (
+        "# Which channel each application is installed from, one per line.\n"
+        "# Written by `install --experimental` / `--no-experimental`; an application\n"
+        "# listed here keeps its channel when it is upgraded.\n"
+    )
+    body = "".join(f"{name} {channel}\n" for name, channel in sorted(channels.items()))
+    path.write_text(header + body, encoding="utf-8")
+
+
+def record_channel(path: Path, package: str, channel: str | None) -> None:
+    """Record ``package``'s channel, or forget it when ``channel`` is None."""
+    channels = read_channels(path)
+    name = normalize_name(package)
+    if channel is None:
+        channels.pop(name, None)
+    else:
+        channels[name] = channel
+    write_channels(path, channels)
+
+
 # --- PyPI metadata --------------------------------------------------------------
 
 
@@ -758,7 +858,10 @@ class Uv:
     """The handful of uv commands the App Center relies on, all argv-based.
 
     Works with uv 0.7 and later: ``--dry-run`` and other newer flags are
-    deliberately not used.
+    deliberately not used. ``--prerelease`` is within that floor (verified
+    against uv 0.7.0). It is passed in argv rather than set as ``UV_PRERELEASE``
+    so it reaches only the installs meant to have it, never this program's own
+    ``uv run`` of itself, and so the recorded argv shows what was asked for.
     """
 
     def __init__(
@@ -799,7 +902,7 @@ class Uv:
             return Path.home() / ".local" / "bin"
         return Path(text).resolve()
 
-    def install_argv(self, entry: AppEntry) -> list[str]:
+    def install_argv(self, entry: AppEntry, *, prerelease: bool = False) -> list[str]:
         argv = [
             self.require(),
             "tool",
@@ -808,13 +911,20 @@ class Uv:
             DEFAULT_PYTHON,
             "--upgrade",
         ]
+        if prerelease:
+            # ``allow`` rather than ``explicit``: a pre-release application may
+            # require a pre-release of the library, and ``explicit`` rejects that
+            # transitive one and fails to resolve at all.
+            argv += ["--prerelease", "allow"]
         if entry.index:
             argv += ["--index", entry.index]
         argv += ["--from", entry.install_requirement, entry.package.name]
         return argv
 
-    def install(self, entry: AppEntry, sink: LineSink) -> int:
-        return self._stream(self.install_argv(entry), sink)
+    def install(
+        self, entry: AppEntry, sink: LineSink, *, prerelease: bool = False
+    ) -> int:
+        return self._stream(self.install_argv(entry, prerelease=prerelease), sink)
 
     def uninstall(self, name: str, sink: LineSink) -> int:
         return self._stream([self.require(), "tool", "uninstall", name], sink)
@@ -904,6 +1014,7 @@ class AppStatus:
     commands: tuple[str, ...] = ()
     env: Path | None = None
     command_path: Path | None = None
+    channel: str = STABLE
 
     @property
     def upgradable(self) -> bool:
@@ -913,6 +1024,11 @@ class AppStatus:
     def label(self) -> str:
         if not self.installed:
             return "not installed"
+        if self.channel == EXPERIMENTAL:
+            # PyPI's ``info.version`` is the newest *stable* release, so on this
+            # channel there is nothing honest to compare against: claiming an
+            # upgrade here would offer to move a beta backwards.
+            return "installed (pre-release)"
         return "upgrade available" if self.upgradable else "installed"
 
 
@@ -1303,9 +1419,24 @@ class Context:
     tools: dict[str, InstalledTool] = field(default_factory=dict)
     infos: dict[str, PackageInfo | None] = field(default_factory=dict)
     statuses: dict[str, AppStatus] = field(default_factory=dict)
+    experimental: bool | None = None
+    """This run's channel: True/False when asked for explicitly, None to use the record."""
+    channels: dict[str, str] = field(default_factory=dict)
+    """The recorded channel per package name, as read from the config directory."""
 
     def tool_for(self, entry: AppEntry) -> InstalledTool | None:
         return self.tools.get(entry.package.name)
+
+    def experimental_for(self, entry: AppEntry) -> bool:
+        """Whether this application installs from the experimental channel.
+
+        An explicit choice this run wins; otherwise the application keeps the
+        channel it was installed from, so an upgrade cannot quietly move a
+        pre-release back to the newest stable release.
+        """
+        if self.experimental is not None:
+            return self.experimental
+        return self.channels.get(normalize_name(entry.package.name)) == EXPERIMENTAL
 
     def view(self, entry: AppEntry) -> AppView:
         return describe(entry, self.infos.get(entry.package.name))
@@ -1341,9 +1472,13 @@ def _status_of(entry: AppEntry, ctx: Context) -> AppStatus:
     )
     if tool is None and entry.is_web and entry.port is not None:
         running = app_running(entry, fetch=ctx.fetch)
+    channel = EXPERIMENTAL if ctx.experimental_for(entry) else STABLE
     return AppStatus(
         installed=tool.version if tool else None,
-        latest=info.latest if info else None,
+        # On the experimental channel PyPI's newest *stable* version is not the
+        # latest anything, so report it as unknown (``?``) instead of as a target.
+        latest=(info.latest if info and channel == STABLE else None),
+        channel=channel,
         running=running,
         launcher=launcher_present(
             shortcut_spec(entry, ctx), platform=ctx.platform, home=ctx.home
@@ -1433,25 +1568,40 @@ def install_app(entry: AppEntry, ctx: Context, sink: LineSink) -> bool:
     view = ctx.view(entry)
     status = ctx.status(entry)
     verb = "Upgrading" if status.installed else "Installing"
+    pre = ctx.experimental_for(entry)
     sink(f"==> {verb} {view.name} ({entry.install_requirement}) with uv")
+    if pre:
+        sink(
+            "Experimental channel: uv may install pre-release versions of this "
+            "application and of its dependencies."
+        )
     if not status.installed:
         sink(
             f"This can take a few minutes the first time: uv fetches Python {DEFAULT_PYTHON} "
             "if needed, then the application and its dependencies."
         )
-    code = ctx.uv.install(entry, sink)
+    code = ctx.uv.install(entry, sink, prerelease=pre)
     if code != 0:
         sink(f"uv tool install failed (exit code {code}).")
         return False
     ctx.uv.update_shell()
+    # Record the channel so a later plain `upgrade` keeps it: uv replays its own
+    # recorded settings for `uv tool upgrade`, but not for the
+    # `uv tool install --upgrade` used here, so without this a pre-release would
+    # be reinstalled as the newest stable one.
+    record_channel(
+        channels_path(ctx.platform), entry.package.name, EXPERIMENTAL if pre else None
+    )
+    ctx.channels = read_channels(channels_path(ctx.platform))
     refresh(ctx)
     after = ctx.status(entry)
+    suffix = " (pre-release)" if pre else ""
     if status.installed and status.installed == after.installed:
-        sink(f"{view.name} {after.installed} is already the newest version.")
+        sink(f"{view.name} {after.installed}{suffix} is already the newest version.")
     elif status.installed:
-        sink(f"Upgraded {view.name} {status.installed} -> {after.installed}.")
+        sink(f"Upgraded {view.name} {status.installed} -> {after.installed}{suffix}.")
     else:
-        sink(f"Installed {view.name} {after.installed}.")
+        sink(f"Installed {view.name} {after.installed}{suffix}.")
     for note in explain_needs(entry, ctx):
         sink(note)
     return True
@@ -1470,6 +1620,8 @@ def uninstall_app(entry: AppEntry, ctx: Context, sink: LineSink) -> bool:
     if code != 0:
         sink(f"uv tool uninstall failed (exit code {code}).")
         return False
+    record_channel(channels_path(ctx.platform), entry.package.name, None)
+    ctx.channels = read_channels(channels_path(ctx.platform))
     if entry.data:
         sink(
             "Your data was left in place: "
@@ -1649,6 +1801,17 @@ def add_appcenter_shortcut(ctx: Context, sink: LineSink) -> list[Path]:
     sink("Added the TalkPipe App Center launcher:")
     for path in paths:
         sink(f"  {path}")
+    sink(f"It runs {APPCENTER_URL}")
+    sink(
+        "That URL rolls: the launcher opens whichever release it points at then, "
+        "not this copy."
+    )
+    if is_prerelease(__version__):
+        sink(
+            f"This copy is the pre-release {__version__}, but the launcher serves the "
+            "latest release, so it will not start a pre-release. Run the experimental "
+            f"URL yourself to stay on this channel: {APPCENTER_EXPERIMENTAL_URL}"
+        )
     return paths
 
 
@@ -1688,6 +1851,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--version", action="version", version=f"talkpipe-appcenter {__version__}"
     )
     _add_catalog_options(parser, after_subcommand=False)
+    _add_channel_options(parser, after_subcommand=False)
     sub = parser.add_subparsers(dest="command")
     p_list = sub.add_parser("list", help="show every app with its status")
     p_list.add_argument("--json", action="store_true", help="machine-readable output")
@@ -1730,6 +1894,8 @@ def build_parser() -> argparse.ArgumentParser:
         p_ui,
     ):
         _add_catalog_options(action_parser, after_subcommand=True)
+    for channel_parser in (p_list, p_info, p_install, p_upgrade, p_ui):
+        _add_channel_options(channel_parser, after_subcommand=True)
     p_catalog = sub.add_parser(
         "catalog", help="list, add, or remove the catalogs loaded on every run"
     )
@@ -1776,6 +1942,63 @@ def _add_catalog_options(
     )
 
 
+def _add_channel_options(
+    parser: argparse.ArgumentParser, *, after_subcommand: bool
+) -> None:
+    """``--experimental`` / ``--no-experimental``: before or after the subcommand.
+
+    Registered the same way as the catalog options, and for the same reason: a
+    subparser writes its own defaults over the main parser's values, so the
+    copies store under a different name and :func:`channel_options` merges them.
+    """
+    suffix = "_after" if after_subcommand else ""
+    parser.add_argument(
+        "--experimental",
+        "--pre",
+        dest=f"experimental{suffix}",
+        action="store_true",
+        help="install pre-release versions, of the app and of its dependencies",
+    )
+    parser.add_argument(
+        "--no-experimental",
+        dest=f"no_experimental{suffix}",
+        action="store_true",
+        help="install release versions again, undoing an earlier --experimental",
+    )
+
+
+def channel_options(args: argparse.Namespace) -> bool | None:
+    """True for the experimental channel, False for stable, None if unasked.
+
+    None matters: it is what lets an application keep the channel it was
+    installed from instead of being moved by every plain ``upgrade``.
+    """
+    experimental = getattr(args, "experimental", False) or getattr(
+        args, "experimental_after", False
+    )
+    stable = getattr(args, "no_experimental", False) or getattr(
+        args, "no_experimental_after", False
+    )
+    if experimental and stable:
+        raise CatalogError("--experimental and --no-experimental contradict each other")
+    if experimental:
+        return True
+    if stable:
+        return False
+    return None
+
+
+def default_channel(env: Mapping[str, str] | None = None) -> str:
+    """The channel to use when nothing was asked for on the command line.
+
+    Only the environment decides, so that the two layers stay independent: a
+    pre-release copy of this file installs release applications unless it is
+    told otherwise, and a released copy can install pre-release ones.
+    """
+    env = os.environ if env is None else env
+    return EXPERIMENTAL if env.get(CHANNEL_ENV, "").strip() == EXPERIMENTAL else STABLE
+
+
 def catalog_options(args: argparse.Namespace) -> tuple[list[str], bool, bool]:
     """The catalog sources, whether to keep the built-in catalog, and whether to save."""
     sources = [*args.catalog, *getattr(args, "catalog_after", [])]
@@ -1815,6 +2038,7 @@ def _row(entry: AppEntry, ctx: Context) -> dict[str, Any]:
         "homepage": view.homepage,
         "kind": entry.kind,
         "status": status.label,
+        "channel": status.channel,
         "installed": status.installed,
         "latest": status.latest,
         "released": view.released,
@@ -1868,6 +2092,8 @@ def cmd_info(args: argparse.Namespace, ctx: Context) -> int:
     )
     _print(f"  latest:    {latest}")
     _print(f"  installed: {row['installed'] or '-'}  [{row['status']}]")
+    if row["channel"] == EXPERIMENTAL:
+        _print(f"  channel:   {row['channel']} (pre-releases allowed)")
     _print(f"  command:   {entry.command} {' '.join(entry.args)}".rstrip())
     if row["commands"]:
         _print(f"  provides:  {', '.join(row['commands'])}")
@@ -2099,11 +2325,12 @@ class AppCenterApp(App[None]):
         self._busy = False
 
     def compose(self) -> ComposeResult:
-        yield Static(
-            f"TalkPipe App Center {__version__}  -  {self.ctx.catalog.name}",
-            id="title",
-            markup=False,
-        )
+        title = f"TalkPipe App Center {__version__}  -  {self.ctx.catalog.name}"
+        if self.ctx.experimental:
+            # The only line that is visible at every terminal size, so it is
+            # where a channel that changes what gets installed has to be stated.
+            title += "  -  experimental channel"
+        yield Static(title, id="title", markup=False)
         with Horizontal(id="body"):
             yield DataTable(id="apps", cursor_type="row", zebra_stripes=True)
             with Vertical(id="side"):
@@ -2189,9 +2416,17 @@ class AppCenterApp(App[None]):
         if app_id == APPCENTER_ROW_ID:
             detail.update(
                 "TalkPipe App Center\n\nThis program. Press s to add or remove a desktop launcher "
-                f"that runs it from\n{APPCENTER_URL}"
+                f"that runs it from\n{APPCENTER_URL}\n\n"
+                "That URL rolls: it serves whichever release it points at when the "
+                "launcher is opened."
             )
-            needs.update("")
+            needs.update(
+                f"This copy is the pre-release {__version__}. The launcher above "
+                "serves the latest release, so it will not start a pre-release; the "
+                f"experimental channel is at\n{APPCENTER_EXPERIMENTAL_URL}"
+                if is_prerelease(__version__)
+                else ""
+            )
             return
         entry = self.ctx.catalog.find(app_id or "")
         if entry is None:
@@ -2393,7 +2628,16 @@ def build_context(args: argparse.Namespace) -> Context:
     if remember:
         for item in save_catalogs(path, sources):
             _print(f"Saved catalog {item}; every run now loads it.")
-    return Context(catalog=catalog, uv=Uv(), offline=bool(os.environ.get(OFFLINE_ENV)))
+    experimental = channel_options(args)
+    if experimental is None and default_channel() == EXPERIMENTAL:
+        experimental = True
+    return Context(
+        catalog=catalog,
+        uv=Uv(),
+        offline=bool(os.environ.get(OFFLINE_ENV)),
+        experimental=experimental,
+        channels=read_channels(channels_path()),
+    )
 
 
 def main(argv: Sequence[str] | None = None) -> int:

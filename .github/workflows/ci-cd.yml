@@ -364,8 +364,11 @@ jobs:
     # blocked behind a skipped job everywhere else. The container image is
     # published independently by that job on github.com.
     needs: [test, lint, package, security-scan]
-    if: github.event_name == 'release' && github.event.action == 'published'
-    
+    # Version tags only. The rolling `experimental` release is a container for
+    # assets, not a version: publishing from it would upload a distribution
+    # whose setuptools_scm version came from a tag that is not one.
+    if: github.event_name == 'release' && github.event.action == 'published' && startsWith(github.event.release.tag_name, 'v')
+
     steps:
     - uses: actions/checkout@v7
       with:
@@ -400,7 +403,9 @@ jobs:
     # upload uses the GitHub token and the releases/latest/download URL.
     runs-on: ubuntu-latest
     needs: [test, lint, package, security-scan]
-    if: github.event_name == 'release' && github.event.action == 'published' && github.server_url == 'https://github.com'
+    # Version tags only, so a re-publish of the rolling `experimental` release
+    # cannot stamp its own tag name into the file it then re-attaches.
+    if: github.event_name == 'release' && github.event.action == 'published' && github.server_url == 'https://github.com' && startsWith(github.event.release.tag_name, 'v')
     permissions:
       contents: write
 
@@ -429,3 +434,31 @@ jobs:
       run: |
         gh release upload "${{ github.event.release.tag_name }}" \
           appcenter/talkpipe_appcenter.py appcenter/install.sh appcenter/install.ps1 --clobber
+
+    - name: Refresh the rolling experimental channel
+      # `releases/latest/download/` resolves to the newest release GitHub does
+      # not consider a pre-release, so it cannot serve a beta at all. The
+      # `experimental` release is a fixed anchor that always holds the assets of
+      # the newest release of either kind -- deliberately unlike the container
+      # `experimental` tag above, which pre-releases only, so that a beta is not
+      # served forever after a full release supersedes it.
+      #
+      # Assets move; the tag does not. `upload --clobber` replaces the files
+      # without touching the commit the release points at, so nobody's fetched
+      # tags are ever rewritten. That commit is therefore meaningless, which is
+      # what the notes below exist to say.
+      env:
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      run: |
+        tag="${{ github.event.release.tag_name }}"
+        notes="Rolling channel: these assets are from ${tag}."
+        notes="${notes} The \`experimental\` tag itself is a fixed anchor and does not track that release's commit."
+        notes="${notes} See RELEASING.md."
+        gh release view experimental >/dev/null 2>&1 || \
+          gh release create experimental --prerelease \
+            --title "Experimental (rolling)" --notes "${notes}"
+        gh release upload experimental \
+          appcenter/talkpipe_appcenter.py appcenter/install.sh appcenter/install.ps1 --clobber
+        gh release edit experimental --prerelease --notes "${notes}"
+        reported="$(.appcenter/bin/python appcenter/talkpipe_appcenter.py --version)"
+        echo "experimental channel now serves ${reported}"

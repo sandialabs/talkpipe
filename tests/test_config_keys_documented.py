@@ -27,6 +27,20 @@ def _known_keys() -> set[str]:
     }
 
 
+def _appcenter_keys() -> set[str]:
+    """``TALKPIPE_APPCENTER_*`` variables the App Center reads.
+
+    The App Center is a single file that is deliberately not part of the
+    ``talkpipe`` package and never imports it, so its variables are not in
+    ``constants`` -- but a phantom one should still fail, so they are checked
+    against the file itself.
+    """
+    text = (ROOT / "appcenter" / "talkpipe_appcenter.py").read_text(encoding="utf-8")
+    return {
+        m.group(1).lower() for m in re.finditer(r'"TALKPIPE_(APPCENTER_\w+)"', text)
+    }
+
+
 def _documented_env_keys(path: Path) -> set[str]:
     text = path.read_text(encoding="utf-8")
     keys = set()
@@ -54,7 +68,7 @@ def test_constants_are_nonempty_and_distinct() -> None:
 def test_every_documented_env_var_is_a_key_talkpipe_reads(doc: Path) -> None:
     if not doc.exists():
         pytest.skip(f"{doc} not present")
-    known = _known_keys()
+    known = _known_keys() | _appcenter_keys()
     unknown = sorted(k for k in _documented_env_keys(doc) if k.lower() not in known)
     assert not unknown, (
         f"{doc.name} documents TALKPIPE_ variables that nothing reads: {unknown}. "
