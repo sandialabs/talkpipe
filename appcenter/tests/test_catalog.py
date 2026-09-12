@@ -25,7 +25,9 @@ def test_embedded_catalog_parses_with_three_entries() -> None:
     assert vault.port == 8002
     assert vault.health == "/api/health"
     assert vault.opens_browser
-    assert vault.launch_url == "http://127.0.0.1:8002/"
+    assert vault.port_option == "--port"
+    assert vault.url_for(vault.port) == "http://127.0.0.1:8002/"
+    assert vault.url_for(8003) == "http://127.0.0.1:8003/"
     talkpipe = catalog.find("talkpipe")
     assert talkpipe is not None
     assert talkpipe.package.name == "talkpipe"

@@ -126,6 +126,8 @@ MAX_CATALOG_BYTES = 1024 * 1024
 ID_RE = re.compile(r"^[a-z0-9][a-z0-9-]{1,62}$")
 KINDS = ("cli", "web", "tui")
 HEALTH_FALLBACKS = ("/health", "/api/health")
+PORT_SEARCH_SPAN = 20
+"""How many ports above a taken one to try when relocating a web app."""
 APPCENTER_ROW_ID = "appcenter"
 """Id of the built-in row for the App Center itself (launcher only, never installed)."""
 
@@ -155,6 +157,7 @@ command = "vault-server"
 args = ["--resume"]
 kind = "web"
 port = 8002
+port_option = "--port"
 health = "/api/health"
 opens_browser = true
 icon = "talkpipe_vault/apps/static/icon-256.png"
@@ -168,6 +171,7 @@ package = "talkpipe-writing-assistant"
 command = "writing-assistant"
 kind = "web"
 port = 8001
+port_option = "--port"
 health = "/health"
 opens_browser = true
 icon = "writing_assistant/app/static/android-chrome-512x512.png"
@@ -181,6 +185,7 @@ package = "talkpipe[all]"
 command = "chatterlang_workbench"
 kind = "web"
 port = 4143
+port_option = "--port"
 icon = "talkpipe/app/static/talkpipe_logo.png"
 """
 """The default catalog; ``appcenter/talkpipe.toml`` in the repository is the same text."""
@@ -268,6 +273,7 @@ _APP_FIELDS: dict[str, type | tuple[type, ...]] = {
     "args": list,
     "kind": str,
     "port": int,
+    "port_option": str,
     "health": str,
     "url": str,
     "opens_browser": bool,
@@ -294,6 +300,13 @@ class AppEntry:
     args: tuple[str, ...] = ()
     kind: str = "cli"
     port: int | None = None
+    port_option: str | None = None
+    """The option that tells the app which port to serve, e.g. ``--port``.
+
+    Set it and the App Center can move the app out of the way of whatever
+    already holds ``port``; leave it unset and a taken port is reported
+    instead of launched into.
+    """
     health: str | None = None
     url: str | None = None
     opens_browser: bool = False
@@ -316,11 +329,11 @@ class AppEntry:
     def is_web(self) -> bool:
         return self.kind == "web"
 
-    @property
-    def launch_url(self) -> str:
+    def url_for(self, port: int | None) -> str:
+        """The page this app serves on ``port`` (which may not be its default)."""
         if self.url:
-            return self.url.replace("{port}", str(self.port))
-        return f"http://127.0.0.1:{self.port}/"
+            return self.url.replace("{port}", str(port))
+        return f"http://127.0.0.1:{port}/"
 
     @property
     def install_requirement(self) -> str:
@@ -400,6 +413,11 @@ def _parse_entry(raw: Mapping[str, Any], source: str, position: int) -> AppEntry
         raise CatalogError(f"{where}: a web app needs a port")
     if port is not None and not 1 <= port <= 65535:
         raise CatalogError(f"{where}: port must be between 1 and 65535")
+    port_option = raw.get("port_option")
+    if port_option is not None and not port_option.startswith("-"):
+        raise CatalogError(
+            f"{where}: port_option must be a command-line option, e.g. '--port'"
+        )
     health = raw.get("health")
     if health is not None and not health.startswith("/"):
         raise CatalogError(f"{where}: health must be a path starting with /")
@@ -418,6 +436,7 @@ def _parse_entry(raw: Mapping[str, Any], source: str, position: int) -> AppEntry
         args=_string_list(where, "args", raw.get("args", [])),
         kind=kind,
         port=port,
+        port_option=port_option,
         health=health,
         url=raw.get("url"),
         opens_browser=raw.get("opens_browser", False),
@@ -965,6 +984,14 @@ def _port_in_use(host: str, port: int) -> bool:
     return False
 
 
+def first_free_port(host: str, start: int, span: int = PORT_SEARCH_SPAN) -> int | None:
+    """The first port from ``start`` through ``start + span`` nothing listens on."""
+    for candidate in range(start, min(start + span, 65535) + 1):
+        if not _port_in_use(host, candidate):
+            return candidate
+    return None
+
+
 def tcp_open(host: str, port: int, timeout: float = 0.5) -> bool:
     try:
         with socket.create_connection((_reachable_host(host), port), timeout=timeout):
@@ -981,19 +1008,23 @@ def health_ok(url: str, *, fetch: Fetcher = _http_get, timeout: float = 1.0) -> 
     return True
 
 
-def app_running(entry: AppEntry, *, fetch: Fetcher = _http_get) -> bool | None:
+def app_running(
+    entry: AppEntry, *, fetch: Fetcher = _http_get, port: int | None = None
+) -> bool | None:
     """Whether a web app answers on its port; None for apps that cannot be probed.
 
-    A declared ``health`` path is authoritative; otherwise the common health
-    paths are tried before falling back to a plain TCP connect, so an
-    unrelated program on the port is usually (not always) told apart.
+    ``port`` overrides the catalog's, for an app the App Center had to start
+    somewhere else. A declared ``health`` path is authoritative; otherwise the
+    common health paths are tried before falling back to a plain TCP connect,
+    so an unrelated program on the port is usually (not always) told apart.
     """
-    if not entry.is_web or entry.port is None:
+    port = entry.port if port is None else port
+    if not entry.is_web or port is None:
         return None
-    base = entry.launch_url.rstrip("/")
+    base = entry.url_for(port).rstrip("/")
     if entry.health:
         return health_ok(base + entry.health, fetch=fetch)
-    if not tcp_open("127.0.0.1", entry.port):
+    if not tcp_open("127.0.0.1", port):
         return False
     return any(health_ok(base + path, fetch=fetch) for path in HEALTH_FALLBACKS) or True
 
@@ -1015,6 +1046,9 @@ class AppStatus:
     env: Path | None = None
     command_path: Path | None = None
     channel: str = STABLE
+    port: int | None = None
+    """Where this web app is actually served: the recorded port of a running
+    instance the App Center had to move, otherwise the catalog's."""
 
     @property
     def upgradable(self) -> bool:
@@ -1465,13 +1499,14 @@ def refresh(ctx: Context) -> None:
 def _status_of(entry: AppEntry, ctx: Context) -> AppStatus:
     tool = ctx.tool_for(entry)
     info = ctx.infos.get(entry.package.name)
+    pid, port = _read_runtime(entry, ctx)
     running = (
-        app_running(entry, fetch=ctx.fetch)
+        app_running(entry, fetch=ctx.fetch, port=port)
         if tool
         else (None if not entry.is_web else False)
     )
     if tool is None and entry.is_web and entry.port is not None:
-        running = app_running(entry, fetch=ctx.fetch)
+        running = app_running(entry, fetch=ctx.fetch, port=port)
     channel = EXPERIMENTAL if ctx.experimental_for(entry) else STABLE
     return AppStatus(
         installed=tool.version if tool else None,
@@ -1483,7 +1518,8 @@ def _status_of(entry: AppEntry, ctx: Context) -> AppStatus:
         launcher=launcher_present(
             shortcut_spec(entry, ctx), platform=ctx.platform, home=ctx.home
         ),
-        pid=_read_pid(entry, ctx),
+        pid=pid,
+        port=port if entry.is_web else None,
         commands=tuple(sorted(tool.commands)) if tool else (),
         env=tool.env if tool else None,
         command_path=tool.commands.get(entry.command) if tool else None,
@@ -1525,12 +1561,27 @@ def _log_file(entry: AppEntry, ctx: Context) -> Path:
     return ctx.state_dir / f"{entry.id}.log"
 
 
-def _read_pid(entry: AppEntry, ctx: Context) -> int | None:
+def _write_runtime(entry: AppEntry, ctx: Context, pid: int, port: int | None) -> None:
+    """Record the process the App Center started and the port it was given."""
+    _pid_file(entry, ctx).write_text(f"{pid}\n" if port is None else f"{pid}\n{port}\n")
+
+
+def _read_runtime(entry: AppEntry, ctx: Context) -> tuple[int | None, int | None]:
+    """The pid of the instance the App Center started, and the port it serves.
+
+    A recorded port belongs to that process, so when the process is gone the
+    catalog's port is what to probe again. Files written before the port was
+    recorded hold the pid alone, which reads as "the catalog's port".
+    """
     try:
-        pid = int(_pid_file(entry, ctx).read_text().strip())
-    except (OSError, ValueError):
-        return None
-    return pid if _process_alive(pid, ctx.platform) else None
+        fields = _pid_file(entry, ctx).read_text().split()
+        pid = int(fields[0])
+        port = int(fields[1]) if len(fields) > 1 else entry.port
+    except (OSError, ValueError, IndexError):
+        return None, entry.port
+    if not _process_alive(pid, ctx.platform):
+        return None, entry.port
+    return pid, port
 
 
 def _process_alive(pid: int, platform: str) -> bool:
@@ -1641,13 +1692,66 @@ class LaunchResult:
     pid: int | None = None
 
 
-def wait_until_ready(entry: AppEntry, ctx: Context, timeout: float = 30.0) -> bool:
+def running_url(entry: AppEntry, ctx: Context) -> str:
+    """Where this app's page is right now: its recorded port, else the catalog's."""
+    return entry.url_for(ctx.status(entry).port or entry.port)
+
+
+def wait_until_ready(
+    entry: AppEntry,
+    ctx: Context,
+    port: int | None = None,
+    timeout: float = 30.0,
+    process: subprocess.Popen[bytes] | None = None,
+) -> bool:
+    """Poll until the app answers on ``port``, it dies, or ``timeout`` passes."""
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
-        if app_running(entry, fetch=ctx.fetch):
+        if app_running(entry, fetch=ctx.fetch, port=port):
             return True
+        if process is not None and process.poll() is not None:
+            return False
         time.sleep(0.5)
     return False
+
+
+def _log_tail(log_path: Path, lines: int = 10) -> list[str]:
+    """The last few lines of an app's log, for a failure message."""
+    try:
+        text = log_path.read_text(errors="replace")
+    except OSError:
+        return []
+    return text.splitlines()[-lines:]
+
+
+def choose_launch_port(
+    entry: AppEntry, sink: LineSink
+) -> tuple[int | None, str | None]:
+    """The port to start ``entry`` on, or ``(None, why not)``.
+
+    Its own port when that is free. When another program holds it, the next
+    free port above it -- but only for an app the catalog says can be told
+    which port to use; for any other, refusing beats starting a server that
+    cannot bind (or, worse, one that quietly relocates somewhere the App
+    Center is not watching).
+    """
+    if entry.port is None or not _port_in_use("127.0.0.1", entry.port):
+        return entry.port, None
+    taken = f"Port {entry.port} is already in use by another program"
+    if not entry.port_option:
+        return None, (
+            f"{taken}, and its catalog entry does not say how to ask for a "
+            f"different one (port_option). Stop whatever is using port "
+            f"{entry.port} and launch again."
+        )
+    port = first_free_port("127.0.0.1", entry.port + 1)
+    if port is None:
+        return None, (
+            f"{taken}, and so is every port through "
+            f"{entry.port + PORT_SEARCH_SPAN}. Stop one of them and launch again."
+        )
+    sink(f"{taken}; starting on port {port} instead.")
+    return port, None
 
 
 def launch_app(entry: AppEntry, ctx: Context, sink: LineSink) -> LaunchResult:
@@ -1661,17 +1765,20 @@ def launch_app(entry: AppEntry, ctx: Context, sink: LineSink) -> LaunchResult:
     if not status.command_path:
         return LaunchResult(False, f"{view.name} is not installed.")
     if entry.is_web and status.running:
-        ctx.open_url(entry.launch_url)
-        return LaunchResult(
-            True,
-            f"{view.name} is already running; opened {entry.launch_url}",
-            entry.launch_url,
-        )
+        url = running_url(entry, ctx)
+        ctx.open_url(url)
+        return LaunchResult(True, f"{view.name} is already running; opened {url}", url)
     argv = [str(status.command_path), *entry.args]
     if not entry.is_web:
         sink(f"==> Running {' '.join(argv)}")
         code = subprocess.call(argv)  # nosec B603 - resolved command path, no shell
         return LaunchResult(code == 0, f"{view.name} exited with status {code}.")
+    port, refusal = choose_launch_port(entry, sink)
+    if refusal is not None:
+        return LaunchResult(False, refusal)
+    if port != entry.port and entry.port_option:
+        argv += [entry.port_option, str(port)]
+    url = entry.url_for(port)
     ctx.state_dir.mkdir(parents=True, exist_ok=True)
     log_path = _log_file(entry, ctx)
     sink(f"==> Starting {view.name}: {' '.join(argv)}")
@@ -1692,28 +1799,31 @@ def launch_app(entry: AppEntry, ctx: Context, sink: LineSink) -> LaunchResult:
             process = subprocess.Popen(argv, **kwargs)  # nosec B603 - resolved path, no shell
         except OSError as exc:
             return LaunchResult(False, f"could not start {view.name}: {exc}")
-    _pid_file(entry, ctx).write_text(str(process.pid))
-    if not wait_until_ready(entry, ctx):
+    _write_runtime(entry, ctx, process.pid, port)
+    if not wait_until_ready(entry, ctx, port, process=process):
+        exit_code = process.poll()
+        for line in _log_tail(log_path):
+            sink(line)
+        if exit_code is None:
+            reason = f"did not answer on port {port} within 30 s"
+        else:
+            _pid_file(entry, ctx).unlink(missing_ok=True)
+            reason = f"exited with status {exit_code} instead of starting"
         return LaunchResult(
             False,
-            f"{view.name} did not answer on port {entry.port} within 30 s; see {log_path}",
-            pid=process.pid,
+            f"{view.name} {reason}; see {log_path}",
+            pid=process.pid if exit_code is None else None,
         )
     if not entry.opens_browser:
-        ctx.open_url(entry.launch_url)
+        ctx.open_url(url)
     refresh(ctx)
-    return LaunchResult(
-        True,
-        f"{view.name} is running at {entry.launch_url}",
-        entry.launch_url,
-        process.pid,
-    )
+    return LaunchResult(True, f"{view.name} is running at {url}", url, process.pid)
 
 
 def stop_app(entry: AppEntry, ctx: Context, sink: LineSink) -> bool:
     """Stop a web app the App Center started (it knows the pid); others cannot be stopped."""
     view = ctx.view(entry)
-    pid = _read_pid(entry, ctx)
+    pid, _ = _read_runtime(entry, ctx)
     if pid is None:
         if ctx.status(entry).running:
             sink(
@@ -1748,8 +1858,9 @@ def open_app(entry: AppEntry, ctx: Context, sink: LineSink) -> bool:
     if not ctx.status(entry).running:
         sink(f"{view.name} is not running; launch it first.")
         return False
-    ctx.open_url(entry.launch_url)
-    sink(f"Opened {entry.launch_url}")
+    url = running_url(entry, ctx)
+    ctx.open_url(url)
+    sink(f"Opened {url}")
     return True
 
 
@@ -2045,7 +2156,7 @@ def _row(entry: AppEntry, ctx: Context) -> dict[str, Any]:
         "running": status.running,
         "launcher": status.launcher,
         "commands": list(status.commands),
-        "url": entry.launch_url if entry.is_web else None,
+        "url": running_url(entry, ctx) if entry.is_web else None,
     }
 
 
@@ -2454,7 +2565,7 @@ class AppCenterApp(App[None]):
         if status.commands:
             lines.append(f"provides:  {', '.join(status.commands)}")
         if entry.is_web:
-            lines.append(f"url:       {entry.launch_url}")
+            lines.append(f"url:       {running_url(entry, self.ctx)}")
         if entry.data:
             lines.append(f"data:      {', '.join(entry.data)}")
         detail.update("\n".join(lines))

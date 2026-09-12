@@ -153,6 +153,13 @@ curl -fsSL .../install.sh | sh -s -- install vault
   tray icon or Quit command, so that window is how you stop them and see
   their messages. The launcher targets the stable `~/.local/bin` command, so
   it survives upgrades.
+- **A busy port moves the app, it does not sink the launch.** When something
+  else already holds a web app's port, the App Center starts it on the next
+  free port above it, says which one it used, and opens and tracks the app
+  there. That needs the catalog's `port_option` (the option the app takes its
+  port on); without it, the conflict is reported straight away instead of
+  waiting out a server that will never come up. Either way you get an answer
+  in seconds, with the last lines of the app's log when it failed to start.
 - **Language models are not installed.** The catalog says which apps need a
   language model; the App Center detects a local Ollama and shows its download
   link when it is missing, or you enter an OpenAI or Anthropic key in the app's
@@ -197,6 +204,9 @@ command = "vault-server"          # required; the console script to launch
 args = ["--resume"]
 kind = "web"                      # web | cli | tui (default cli)
 port = 8002                       # web only
+port_option = "--port"            # optional; how to ask the app for another port
+                                  #   when this one is taken. Absent: a taken
+                                  #   port is reported instead of launched into.
 health = "/api/health"            # optional; else /health, /api/health, then TCP
 opens_browser = true              # the app opens its own tab; the App Center won't
 icon = "talkpipe_vault/apps/static/icon-256.png"   # a PNG inside the package

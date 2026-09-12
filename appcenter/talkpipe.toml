@@ -14,6 +14,10 @@
 #   args           launcher arguments (default [])
 #   kind           "web" (serves a page), "cli", or "tui" (default "cli")
 #   port           web only, required for web
+#   port_option    web only; the option that sets the app's port, e.g. "--port".
+#                  With it the App Center starts the app on the next free port
+#                  when the default one is taken; without it a taken port is
+#                  reported instead.
 #   health         web only; a path that answers 200 when up. Absent: /health,
 #                  then /api/health, then a plain TCP connect are tried.
 #   url            web only; default "http://127.0.0.1:{port}/"
@@ -42,6 +46,7 @@ command = "vault-server"
 args = ["--resume"]
 kind = "web"
 port = 8002
+port_option = "--port"
 health = "/api/health"
 opens_browser = true
 icon = "talkpipe_vault/apps/static/icon-256.png"
@@ -55,6 +60,7 @@ package = "talkpipe-writing-assistant"
 command = "writing-assistant"
 kind = "web"
 port = 8001
+port_option = "--port"
 health = "/health"
 opens_browser = true
 icon = "writing_assistant/app/static/android-chrome-512x512.png"
@@ -68,4 +74,5 @@ package = "talkpipe[all]"
 command = "chatterlang_workbench"
 kind = "web"
 port = 4143
+port_option = "--port"
 icon = "talkpipe/app/static/talkpipe_logo.png"

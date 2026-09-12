@@ -114,6 +114,10 @@ def test_app_running_with_declared_health(
 
     assert ts.app_running(_web_entry(port, "/api/health")) is True
     assert ts.app_running(_web_entry(port, "/other")) is False
+    # An app the App Center had to move is probed where it actually runs.
+    moved = _web_entry(port + 1, "/api/health")
+    assert ts.app_running(moved) is False
+    assert ts.app_running(moved, port=port) is True
 
 
 def test_app_running_falls_back_to_common_paths_then_tcp(
@@ -154,6 +158,21 @@ def test_port_in_use_and_tcp_open_agree_on_a_real_listener() -> None:
         listener.close()
     assert not ts._port_in_use("127.0.0.1", port)
     assert not ts.tcp_open("127.0.0.1", port)
+
+
+def test_first_free_port_skips_what_is_taken() -> None:
+    listener = socket.socket()
+    listener.bind(("127.0.0.1", 0))
+    listener.listen(1)
+    port = listener.getsockname()[1]
+    try:
+        found = ts.first_free_port("127.0.0.1", port)
+        assert found is not None
+        assert found > port
+        assert ts.first_free_port("127.0.0.1", port, span=0) is None
+    finally:
+        listener.close()
+    assert ts.first_free_port("127.0.0.1", port) == port
 
 
 def test_ollama_available_by_binary_or_port(monkeypatch: pytest.MonkeyPatch) -> None:

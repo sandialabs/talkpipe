@@ -41,6 +41,21 @@
   since PyPI's is the newest *release* and not an upgrade target for a
   pre-release: the row reads `installed (pre-release)`.
 
+- **Fixed: the App Center left a launch that hit a busy port to time out.** An
+  application whose port is already held by another program — a second copy of
+  it, or an unrelated server — either failed to bind or quietly relocated to a
+  port the App Center was not watching; both ended the same way, in a
+  thirty-second wait and "did not answer on port 8001". A web app's port is now
+  checked before it is started: when something else holds it, the App Center
+  finds the next free port above it and starts the app there, announcing the
+  move, and records that port so status, the browser, and `open` all follow the
+  app to where it actually runs. Doing so needs the new catalog key
+  `port_option` — the option the app takes a port on, `--port` for all three
+  bundled applications; without it the conflict is reported immediately rather
+  than launched into. A server that dies at startup for any other reason is
+  also reported as soon as it exits, with the last lines of its log, instead of
+  being waited out.
+
 - **Fixed: `appcenter/install.sh` exited with status 2 instead of starting the
   App Center** whenever the process had no controlling terminal — a CI runner, a
   cron job, a detached session. `/dev/tty` exists and passes a readability test

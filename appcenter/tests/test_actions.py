@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import contextlib
 import dataclasses
 import os
 import socket
@@ -234,9 +235,10 @@ def test_launch_web_app_detached_then_stop(
         assert result.ok, result.message
         assert result.pid is not None
         assert ctx.opened == [f"http://127.0.0.1:{port}/"]  # type: ignore[attr-defined]
-        assert (ctx.state_dir / "vault.pid").read_text() == str(result.pid)
+        assert (ctx.state_dir / "vault.pid").read_text() == f"{result.pid}\n{port}\n"
         assert (ctx.state_dir / "vault.log").exists()
         assert ctx.status(entry).pid == result.pid
+        assert ctx.status(entry).port == port
         assert ctx.status(entry).running is True
 
         lines.clear()
@@ -251,6 +253,148 @@ def test_launch_web_app_detached_then_stop(
         if result.pid:
             with pytest.raises((ProcessLookupError, PermissionError)) as _:
                 os.killpg(result.pid, 9)
+
+
+def _taken_port() -> tuple[socket.socket, int]:
+    """A listening socket the caller must close, and the port it holds."""
+    listener = socket.socket()
+    listener.bind(("127.0.0.1", 0))
+    listener.listen(1)
+    return listener, listener.getsockname()[1]
+
+
+def test_choose_launch_port_relocates_only_when_it_can(ctx: ts.Context) -> None:
+    listener, port = _taken_port()
+    lines: list[str] = []
+    try:
+        stuck = dataclasses.replace(_vault(ctx), port=port)
+        refused = (
+            f"Port {port} is already in use by another program, and its catalog "
+            "entry does not say how to ask for a different one (port_option). "
+            f"Stop whatever is using port {port} and launch again."
+        )
+        assert ts.choose_launch_port(stuck, lines.append) == (None, refused)
+        assert lines == []
+
+        movable = dataclasses.replace(stuck, port_option="--port")
+        chosen, refusal = ts.choose_launch_port(movable, lines.append)
+        assert refusal is None
+        assert chosen is not None
+        assert chosen > port
+        announced = (
+            f"Port {port} is already in use by another program; "
+            f"starting on port {chosen} instead."
+        )
+        assert lines == [announced]
+    finally:
+        listener.close()
+    lines.clear()
+    assert ts.choose_launch_port(_vault(ctx), lines.append) == (_vault(ctx).port, None)
+    assert lines == []
+
+
+def test_launch_refuses_a_taken_port_it_cannot_move_off(
+    ctx: ts.Context, fake_uv: FakeUv
+) -> None:
+    """Nothing is started, and the reason is immediate rather than a 30 s timeout."""
+    listener, port = _taken_port()
+    fake_uv.set_installed("talkpipe-vault", "1.0.0", ["vault-server"])
+    entry = dataclasses.replace(_vault(ctx), port=port)
+    ctx.catalog = dataclasses.replace(ctx.catalog, apps=(entry, ctx.catalog.apps[1]))
+    ts.refresh(ctx)
+    lines: list[str] = []
+    try:
+        result = ts.launch_app(entry, ctx, lines.append)
+    finally:
+        listener.close()
+
+    assert not result.ok
+    assert result.pid is None
+    assert f"Port {port} is already in use" in result.message
+    assert not (ctx.state_dir / "vault.pid").exists()
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="POSIX process groups")
+def test_launch_starts_on_a_free_port_when_the_default_is_taken(
+    ctx: ts.Context, fake_uv: FakeUv
+) -> None:
+    """The App Center moves the app and then follows it to where it went."""
+    listener, taken = _taken_port()
+    fake_uv.set_installed("talkpipe-vault", "1.0.0", ["vault-server"])
+    server = fake_uv.bin / "vault-server"
+    server.write_text(
+        f"#!{sys.executable}\nimport http.server, sys\n"
+        "port = int(sys.argv[sys.argv.index('--port') + 1])\n"
+        "http.server.HTTPServer(('127.0.0.1', port), "
+        "http.server.SimpleHTTPRequestHandler).serve_forever()\n"
+    )
+    server.chmod(0o755)
+    entry = dataclasses.replace(
+        _vault(ctx), port=taken, port_option="--port", args=(), opens_browser=False
+    )
+    ctx.catalog = dataclasses.replace(ctx.catalog, apps=(entry, ctx.catalog.apps[1]))
+    # The health check answers only for a port something really listens on, and
+    # never for the blocker: the program squatting on the port is not this app.
+    ctx.fetch = lambda url, timeout: (
+        b"ok"
+        if (probed := int(url.split("/")[2].split(":")[1])) != taken
+        and ts.tcp_open("127.0.0.1", probed)
+        else (_ for _ in ()).throw(OSError("no answer"))
+    )
+    ts.refresh(ctx)
+    assert ctx.status(entry).running is False
+    lines: list[str] = []
+
+    result = ts.launch_app(entry, ctx, lines.append)
+
+    try:
+        assert result.ok, result.message
+        moved = ctx.status(entry).port
+        assert moved is not None
+        assert moved > taken
+        assert result.url == f"http://127.0.0.1:{moved}/"
+        assert ctx.opened == [result.url]  # type: ignore[attr-defined]
+        announced = (
+            f"Port {taken} is already in use by another program; "
+            f"starting on port {moved} instead."
+        )
+        assert announced in lines
+        assert (ctx.state_dir / "vault.pid").read_text() == f"{result.pid}\n{moved}\n"
+        assert ctx.status(entry).running is True
+        assert ts.tcp_open("127.0.0.1", moved)
+    finally:
+        listener.close()
+        if result.pid:
+            with contextlib.suppress(OSError):
+                os.killpg(result.pid, 9)
+
+
+def test_launch_reports_an_app_that_dies_at_startup(
+    ctx: ts.Context, fake_uv: FakeUv
+) -> None:
+    """A server that exits is reported at once, with what it printed."""
+    probe = socket.socket()
+    probe.bind(("127.0.0.1", 0))
+    free = probe.getsockname()[1]
+    probe.close()
+    fake_uv.set_installed("talkpipe-vault", "1.0.0", ["vault-server"])
+    server = fake_uv.bin / "vault-server"
+    server.write_text("#!/bin/sh\necho 'Error: cannot bind' >&2\nexit 2\n")
+    server.chmod(0o755)
+    entry = dataclasses.replace(_vault(ctx), port=free, args=(), opens_browser=False)
+    ctx.catalog = dataclasses.replace(ctx.catalog, apps=(entry, ctx.catalog.apps[1]))
+    ts.refresh(ctx)
+    lines: list[str] = []
+
+    started = time.monotonic()
+    result = ts.launch_app(entry, ctx, lines.append)
+
+    assert not result.ok
+    assert time.monotonic() - started < 15  # not the full 30 s wait
+    assert "exited with status 2 instead of starting" in result.message
+    assert "Error: cannot bind" in lines
+    assert result.pid is None
+    assert not (ctx.state_dir / "vault.pid").exists()
 
 
 def test_stop_without_pid_explains(ctx: ts.Context, fake_uv: FakeUv) -> None:
