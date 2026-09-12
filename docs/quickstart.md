@@ -179,7 +179,7 @@ makevectordatabase "docs/*.md" --path ./mydb --embedding_source ollama --embeddi
 serverag --path ./mydb --embedding_source ollama --embedding_model nomic-embed-text --completion_source ollama --completion_model llama3.2
 ```
 
-`serverag` needs both the embedding flags (to search the database) and the completion flags (to generate the answer) — these are required unless you set defaults in `~/.talkpipe.toml`. `serverag` validates this configuration at startup and exits with an actionable error if a model/source is missing or unsupported. The example above needs Ollama running with both models pulled (`ollama pull nomic-embed-text` and `ollama pull llama3.2`). Then open http://localhost:2026/stream. See [makevectordatabase and serverag](guides/makevectordatabase-and-serverag.md) for full options.
+`serverag` needs both the embedding flags (to search the database) and the completion flags (to generate the answer) — these are required unless you set defaults in `~/.talkpipe.toml`. The example above needs Ollama running with both models pulled (`ollama pull nomic-embed-text` and `ollama pull llama3.2`). Then open http://localhost:2026/stream. See [makevectordatabase and serverag](guides/makevectordatabase-and-serverag.md) for full options.
 
 The embedding and completion providers are independent, and neither has to be Ollama. For example, in-process model2vec embeddings with Anthropic answers (`pip install "talkpipe[model2vec,anthropic]"`, `ANTHROPIC_API_KEY` set):
 
@@ -188,9 +188,9 @@ makevectordatabase "docs/*.md" --path ./mydb --embedding_source model2vec --embe
 serverag --path ./mydb --embedding_source model2vec --embedding_model minishlab/potion-base-8M --completion_source anthropic --completion_model claude-haiku-4-5
 ```
 
-Both commands report a missing or unsupported provider on stderr and exit
-non-zero, so a configuration mistake shows up at startup rather than on the
-first query.
+Both commands validate this configuration at startup: a missing or unsupported
+model/source is reported on stderr with an actionable error and a non-zero exit,
+so a configuration mistake shows up immediately rather than on the first query.
 
 ## Next Steps
 

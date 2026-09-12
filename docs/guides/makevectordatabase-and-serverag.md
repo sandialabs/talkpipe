@@ -13,8 +13,6 @@ The `makevectordatabase` and `serverag` commands provide a streamlined workflow 
 | **makevectordatabase** | Create a LanceDB vector database from documents (files or glob patterns) |
 | **serverag** | Run a RAG server on an existing database—web UI or interactive CLI |
 
-Together they form a minimal path from raw documents to a queryable RAG interface.
-
 ---
 
 ## Prerequisites
@@ -157,7 +155,7 @@ Then open `http://localhost:2026/stream` in your browser and ask questions about
 
 ## Running in Containers (Docker and Podman)
 
-You can run `makevectordatabase` and `serverag` in containers using the [TalkPipe image](https://github.com/sandialabs/talkpipe/pkgs/container/talkpipe). For **where to pull images**, **release tags** (for example pinning a version), and **multi-platform** (amd64/arm64) behavior, see **[Container images](container-images.md)**. The same commands work with **Docker** and **Podman**—replace `docker` with `podman` if you use Podman. For a custom setup (e.g., extra Python packages or a fixed default command), create a separate Dockerfile based on that image.
+Run `makevectordatabase` and `serverag` in containers with the [TalkPipe image](https://github.com/sandialabs/talkpipe/pkgs/container/talkpipe). For **where to pull images**, **release tags** (for example pinning a version), and **multi-platform** (amd64/arm64) behavior, see **[Container images](container-images.md)**. The commands work the same under **Docker** and **Podman**—replace `docker` with `podman` if you use Podman. For a custom setup (e.g., extra Python packages or a fixed default command), create a separate Dockerfile based on that image.
 
 ### Minimal Dockerfile for serverag
 
