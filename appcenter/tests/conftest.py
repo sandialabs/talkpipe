@@ -228,6 +228,18 @@ def home(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     monkeypatch.delenv(ts.CATALOG_ENV, raising=False)
     monkeypatch.setenv(ts.OFFLINE_ENV, "1")
     monkeypatch.setattr(Path, "home", classmethod(lambda cls: home))
+    # The host's own Ollama must not leak in: ``ollama_available`` looks for
+    # an ``ollama`` binary on PATH before it tries the port, and the fake uv
+    # fixture keeps the host's PATH. Tests that want Ollama detected patch
+    # ``which`` themselves (see test_explain_needs).
+    real_which = ts.shutil.which
+
+    def which_without_ollama(cmd: str, *args: Any, **kwargs: Any) -> str | None:
+        if cmd == "ollama":
+            return None
+        return real_which(cmd, *args, **kwargs)
+
+    monkeypatch.setattr(ts.shutil, "which", which_without_ollama)
     return home
 
 
