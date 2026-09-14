@@ -44,10 +44,7 @@ These are the entry points for different usage scenarios, from interactive devel
 - **[chatterlang_workbench](docs/api-reference/chatterlang-workbench.md)**
   A browser-based IDE for writing, testing, and running ChatterLang scripts: editor with autocomplete and live error checking, real-time execution, pipeline save/load, next-component suggestions, logging, and documentation lookup.
 
-<video width="640" height="360" controls>
-  <source src="docs/workbench_demo.mp4" type="video/mp4">
-  Your browser does not support the video tag.
-</video>
+<center><img src="docs/chatterlang_workbench_screenshot.png" width=700 alt="ChatterLang Workbench: pipeline editor with autocomplete, next-component suggestions, and pipeline output"></center>
 
 - **[chatterlang_script](docs/api-reference/chatterlang-script.md)**
   Runs ChatterLang scripts from files or directly from the command line, for batch processing and automation.
