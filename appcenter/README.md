@@ -3,6 +3,68 @@
 > Install, launch, and manage applications from one screen, with nothing to
 > set up first but [uv](https://docs.astral.sh/uv/).
 
+## Testing the App Center while it is in beta
+
+> [!IMPORTANT]
+> **These directions are temporary.** The App Center has only shipped in
+> pre-releases so far, so the release commands in the rest of this page do
+> not work yet: `releases/latest` is the newest release GitHub does *not*
+> consider a pre-release, and against it those URLs return "Not Found" (uv
+> reports that as a `SyntaxError`, since it tries to run the 404 body as
+> Python). Once the first full release carries the App Center, this section
+> goes away and the rest of the page applies as written.
+>
+> To try it now, fetch it from the `experimental` release instead, which CI
+> keeps pointed at the assets of the newest release of either kind:
+>
+> ```bash
+> uv run https://github.com/sandialabs/talkpipe/releases/download/experimental/talkpipe_appcenter.py
+> ```
+>
+> The bootstrap scripts, for a computer without uv, take the channel by name.
+> On Linux and macOS:
+>
+> ```bash
+> curl -fsSL https://github.com/sandialabs/talkpipe/releases/download/experimental/install.sh | sh -s -- --experimental
+> ```
+>
+> On Windows, set the channel in the environment first, because a piped
+> `irm | iex` cannot be given arguments:
+>
+> ```powershell
+> $env:TALKPIPE_APPCENTER_CHANNEL="experimental"
+> powershell -ExecutionPolicy Bypass -c "irm https://github.com/sandialabs/talkpipe/releases/download/experimental/install.ps1 | iex"
+> ```
+>
+> Or run the file straight from a checkout of the repository, which needs no
+> release at all and is how to test a change before it is tagged:
+>
+> ```bash
+> uv run appcenter/talkpipe_appcenter.py
+> ```
+>
+> Three things to know while testing:
+>
+> - **The copy you run and the versions it installs are separate choices.**
+>   The beta of the App Center installs the newest *release* of each
+>   application, exactly as the released copy will; it does not put betas of
+>   the vault or the writing assistant on your computer. To test an
+>   application's pre-release too, press `e` on its row and then `i`, or pass
+>   `--experimental` (see [Channels](#channels-stable-and-experimental)).
+> - **`--version` says which beta you have.** `uv run <url> --version` prints
+>   the talkpipe tag the file was attached to (`talkpipe-appcenter 1.0.2b2`,
+>   say); a copy run from a checkout prints `0.0.0+unknown`. Include that line
+>   when reporting a problem. uv fetches the file anew on every run (only the
+>   environment is cached), so a newly published beta is picked up the next
+>   time you run the command.
+> - **The `experimental` URL rolls.** It serves whatever the newest release
+>   is, including the first full one when it comes. For a copy that stays put,
+>   use the beta's own tag:
+>   `https://github.com/sandialabs/talkpipe/releases/download/v1.0.2b2/talkpipe_appcenter.py`.
+>
+> The assets are published from github.com only; the Gitea mirror attaches
+> none.
+
 The App Center is the part of TalkPipe that installs applications. It is
 designed to make the TalkPipe-based applications (the vault, the writing
 assistant, the workbench) easy to install, upgrade, and launch, and it comes
@@ -34,69 +96,10 @@ powershell -ExecutionPolicy Bypass -c "irm https://github.com/sandialabs/talkpip
 ```
 
 All three URLs are release assets, attached by CI to each release, so they need
-a full release that post-dates the App Center. **There is no such release yet**:
-the App Center has only shipped in pre-releases, and against those the URLs
-above return "Not Found" (uv reports that as a `SyntaxError`, since it tries to
-run the 404 body as Python). Until the first full release carries it, use the
-commands in the next section.
-
-## Testing the App Center while it is in beta
-
-The commands above are the ones the App Center will be run with once it is
-released; they do not work yet. `releases/latest` is the newest release GitHub
-does *not* consider a pre-release, and every release that carries the App
-Center so far is one. To try it now, fetch it from the `experimental` release
-instead, which CI keeps pointed at the assets of the newest release of either
-kind:
-
-```bash
-uv run https://github.com/sandialabs/talkpipe/releases/download/experimental/talkpipe_appcenter.py
-```
-
-The bootstrap scripts, for a computer without uv, take the channel by name.
-On Linux and macOS:
-
-```bash
-curl -fsSL https://github.com/sandialabs/talkpipe/releases/download/experimental/install.sh | sh -s -- --experimental
-```
-
-On Windows, set the channel in the environment first, because a piped
-`irm | iex` cannot be given arguments:
-
-```powershell
-$env:TALKPIPE_APPCENTER_CHANNEL="experimental"
-powershell -ExecutionPolicy Bypass -c "irm https://github.com/sandialabs/talkpipe/releases/download/experimental/install.ps1 | iex"
-```
-
-Or run the file straight from a checkout of the repository, which needs no
-release at all and is how to test a change before it is tagged:
-
-```bash
-uv run appcenter/talkpipe_appcenter.py
-```
-
-Three things to know while testing:
-
-- **The copy you run and the versions it installs are separate choices.** The
-  beta of the App Center installs the newest *release* of each application,
-  exactly as the released copy will; it does not put betas of the vault or the
-  writing assistant on your computer. To test an application's pre-release
-  too, press `e` on its row and then `i`, or pass `--experimental` (see
-  [Channels](#channels-stable-and-experimental)).
-- **`--version` says which beta you have.** `uv run <url> --version` prints
-  the talkpipe tag the file was attached to (`talkpipe-appcenter 1.0.2b2`,
-  say); a copy run from a checkout prints `0.0.0+unknown`. Include that line
-  when reporting a problem. uv fetches the file anew on every run (only the
-  environment is cached), so a newly published beta is picked up the next
-  time you run the command.
-- **The `experimental` URL rolls.** It serves whatever the newest release is,
-  including the first full one when it comes. For a copy that stays put, use
-  the beta's own tag:
-  `https://github.com/sandialabs/talkpipe/releases/download/v1.0.2b2/talkpipe_appcenter.py`.
-
-Once a full release carries the App Center, the commands at the top of this
-page work as written and this section is no longer needed. The assets are
-published from github.com only; the Gitea mirror attaches none.
+a full release that post-dates the App Center. **There is no such release yet**;
+until there is, use the commands under
+[Testing the App Center while it is in beta](#testing-the-app-center-while-it-is-in-beta)
+at the top of this page.
 
 ## Channels: stable and experimental
 
