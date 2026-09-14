@@ -76,9 +76,11 @@ Entry points for different usage scenarios, from interactive development to prod
   Each release attaches the version-stamped file, so the URL above needs a full
   release that post-dates the App Center — against an older one, or where the
   only such release so far is a pre-release, it returns "Not Found" and uv
-  reports that as a `SyntaxError`. Pre-releases *of the App Center itself* are
+  reports that as a `SyntaxError`. **That is the case today: the App Center is
+  still in beta**, and pre-releases *of the App Center itself* are
   served by the experimental channel instead
-  (`releases/download/experimental/talkpipe_appcenter.py`). Either copy
+  (`releases/download/experimental/talkpipe_appcenter.py`; see
+  [Testing the App Center while it is in beta](appcenter/README.md#testing-the-app-center-while-it-is-in-beta)). Either copy
   installs the release or the pre-release of each application — press `e` on
   its row to choose the channel and `i` to install, or pass
   `--experimental` — so you never need a particular copy to
