@@ -46,8 +46,6 @@ Entry points for different usage scenarios, from interactive development to prod
 
 <center><img src="docs/chatterlang_workbench_screenshot.png" width=700 alt="ChatterLang Workbench: pipeline editor with autocomplete, next-component suggestions, and pipeline output"></center>
 
-  ([workbench demo video](docs/workbench_demo.mp4) — download to watch.)
-
 - **[chatterlang_script](docs/api-reference/chatterlang-script.md)**
   Runs ChatterLang scripts from files or directly from the command line, for batch processing and automation.
 
