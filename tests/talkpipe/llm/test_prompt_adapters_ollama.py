@@ -170,3 +170,39 @@ def test_ollama_chat_completion_connection_error_names_url_and_env_var(monkeypat
     # <host> is parsed as a shell redirection when copied into a terminal.
     assert "http://your-ollama-host:11434" in message
     assert "<host>" not in message
+
+
+def _capture_ollama_options(monkeypatch, adapter):
+    seen = {}
+
+    def fake_chat_completion(model, messages=None, options=None, **_kwargs):
+        seen["options"] = options
+
+        class DummyMessage:
+            content = "ok"
+
+        class DummyResponse:
+            message = DummyMessage()
+
+        return DummyResponse()
+
+    monkeypatch.setattr(adapter, "_chat_completion", fake_chat_completion)
+    return seen
+
+
+def test_ollama_execute_without_max_tokens_sends_only_temperature(monkeypatch):
+    _patch_ollama_constructor(monkeypatch)
+    adapter = OllamaPromptAdapter("llama3.2", temperature=0.2)
+    seen = _capture_ollama_options(monkeypatch, adapter)
+
+    assert adapter.execute("hi") == "ok"
+    assert seen["options"] == {"temperature": 0.2}
+
+
+def test_ollama_execute_maps_max_tokens_to_num_predict(monkeypatch):
+    _patch_ollama_constructor(monkeypatch)
+    adapter = OllamaPromptAdapter("llama3.2", temperature=0.2, max_tokens=1024)
+    seen = _capture_ollama_options(monkeypatch, adapter)
+
+    assert adapter.execute("hi") == "ok"
+    assert seen["options"] == {"temperature": 0.2, "num_predict": 1024}

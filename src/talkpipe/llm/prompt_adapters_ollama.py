@@ -35,6 +35,7 @@ class OllamaPromptAdapter(AbstractLLMPromptAdapter):
         memory_size: int = 512,
         debug_messages: bool = False,
         timeout: float | None = None,
+        max_tokens: int | None = None,
     ):
         super().__init__(
             model,
@@ -49,6 +50,7 @@ class OllamaPromptAdapter(AbstractLLMPromptAdapter):
             context_token_trigger,
             memory_size,
             debug_messages,
+            max_tokens=max_tokens,
         )
         # Ollama uses 0.5 as default when temperature is not specified
         if self._temperature is None:
@@ -76,13 +78,16 @@ class OllamaPromptAdapter(AbstractLLMPromptAdapter):
         # assembled history and parse the reply the same way.
         logger.debug(f"Sending chat request to Ollama model {self._model_name}")
         self._log_message_payload("messages", self._request_messages())
+        options: dict[str, Any] = {"temperature": self._temperature}
+        if self._max_tokens is not None:
+            options["num_predict"] = self._max_tokens
         response = self._chat_completion(
             model=self._model_name,
             messages=self._request_messages(),
             format_schema=self._output_format.model_json_schema()
             if self._output_format
             else None,
-            options={"temperature": self._temperature},
+            options=options,
         )
 
         self._record_assistant_response(str(response.message.content))

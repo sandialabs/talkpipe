@@ -148,3 +148,22 @@ def test_anthropic_no_temperature_warning_when_none_requested(monkeypatch, caplo
 
     assert "temperature" not in captured
     assert "temperature" not in caplog.text
+
+
+def test_anthropic_execute_without_max_tokens_keeps_4096(monkeypatch):
+    _patch_anthropic_constructor(monkeypatch)
+    adapter = AnthropicPromptAdapter("claude-3-5-haiku-latest")
+    captured = _capture_messages_create(monkeypatch, adapter, "ok")
+
+    assert adapter.execute("prompt") == "ok"
+    assert captured["max_tokens"] == 4096
+    assert set(captured) == {"model", "messages", "max_tokens", "system"}
+
+
+def test_anthropic_execute_max_tokens_replaces_4096(monkeypatch):
+    _patch_anthropic_constructor(monkeypatch)
+    adapter = AnthropicPromptAdapter("claude-3-5-haiku-latest", max_tokens=1024)
+    captured = _capture_messages_create(monkeypatch, adapter, "ok")
+
+    assert adapter.execute("prompt") == "ok"
+    assert captured["max_tokens"] == 1024

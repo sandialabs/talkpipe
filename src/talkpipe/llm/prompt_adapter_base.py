@@ -64,13 +64,26 @@ class AbstractLLMPromptAdapter(PromptAdapterMemoryMixin, ABC):
         debug_messages: Annotated[
             bool, "Whether to log outbound LLM request messages"
         ] = False,
+        max_tokens: Annotated[
+            int | None,
+            "Maximum tokens the model may generate per response (output only; prompt tokens do not count). None leaves the backend default.",
+        ] = None,
     ):
-        """Initialize the chat model."""
+        """Initialize the chat model.
+
+        ``max_tokens`` caps the model's output per response; prompt tokens do
+        not count. On reasoning/thinking models (Anthropic extended thinking,
+        OpenAI reasoning models, Ollama thinking models) the thinking tokens
+        count against it. A response truncated by the cap is returned as is,
+        so with an ``output_format`` it fails schema validation rather than
+        yielding a partial result.
+        """
         self._model_name = model
         self._source = source
         self._multi_turn = multi_turn
         self._temperature = temperature
         self._temperature_explicit = temperature is not None
+        self._max_tokens = max_tokens
         self._output_format = output_format
         self._messages = []
         self._summary_message = None

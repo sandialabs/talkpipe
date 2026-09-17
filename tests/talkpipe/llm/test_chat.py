@@ -145,6 +145,74 @@ def test_guided_generation_passes_context_params(monkeypatch):
     assert captured["memory_size"] == 128
 
 
+def _install_capture_adapter(monkeypatch):
+    captured = {}
+
+    class CaptureAdapter:
+        def __init__(self, **kwargs):
+            captured.update(kwargs)
+
+        def execute(self, prompt):
+            return prompt
+
+    monkeypatch.setattr("talkpipe.llm.chat.getPromptSources", lambda: ["capture"])
+    monkeypatch.setattr(
+        "talkpipe.llm.chat.getPromptAdapter", lambda _source: CaptureAdapter
+    )
+    return captured
+
+
+def test_llmprompt_max_tokens_defaults_to_none(monkeypatch):
+    captured = _install_capture_adapter(monkeypatch)
+    LLMPrompt(model="model-a", source="capture")
+    assert captured["max_tokens"] is None
+
+
+def test_llmscore_passes_max_tokens(monkeypatch):
+    captured = _install_capture_adapter(monkeypatch)
+    LlmScore(system_prompt="score it", model="model-a", source="capture", max_tokens=64)
+    assert captured["max_tokens"] == 64
+
+
+def test_chatterlang_script_passes_max_tokens(monkeypatch):
+    captured = _install_capture_adapter(monkeypatch)
+    compiler.compile(
+        'CONST p = "score it"; '
+        '| llmScore[system_prompt=p, model="model-a", source="capture", '
+        'field="toanalyze", set_as="ai_eval", max_tokens=1024]'
+    )
+    assert captured["max_tokens"] == 1024
+
+
+def test_llmprompt_drops_max_tokens_for_adapter_that_predates_it(monkeypatch):
+    captured = {}
+
+    class OldAdapter:
+        def __init__(
+            self,
+            model,
+            system_prompt=None,
+            multi_turn=True,
+            temperature=None,
+            output_format=None,
+            role_map=None,
+            memory_mode="full",
+            unsummarized_message_count=6,
+            context_token_trigger=None,
+            memory_size=512,
+            debug_messages=False,
+        ):
+            captured["model"] = model
+
+    monkeypatch.setattr("talkpipe.llm.chat.getPromptSources", lambda: ["old"])
+    monkeypatch.setattr(
+        "talkpipe.llm.chat.getPromptAdapter", lambda _source: OldAdapter
+    )
+
+    LLMPrompt(model="model-a", source="old", max_tokens=64)
+    assert captured["model"] == "model-a"
+
+
 def test_llmprompt_supports_old_adapter_defaults(monkeypatch, caplog):
     captured = {}
 
