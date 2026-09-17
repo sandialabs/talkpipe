@@ -65,6 +65,19 @@ class LLMPrompt(AbstractSegment[Any, Any]):
     - unsummarized_message_count controls how many recent messages are kept verbatim during compaction.
       This is a message count, not a user+assistant turn-pair count.
     - memory_size controls the target max tokens for summaries created during compaction.
+
+    Output cap:
+    - max_tokens caps the tokens the model may generate per response. It is an
+      output cap only: prompt tokens do not count. None (the default) leaves the
+      backend default, so a model that never emits a stop token generates until
+      its context window fills.
+    - On reasoning/thinking models (Anthropic extended thinking, OpenAI reasoning
+      models, Ollama thinking models) the thinking tokens count against it, so
+      leave room for them.
+    - A response cut off by the cap is returned truncated. In a guided-generation
+      segment such as llmScore the truncated response fails schema validation
+      rather than returning a partial result.
+    - Adapters that generate nothing (eliza) or that predate the option ignore it.
     """
 
     def __init__(
@@ -115,6 +128,10 @@ class LLMPrompt(AbstractSegment[Any, Any]):
             float | None,
             "Request timeout in seconds for the model server; defaults to the llm_timeout config value (120 if unset)",
         ] = None,
+        max_tokens: Annotated[
+            int | None,
+            "Maximum tokens the model may generate per response (output only; prompt tokens do not count). None leaves the backend default.",
+        ] = None,
     ):
         super().__init__()
         logger.debug(f"Initializing LLMPrompt with name={model}, source={source}")
@@ -152,6 +169,7 @@ class LLMPrompt(AbstractSegment[Any, Any]):
             "memory_size": memory_size,
             "debug_messages": debug_messages,
             "timeout": timeout,
+            "max_tokens": max_tokens,
         }
         self.chat = self._create_prompt_adapter(
             getPromptAdapter(source), source, adapter_kwargs
@@ -178,6 +196,12 @@ class LLMPrompt(AbstractSegment[Any, Any]):
                     "remove the timeout option or update the adapter."
                 )
             adapter_kwargs = {k: v for k, v in adapter_kwargs.items() if k != "timeout"}
+        # ``max_tokens`` is dropped for such adapters even when set: eliza
+        # generates nothing to cap, so the option is harmless there.
+        if "max_tokens" in adapter_kwargs and "max_tokens" not in accepted_kwargs:
+            adapter_kwargs = {
+                k: v for k, v in adapter_kwargs.items() if k != "max_tokens"
+            }
         unsupported_compat_kwargs = (
             set(PROMPT_ADAPTER_COMPAT_KWARG_DEFAULTS) - accepted_kwargs
         )
@@ -250,6 +274,12 @@ class AbstractLLMGuidedGeneration(LLMPrompt):
     This class is used to create segments that generate output based on LLM responses.
     It is an abstract class and should not be used directly.
     Subclasses must implement the get_output_format method to specify the output format.
+
+    max_tokens caps the model's output per response (prompt tokens do not count;
+    on reasoning/thinking models the thinking tokens do). A response truncated by
+    the cap is not valid for the output format, so it fails schema validation
+    rather than returning a partial result -- size the cap for the whole
+    structured answer, explanation included.
     """
 
     @staticmethod
@@ -296,6 +326,10 @@ class AbstractLLMGuidedGeneration(LLMPrompt):
         debug_messages: Annotated[
             bool, "Whether to log outbound LLM request messages"
         ] = False,
+        max_tokens: Annotated[
+            int | None,
+            "Maximum tokens the model may generate per response (output only; prompt tokens do not count). None leaves the backend default.",
+        ] = None,
     ):
 
         super().__init__(
@@ -314,6 +348,7 @@ class AbstractLLMGuidedGeneration(LLMPrompt):
             context_token_trigger=context_token_trigger,
             memory_size=memory_size,
             debug_messages=debug_messages,
+            max_tokens=max_tokens,
         )
 
 
@@ -377,6 +412,11 @@ class LlmScore(AbstractLLMGuidedGeneration):
     - set_as (str, optional):
          If specified, the output will be appended as this field in the
          final response.
+    - max_tokens (int, optional):
+         Cap on the tokens generated per response (output only; on
+         reasoning/thinking models the thinking tokens count against it).
+         A response truncated by the cap fails schema validation rather than
+         returning a partial score, so leave room for the explanation.
 
     Data Model
     ----------

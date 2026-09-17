@@ -117,3 +117,39 @@ def test_openai_responses_request_switches_between_parse_and_create(monkeypatch)
     adapter._responses_request(parse=False, model="m", input=[])
 
     assert calls == {"parse": 1, "create": 1}
+
+
+def _capture_openai_request(monkeypatch, adapter):
+    captured = {}
+
+    def fake_responses_request(**kwargs):
+        captured.update(kwargs)
+
+        class DummyResponse:
+            output_text = "ok"
+            output_parsed = None
+
+        return DummyResponse()
+
+    monkeypatch.setattr(adapter, "_responses_request", fake_responses_request)
+    return captured
+
+
+def test_openai_execute_without_max_tokens_leaves_request_unchanged(monkeypatch):
+    _patch_openai_constructor(monkeypatch)
+    adapter = OpenAIPromptAdapter("gpt-4.1-nano")
+    captured = _capture_openai_request(monkeypatch, adapter)
+
+    assert adapter.execute("hi") == "ok"
+    assert set(captured) == {"parse", "model", "input", "text_format"}
+
+
+def test_openai_execute_maps_max_tokens_to_max_output_tokens(monkeypatch):
+    _patch_openai_constructor(monkeypatch)
+    adapter = OpenAIPromptAdapter("gpt-4.1-nano", max_tokens=1024)
+    captured = _capture_openai_request(monkeypatch, adapter)
+
+    assert adapter.execute("hi") == "ok"
+    assert captured["max_output_tokens"] == 1024
+    # The Responses API field, never the legacy chat-completions one.
+    assert "max_tokens" not in captured

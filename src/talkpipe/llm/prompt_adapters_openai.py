@@ -27,6 +27,7 @@ class OpenAIPromptAdapter(AbstractLLMPromptAdapter):
         memory_size: int = 512,
         debug_messages: bool = False,
         timeout: float | None = None,
+        max_tokens: int | None = None,
     ):
         openai = self._require_dependency("openai", "OpenAI", "openai")
         super().__init__(
@@ -42,6 +43,7 @@ class OpenAIPromptAdapter(AbstractLLMPromptAdapter):
             context_token_trigger,
             memory_size,
             debug_messages,
+            max_tokens=max_tokens,
         )
         self._timeout = resolve_timeout(timeout, LLM_TIMEOUT, DEFAULT_LLM_TIMEOUT)
         self.client = self._build_client(
@@ -80,6 +82,8 @@ class OpenAIPromptAdapter(AbstractLLMPromptAdapter):
         }
 
         self._apply_temperature_if_explicit(request_params)
+        if self._max_tokens is not None:
+            request_params["max_output_tokens"] = self._max_tokens
 
         self._log_message_payload("input", request_params["input"])
         response = self._responses_request(parse=True, **request_params)

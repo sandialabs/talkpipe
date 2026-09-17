@@ -118,6 +118,28 @@ Example:
 Adapter implementations get deterministic and truncate summarization from the shared prompt-adapter memory mixin.
 Adapters only need to implement `complete_text_without_context(...)` when they support `memory_mode="summary_llm"`.
 
+#### Capping the response length with `max_tokens`
+
+`llmPrompt` and the guided-generation segments built on it (`llmScore`,
+`llmExtractTerms`, `llmBinaryAnswer`) accept `max_tokens`: the most tokens the
+model may generate per response. It is an **output** cap — prompt tokens do not
+count — and it defaults to `None`, which leaves the backend default. Without it,
+a model that fails to emit a stop token generates until its context window
+fills; `timeout` only fails the pipeline, while `max_tokens` bounds the item.
+
+```chatterlang
+| llmScore[system_prompt=p, field="toanalyze", set_as="ai_eval", max_tokens=1024]
+```
+
+- It maps to `num_predict` on Ollama, `max_output_tokens` on OpenAI, and
+  `max_tokens` on Anthropic (where it replaces the adapter's 4096 default).
+  Adapters that generate nothing to cap (`eliza`) ignore it.
+- On reasoning/thinking models (Anthropic extended thinking, OpenAI reasoning
+  models, Ollama thinking models) the thinking tokens count against the cap, so
+  leave room for them.
+- A truncated response from a guided-generation segment such as `llmScore`
+  fails schema validation rather than returning a partial score.
+
 **Variables**: Store intermediate results
 ```chatterlang
 | @my_variable    # Store results in variable

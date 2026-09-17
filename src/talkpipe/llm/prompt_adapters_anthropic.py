@@ -28,6 +28,7 @@ class AnthropicPromptAdapter(AbstractLLMPromptAdapter):
         memory_size: int = 512,
         debug_messages: bool = False,
         timeout: float | None = None,
+        max_tokens: int | None = None,
     ):
         anthropic = self._require_dependency("anthropic", "Anthropic", "anthropic")
 
@@ -54,6 +55,7 @@ class AnthropicPromptAdapter(AbstractLLMPromptAdapter):
             context_token_trigger,
             memory_size,
             debug_messages,
+            max_tokens=max_tokens,
         )
         self._timeout = resolve_timeout(timeout, LLM_TIMEOUT, DEFAULT_LLM_TIMEOUT)
         self.client = self._build_client(
@@ -61,7 +63,9 @@ class AnthropicPromptAdapter(AbstractLLMPromptAdapter):
             "Anthropic",
             "ANTHROPIC_API_KEY",
         )
-        self._max_tokens = 4096  # Default max tokens for response
+        # The Messages API requires max_tokens, so an unset cap falls back to 4096.
+        if self._max_tokens is None:
+            self._max_tokens = 4096
 
     def execute(self, prompt: str) -> str | BaseModel:
         """Execute the chat model.

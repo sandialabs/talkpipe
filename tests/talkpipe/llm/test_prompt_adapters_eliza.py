@@ -1,3 +1,5 @@
+import logging
+
 from pydantic import BaseModel
 
 from prompt_adapter_contract_suite import (
@@ -5,6 +7,7 @@ from prompt_adapter_contract_suite import (
     run_shared_live_contract_checks,
     run_shared_offline_contract_checks,
 )
+from talkpipe.llm.chat import LLMPrompt, LlmScore
 from talkpipe.llm.config import getPromptAdapter, getPromptSources
 from talkpipe.llm.prompt_adapters import ElizaPromptAdapter
 
@@ -114,3 +117,18 @@ def test_eliza_reintroduces_i_am_on_second_name_query():
     assert "i am dr. eliza" not in name_first.lower()
     assert "my name is dr. eliza" in name_first.lower()
     assert "i am dr. eliza" in name_second.lower()
+
+
+def test_eliza_segment_ignores_max_tokens_without_warning(caplog):
+    # eliza generates nothing to cap, so max_tokens is dropped silently
+    # (unlike timeout, which eliza refuses).
+    with caplog.at_level(logging.WARNING):
+        prompt = LLMPrompt(model="eliza", source="eliza", max_tokens=16)
+        score = LlmScore(
+            system_prompt="Score 0-10.", model="eliza", source="eliza", max_tokens=16
+        )
+
+    assert isinstance(prompt.chat, ElizaPromptAdapter)
+    assert list(prompt(["hello"]))
+    assert isinstance(next(iter(score(["hello"]))), LlmScore.Score)
+    assert not [r for r in caplog.records if r.levelno >= logging.WARNING]

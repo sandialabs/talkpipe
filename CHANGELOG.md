@@ -2,6 +2,23 @@
 
 ## Unreleased
 
+- **`max_tokens` caps the length of an LLM response.** `llmPrompt` and the
+  guided-generation segments built on it (`llmScore`, `llmExtractTerms`,
+  `llmBinaryAnswer`) accept `max_tokens`, as do the Ollama/OpenAI/Anthropic
+  prompt adapters: the most tokens the model may generate per response
+  (output only; prompt tokens do not count). The Ollama adapter's chat path
+  sent only `temperature`, so a model that never emitted a stop token
+  generated until its context window filled; `timeout` fails the pipeline
+  in that case, while `max_tokens` bounds the item. It maps to `num_predict`
+  on Ollama, `max_output_tokens` on the OpenAI Responses API, and
+  `max_tokens` on Anthropic, where it replaces the adapter's 4096 (still the
+  value when unset). The default is `None`, which leaves every request
+  exactly as it was; there is no global config key, the option is
+  per-segment. On reasoning/thinking models the thinking tokens count
+  against the cap, and a truncated response from a guided-generation segment
+  fails schema validation rather than returning a partial result. Prompt
+  adapters that take no `max_tokens` (such as `eliza`, or third-party
+  adapters that predate it) keep working and ignore it.
 - **App Center: a launch opens the page of a released application that does
   not open its own.** A second newcomer run against the PyPI releases. The
   catalog's `opens_browser` describes the newest version of an application,
