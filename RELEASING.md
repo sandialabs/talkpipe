@@ -59,6 +59,6 @@ Nothing is bumped afterwards; the next commit on `main` reports itself as
 ## Downstream
 
 The consumers in this suite pin a floor on talkpipe (`talkpipe_vault`,
-`talkpipe-agents`, `talkpipe-writing-assistant`, `privateer`, `local-m2v`).
+`talkpipe-agents`, `talkpipe-writing-assistant`, `local-m2v`).
 When a release adds API they rely on, or when the major version changes,
 raise their floors in a follow-up merge request in each repo.
