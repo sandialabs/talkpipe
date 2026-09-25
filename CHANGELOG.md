@@ -19,62 +19,13 @@
   fails schema validation rather than returning a partial result. Prompt
   adapters that take no `max_tokens` (such as `eliza`, or third-party
   adapters that predate it) keep working and ignore it.
-- **App Center: a launch opens the page of a released application that does
-  not open its own.** A second newcomer run against the PyPI releases. The
-  catalog's `opens_browser` describes the newest version of an application,
-  and the released writing assistant 1.1.0 has no browser-opening at all, so
-  a launch reported "is running at ..." and nothing appeared. `opens_browser`
-  now also takes a version (`"1.1.1"`): the first one that opens its own tab,
-  with the App Center opening the page for older installed versions; the
-  writing assistant's entry says `"1.1.1"`. Also: an action that fails ends
-  on a `==> Failed:` line, the counterpart of `==> Done:`, and its toast is
-  titled Failed rather than Finished; when all the App Center knows is that
-  something answers on an application's port (no 200 from the health path,
-  and not a process it started), `launch` and `stop` say "something answers
-  on port 8002" instead of stating that the application is running; `l` and
-  `o` on an application that is not installed both say to install it (`o`
-  used to say "launch it first", and `l` then "not installed"); `list` sizes
-  its columns from their content, so `installed (pre-release)` no longer
-  pushes its row out of line; the screen moves the detail pane under the
-  table below 140 columns, where a fixed side pane cut the Running and
-  Launcher columns off at the widths most terminals have; and a Linux
-  launcher for a package that ships no icon names a standard generic one,
-  which the README already promised.
-- **App Center: the release channel launches, and the way back to it
-  works.** Found by a newcomer run against the released applications rather
-  than the checkouts. A catalog `health` path that answers 404 no longer
-  counts as "down": the catalog describes the newest version, and the
-  released vault 1.0.0 and writing assistant 1.1.0 serve their ports without
-  the routes their catalog entries name, so on the default channel every
-  launch was reported as a failure while the app sat open in the browser —
-  and from there `open` refused, a second launch treated the app as "another
-  program" on its port, started a second copy on the next one, overwrote the
-  pid record, and `stop` killed the wrong one. Any HTTP answer on the port
-  now counts as running, and a launch never starts a second copy while the
-  pid file names a live process of the App Center's own. Leaving the
-  experimental channel (`e` again, `--no-experimental`) passes
-  `--reinstall`: `uv tool install --upgrade` never moves a package backwards,
-  so the switch silently kept the beta, reported "already the newest version",
-  forgot the channel record, and left the row offering the release as an
-  "upgrade" that the next `i` could not perform. If a fresh resolution still
-  lands on a pre-release, the App Center says so and keeps the record. A
-  pre-release with no record (installed by hand, or by an earlier copy) now
-  counts as being on the experimental channel, and `(pre-release)` describes
-  the installed version rather than the run's flag. Also: uninstall stops an
-  instance the App Center started before removing its environment; PyPI
-  lookups are no longer capped at 1 MiB, which blanked the latest version and
-  summary of any long-lived package (ruff's record is over 6 MB); `latest`
-  reads `?` rather than `None (<date>)` on the experimental channel; the
-  table's columns grow to fit `installed (pre-release)` instead of clipping
-  it; `c Stop` appears in the footer while the row's app is one the App
-  Center started; the uninstall question wraps; `i`, `l`, `x`, and `o` on the
-  App Center's own row say to move to an application's row instead of doing
-  nothing; the `list` hint no longer names a `talkpipe-appcenter` command
-  that the documented `uv run <url>` never creates; the language-model note
-  mentions an Ollama server on another computer; and the documented uv floor
-  (0.7) is checked, with the version named in the error — only when the
-  version parses, so a stand-in whose `--version` answers with words is not
-  mistaken for an old uv.
+- **Removed: the TalkPipe App Center.** The single-file installer previewed in
+  the 1.0.2 betas (`appcenter/`, its release assets, and the rolling
+  `experimental` GitHub release that served them) is gone; it never shipped in
+  a full release. The TalkPipe applications install directly with
+  `uv tool install` — the README lists them with the commands. Textual and
+  pytest-asyncio left the `dev` extra. The `experimental` *container* image
+  tag for pre-releases is unaffected.
 - **Deprecated: omitting the `|` between an input source and the first
   segment.** `INPUT FROM echo[data="1,2"] print` has always parsed as though
   the pipe were there — an accident of the grammar, and an inconsistent one,
@@ -88,76 +39,6 @@
   input source of its own — a fork branch, a fork consumer
   (`fork_name -> print`), or a fragment such as `| print` — still begins with
   a bare segment, and spellings that were errors before are still errors.
-- **An experimental channel for the App Center, so pre-releases are reachable
-  at all.** `releases/latest/download/` resolves to the newest release GitHub
-  does not consider a pre-release, so a beta was not merely hard to get — the
-  documented one-liner returned "Not Found", which uv then ran as Python and
-  reported as `SyntaxError`. Release assets are now also attached to a rolling
-  `experimental` release, refreshed on every release, giving a stable URL that
-  serves the newest one of either kind:
-  `releases/download/experimental/talkpipe_appcenter.py`. The bootstrap scripts
-  take the channel by name — `install.sh --experimental`, or
-  `TALKPIPE_APPCENTER_CHANNEL=experimental` for both scripts, the only
-  mechanism Windows has since a piped `irm | iex` cannot receive arguments.
-  That variable chooses only which copy of the App Center runs; the App
-  Center itself does not read it.
-
-  **Any one copy of the App Center installs either the release or the
-  pre-release of each application**, so a released App Center can install
-  betas and a beta one installs releases unless told otherwise. On the
-  screen the choice is a `Channel` column and two keys: `e` on an
-  application's row toggles its channel between `stable` and `pre-release`
-  and installs nothing, and `i` installs (or switches, or upgrades) from
-  whichever channel the row shows — choosing and acting are separate keys,
-  because one key that changed what you were looking at and installed it in
-  the same stroke proved confusing. The Status column says where the two
-  disagree (`installed (pre-release)`, `release available`), and the detail
-  pane repeats the channel. On the command line, `--experimental` (or
-  `--pre`), before or after the subcommand, chooses and installs in one.
-  Both pass `--prerelease allow` to uv — which covers the application and
-  its dependencies, since a pre-release application may require a
-  pre-release library. The choice is recorded per application beside the
-  saved catalogs, because uv replays its own recorded settings for `uv tool
-  upgrade` but not for the `uv tool install --upgrade` the App Center runs;
-  without the record, a later upgrade would quietly reinstall the newest
-  release over a pre-release. Installing the release again (`e` then `i`, or
-  `--no-experimental`) forgets the record. On the pre-release channel the
-  App Center no longer claims to know the latest version, since PyPI's is
-  the newest *release* and not an upgrade target for a pre-release: the row
-  reads `installed (pre-release)`.
-
-- **Fixed: the App Center never said an install had finished.** uv's output
-  scrolled through the log for minutes and then simply stopped, and its own
-  last lines start with "Installed", so the App Center's summary of what had
-  happened was one indistinguishable line in the middle of it — leaving
-  "is it still working?" unanswered. Every action now ends with a line marked
-  `==> Done:` that says what it did (`==> Done: Installed talkpipe-vault
-  1.0.0.`), placed last, after any notes about what the application still
-  needs. On the screen a notification carries the same news over the top of
-  the log, so an install walked away from still reports itself — including
-  when it failed, which the screen also never used to say out loud.
-
-- **Fixed: the App Center left a launch that hit a busy port to time out.** An
-  application whose port is already held by another program — a second copy of
-  it, or an unrelated server — either failed to bind or quietly relocated to a
-  port the App Center was not watching; both ended the same way, in a
-  thirty-second wait and "did not answer on port 8001". A web app's port is now
-  checked before it is started: when something else holds it, the App Center
-  finds the next free port above it and starts the app there, announcing the
-  move, and records that port so status, the browser, and `open` all follow the
-  app to where it actually runs. Doing so needs the new catalog key
-  `port_option` — the option the app takes a port on, `--port` for all three
-  bundled applications; without it the conflict is reported immediately rather
-  than launched into. A server that dies at startup for any other reason is
-  also reported as soon as it exits, with the last lines of its log, instead of
-  being waited out.
-
-- **Fixed: `appcenter/install.sh` exited with status 2 instead of starting the
-  App Center** whenever the process had no controlling terminal — a CI runner, a
-  cron job, a detached session. `/dev/tty` exists and passes a readability test
-  in those cases, so the redirect that reattaches the keyboard for `curl | sh`
-  has to be guarded by actually opening it.
-
 - **Documentation: TalkPipe is provider-neutral, and the docs now say so.**
   Several places read as though Ollama were required — prerequisite lists that
   named only Ollama, a quickstart whose LLM section began "requires
@@ -174,29 +55,6 @@
   one-parameter switch. Segment docstrings, `serverag` /
   `makevectordatabase` / `chatterlang_workbench` help text, and the workbench's
   example scripts name the alternatives too.
-
-- **The TalkPipe App Center** (`appcenter/talkpipe_appcenter.py`), the part
-  of TalkPipe that installs applications: one file, run with
-  `uv run https://github.com/sandialabs/talkpipe/releases/latest/download/talkpipe_appcenter.py`,
-  that installs, upgrades, launches, and uninstalls applications with
-  `uv tool install`, each into its own environment, and adds desktop
-  launchers on Linux, macOS, and Windows. It is designed to make the
-  TalkPipe-based applications (TalkPipe Vault, the TalkPipe Writing
-  Assistant, the ChatterLang Workbench) easy to install and ships with a
-  catalog of them, but any pip-installable Python application with a
-  console script can be listed in a catalog of one's own: `--catalog`
-  (before or after the subcommand) uses one for a run, `--remember` or
-  `catalog add` saves it so every later run loads it (`catalog list`,
-  `catalog remove`). An app-store-like terminal screen
-  plus equivalent subcommands (`list`, `info`, `install`, `upgrade`,
-  `uninstall`, `launch`, `stop`, `open`, `shortcut`). Driven by a TOML
-  catalog (`appcenter/talkpipe.toml`, embedded; `--catalog` overlays or
-  replaces it) whose entries name only what PyPI cannot supply; summaries,
-  publishers, homepages, and latest versions come from PyPI at run time.
-  `appcenter/install.sh` and `appcenter/install.ps1` install uv when it is missing
-  and hand over to the App Center. Each GitHub release attaches the file, stamped
-  with the release version, and the two scripts. The library gained no
-  runtime dependency; Textual and pytest-asyncio joined the `dev` extra.
 
 - **`serverag` no longer fails silently.** With no embedding or completion
   model configured — the state a first-time user is in — it exited 1 with
@@ -241,10 +99,6 @@
     the snippet actually passes, the Python-API example passes the model it
     precaches, and the offline section warns that a model missing from the
     cache fails under `HF_HUB_OFFLINE=1` with an error that does not name it.
-  - The App Center's `uv run <release asset>` commands are documented as
-    needing a release that post-dates the App Center, with the checkout
-    invocation as the alternative; against an older release the URL 404s and
-    uv reports it as a `SyntaxError`.
   - The reference-browser walkthrough showed invented transcripts —
     `filterEmails`, `extractAttachments`, `mongoConnect`, `mongoQuery`,
     `parseEmailHeaders`, and a `readEmail` parameter list the source never
