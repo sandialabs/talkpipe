@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 1.0.2 (2026-09-25)
+
 - **`max_tokens` caps the length of an LLM response.** `llmPrompt` and the
   guided-generation segments built on it (`llmScore`, `llmExtractTerms`,
   `llmBinaryAnswer`) accept `max_tokens`, as do the Ollama/OpenAI/Anthropic
@@ -118,8 +120,6 @@
     `pip install "talkpipe[...]"` extras so they work in zsh, and pointed the
     Python prerequisite at the versions CI actually tests.
 
-## 1.0.2
-
 - `chatterlang_workbench` now exits within a couple of seconds of Ctrl-C even
   while a request is still running. It used to wait for that request to
   finish — a script started from the editor, or the suggestions sidebar's LLM
@@ -132,7 +132,6 @@
   be driven into an infinite loop by a crafted PDF through
   `TreeObject.insert_child`; the floor is a security minimum, and every
   fresh install already resolved above it.
-
 
 ## 1.0.1
 
