@@ -196,15 +196,18 @@ jobs:
         # unrelated to anything this project declares or installs.
         .venv/bin/python -m pip install --upgrade pip setuptools
         .venv/bin/pip install -e ".[dev,all]"
-        # safety shares this venv with the project, and the project's `all`
-        # extra pulls in httpx2 (openai 3.x and anthropic 1.x depend on it).
-        # authlib 1.8.0 (safety's OAuth client) switches its httpx integration
-        # to httpx2 whenever httpx2 is importable, but safety 3.8.1 still
-        # builds httpx-0.28 Timeout objects for it, so every `safety` command
-        # crashes during auth setup with "'Timeout' object cannot be
-        # interpreted as an integer". Hold authlib below 1.8 until a safety
-        # release supports it. This is a CI tool pin, not a project floor.
-        .venv/bin/pip install bandit safety "authlib<1.8"
+        # The scanners get a venv of their own, outside the workspace, so the
+        # scan covers what the project installs and not the scanners' own
+        # dependencies (safety brings in nltk, which nothing here depends on).
+        # It also keeps safety away from the httpx2 that the `all` extra
+        # installs (openai 3.x and anthropic 1.x depend on it): with httpx2
+        # importable, authlib 1.8 hands it to safety 3.8.1, which then crashes
+        # during auth setup with "'Timeout' object cannot be interpreted as an
+        # integer".
+        python -m venv "$RUNNER_TEMP/scan-tools"
+        echo "$RUNNER_TEMP/scan-tools/bin" >> "$GITHUB_PATH"
+        "$RUNNER_TEMP/scan-tools/bin/python" -m pip install --upgrade pip
+        "$RUNNER_TEMP/scan-tools/bin/pip" install bandit safety
 
     - name: Run Bandit security scan
       run: |
@@ -228,10 +231,12 @@ jobs:
           # `check` is the legacy command and the only one that runs without an
           # account. It rejects .safety-policy.yml because that file is v3.0 and
           # only `scan` parses v3, so run it from a directory holding no policy
-          # file; it scans the installed environment either way.
+          # file. Left to itself it scans the venv it runs from, so hand it
+          # the project venv's packages instead.
           report="$PWD/safety-report.json"
           workdir="$(mktemp -d)"
-          (cd "$workdir" && safety check --save-json "$report")
+          .venv/bin/python -m pip freeze --exclude-editable > "$workdir/installed.txt"
+          (cd "$workdir" && safety check --stdin --save-json "$report" < installed.txt)
         fi
     
     - name: Upload security scan results

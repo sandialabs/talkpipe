@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+- CI: the security scanners run from a virtual environment of their own, and
+  the dependency scan is given the packages installed in the project's
+  environment. The scan used to cover the environment that also held the
+  scanners, so an advisory against one of their dependencies (`nltk`, which
+  `safety` requires and talkpipe does not) failed the build with nothing in
+  the project to fix. The scan still fails on any finding in what the project
+  installs.
+
 ## 1.0.2 (2026-09-25)
 
 - **`max_tokens` caps the length of an LLM response.** `llmPrompt` and the
