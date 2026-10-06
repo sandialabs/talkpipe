@@ -55,7 +55,9 @@ jobs:
         pytest --cov=src --cov-report=term --cov-report=xml --cov-report=html
     
     - name: Upload coverage to Codecov
-      if: matrix.python-version == '3.11'
+      # the action uploads to codecov.io on behalf of a GitHub repo; there is
+      # no equivalent when this runs on Gitea
+      if: matrix.python-version == '3.11' && github.server_url == 'https://github.com'
       uses: codecov/codecov-action@v7
       with:
         files: ./coverage.xml
@@ -361,7 +363,9 @@ jobs:
     # Version tags only: publishing a release under any other tag would upload
     # a distribution whose setuptools_scm version came from a tag that is not
     # one.
-    if: github.event_name == 'release' && github.event.action == 'published' && startsWith(github.event.release.tag_name, 'v')
+    # publishes to PyPI with a token that only exists on GitHub; a release
+    # cut on Gitea must not try to upload
+    if: github.event_name == 'release' && github.event.action == 'published' && startsWith(github.event.release.tag_name, 'v') && github.server_url == 'https://github.com'
 
     steps:
     - uses: actions/checkout@v7
