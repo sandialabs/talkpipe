@@ -57,7 +57,10 @@ history and only made version sorting harder. Semantic versioning rules
    also ignores any tag that does not start with `v`, so a stray publish
    cannot upload to PyPI.
 5. **Verify** with a fresh environment: `pip install talkpipe==X.Y.Z`,
-   `python -c "import talkpipe; print(talkpipe.__version__)"`.
+   `python -c "import talkpipe; print(talkpipe.__version__)"`. The
+   container build receives the same version as a build argument, so the
+   published image should report it too:
+   `podman run --rm ghcr.io/sandialabs/talkpipe:X.Y.Z python3 -c "import talkpipe; print(talkpipe.__version__)"`.
 
 Nothing is bumped afterwards; the next commit on `main` reports itself as
 `X.Y.(Z+1).devN` automatically.

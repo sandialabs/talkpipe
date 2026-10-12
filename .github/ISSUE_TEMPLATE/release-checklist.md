@@ -13,7 +13,8 @@ assignees: ''
 - [ ] Merge into master
 - [ ] Run bandit and safety
 - [ ] Build docker images and make sure runnable unit tests pass
-        - podman build . -t talkpipe:experimental
+        - podman build --build-arg TALKPIPE_VERSION=X.Y.Z . -t talkpipe:experimental
+          (without the build argument the image reports version 0.1.0)
 - [ ] Tag repository
 - [ ] Build whl files
 - [ ] Install whl file in new environment and test a script in chatterlang_workbench

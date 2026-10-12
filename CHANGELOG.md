@@ -13,6 +13,14 @@
   TalkPipe that takes its own `model` / `source` arguments can call it rather
   than re-implementing the rule. The helper does not check that the source
   is registered; callers keep their own `getPromptSources()` check.
+- **Container images report the released version.** The `Dockerfile` pinned
+  the package version to `0.1.0` for setuptools_scm because `.dockerignore`
+  excludes `.git`, so every published image, `v1.0.1` and `v1.0.2`
+  included, reported `talkpipe.__version__` as `0.1.0`. The pin is now a
+  build argument with that default (`--build-arg TALKPIPE_VERSION=X.Y.Z`),
+  and the CI container job computes the version with setuptools_scm from
+  the checked-out tag and passes it in. A plain `podman build .` still
+  succeeds and still reports `0.1.0`.
 - CI: the security scanners run from a virtual environment of their own, and
   the dependency scan is given the packages installed in the project's
   environment. The scan used to cover the environment that also held the

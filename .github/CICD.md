@@ -117,8 +117,11 @@ bandit -c pyproject.toml -r src/
 export SAFETY_API_KEY=your-key   # optional; links results to Safety Platform
 safety scan
 
-# Build container (matches CI)
-docker build -t talkpipe:local .
+# Build container (matches CI). `.dockerignore` excludes `.git`, so the
+# version cannot be derived inside the build; CI computes it with
+# setuptools_scm and passes it as a build argument. Without the argument
+# the image reports version 0.1.0.
+docker build --build-arg TALKPIPE_VERSION=X.Y.Z -t talkpipe:local .
 
 # Run container security scan
 docker run --rm -v /var/run/docker.sock:/var/run/docker.sock \
