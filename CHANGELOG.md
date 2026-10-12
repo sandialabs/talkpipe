@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 1.1.0 (2026-10-12)
+
 - Added `talkpipe.llm.config.resolve_source_and_model(source, model)`: applies
   the configured default model source and name (`default_model_source` /
   `default_model_name`, from `TALKPIPE_*` environment variables or
