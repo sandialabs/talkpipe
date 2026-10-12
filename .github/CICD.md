@@ -27,7 +27,7 @@ Actions-compatible runner; jobs that need github.com are guarded with
 | `security-scan` | everywhere; needs `test`, `lint` | Bandit (`-c pyproject.toml`, the `[tool.bandit]` table) and Safety. Uses the commercial database when `SAFETY_API_KEY` is set and falls back to the free `safety check` database when it is not (secrets are not passed to pull-request runs); both fail the build on a known vulnerability. |
 | `build-container` | github.com only | Docker image build and Trivy scan on every run; pushes to ghcr.io **on releases only** (`latest` for stable releases, `experimental` for pre-releases); multi-architecture (linux/amd64, linux/arm64) on release only. |
 | `codeql-analysis` | github.com only | GitHub's semantic code analysis. |
-| `publish-package` | on a published release; needs `test`, `lint`, `package`, `security-scan` | `python -m build`, `twine check`, upload to PyPI. Does not depend on the container job, so publishing is not blocked where that job is skipped. |
+| `publish-package` | github.com only, on a published release; needs `test`, `lint`, `package`, `security-scan`, `build-container` | `python -m build`, `twine check`, upload to PyPI. Depends on the container job so the package is never published without its images; off github.com that job is skipped and so is this one. |
 
 ### Configuration Files
 

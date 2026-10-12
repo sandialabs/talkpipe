@@ -356,16 +356,17 @@ jobs:
 
   publish-package:
     runs-on: ubuntu-latest
-    # build-container is GitHub-only; listing it here would leave publishing
-    # blocked behind a skipped job everywhere else. The container image is
-    # published independently by that job on github.com.
-    needs: [test, lint, package, security-scan]
+    # build-container is GitHub-only and skipped elsewhere, which skips this
+    # job too, by design: PyPI is published only from github.com, and only
+    # when both release images (linux/amd64, linux/arm64) were built and
+    # pushed to ghcr.io, so a PyPI release never lacks its container image.
+    needs: [test, lint, package, security-scan, build-container]
     # Version tags only: publishing a release under any other tag would upload
     # a distribution whose setuptools_scm version came from a tag that is not
     # one.
     # publishes to PyPI with a token that only exists on GitHub; a release
     # cut on Gitea must not try to upload
-    if: github.event_name == 'release' && github.event.action == 'published' && startsWith(github.event.release.tag_name, 'v') && github.server_url == 'https://github.com'
+    if: github.server_url == 'https://github.com' && github.event_name == 'release' && github.event.action == 'published' && startsWith(github.event.release.tag_name, 'v')
 
     steps:
     - uses: actions/checkout@v7
