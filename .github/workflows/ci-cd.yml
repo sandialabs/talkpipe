@@ -264,7 +264,22 @@ jobs:
     steps:
     - name: Checkout repository
       uses: actions/checkout@v7
-    
+      with:
+        fetch-depth: 0   # setuptools_scm derives the version from tags
+
+    # .dockerignore excludes .git, so the Dockerfile cannot derive the version
+    # itself; compute it here exactly as the sdist/wheel build does and pass
+    # it in. Not docker/metadata-action's `version` output: that is a branch
+    # or PR name on non-release events, not a PEP 440 version.
+    - name: Determine package version
+      id: version
+      run: |
+        python3 -m venv "$RUNNER_TEMP/scm"
+        "$RUNNER_TEMP/scm/bin/pip" install --quiet setuptools_scm
+        version=$("$RUNNER_TEMP/scm/bin/python" -m setuptools_scm)
+        test -n "$version"
+        echo "version=$version" >> "$GITHUB_OUTPUT"
+
     - name: Log in to Container Registry
       uses: docker/login-action@v4
       with:
@@ -304,6 +319,8 @@ jobs:
         load: ${{ github.event_name != 'release' }}
         tags: ${{ steps.meta.outputs.tags }}
         labels: ${{ steps.meta.outputs.labels }}
+        build-args: |
+          TALKPIPE_VERSION=${{ steps.version.outputs.version }}
         cache-from: type=gha
         cache-to: type=gha,mode=max
     

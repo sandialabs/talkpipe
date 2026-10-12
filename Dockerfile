@@ -36,7 +36,12 @@ COPY --chown=builder:builder tests/ tests/
 # Install Python dependencies and build the package
 RUN python3 -m pip install --upgrade pip setuptools wheel build
 RUN python3 -m pip install numpy pandas matplotlib scikit-learn scipy
-ENV SETUPTOOLS_SCM_PRETEND_VERSION_FOR_TALKPIPE=0.1.0
+# .dockerignore excludes .git, so setuptools_scm cannot read the version from
+# the tag inside the build. CI passes the real version as a build argument
+# (`--build-arg TALKPIPE_VERSION=X.Y.Z`); a plain `podman build .` falls back
+# to the placeholder below.
+ARG TALKPIPE_VERSION=0.1.0
+ENV SETUPTOOLS_SCM_PRETEND_VERSION_FOR_TALKPIPE=${TALKPIPE_VERSION}
 RUN python3 -m pip install --user -e .[dev,all]
 RUN python3 -m pytest --log-cli-level=DEBUG
 RUN python3 -m build --wheel
