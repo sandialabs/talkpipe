@@ -83,8 +83,10 @@ they keep working, and anything that will go away is announced first:
   `talkpipe.search.*`, `talkpipe.pipelines.*`.
 - The extension-point base classes and their documented abstract methods:
   `AbstractSegment`, `AbstractSource`, `AbstractFieldSegment`,
-  `AbstractLLMPromptAdapter`, `AbstractEmbeddingAdapter`, and the
-  `registerPromptAdapter` / `registerEmbeddingAdapter` hooks.
+  `AbstractLLMPromptAdapter`, `AbstractEmbeddingAdapter`, the
+  `registerPromptAdapter` / `registerEmbeddingAdapter` hooks, and
+  `resolve_source_and_model`, which applies the configured default model
+  source and name to a caller's `source` / `model` arguments.
 - Every registered ChatterLang segment and source **name**, its parameter
   names, and the shape of what it yields, as documented in the generated
   reference (`chatterlang_reference_generator`).

@@ -16,11 +16,9 @@ from pydantic import BaseModel
 
 from talkpipe.chatterlang.registry import register_segment
 from talkpipe.pipe.core import AbstractSegment
-from talkpipe.util.config import get_config
-from talkpipe.util.constants import TALKPIPE_MODEL_NAME, TALKPIPE_SOURCE
 from talkpipe.util.data_manipulation import assign_property, extract_property
 
-from .config import getPromptAdapter, getPromptSources
+from .config import getPromptAdapter, getPromptSources, resolve_source_and_model
 from .prompt_adapter_base import AbstractLLMPromptAdapter
 
 logger = logging.getLogger(__name__)
@@ -135,18 +133,11 @@ class LLMPrompt(AbstractSegment[Any, Any]):
     ):
         super().__init__()
         logger.debug(f"Initializing LLMPrompt with name={model}, source={source}")
-        cfg = get_config()
-        model = model or cfg.get(TALKPIPE_MODEL_NAME, None)
-        source = source or cfg.get(TALKPIPE_SOURCE, None)
-        logger.debug(f"Resolved model name={model}, source={source}")
-
-        # Neither branch logs: the message is carried by the exception, which
+        # Neither failure logs: the message is carried by the exception, which
         # the CLI and the workbench both surface, so logging it as well only
         # prints it twice.
-        if model is None or source is None:
-            raise ValueError(
-                "Model name and source must be provided, specified in the configuration file, or in environment variables."
-            )
+        source, model = resolve_source_and_model(source, model)
+        logger.debug(f"Resolved model name={model}, source={source}")
 
         if source not in getPromptSources():
             raise ValueError(

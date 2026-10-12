@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+- Added `talkpipe.llm.config.resolve_source_and_model(source, model)`: applies
+  the configured default model source and name (`default_model_source` /
+  `default_model_name`, from `TALKPIPE_*` environment variables or
+  `~/.talkpipe.toml`) to a caller's `source` / `model` arguments, using each
+  as passed when given, and raises the usual "Model name and source must be
+  provided" `ValueError` when either is still missing. `llmPrompt` and
+  `llmVisionPrompt` now call it instead of carrying their own copy of the
+  fallback; their behaviour and error messages are unchanged. Code built on
+  TalkPipe that takes its own `model` / `source` arguments can call it rather
+  than re-implementing the rule. The helper does not check that the source
+  is registered; callers keep their own `getPromptSources()` check.
 - CI: the security scanners run from a virtual environment of their own, and
   the dependency scan is given the packages installed in the project's
   environment. The scan used to cover the environment that also held the

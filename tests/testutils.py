@@ -42,7 +42,9 @@ def monkeypatched_env(monkeypatch):
 @pytest.fixture
 def patch_get_config(monkeypatch):
     monkeypatch.setattr("talkpipe.util.config.get_config", lambda *args, **kwargs: {})
-    monkeypatch.setattr("talkpipe.llm.chat.get_config", lambda *args, **kwargs: {})
+    # resolve_source_and_model (which llmPrompt / llmVisionPrompt call) binds
+    # get_config by name at import, so patch it where it is looked up.
+    monkeypatch.setattr("talkpipe.llm.config.get_config", lambda *args, **kwargs: {})
 
 
 def is_url(s):

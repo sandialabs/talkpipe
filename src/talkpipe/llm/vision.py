@@ -8,11 +8,9 @@ from typing import Annotated, Any
 
 from talkpipe.chatterlang.registry import register_segment
 from talkpipe.pipe.core import AbstractSegment
-from talkpipe.util.config import get_config
-from talkpipe.util.constants import TALKPIPE_MODEL_NAME, TALKPIPE_SOURCE
 from talkpipe.util.data_manipulation import assign_property, extract_property
 
-from .config import getPromptAdapter, getPromptSources
+from .config import getPromptAdapter, getPromptSources, resolve_source_and_model
 from .content import DEFAULT_VISION_PROMPT, user_turn_from_fields
 
 logger = logging.getLogger(__name__)
@@ -61,15 +59,7 @@ class LLMVisionPrompt(AbstractSegment[Any, Any]):
         ] = False,
     ):
         super().__init__()
-        cfg = get_config()
-        model = model or cfg.get(TALKPIPE_MODEL_NAME, None)
-        source = source or cfg.get(TALKPIPE_SOURCE, None)
-
-        if model is None or source is None:
-            raise ValueError(
-                "Model name and source must be provided, specified in the configuration file, "
-                "or in environment variables."
-            )
+        source, model = resolve_source_and_model(source, model)
         if source not in getPromptSources():
             raise ValueError(
                 f"Source '{source}' is not supported. "

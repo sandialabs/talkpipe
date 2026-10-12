@@ -5,12 +5,14 @@ from pydantic import BaseModel
 
 from talkpipe.chatterlang import compiler
 from talkpipe.llm.chat import LlmBinaryAnswer, LlmExtractTerms, LLMPrompt, LlmScore
+from talkpipe.llm.config import getPromptSources, resolve_source_and_model
 from talkpipe.llm.prompt_adapters import (
     AbstractLLMPromptAdapter,
     AnthropicPromptAdapter,
     OllamaPromptAdapter,
     OpenAIPromptAdapter,
 )
+from talkpipe.llm.vision import LLMVisionPrompt
 from talkpipe.util import config
 
 
@@ -311,6 +313,72 @@ def test_invalid_source_message_lists_supported_sources(
     assert "Source 'fake' is not supported" in message
     assert "ollama" in message
     assert "openai" in message
+
+
+MISSING_MODEL_OR_SOURCE = "Model name and source must be provided, specified in the configuration file, or in environment variables."
+
+
+def _configured(monkeypatch, **values):
+    """Make the helper see exactly ``values`` as the configuration."""
+    monkeypatch.setattr(
+        "talkpipe.llm.config.get_config", lambda *args, **kwargs: dict(values)
+    )
+
+
+@pytest.mark.parametrize(
+    ("source", "model", "expected"),
+    [
+        ("openai", "gpt-4o", ("openai", "gpt-4o")),
+        (None, "gpt-4o", ("ollama", "gpt-4o")),
+        ("openai", None, ("openai", "llama3.2")),
+        (None, None, ("ollama", "llama3.2")),
+    ],
+)
+def test_resolve_source_and_model_fills_missing_from_config(
+    monkeypatch, source, model, expected
+):
+    _configured(
+        monkeypatch, default_model_source="ollama", default_model_name="llama3.2"
+    )
+    assert resolve_source_and_model(source, model) == expected
+
+
+@pytest.mark.parametrize(
+    ("source", "model", "configured"),
+    [
+        (None, None, {}),
+        (None, "gpt-4o", {}),
+        ("openai", None, {}),
+        (None, None, {"default_model_source": "ollama"}),
+        (None, None, {"default_model_name": "llama3.2"}),
+    ],
+)
+def test_resolve_source_and_model_raises_when_still_missing(
+    monkeypatch, source, model, configured
+):
+    _configured(monkeypatch, **configured)
+    with pytest.raises(ValueError) as excinfo:
+        resolve_source_and_model(source, model)
+    assert str(excinfo.value) == MISSING_MODEL_OR_SOURCE
+
+
+def test_resolve_source_and_model_does_not_validate_source(monkeypatch):
+    """Checking the source against a registry is the caller's job."""
+    _configured(monkeypatch)
+    assert "fake" not in getPromptSources()
+    assert resolve_source_and_model("fake", "llama3.2") == ("fake", "llama3.2")
+
+
+def test_segments_unconfigured_raise_missing_model_message(
+    monkeypatched_env, patch_get_config
+):
+    monkeypatched_env({})
+    with pytest.raises(ValueError) as excinfo:
+        LLMPrompt()
+    assert str(excinfo.value) == MISSING_MODEL_OR_SOURCE
+    with pytest.raises(ValueError) as excinfo:
+        LLMVisionPrompt(image_field="image")
+    assert str(excinfo.value) == MISSING_MODEL_OR_SOURCE
 
 
 def test_role_map_in_llmprompt_segment():

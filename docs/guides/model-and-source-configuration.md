@@ -171,7 +171,7 @@ The remaining sections fill in the details behind that pattern: exactly how `mod
 
 ## How values are resolved
 
-The day-to-day pattern relies on TalkPipe quietly filling in `model` and `source` when you omit them. The full rule: when `LLMPrompt` or `LLMEmbed` is constructed, TalkPipe fills in missing `model` / `source` from `get_config()` (merged `~/.talkpipe.toml` plus `TALKPIPE_*` environment variables). If either is still missing, construction raises an error.
+The day-to-day pattern relies on TalkPipe quietly filling in `model` and `source` when you omit them. The full rule: when `LLMPrompt` or `LLMEmbed` is constructed, TalkPipe fills in missing `model` / `source` from `get_config()` (merged `~/.talkpipe.toml` plus `TALKPIPE_*` environment variables). If either is still missing, construction raises an error. For chat and vision segments the rule is implemented by `talkpipe.llm.config.resolve_source_and_model(source, model)`, which returns the resolved pair or raises that error; code built on TalkPipe that takes its own `model` / `source` arguments can call it rather than re-implementing the fallback.
 
 ```mermaid
 flowchart TD
