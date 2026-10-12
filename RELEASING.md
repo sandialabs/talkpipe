@@ -42,14 +42,20 @@ history and only made version sorting harder. Semantic versioning rules
    git push origin vX.Y.Z^{commit}:stable
    ```
 
-4. **Publish a release** for the tag (Gitea: *Releases → New Release*;
-   GitHub mirror: *Releases → Draft a new release*). The CI workflow's
-   `release: published` trigger runs `publish-package`, which builds the
-   sdist and wheel, `twine check`s them, and uploads to PyPI with the
-   `PYPI_API_TOKEN` repository secret. Mark betas and release candidates as
-   pre-releases. Watch the run finish; the package job and the container build
-   (GitHub only) run in the same workflow. `publish-package` ignores any tag
-   that does not start with `v`, so a stray publish cannot upload to PyPI.
+4. **Publish a release** for the tag on the GitHub mirror (*Releases →
+   Draft a new release*). The CI workflow's `release: published` trigger
+   runs `build-container`, which builds and pushes the `linux/amd64` and
+   `linux/arm64` images to ghcr.io, and then `publish-package`, which builds
+   the sdist and wheel, `twine check`s them, and uploads to PyPI with the
+   `PYPI_API_TOKEN` repository secret. `publish-package` depends on
+   `build-container`, so the package is uploaded only after both images
+   are published; if the container build fails, nothing reaches PyPI. Mark
+   betas and release candidates as pre-releases. Watch the run finish.
+   **Only the GitHub release publishes to PyPI.** A release created on Gitea
+   (*Releases → New Release*) is a record only: the container job does not
+   run there, so `publish-package` is skipped with it. `publish-package`
+   also ignores any tag that does not start with `v`, so a stray publish
+   cannot upload to PyPI.
 5. **Verify** with a fresh environment: `pip install talkpipe==X.Y.Z`,
    `python -c "import talkpipe; print(talkpipe.__version__)"`.
 

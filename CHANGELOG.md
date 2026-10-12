@@ -9,6 +9,11 @@
   `safety` requires and talkpipe does not) failed the build with nothing in
   the project to fix. The scan still fails on any finding in what the project
   installs.
+- CI: `publish-package` depends on `build-container` again, so a release
+  reaches PyPI only after both container images (`linux/amd64`,
+  `linux/arm64`) were built and pushed. A failed container build used to
+  leave a PyPI release with no matching image. Publishing to PyPI happens
+  only from a GitHub release; a release created elsewhere does not upload.
 
 ## 1.0.2 (2026-09-25)
 
