@@ -41,6 +41,9 @@
   extra, `pypdf>=6.19.0` (runtime and memory exhaustion on crafted PDFs).
   `uv.lock` also moves `urllib3` to 2.8.0 and `virtualenv` (dev only) to
   21.14.5 to clear their advisories.
+- CI: Dependabot version-update PRs target `main` instead of the default
+  branch `stable`, which only ever points at a release. Security alerts
+  still come from `stable`, so they reflect what is released.
 
 ## 1.0.2 (2026-09-25)
 
