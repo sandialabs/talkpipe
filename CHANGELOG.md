@@ -35,6 +35,12 @@
   `linux/arm64`) were built and pushed. A failed container build used to
   leave a PyPI release with no matching image. Publishing to PyPI happens
   only from a GitHub release; a release created elsewhere does not upload.
+- **Security: raised dependency floors.** `pymongo>=4.18.2` (GridFS delete
+  file-ID matching, connection-string host injection, client-side field
+  level encryption KMS endpoint, BSON encoding overflow) and, in the `pypdf`
+  extra, `pypdf>=6.19.0` (runtime and memory exhaustion on crafted PDFs).
+  `uv.lock` also moves `urllib3` to 2.8.0 and `virtualenv` (dev only) to
+  21.14.5 to clear their advisories.
 
 ## 1.0.2 (2026-09-25)
 

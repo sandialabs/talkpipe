@@ -46,7 +46,7 @@ dependencies = [
     'lxml>=6.1.0',
     'lxml_html_clean>=0.4.5',
     'fastapi[standard]>=0.109.1',
-    'pymongo>=4.6.3',
+    'pymongo>=4.18.2',  # security floor: <4.18.2 has GridFS delete, connection-string host injection, BSON overflow advisories
     'scikit-learn>=1.5.0',
     'uvicorn>=0.12.3',
     'whoosh',
@@ -73,7 +73,7 @@ dev = [
     # new rules and mypy adds checks in minor releases, and CI resolves fresh,
     # so an open floor would turn a tool release into a red build. Bump the
     # pins deliberately (and the ruff-pre-commit rev with them).
-    "ruff>=0.16.3,<0.17",
+    "ruff>=0.16.3,<0.18",
     "mypy>=2.3,<3",
     "pre-commit>=4.0",
 ]
@@ -87,7 +87,7 @@ anthropic = [
     'anthropic>=0.87.0'
 ]
 pypdf = [
-    'pypdf>=6.16.1'  # security floor: <6.16.0 loops forever on a crafted PDF (TreeObject.insert_child)
+    'pypdf>=6.19.0'  # security floor: <6.19.0 has several crafted-PDF runtime and memory exhaustion advisories
 ]
 pillow = [
     'Pillow>=12.2.0'
