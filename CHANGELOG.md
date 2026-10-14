@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- The `dev` extra moves ruff to the 0.17 series (`>=0.17.0,<0.18`), with
+  the ruff-pre-commit hook on v0.17.0 to match; a dependency update had
+  widened the pin to `<0.18` without moving the hook. The code needed no
+  changes for the new release's rules or formatting.
+
 ## 1.1.0 (2026-10-12)
 
 - Added `talkpipe.llm.config.resolve_source_and_model(source, model)`: applies
