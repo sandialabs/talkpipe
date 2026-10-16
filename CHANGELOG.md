@@ -9,6 +9,14 @@
   stops propagating. A `logger_files` entry for the root logger therefore
   does not receive a named logger's records: name the same logger in
   `logger_files` (the docstring says so).
+- `chatterlang_reference_generator` no longer drops the first parameter of
+  every plain segment from the `.html` and `.txt` references it writes.
+  The extractor already removes the data parameter (`items` / `item`) by
+  name, and the generator then removed the first remaining parameter by
+  position as well, so `cast` was documented without `cast_type`,
+  `llmPrompt` without `model`, `print` without `pprint`, and so on.
+  `chatterlang_reference_browser` and the workbench, which do not apply
+  that second filter, were already correct.
 - The `dev` extra moves ruff to the 0.17 series (`>=0.17.0,<0.18`), with
   the ruff-pre-commit hook on v0.17.0 to match; a dependency update had
   widened the pin to `<0.18` without moving the hook. The code needed no

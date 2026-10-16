@@ -250,6 +250,36 @@ class TestGeneration:
         finally:
             os.unlink(temp_file)
 
+    def test_segments_keep_their_first_parameter(self):
+        """Every parameter the extractor returns is rendered. The data
+        parameter is already skipped by name upstream, so dropping the first
+        remaining one by position removed a real parameter from every plain
+        segment (``cast`` was documented without ``cast_type``)."""
+        item = AnalyzedItem(
+            type="Segment",
+            name="Cast",
+            docstring="Casts the input data.",
+            parameters=[
+                ParamSpec("cast_type", "str"),
+                ParamSpec("fail_silently", "bool", "True"),
+            ],
+            chatterlang_name="cast",
+            decorator_type="segment",
+            is_segment=True,
+        )
+        with tempfile.TemporaryDirectory() as tmp:
+            html_file = os.path.join(tmp, "ref.html")
+            text_file = os.path.join(tmp, "ref.txt")
+            generate_html([item], html_file)
+            generate_text([item], text_file)
+            with open(html_file, encoding="utf-8") as f:
+                html_content = f.read()
+            with open(text_file, encoding="utf-8") as f:
+                text_content = f.read()
+        for content in (html_content, text_content):
+            assert "cast_type" in content
+            assert "fail_silently" in content
+
 
 class TestMainFunctions:
     """Test main entry points."""
