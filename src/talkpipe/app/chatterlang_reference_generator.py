@@ -177,24 +177,23 @@ def _display_type(item: AnalyzedItem) -> str:
 
 
 def _visible_params(item: AnalyzedItem, skip: list[str]) -> list[ParamSpec]:
-    """Parameters to document: drop the ``skip`` names, then drop the leading
-    data parameter for plain segments.
+    """Parameters to document: the item's parameters without the ``skip``
+    names.
 
     The two renderers skip different names, so the caller supplies the list.
+    The data parameter (``items`` / ``item``) is already gone by the time an
+    item gets here, because ``extract_component_info`` skips it by name, so
+    nothing is dropped by position: doing so removed the first real
+    parameter of every plain segment (``cast``'s ``cast_type``,
+    ``llmPrompt``'s ``model``).
     """
-    filtered_params = [p for p in item.parameters if p.name not in skip]
-    if item.is_segment and len(filtered_params) > 0:
-        # For segments, the first param is often the data being processed
-        filtered_params = (
-            filtered_params[1:] if len(filtered_params) > 1 else filtered_params
-        )
-    return filtered_params
+    return [p for p in item.parameters if p.name not in skip]
 
 
 def generate_html(analyzed_items: list[AnalyzedItem], output_file: str) -> None:
     """
     Generate a styled HTML file with a table of contents, raw HTML docstrings,
-    skipping 'self', and skipping first param for segment functions.
+    skipping 'self', 'items' and 'item'.
     """
     # Group by type (Source/Segment), then sort by chatterlang name
     items_by_type = _group_by_type(analyzed_items)
@@ -368,7 +367,7 @@ def generate_html(analyzed_items: list[AnalyzedItem], output_file: str) -> None:
                     f"  <div><pre>{html.escape(item.docstring)}</pre></div>\n"
                 )
 
-            # Process parameters - skip 'self' and for segments skip first param if it's the data param
+            # Process parameters - skip 'self' and the data parameter names
             filtered_params = _visible_params(item, ["self", "items", "item"])
 
             if filtered_params:
@@ -403,7 +402,7 @@ def generate_html(analyzed_items: list[AnalyzedItem], output_file: str) -> None:
 def generate_text(analyzed_items: list[AnalyzedItem], output_file: str) -> None:
     """
     Write a nicely formatted plain-text version of the same documentation.
-    Group by type, sorted, omit 'self', skip first param for segment functions.
+    Group by type, sorted, omit 'self'.
     No table of contents here - just a linear, grouped listing.
     """
     # Group by type (Source/Segment), then sort by chatterlang name
