@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 1.1.1 (2026-10-16)
+
 - A bare word in a chatterlang parameter that names no `CONST` (for
   example `tools=[lookup_ticket]` instead of `tools=["lookup_ticket"]`)
   now fails compilation with `Segment 'llmAgent': unknown constant
