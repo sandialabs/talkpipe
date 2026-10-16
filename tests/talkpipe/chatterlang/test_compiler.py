@@ -593,6 +593,31 @@ def test_compile_error_when_component_rejects_its_options():
     assert excinfo.value.__suppress_context__
 
 
+def test_compile_error_names_an_unknown_constant():
+    """A bare word in a parameter is a CONST reference. Unknown, it used to
+    surface as the KeyError text (``could not be created: 'foo'``), which
+    says nothing about quoting or CONST."""
+    with pytest.raises(compiler.CompileError) as excinfo:
+        compiler.compile('INPUT FROM echo[data="a,b"] | firstN[n=[foo]]')
+    msg = str(excinfo.value)
+    assert "Segment 'firstN': unknown constant 'foo' in n=" in msg
+    assert 'quote it for the string "foo"' in msg
+    assert "CONST foo = ..." in msg
+    assert excinfo.value.kind == "bad_param"
+    assert excinfo.value.bad_name == "firstN"
+    assert excinfo.value.__cause__ is None
+
+    with pytest.raises(compiler.CompileError) as excinfo:
+        compiler.compile("INPUT FROM echo[data=foo] | print")
+    assert "Source 'echo': unknown constant 'foo' in data=" in str(excinfo.value)
+
+    # A declared constant still resolves, in a list as well as bare.
+    script = compiler.compile(
+        'CONST foo = 1; INPUT FROM echo[data="a,b"] | firstN[n=foo] | firstN[n=[foo]]'
+    )
+    assert script is not None
+
+
 def test_compile_error_when_source_rejects_its_options():
     """The same wrapping applies to a source constructor."""
 

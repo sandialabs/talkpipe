@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+- A bare word in a chatterlang parameter that names no `CONST` (for
+  example `tools=[lookup_ticket]` instead of `tools=["lookup_ticket"]`)
+  now fails compilation with `Segment 'llmAgent': unknown constant
+  'lookup_ticket' in tools=. A bare word refers to a CONST; quote it for
+  the string "lookup_ticket", or declare it first (CONST lookup_ticket =
+  ...)`. It used to surface as the raw `KeyError` text, `Segment
+  'llmAgent' could not be created: 'lookup_ticket'`. The error is a
+  `bad_param` `CompileError` naming the segment or source, so the workbench
+  lint shows it like other parameter errors.
 - `--logger_levels` (and `configure_logger` / the `configureLogger`
   segment) no longer prints every log line twice. A named logger got its
   own console handler and its records also propagated to the handler

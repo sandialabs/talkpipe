@@ -473,20 +473,49 @@ def compile(
     return Script(final_pipelines)
 
 
-def _resolve_value(value: Any, runtime: RuntimeComponent) -> Any:
+def _unknown_constant_message(kind: str, name: str, param: str, word: str) -> str:
+    """Build a CompileError message for a bare word that names no constant.
+
+    A bare word in a parameter value is a reference to a ``CONST``; a
+    newcomer who writes ``tools=[lookup_ticket]`` meaning the string gets
+    ``KeyError: 'lookup_ticket'`` otherwise, which says nothing about quoting.
+    """
+    return (
+        f"{kind} '{name}': unknown constant '{word}' in {param}=. A bare word "
+        f'refers to a CONST; quote it for the string "{word}", or declare it '
+        f"first (CONST {word} = ...)"
+    )
+
+
+def _resolve_value(
+    value: Any, runtime: RuntimeComponent, *, kind: str, name: str, param: str
+) -> Any:
     """Resolve a single parameter value, handling constants and arrays recursively."""
     if isinstance(value, Identifier):
-        return runtime.const_store[value.name]
+        try:
+            return runtime.const_store[value.name]
+        except KeyError:
+            raise CompileError(
+                _unknown_constant_message(kind, name, param, value.name),
+                kind="bad_param",
+                bad_name=name,
+            ) from None
     if isinstance(value, list):
-        return [_resolve_value(elem, runtime) for elem in value]
+        return [
+            _resolve_value(elem, runtime, kind=kind, name=name, param=param)
+            for elem in value
+        ]
     return value
 
 
 def _resolve_params(
-    params: dict[Any, Any], runtime: RuntimeComponent
+    params: dict[Any, Any], runtime: RuntimeComponent, *, kind: str, name: str
 ) -> dict[str, Any]:
-    """Resolve the parameters for a segment"""
-    return {k: _resolve_value(params[k], runtime) for k in params}
+    """Resolve the parameters for the *kind* (Source / Segment) named *name*."""
+    return {
+        k: _resolve_value(params[k], runtime, kind=kind, name=name, param=k)
+        for k in params
+    }
 
 
 @compile.register(ParsedPipeline)
@@ -522,7 +551,12 @@ def _(
                 ) from None
             try:
                 ans = source_cls(
-                    **_resolve_params(pipeline.input_node.params, runtime=runtime)
+                    **_resolve_params(
+                        pipeline.input_node.params,
+                        runtime=runtime,
+                        kind="Source",
+                        name=source_name,
+                    )
                 )
             except TypeError as e:
                 raise CompileError(
@@ -560,7 +594,12 @@ def _(
                 ) from None
             try:
                 next_transform = segment_cls(
-                    **_resolve_params(transform.params, runtime=runtime)
+                    **_resolve_params(
+                        transform.params,
+                        runtime=runtime,
+                        kind="Segment",
+                        name=segment_name,
+                    )
                 )
             except TypeError as e:
                 raise CompileError(
