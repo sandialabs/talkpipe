@@ -529,6 +529,20 @@ def test_configure_logging_files_only(tmp_path):
     assert "files-only debug message" not in contents
 
 
+def test_configure_logging_prints_each_record_once(capsys):
+    """``configure_logger("name:LEVEL")`` gives the named logger its own
+    console handler; the record used to propagate to the root handler that
+    ``basicConfig`` installed as well, so every line appeared twice."""
+    try:
+        talkpipe.util.config.configure_logger("talkpipe.test.once:INFO")
+        logger = logging.getLogger("talkpipe.test.once")
+        logger.info("printed exactly once")
+        captured = capsys.readouterr()
+        assert captured.err.count("printed exactly once") == 1
+    finally:
+        logging.getLogger("talkpipe.test.once").propagate = True
+
+
 def test_talkpipe_logger_has_null_handler():
     import logging
 

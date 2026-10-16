@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- `--logger_levels` (and `configure_logger` / the `configureLogger`
+  segment) no longer prints every log line twice. A named logger got its
+  own console handler and its records also propagated to the handler
+  `logging.basicConfig` had put on the root logger; the named logger now
+  stops propagating. A `logger_files` entry for the root logger therefore
+  does not receive a named logger's records: name the same logger in
+  `logger_files` (the docstring says so).
 - The `dev` extra moves ruff to the 0.17 series (`>=0.17.0,<0.18`), with
   the ruff-pre-commit hook on v0.17.0 to match; a dependency update had
   widened the pin to `<0.18` without moving the hook. The code needed no

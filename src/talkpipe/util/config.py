@@ -257,6 +257,10 @@ def configure_logger(
         This reconfigures the calling process's logging: it calls
         ``logging.basicConfig`` and clears the existing handlers of every
         logger named in ``logger_levels`` before attaching a console handler.
+        A named (non-root) logger then stops propagating to the root
+        logger, so each record is printed once; a ``logger_files`` entry
+        for the root logger therefore does not receive that logger's
+        records (name the same logger in ``logger_files``).
         Applications embedding talkpipe that manage their own logging should
         not call it (or use the ``configureLogger`` segment).
     """
@@ -289,6 +293,10 @@ def configure_logger(
             console_handler.setLevel(level)
             console_handler.setFormatter(formatter)
             logger.addHandler(console_handler)
+            # The console handler above is this logger's output; without
+            # this, every record also propagated to the root handler that
+            # basicConfig installed and printed a second time.
+            logger.propagate = logger_name == "root"
 
     if logger_files:
         for logger_name, file_name in parse_key_value_str(logger_files).items():
