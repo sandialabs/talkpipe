@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- **Security: raised the `Pillow` floor** in the `pillow` extra (and so in
+  `all`) to `Pillow>=13.0.0`, clearing six advisories against earlier
+  releases. `uv.lock` moves `pillow` to 13.0.0.
+
 ## 1.1.1 (2026-10-16)
 
 - A bare word in a chatterlang parameter that names no `CONST` (for

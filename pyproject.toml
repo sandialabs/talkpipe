@@ -90,7 +90,7 @@ pypdf = [
     'pypdf>=6.19.0'  # security floor: <6.19.0 has several crafted-PDF runtime and memory exhaustion advisories
 ]
 pillow = [
-    'Pillow>=12.2.0'
+    'Pillow>=13.0.0'  # security floor: <13.0.0 has six known advisories
 ]
 model2vec = [
     'model2vec>=0.3.4',
