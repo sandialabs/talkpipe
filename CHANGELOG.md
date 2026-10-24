@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 1.2.0 (2026-10-24)
+
 - `build_rag_database` accepts pre-made chunks: a new keyword-only
   `chunks=` argument (an iterable of dicts shaped like
   `ProcessDocumentsSegment` output) is embedded and stored directly, with
