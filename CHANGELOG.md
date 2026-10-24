@@ -13,6 +13,14 @@
 - **Security: raised the `Pillow` floor** in the `pillow` extra (and so in
   `all`) to `Pillow>=13.0.0`, clearing six advisories against earlier
   releases. `uv.lock` moves `pillow` to 13.0.0.
+- **Security: raised dependency floors** to clear advisories against
+  earlier releases: `pypdf>=6.21.2` in the `pypdf` extra (and so in `all`);
+  `certifi>=2026.10.19` in the core dependencies (it arrives through
+  `requests` and `httpx`); `filelock>=4.2.1` in the `model2vec` extra (it
+  arrives through `huggingface-hub`); and `virtualenv>=21.14.9` and
+  `filelock>=4.2.1` in the `dev` extra (they arrive through `pre-commit`).
+  `uv.lock` moves `certifi` to 2026.10.23, `filelock` to 4.2.4, `pypdf` to
+  6.21.2, `virtualenv` to 21.14.13, and `packaging` to 26.3.
 
 ## 1.1.1 (2026-10-16)
 
