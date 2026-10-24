@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+- `build_rag_database` accepts pre-made chunks: a new keyword-only
+  `chunks=` argument (an iterable of dicts shaped like
+  `ProcessDocumentsSegment` output) is embedded and stored directly, with
+  `source_pattern` passed as `None`. The preflight, dimension check,
+  overflow truncation and skip accounting apply unchanged. This lets a
+  caller chunk documents once, index the chunks for keyword search, and
+  embed the same chunks later. Passing both or neither raises
+  `ValueError`; existing calls are unaffected.
 - **Security: raised the `Pillow` floor** in the `pillow` extra (and so in
   `all`) to `Pillow>=13.0.0`, clearing six advisories against earlier
   releases. `uv.lock` moves `pillow` to 13.0.0.

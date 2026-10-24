@@ -966,6 +966,48 @@ def test_build_rag_database_raises_when_nothing_embeds(
         )
 
 
+def test_build_rag_database_accepts_premade_chunks(tmp_path, monkeypatch):
+    from talkpipe.pipelines import vector_databases as vdb
+
+    monkeypatch.setattr(vdb, "LLMEmbed", _fake_llm_embed(drop_indices=(1,)))
+    db_path = str(tmp_path / "db")
+    chunks = [
+        {
+            "id": f"c{n}",
+            "content": f"text {n}",
+            "shingle_text": f"text {n}",
+            "source": f"/docs/{n % 2}.txt",
+            "title": f"{n % 2}.txt",
+        }
+        for n in range(3)
+    ]
+
+    result = vdb.build_rag_database(
+        None,
+        path=db_path,
+        embedding_model="fake-model",
+        embedding_source="fake-source",
+        doc_id_field="id",
+        chunks=chunks,
+    )
+
+    assert result.chunks_indexed == 2
+    assert result.chunks_skipped == 1
+    assert result.files_indexed == 1
+    store = LanceDBDocumentStore(path=db_path, table_name="docs", vector_dim=3)
+    assert store.count() == 2
+    assert store.get_document("c2") is not None
+
+
+def test_build_rag_database_requires_exactly_one_input(tmp_path, rag_corpus):
+    from talkpipe.pipelines import vector_databases as vdb
+
+    with pytest.raises(ValueError, match="exactly one"):
+        vdb.build_rag_database(None, path=str(tmp_path / "db"))
+    with pytest.raises(ValueError, match="exactly one"):
+        vdb.build_rag_database(rag_corpus, path=str(tmp_path / "db"), chunks=[])
+
+
 def test_make_vector_database_passes_on_token_overflow(monkeypatch, tmp_path):
     from talkpipe.pipelines import vector_databases as vdb
 

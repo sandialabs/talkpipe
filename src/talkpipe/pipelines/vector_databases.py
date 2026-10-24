@@ -348,7 +348,7 @@ def _tally_stored_chunks(
 
 
 def build_rag_database(
-    source_pattern: str | Iterable[str],
+    source_pattern: str | Iterable[str] | None,
     path: str,
     embedding_model: str | None = None,
     embedding_source: str | None = None,
@@ -366,6 +366,7 @@ def build_rag_database(
     expected_dimension: int | None = None,
     preflight: bool = True,
     progress: Callable[[int, int, str], None] | None = None,
+    chunks: Iterable[dict[str, Any]] | None = None,
 ) -> RagIngestResult:
     """Build a RAG vector database from documents matching a glob pattern.
 
@@ -393,7 +394,16 @@ def build_rag_database(
 
     The optional progress callback receives (chunks_done, files_done,
     current_source_path) as chunks are stored.
+
+    chunks, when given, replaces reading and chunking: the dicts (already
+    shaped like ProcessDocumentsSegment output, with embedding_field and a
+    "source" field) are embedded and stored directly, and source_pattern
+    must be None. Callers that chunk documents themselves, for example to
+    build a keyword index from the same chunks first, keep the preflight,
+    dimension check, overflow handling, and skip accounting above.
     """
+    if (chunks is None) == (source_pattern is None):
+        raise ValueError("pass exactly one of source_pattern and chunks")
     config = get_config()
     embedding_model = embedding_model or config.get(TALKPIPE_EMBEDDING_MODEL_NAME)
     embedding_source = embedding_source or config.get(TALKPIPE_EMBEDDING_MODEL_SOURCE)
@@ -431,14 +441,18 @@ def build_rag_database(
             )
 
     tally = _IngestTally()
-    pipeline = (
-        ProcessDocumentsSegment(
-            chunk_size=chunk_size,
-            shingle_size=shingle_size,
-            overlap=overlap,
+    tally_and_embed = _tally_extracted_chunks(tally=tally) | embed_segment
+    if chunks is None:
+        tally_and_embed = (
+            ProcessDocumentsSegment(
+                chunk_size=chunk_size,
+                shingle_size=shingle_size,
+                overlap=overlap,
+            )
+            | tally_and_embed
         )
-        | _tally_extracted_chunks(tally=tally)
-        | embed_segment
+    pipeline = (
+        tally_and_embed
         | add_to_lancedb(
             path=path,
             table_name=table_name,
@@ -449,10 +463,13 @@ def build_rag_database(
         | _tally_stored_chunks(tally=tally, progress=progress)
     )
 
-    patterns = (
-        [source_pattern] if isinstance(source_pattern, str) else list(source_pattern)
-    )
-    for _ in pipeline.transform(patterns):
+    if chunks is not None:
+        inputs: Iterable[Any] = chunks
+    elif isinstance(source_pattern, str):
+        inputs = [source_pattern]
+    else:
+        inputs = list(source_pattern or [])
+    for _ in pipeline.transform(inputs):
         pass
     # Chunks consumed after the last stored one also failed to embed.
     tally.chunks_skipped += tally.chunks_extracted - tally.extracted_at_last_store
