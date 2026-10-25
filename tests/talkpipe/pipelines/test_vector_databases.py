@@ -1,4 +1,5 @@
 import base64
+import logging
 import os
 import queue
 import tempfile
@@ -90,6 +91,35 @@ def test_process_documents_segment_strip_base64_disabled(tmp_path):
 
     joined = " ".join(item["shingle_text"] for item in results)
     assert blob[:64] in joined
+
+
+def test_process_documents_segment_prints_progress_by_default(tmp_path, capsys):
+    """By default each file's path and a tick per chunk go to stdout."""
+    document_path = tmp_path / "document.txt"
+    document_path.write_text("a" * 650)
+
+    results = list(ProcessDocumentsSegment().transform([str(document_path)]))
+
+    out = capsys.readouterr().out
+    assert str(document_path) in out
+    assert "." * len(results) in out
+
+
+def test_process_documents_segment_quiet(tmp_path, capsys, caplog):
+    """With quiet=True nothing is printed; paths are logged at DEBUG."""
+    document_path = tmp_path / "document.txt"
+    document_path.write_text("a" * 650)
+
+    with caplog.at_level(logging.DEBUG, logger="talkpipe.pipelines.vector_databases"):
+        quiet_results = list(
+            ProcessDocumentsSegment(quiet=True).transform([str(document_path)])
+        )
+
+    assert capsys.readouterr().out == ""
+    assert str(document_path) in caplog.text
+    assert quiet_results == list(
+        ProcessDocumentsSegment().transform([str(document_path)])
+    )
 
 
 def test_make_vector_database_indexes_default_shingles_as_content(
@@ -904,6 +934,24 @@ def test_build_rag_database_reports_progress(tmp_path, rag_corpus, monkeypatch):
 
     assert [c[:2] for c in calls] == [(1, 1), (2, 2)]
     assert all(c[2].endswith(".txt") for c in calls)
+
+
+def test_build_rag_database_quiet(tmp_path, rag_corpus, monkeypatch, capsys):
+    from talkpipe.pipelines import vector_databases as vdb
+
+    monkeypatch.setattr(vdb, "LLMEmbed", _fake_llm_embed())
+
+    result = vdb.build_rag_database(
+        rag_corpus,
+        path=str(tmp_path / "db"),
+        embedding_model="fake-model",
+        embedding_source="fake-source",
+        overwrite=True,
+        quiet=True,
+    )
+
+    assert result.chunks_indexed == 2
+    assert capsys.readouterr().out == ""
 
 
 def test_build_rag_database_preflight_failure_reads_no_documents(

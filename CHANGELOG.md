@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+- `ProcessDocumentsSegment` (`processDocuments`) takes `quiet=False`. With
+  `quiet=True` it no longer prints each file's path and a tick per chunk to
+  stdout; the paths are logged at DEBUG on the
+  `talkpipe.pipelines.vector_databases` logger instead. `build_rag_database` passes
+  a new keyword-only `quiet=` argument through, so servers and background
+  indexers can build databases without console noise. The default is
+  unchanged, so `makevectordatabase` prints as before.
+
 ## 1.2.0 (2026-10-24)
 
 - `build_rag_database` accepts pre-made chunks: a new keyword-only

@@ -10,7 +10,7 @@ from talkpipe.data.text.cleaning import stripBase64
 from talkpipe.llm.embedding import LLMEmbed
 from talkpipe.pipe.debug import progressTicks
 from talkpipe.pipe.fields import ToDict, setAs
-from talkpipe.pipe.io import Print
+from talkpipe.pipe.io import Log, Print
 from talkpipe.search.lancedb import add_to_lancedb, search_lancedb
 from talkpipe.util.config import get_config
 from talkpipe.util.constants import (
@@ -39,22 +39,35 @@ class ProcessDocumentsSegment(AbstractSegment[Any, Any]):
             bool,
             "If true, strip base64 payloads (e.g. embedded images) from content before chunking",
         ] = True,
+        quiet: Annotated[
+            bool,
+            "If true, do not print each file's path and a tick per chunk to stdout; "
+            "file paths are logged at DEBUG on the "
+            "talkpipe.pipelines.vector_databases logger instead",
+        ] = False,
     ):
         super().__init__()
         self.chunk_size = chunk_size
         self.shingle_size = shingle_size
         self.overlap = overlap
         self.strip_base64 = strip_base64
+        self.quiet = quiet
 
         # listFiles is a segment expecting an iterable of patterns or values, so its input must be the patterns.
         # Store the shingled text as content so retrieved documents contain the same
         # text that was embedded, not just the final split chunk in the shingle.
         # Base64 payloads are stripped before chunking: they embed to degenerate
         # vectors that outrank real content for every query.
-        source = listFiles(full_path=True, files_only=True) | Print() | ReadFile()
+        # With quiet=True each path goes to this module's logger at DEBUG, so
+        # a consumer can turn it on through ordinary logging configuration.
+        files = listFiles(full_path=True, files_only=True)
+        files = files | (
+            Log(level="DEBUG", log_name=logger.name) if self.quiet else Print()
+        )
+        source = files | ReadFile()
         if self.strip_base64:
             source = source | stripBase64(field="content", set_as="content")
-        self.pipeline = (
+        pipeline = (
             source
             | splitText(field="content", set_as="content", criteria=self.chunk_size)
             | ShingleText(
@@ -68,8 +81,10 @@ class ProcessDocumentsSegment(AbstractSegment[Any, Any]):
             )
             | ToDict(field_list="content,source,id,title,shingle_text")
             | setAs(field_list="shingle_text:content")
-            | progressTicks(tick=".", tick_count=1, eol_count=50)
         )
+        if not self.quiet:
+            pipeline = pipeline | progressTicks(tick=".", tick_count=1, eol_count=50)
+        self.pipeline = pipeline
 
     def transform(self, input_iter: Iterable[Any]) -> Iterator[Any]:
         yield from self.pipeline.transform(input_iter)
@@ -367,6 +382,7 @@ def build_rag_database(
     preflight: bool = True,
     progress: Callable[[int, int, str], None] | None = None,
     chunks: Iterable[dict[str, Any]] | None = None,
+    quiet: bool = False,
 ) -> RagIngestResult:
     """Build a RAG vector database from documents matching a glob pattern.
 
@@ -401,6 +417,12 @@ def build_rag_database(
     must be None. Callers that chunk documents themselves, for example to
     build a keyword index from the same chunks first, keep the preflight,
     dimension check, overflow handling, and skip accounting above.
+
+    quiet, when true, stops ProcessDocumentsSegment printing each file's
+    path and a tick per chunk to stdout (paths are logged at DEBUG on the
+    talkpipe.pipelines.vector_databases logger instead), for callers such as
+    servers and background indexers that report progress through the
+    progress callback or not at all.
     """
     if (chunks is None) == (source_pattern is None):
         raise ValueError("pass exactly one of source_pattern and chunks")
@@ -448,6 +470,7 @@ def build_rag_database(
                 chunk_size=chunk_size,
                 shingle_size=shingle_size,
                 overlap=overlap,
+                quiet=quiet,
             )
             | tally_and_embed
         )
