@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+- **`LanceDBDocumentStore.vector_search` (and so `searchLanceDB`) now searches
+  with the cosine metric and returns the cosine similarity as the score**, in
+  [-1, 1], for normalized and unnormalized vectors alike. Previously it searched
+  with LanceDB's default squared-L2 metric and scored `max(0, 1 - distance)`,
+  which clipped every hit with cosine similarity at or below 0.5 to 0.0 (most
+  hits for unit-length embeddings) and scored unnormalized embeddings 0.0
+  outright, so consumers could not rank, threshold or merge on the score.
+  Result order is unchanged for unit-length embeddings; the score values
+  change, so callers that filter on a score threshold should re-check it.
+  talkpipe creates no vector index on its tables, so existing databases need
+  no rebuild.
+
 - `ProcessDocumentsSegment` (`processDocuments`) takes `quiet=False`. With
   `quiet=True` it no longer prints each file's path and a tick per chunk to
   stdout; the paths are logged at DEBUG on the

@@ -96,8 +96,9 @@ def search_lancedb(
     the database, returning the associated documents.
 
     LanceDB is optimized for vector similarity search and supports approximate nearest
-    neighbor (ANN) search for efficient similarity matching. Results are scored by
-    similarity distance.
+    neighbor (ANN) search for efficient similarity matching. Each result's score is
+    the cosine similarity between the query and the stored vector, in [-1, 1]
+    (1 is identical direction), whether or not the vectors are normalized.
 
     Path supports storage options:
     - "/path/to/db": Persistent file-based database
@@ -194,9 +195,10 @@ def add_to_lancedb(
     When skip_zero_vectors is true (the default), items whose vector has zero
     magnitude are passed through without being added to the database. A zero
     vector usually means the embedded text contained nothing the embedding model
-    recognizes (e.g. base64 or binary content), and under L2 distance against
-    normalized embeddings it sits closer to every query than unrelated real
-    documents, polluting all search results if indexed.
+    recognizes (e.g. base64 or binary content). Its cosine similarity to any
+    query is undefined, so it cannot be ranked (LanceDB drops it from cosine
+    search results), and under the L2 metric it sits closer to every query than
+    unrelated real documents, polluting all search results if indexed.
 
     Useful for:
     - Creating semantic search indexes from embeddings
@@ -548,14 +550,18 @@ class LanceDBDocumentStore(DocumentStore, VectorAddable, VectorSearchable):
 
         try:
             table, _created_and_updated = self._get_table()
-            results = table.search(vec_list).limit(limit).to_list()
+            results = (
+                table.search(vec_list).distance_type("cosine").limit(limit).to_list()
+            )
 
             search_results = []
             for result in results:
-                # LanceDB returns distance, we convert to similarity score (1 - normalized_distance)
+                # Under the cosine metric LanceDB returns 1 - cos as _distance, so
+                # the score is the cosine similarity in [-1, 1], independent of
+                # vector norm (LanceDB's default squared-L2 metric clipped most
+                # hits to 0 here).
                 distance = result.get("_distance", 0.0)
-                # Normalize distance to similarity score (higher is better)
-                score = max(0.0, 1.0 - distance)
+                score = 1.0 - distance
 
                 search_result = SearchResult(
                     score=score,

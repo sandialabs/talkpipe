@@ -560,6 +560,37 @@ def test_add_and_search_integration(temp_db_path, sample_items_direction_relevan
     assert results[1].document["text"] == "second item"
 
 
+def test_vector_search_score_is_cosine_similarity(temp_db_path):
+    """The score is the cosine similarity, not clipped and independent of norm.
+
+    LanceDB's default squared-L2 metric made ``1 - distance`` negative for most
+    hits, which the old code clipped to 0.0.
+    """
+    store = LanceDBDocumentStore(temp_db_path, "test_table")
+    store.add_vectors(
+        [
+            ([1.0, 0.0], {"text": "same direction, unit"}, "unit"),
+            ([3.0, 0.0], {"text": "same direction, unnormalized"}, "long"),
+            ([1.0, 1.0], {"text": "45 degrees"}, "diag"),
+            ([1.0, 3.0], {"text": "cos 0.316, clipped to 0 before"}, "far"),
+            ([0.0, 1.0], {"text": "orthogonal"}, "orth"),
+            ([-1.0, 0.0], {"text": "opposite"}, "opp"),
+        ]
+    )
+
+    results = store.vector_search([1.0, 0.0], limit=6)
+    scores = {r.doc_id: r.score for r in results}
+
+    assert scores["unit"] == pytest.approx(1.0)
+    assert scores["long"] == pytest.approx(1.0)  # norm does not matter
+    assert scores["diag"] == pytest.approx(0.7071, abs=1e-3)
+    assert scores["far"] == pytest.approx(0.3162, abs=1e-3)  # not clipped to 0
+    assert scores["orth"] == pytest.approx(0.0, abs=1e-6)
+    assert scores["opp"] == pytest.approx(-1.0)
+    assert {r.doc_id for r in results[:2]} == {"unit", "long"}
+    assert [r.doc_id for r in results[2:]] == ["diag", "far", "orth", "opp"]
+
+
 def test_upsert_integration(temp_db_path):
     """Test that addToLanceDB can update existing documents by default (upsert behavior)."""
     # Add initial documents
