@@ -545,7 +545,30 @@ class LanceDBDocumentStore(DocumentStore, VectorAddable, VectorSearchable):
 
     # VectorSearchable protocol implementation
     def vector_search(self, vector: VectorLike, limit: int = 10) -> list[SearchResult]:
-        """Search for vectors similar to the given vector."""
+        """Search for vectors similar to the given vector.
+
+        Each result's ``score`` is the cosine similarity between the query and
+        the stored vector, in [-1, 1]. Use :meth:`vector_search_raw` when
+        LanceDB's distance itself is needed, for example to merge hits from
+        several stores that share an embedder by distance, nearest first.
+        """
+        return [result for _distance, result in self.vector_search_raw(vector, limit)]
+
+    def vector_search_raw(
+        self, vector: VectorLike, limit: int = 10
+    ) -> list[tuple[float, SearchResult]]:
+        """Search like :meth:`vector_search`, returning the raw distance beside each hit.
+
+        Returns ``(distance, result)`` pairs, nearest first, where ``distance`` is
+        LanceDB's ``_distance`` for the hit under the cosine metric (``1 - cos``,
+        in [0, 2]) and ``result`` is the same :class:`SearchResult` that
+        :meth:`vector_search` would return (its ``score`` is ``1.0 - distance``).
+        Distances from several stores that share an embedder can be merged
+        directly, smallest first.
+
+        Like :meth:`vector_search`, a missing table or a failed search is logged
+        and yields an empty list.
+        """
         vec_list = self._validate_vector(vector)
 
         try:
@@ -560,7 +583,7 @@ class LanceDBDocumentStore(DocumentStore, VectorAddable, VectorSearchable):
                 # the score is the cosine similarity in [-1, 1], independent of
                 # vector norm (LanceDB's default squared-L2 metric clipped most
                 # hits to 0 here).
-                distance = result.get("_distance", 0.0)
+                distance = float(result.get("_distance", 0.0))
                 score = 1.0 - distance
 
                 search_result = SearchResult(
@@ -568,7 +591,7 @@ class LanceDBDocumentStore(DocumentStore, VectorAddable, VectorSearchable):
                     doc_id=result["id"],
                     document=self._deserialize_document(result["document"]),
                 )
-                search_results.append(search_result)
+                search_results.append((distance, search_result))
 
             return search_results
         except Exception as e:
@@ -586,6 +609,52 @@ class LanceDBDocumentStore(DocumentStore, VectorAddable, VectorSearchable):
                 f"delete_document({doc_id!r}) failed on table '{self.table_name}': {e}"
             )
             return False
+
+    def delete_by_id_prefix(self, prefixes: str | Iterable[str]) -> None:
+        """Delete every document whose ID starts with any of the given prefixes.
+
+        A consumer that keys its rows as ``<file id>:<chunk n>`` can remove all
+        chunks of a file in one call. Prefixes are matched literally (no LIKE
+        wildcards), so any string is safe to pass. The table is left untouched
+        when it does not exist yet; a failed delete raises.
+
+        Args:
+            prefixes: One prefix, or an iterable of them. Deletes are issued in
+                batches of 50 prefixes per predicate.
+        """
+        if isinstance(prefixes, str):
+            prefixes = [prefixes]
+        prefixes = list(prefixes)
+        if not prefixes:
+            return
+        try:
+            table, _created_and_updated = self._get_table()
+        except ValueError:
+            logger.debug(
+                f"delete_by_id_prefix: table '{self.table_name}' does not exist, nothing to delete."
+            )
+            return
+        for start in range(0, len(prefixes), 50):
+            clauses = []
+            for prefix in prefixes[start : start + 50]:
+                literal = prefix.replace("'", "''")  # SQL string literal escaping
+                clauses.append(f"starts_with(id, '{literal}')")
+            table.delete(" OR ".join(clauses))
+
+    def drop(self) -> None:
+        """Drop the store's table, discarding every document and vector.
+
+        A no-op when the table does not exist. The next :meth:`add_vector` or
+        :meth:`add_vectors` call recreates it.
+        """
+        try:
+            self._get_db().drop_table(self.table_name)
+        except (FileNotFoundError, ValueError):
+            logger.debug(
+                f"drop: table '{self.table_name}' does not exist, nothing to drop."
+            )
+        self._table = None
+        self._id_index_ensured = False
 
     def update_document(
         self, doc_id: DocID, document: Document, vector: VectorLike | None = None

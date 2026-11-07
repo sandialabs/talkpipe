@@ -42,6 +42,17 @@
   conversation memory and completion stages instead of copying them. Existing
   calls are unaffected.
 
+- `LanceDBDocumentStore` gains three public methods so consumers no longer
+  need its private `_get_table()` / `_get_db()`: `delete_by_id_prefix(prefixes)`
+  deletes every document whose ID starts with any of the given prefixes
+  (one string or an iterable; matched literally, batched 50 per predicate, a
+  no-op when the table does not exist); `drop()` drops the store's table (a
+  no-op when it does not exist, and the next add recreates it); and
+  `vector_search_raw(vector, limit)` returns `(distance, SearchResult)` pairs
+  with LanceDB's cosine `_distance` (`1 - cos`) beside each hit, for merging
+  hits across stores by distance, nearest first. `vector_search` now delegates
+  to `vector_search_raw` and behaves as described above.
+
 - `ProcessDocumentsSegment` (`processDocuments`) takes `quiet=False`. With
   `quiet=True` it no longer prints each file's path and a tick per chunk to
   stdout; the paths are logged at DEBUG on the
