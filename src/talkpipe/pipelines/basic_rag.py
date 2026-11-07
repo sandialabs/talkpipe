@@ -2,7 +2,7 @@
 
 import logging
 from abc import abstractmethod
-from collections.abc import Iterable, Iterator
+from collections.abc import Callable, Iterable, Iterator
 from typing import Annotated, Any
 
 from talkpipe import AbstractSegment, register_segment
@@ -138,12 +138,25 @@ class AppendRAGSources(AbstractSegment[Any, Any]):
                 yield item
 
 
+RetrievalSpec = AbstractSegment[Any, Any] | Callable[[], AbstractSegment[Any, Any]]
+"""A custom retrieval stage: a segment, or a zero-argument factory returning one.
+
+The segment receives each item with ``content_field`` (and ``embedding_prompt``)
+set and must set ``_background`` on it to a list of ``SearchResult``.
+"""
+
+
 class AbstractRAGPipeline(AbstractSegment[Any, Any]):
     """Convenience segment that runs a RAG pipeline from search to prompt creation to LLM completion.
 
     Path supports multiple URI schemes:
     - File path: "./my_db" or "/path/to/db" - Persistent storage
     - Temp: "tmp://name" - Process-scoped temporary database (shared by name, auto-cleanup on exit)
+
+    The retrieval stage defaults to a vector search over ``path``; pass
+    ``retrieval=`` or override ``make_retrieval_segment`` to substitute any
+    segment that sets ``_background`` to a list of ``SearchResult``. The prompt,
+    memory and completion stages are unchanged either way.
     """
 
     def __init__(
@@ -206,6 +219,10 @@ class AbstractRAGPipeline(AbstractSegment[Any, Any]):
         debug_messages: Annotated[
             bool, "Whether to log outbound LLM request messages"
         ] = False,
+        retrieval: Annotated[
+            RetrievalSpec | None,
+            "Custom retrieval stage: a segment, or a zero-argument callable returning one, that sets _background to a list of SearchResult. None (default) searches the vector database at path.",
+        ] = None,
     ):
 
         super().__init__()
@@ -230,22 +247,26 @@ class AbstractRAGPipeline(AbstractSegment[Any, Any]):
         self.context_token_trigger = context_token_trigger
         self.memory_size = memory_size
         self.debug_messages = debug_messages
+        self.retrieval = retrieval
         self._pipeline: AbstractSegment[Any, Any] | None = None
 
     @abstractmethod
     def make_completion_segment(self) -> AbstractSegment[Any, Any]:
         """Create the segment that performs the completion over the RAG prompt."""
 
-    def make_pipeline(self) -> AbstractSegment[Any, Any]:
-        """Build a fresh search -> prompt -> completion pipeline.
+    def make_retrieval_segment(self) -> AbstractSegment[Any, Any]:
+        """Create the segment that retrieves background for each item.
 
-        Each call returns independent segments (its own database connection
-        and its own LLM adapter, hence its own conversation memory). ``transform``
-        builds one lazily and keeps it; callers that need isolated state per
-        user, such as ``serverag``, call this once per session instead.
+        The segment receives each item with ``content_field`` (and
+        ``embedding_prompt``) set and must set ``_background`` on it to a list
+        of ``SearchResult``. By default this is a ``SearchVectorDatabaseSegment``
+        over ``path``; a ``retrieval`` constructor argument replaces it. A
+        segment instance is returned as-is (so every pipeline built from this
+        instance shares it); a callable is invoked on each call, so it can hand
+        each pipeline its own state. Subclasses may override this instead.
         """
-        pipeline: AbstractSegment[Any, Any] = (
-            SearchVectorDatabaseSegment(
+        if self.retrieval is None:
+            return SearchVectorDatabaseSegment(
                 embedding_model=self.embedding_model,
                 embedding_source=self.embedding_source,
                 path=self.path,
@@ -255,6 +276,29 @@ class AbstractRAGPipeline(AbstractSegment[Any, Any]):
                 query_field=self.embedding_prompt,
                 read_consistency_interval=self.read_consistency_interval,
             )
+        if isinstance(self.retrieval, AbstractSegment):
+            return self.retrieval
+        if callable(self.retrieval):
+            segment = self.retrieval()
+            if not isinstance(segment, AbstractSegment):
+                raise TypeError(
+                    f"retrieval callable must return an AbstractSegment, got {type(segment).__name__}"
+                )
+            return segment
+        raise TypeError(
+            f"retrieval must be an AbstractSegment or a zero-argument callable returning one, got {type(self.retrieval).__name__}"
+        )
+
+    def make_pipeline(self) -> AbstractSegment[Any, Any]:
+        """Build a fresh retrieval -> prompt -> completion pipeline.
+
+        Each call returns independent segments (its own database connection
+        and its own LLM adapter, hence its own conversation memory). ``transform``
+        builds one lazily and keeps it; callers that need isolated state per
+        user, such as ``serverag``, call this once per session instead.
+        """
+        pipeline: AbstractSegment[Any, Any] = (
+            self.make_retrieval_segment()
             | DiagPrint(output=self.diagPrintOutput, level=self.logging_level)
             | ConstructRAGPrompt(
                 prompt_directive=self.prompt_directive,
@@ -348,6 +392,10 @@ class RAGToText(AbstractRAGPipeline):
         append_sources_to_output: Annotated[
             bool, "If True, append source file paths to the answer"
         ] = True,
+        retrieval: Annotated[
+            RetrievalSpec | None,
+            "Custom retrieval stage: a segment, or a zero-argument callable returning one, that sets _background to a list of SearchResult. None (default) searches the vector database at path.",
+        ] = None,
     ):
         super().__init__(
             embedding_model=embedding_model,
@@ -371,6 +419,7 @@ class RAGToText(AbstractRAGPipeline):
             context_token_trigger=context_token_trigger,
             memory_size=memory_size,
             debug_messages=debug_messages,
+            retrieval=retrieval,
         )
         self.append_sources_to_output = append_sources_to_output
 
@@ -468,6 +517,10 @@ class RAGToBinaryAnswer(AbstractRAGPipeline):
         debug_messages: Annotated[
             bool, "Whether to log outbound LLM request messages"
         ] = False,
+        retrieval: Annotated[
+            RetrievalSpec | None,
+            "Custom retrieval stage: a segment, or a zero-argument callable returning one, that sets _background to a list of SearchResult. None (default) searches the vector database at path.",
+        ] = None,
     ):
         super().__init__(
             embedding_model=embedding_model,
@@ -491,6 +544,7 @@ class RAGToBinaryAnswer(AbstractRAGPipeline):
             context_token_trigger=context_token_trigger,
             memory_size=memory_size,
             debug_messages=debug_messages,
+            retrieval=retrieval,
         )
 
     def make_completion_segment(self) -> AbstractSegment[Any, Any]:
@@ -578,6 +632,10 @@ class RAGToScore(AbstractRAGPipeline):
         debug_messages: Annotated[
             bool, "Whether to log outbound LLM request messages"
         ] = False,
+        retrieval: Annotated[
+            RetrievalSpec | None,
+            "Custom retrieval stage: a segment, or a zero-argument callable returning one, that sets _background to a list of SearchResult. None (default) searches the vector database at path.",
+        ] = None,
     ):
         super().__init__(
             embedding_model=embedding_model,
@@ -601,6 +659,7 @@ class RAGToScore(AbstractRAGPipeline):
             context_token_trigger=context_token_trigger,
             memory_size=memory_size,
             debug_messages=debug_messages,
+            retrieval=retrieval,
         )
 
     def make_completion_segment(self) -> AbstractSegment[Any, Any]:
