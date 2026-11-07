@@ -14,6 +14,18 @@
   talkpipe creates no vector index on its tables, so existing databases need
   no rebuild.
 
+- `AbstractRAGPipeline` gained a retrieval seam to match its completion seam.
+  `make_retrieval_segment()` builds the stage that sets `_background`, and
+  `make_pipeline()` calls it; by default it is the same
+  `SearchVectorDatabaseSegment` over `path` as before. A new optional
+  `retrieval=` keyword on `RAGToText`, `RAGToBinaryAnswer` and `RAGToScore`
+  accepts any segment, or a zero-argument callable returning one, that sets
+  `_background` to a list of `SearchResult`; a callable is invoked once per
+  `make_pipeline()` so each session gets its own state. Consumers with
+  retrieval the composite cannot express (keyword branches, filters, fan-out
+  over several databases) can now plug it in and keep the composite's prompt,
+  conversation memory and completion stages instead of copying them. Existing
+  calls are unaffected.
 - `ProcessDocumentsSegment` (`processDocuments`) takes `quiet=False`. With
   `quiet=True` it no longer prints each file's path and a tick per chunk to
   stdout; the paths are logged at DEBUG on the

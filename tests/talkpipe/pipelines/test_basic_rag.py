@@ -575,6 +575,183 @@ def test_rag_pipeline_is_built_once_and_reused_across_calls(monkeypatch):
     assert len(built) == 1, "the pipeline must be built once, not per call"
 
 
+class _FakeRetrieval(AbstractSegment):
+    """Stand-in retrieval stage: sets _background to a fixed list of SearchResult."""
+
+    def __init__(self, results):
+        super().__init__()
+        self.results = results
+        self.seen = []
+
+    def transform(self, input_iter):
+        for item in input_iter:
+            self.seen.append(item)
+            item["_background"] = list(self.results)
+            yield item
+
+
+def test_make_retrieval_segment_default_is_vector_search():
+    """Without retrieval=, the default stage is the vector search over path."""
+    from talkpipe.pipelines.basic_rag import RAGToText
+    from talkpipe.pipelines.vector_databases import SearchVectorDatabaseSegment
+
+    rag_segment = RAGToText(
+        path="tmp://rag_test",
+        content_field="query",
+        embedding_prompt="prompt",
+        embedding_model="mxbai-embed-large",
+        embedding_source="ollama",
+        limit=3,
+        table_name="kb",
+    )
+    assert rag_segment.retrieval is None
+
+    search = rag_segment.make_retrieval_segment()
+
+    assert isinstance(search, SearchVectorDatabaseSegment)
+    assert search.path == "tmp://rag_test"
+    assert search.set_as == "_background"
+    assert search.query_field == "prompt"
+    assert search.limit == 3
+    assert search.table_name == "kb"
+
+
+def test_rag_to_text_custom_retrieval_segment_feeds_prompt_and_completion(
+    monkeypatch,
+):
+    """A retrieval= segment replaces the vector search; prompt and completion stay."""
+    from talkpipe.pipelines.basic_rag import RAGToText
+
+    prompts = []
+
+    class _CapturingLLMPrompt(_FakeLLMPrompt):
+        def transform(self, input_iter):
+            for item in input_iter:
+                prompts.append(item["_ragprompt"])
+                yield from super().transform([item])
+
+    monkeypatch.setattr("talkpipe.pipelines.basic_rag.LLMPrompt", _CapturingLLMPrompt)
+
+    retrieval = _FakeRetrieval(
+        [
+            SearchResult(
+                score=0.9,
+                doc_id="1",
+                document={"source": "/kb/custom.md", "text": "custom hit"},
+            )
+        ]
+    )
+    rag_segment = RAGToText(
+        path="unused",
+        content_field="query",
+        set_as="answer",
+        retrieval=retrieval,
+    )
+
+    results = list(rag_segment.transform([{"query": "anything"}]))
+
+    assert rag_segment.make_retrieval_segment() is retrieval
+    assert retrieval.seen == [results[0]]
+    assert "custom hit" in prompts[0]
+    assert "anything" in prompts[0]
+    assert results[0]["answer"].startswith("the answer")
+    assert "/kb/custom.md" in results[0]["answer"]
+
+
+def test_rag_to_text_retrieval_callable_builds_one_segment_per_pipeline(
+    monkeypatch,
+):
+    """A retrieval= factory is called once per make_pipeline(), so sessions do not share state."""
+    from talkpipe.pipelines.basic_rag import RAGToText
+
+    monkeypatch.setattr("talkpipe.pipelines.basic_rag.LLMPrompt", _FakeLLMPrompt)
+
+    built = []
+
+    def make_retrieval():
+        segment = _FakeRetrieval([])
+        built.append(segment)
+        return segment
+
+    rag_segment = RAGToText(
+        path="unused",
+        content_field="query",
+        set_as="answer",
+        append_sources_to_output=False,
+        retrieval=make_retrieval,
+    )
+    first = rag_segment.make_pipeline()
+    second = rag_segment.make_pipeline()
+
+    assert len(built) == 2
+    assert built[0] is not built[1]
+    assert next(first([{"query": "a"}]))["answer"] == "the answer"
+    assert next(second([{"query": "b"}]))["answer"] == "the answer"
+    assert [item["query"] for item in built[0].seen] == ["a"]
+    assert [item["query"] for item in built[1].seen] == ["b"]
+
+
+def test_rag_to_text_retrieval_callable_must_return_segment():
+    from talkpipe.pipelines.basic_rag import RAGToText
+
+    rag_segment = RAGToText(
+        path="unused", content_field="query", retrieval=lambda: "not a segment"
+    )
+    with pytest.raises(TypeError, match="must return an AbstractSegment"):
+        rag_segment.make_retrieval_segment()
+
+
+def test_rag_to_text_retrieval_rejects_other_types():
+    from talkpipe.pipelines.basic_rag import RAGToText
+
+    rag_segment = RAGToText(path="unused", content_field="query", retrieval="nope")
+    with pytest.raises(TypeError, match="retrieval must be an AbstractSegment"):
+        rag_segment.make_retrieval_segment()
+
+
+def test_subclass_can_override_make_retrieval_segment(monkeypatch):
+    """Overriding make_retrieval_segment works like overriding make_completion_segment."""
+    from talkpipe.pipelines.basic_rag import RAGToText
+
+    monkeypatch.setattr("talkpipe.pipelines.basic_rag.LLMPrompt", _FakeLLMPrompt)
+
+    class KeywordRAG(RAGToText):
+        def make_retrieval_segment(self):
+            return _FakeRetrieval([])
+
+    rag_segment = KeywordRAG(
+        path="unused",
+        content_field="query",
+        set_as="answer",
+        append_sources_to_output=False,
+    )
+    results = list(rag_segment.transform([{"query": "q"}]))
+
+    assert len(results) == 1
+    assert results[0]["_background"] == []
+    assert results[0]["answer"] == "the answer"
+
+
+@pytest.mark.parametrize("cls_name", ["RAGToBinaryAnswer", "RAGToScore"])
+def test_other_pipelines_accept_retrieval(cls_name):
+    """RAGToBinaryAnswer and RAGToScore forward retrieval= to the base class."""
+    import talkpipe.pipelines.basic_rag as basic_rag
+
+    retrieval = _FakeRetrieval([])
+    rag_segment = getattr(basic_rag, cls_name)(
+        embedding_model="m",
+        embedding_source="ollama",
+        completion_model="c",
+        completion_source="ollama",
+        path="unused",
+        content_field="query",
+        retrieval=retrieval,
+    )
+
+    assert rag_segment.retrieval is retrieval
+    assert rag_segment.make_retrieval_segment() is retrieval
+
+
 def test_rag_to_text_diagPrintOutput_in_pipeline(capsys):
     """Test that diagPrintOutput parameter correctly controls DiagPrint output in the pipeline."""
     from unittest.mock import MagicMock, patch
