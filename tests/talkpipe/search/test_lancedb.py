@@ -839,6 +839,131 @@ def test_store_optimize_prunes_old_versions(temp_db_path):
     assert store.count() == 5
 
 
+def test_delete_by_id_prefix(temp_db_path):
+    """All rows whose ID starts with a prefix go; other rows stay."""
+    store = LanceDBDocumentStore(temp_db_path, "test_table")
+    store.add_vectors(
+        [
+            ([1.0, 0.0], {"text": "a0"}, "file-a:0"),
+            ([0.0, 1.0], {"text": "a1"}, "file-a:1"),
+            ([1.0, 1.0], {"text": "b0"}, "file-b:0"),
+            ([0.5, 0.5], {"text": "c0"}, "file-c:0"),
+        ]
+    )
+
+    store.delete_by_id_prefix("file-a:")
+    assert sorted(store.list_ids()) == ["file-b:0", "file-c:0"]
+
+    # An iterable of prefixes deletes the union in one call
+    store.delete_by_id_prefix(["file-b", "file-c"])
+    assert store.count() == 0
+
+
+def test_delete_by_id_prefix_matches_literally(temp_db_path):
+    """LIKE wildcards and quotes in a prefix are matched as plain characters."""
+    store = LanceDBDocumentStore(temp_db_path, "test_table")
+    store.add_vectors(
+        [
+            ([1.0, 0.0], {"text": "pct"}, "ab%d:0"),
+            ([0.0, 1.0], {"text": "underscore"}, "ab_c:0"),
+            ([1.0, 1.0], {"text": "anything"}, "abxc:0"),
+            ([0.5, 0.5], {"text": "quote"}, "o'neil:0"),
+        ]
+    )
+
+    store.delete_by_id_prefix("ab_c")
+    assert sorted(store.list_ids()) == ["ab%d:0", "abxc:0", "o'neil:0"]
+    store.delete_by_id_prefix("ab%")
+    assert sorted(store.list_ids()) == ["abxc:0", "o'neil:0"]
+    store.delete_by_id_prefix("o'neil")
+    assert store.list_ids() == ["abxc:0"]
+
+
+def test_delete_by_id_prefix_batches_many_prefixes(temp_db_path):
+    """More than one batch of 50 prefixes is handled in a single call."""
+    store = LanceDBDocumentStore(temp_db_path, "test_table")
+    store.add_vectors(
+        [([float(i), 1.0], {"text": str(i)}, f"doc-{i:03d}:0") for i in range(120)],
+        upsert=False,
+    )
+
+    store.delete_by_id_prefix(f"doc-{i:03d}" for i in range(110))
+    assert sorted(store.list_ids()) == [f"doc-{i:03d}:0" for i in range(110, 120)]
+
+
+def test_delete_by_id_prefix_without_table_is_noop(temp_db_path):
+    """Deleting from a store whose table was never created neither fails nor creates it."""
+    store = LanceDBDocumentStore(temp_db_path, "test_table")
+    store.delete_by_id_prefix("anything")
+    store.delete_by_id_prefix([])
+    with pytest.raises(ValueError, match="not found"):
+        store._get_table()
+
+
+def test_drop_removes_table_and_allows_reuse(temp_db_path):
+    """drop() discards the table; the store recreates it on the next add."""
+    store = LanceDBDocumentStore(temp_db_path, "test_table")
+    store.add_vectors([([1.0, 0.0], {"text": "a"}, "doc1")])
+    store.add_vectors([([0.0, 1.0], {"text": "b"}, "doc2")])  # upsert path, id index
+    assert store.count() == 2
+
+    store.drop()
+    assert "test_table" not in store._get_db().list_tables().tables
+    assert store.count() == 0
+    assert LanceDBDocumentStore(temp_db_path, "test_table").count() == 0
+
+    # Both the plain-add and the upsert paths work again on the recreated table
+    store.add_vectors([([1.0, 1.0], {"text": "c"}, "doc3")])
+    store.add_vectors([([2.0, 2.0], {"text": "d"}, "doc4")])
+    assert sorted(store.list_ids()) == ["doc3", "doc4"]
+    assert store.get_document("doc1") is None
+
+
+def test_drop_without_table_is_noop(temp_db_path):
+    """drop() on a store whose table does not exist does nothing."""
+    store = LanceDBDocumentStore(temp_db_path, "test_table")
+    store.drop()
+    store.drop()
+    assert store.count() == 0
+
+
+def test_vector_search_raw_returns_cosine_distance(temp_db_path):
+    """vector_search_raw pairs each hit with LanceDB's cosine distance (1 - cos),
+    nearest first, and vector_search returns the same hits scored 1 - distance."""
+    store = LanceDBDocumentStore(temp_db_path, "test_table")
+    store.add_vectors(
+        [
+            ([1.0, 0.0], {"text": "exact"}, "exact"),
+            ([0.0, 3.0], {"text": "orthogonal"}, "orthogonal"),
+        ]
+    )
+
+    raw = store.vector_search_raw([1.0, 0.0], limit=2)
+    assert [result.doc_id for _, result in raw] == ["exact", "orthogonal"]
+    distances = [distance for distance, _ in raw]
+    assert distances[0] == pytest.approx(0.0)
+    assert distances[1] == pytest.approx(1.0)  # 1 - cos(90°), independent of norm
+    assert all(isinstance(distance, float) for distance in distances)
+
+    plain = store.vector_search([1.0, 0.0], limit=2)
+    assert plain == [result for _, result in raw]
+    assert plain[0].score == pytest.approx(1.0)
+    assert plain[1].score == pytest.approx(0.0)
+
+
+def test_vector_search_raw_logs_failure(temp_db_path, monkeypatch, caplog):
+    """Like vector_search, a failed raw search returns [] and logs the cause."""
+    store = LanceDBDocumentStore(temp_db_path)
+
+    def boom():
+        raise RuntimeError("lance is down")
+
+    monkeypatch.setattr(store, "_get_table", boom)
+    with caplog.at_level("WARNING", logger="talkpipe.search.lancedb"):
+        assert store.vector_search_raw([1.0, 2.0]) == []
+    assert "lance is down" in caplog.text
+
+
 @mock.patch("talkpipe.search.lancedb.LanceDBDocumentStore")
 @mock.patch("talkpipe.search.lancedb.extract_property")
 def test_add_to_lancedb_appends_without_doc_id_field(
