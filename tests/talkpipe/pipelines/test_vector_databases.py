@@ -58,9 +58,23 @@ def test_process_documents_segment_shingles_with_defaults(tmp_path):
     results = list(segment.transform([str(document_path)]))
 
     assert [item["shingle_text"] for item in results] == [
-        f"{chunks[0]} {chunks[1]} {chunks[2]}",
-        f"{chunks[2]} {chunks[3]}",
+        f"{chunks[0]}{chunks[1]}{chunks[2]}",
+        f"{chunks[2]}{chunks[3]}",
     ]
+
+
+def test_process_documents_segment_keeps_words_intact(tmp_path):
+    """Chunk boundaries fall on whitespace and shingles rebuild the original text."""
+    text = "x" * 295 + " scanner works"
+    document_path = tmp_path / "document.txt"
+    document_path.write_text(text)
+
+    results = list(ProcessDocumentsSegment().transform([str(document_path)]))
+
+    shingles = [item["shingle_text"] for item in results]
+    assert shingles == [text]
+    assert "scan ner" not in shingles[0]
+    assert results[0]["content"] == text
 
 
 def test_process_documents_segment_strips_base64(tmp_path):

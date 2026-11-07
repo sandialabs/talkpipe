@@ -56,6 +56,9 @@ class ProcessDocumentsSegment(AbstractSegment[Any, Any]):
         # listFiles is a segment expecting an iterable of patterns or values, so its input must be the patterns.
         # Store the shingled text as content so retrieved documents contain the same
         # text that was embedded, not just the final split chunk in the shingle.
+        # splitText yields contiguous chunks that keep their trailing whitespace,
+        # so shingles are joined with "" to rebuild the original text; joining
+        # with " " used to insert a space inside words at every chunk boundary.
         # Base64 payloads are stripped before chunking: they embed to degenerate
         # vectors that outrank real content for every query.
         # With quiet=True each path goes to this module's logger at DEBUG, so
@@ -77,7 +80,7 @@ class ProcessDocumentsSegment(AbstractSegment[Any, Any]):
                 shingle_size=self.shingle_size,
                 overlap=self.overlap,
                 size_mode="count",
-                delimiter=" ",
+                delimiter="",
             )
             | ToDict(field_list="content,source,id,title,shingle_text")
             | setAs(field_list="shingle_text:content")

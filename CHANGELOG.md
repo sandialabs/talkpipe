@@ -2,6 +2,21 @@
 
 ## Unreleased
 
+- **Fixed `processDocuments` splitting words at chunk boundaries.**
+  `splitText` with an integer criteria cut the text at fixed character
+  offsets and `ProcessDocumentsSegment` joined the pieces with a space, so a
+  boundary inside a word produced text like "scan ner" in the stored and
+  embedded content, and a keyword search for the whole word missed it.
+  `splitText` now moves a cut that would land inside a word back to the last
+  whitespace, keeping that whitespace at the end of the chunk, so chunks are
+  still at most `criteria` characters and still concatenate to the original
+  text; a run of non-whitespace longer than the limit is cut at the limit as
+  before. `ProcessDocumentsSegment` joins shingles with `""` instead of
+  `" "`, so each shingle is exactly the original text of its chunks.
+  Documents indexed from now on are stored intact; existing indexes keep the
+  broken text until they are re-embedded. `shingleText` itself is unchanged,
+  including its default `" "` delimiter.
+
 - **`LanceDBDocumentStore.vector_search` (and so `searchLanceDB`) now searches
   with the cosine metric and returns the cosine similarity as the score**, in
   [-1, 1], for normalized and unnormalized vectors alike. Previously it searched
@@ -26,6 +41,7 @@
   over several databases) can now plug it in and keep the composite's prompt,
   conversation memory and completion stages instead of copying them. Existing
   calls are unaffected.
+
 - `ProcessDocumentsSegment` (`processDocuments`) takes `quiet=False`. With
   `quiet=True` it no longer prints each file's path and a tick per chunk to
   stdout; the paths are logged at DEBUG on the

@@ -18,10 +18,17 @@ def splitText(
     criteria: Annotated[
         str | int,
         "Criteria for splitting text. If string, split by this string. "
-        "If int, split by this many characters.",
+        "If int, split into chunks of at most this many characters, cut at "
+        "whitespace so no chunk starts mid-word.",
     ],
 ) -> Iterator[str]:
     """Splits the input text into a list of text chunks.
+
+    With an integer criteria the chunks are at most that many characters long
+    and a cut that would fall inside a word is moved back to the last
+    whitespace before it. The whitespace stays at the end of the chunk, so the
+    chunks concatenate back to the original text. A run of non-whitespace
+    longer than the criteria is cut at the limit as before.
 
     Returns:
         iterator[str]: A list of text chunks extracted from the input text.
@@ -30,8 +37,25 @@ def splitText(
         logger.debug(f"Splitting text by string: {criteria}")
         yield from text.split(criteria)
     elif isinstance(criteria, int):
+        if criteria < 1:
+            raise ValueError("Integer criteria must be at least 1.")
         logger.debug(f"Splitting text into chunks of size: {criteria}")
-        yield from (text[i : i + criteria] for i in range(0, len(text), criteria))
+        start = 0
+        while start < len(text):
+            end = start + criteria
+            if (
+                end < len(text)
+                and not text[end - 1].isspace()
+                and not text[end].isspace()
+            ):
+                last_space = max(
+                    (i for i in range(start, end) if text[i].isspace()),
+                    default=None,
+                )
+                if last_space is not None:
+                    end = last_space + 1
+            yield text[start:end]
+            start = end
     else:
         raise ValueError("Criteria must be either a string or an integer.")
 
