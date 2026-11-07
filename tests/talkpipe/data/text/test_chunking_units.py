@@ -91,24 +91,56 @@ def test_splitText():
     ]
     assert result_str == expected_str, f"Expected {expected_str}, got {result_str}"
 
-    # Test splitting by integer
+    # Test splitting by integer: cuts back off to whitespace, which stays at
+    # the end of the chunk so the chunks concatenate to the original text.
     criteria_int = 10
     splitter = ch.splitText(criteria=criteria_int)
     result_int = list(splitter([text]))
     expected_int = [
-        "Hello worl",
-        "d! This is",
-        " a test. L",
-        "et's split",
-        " this text",
-        ".",
+        "Hello ",
+        "world! ",
+        "This is a ",
+        "test. ",
+        "Let's ",
+        "split this",
+        " text.",
     ]
     assert result_int == expected_int, f"Expected {expected_int}, got {result_int}"
+    assert "".join(result_int) == text
+    assert all(len(chunk) <= criteria_int for chunk in result_int)
 
     # Test invalid criteria
     splitter = ch.splitText(criteria=3.5)
     with pytest.raises(ValueError):
         list(splitter([text]))
+    splitter = ch.splitText(criteria=0)
+    with pytest.raises(ValueError):
+        list(splitter([text]))
+
+
+def test_splitText_int_does_not_split_words():
+    """A cut that would land inside a word moves back to the last whitespace."""
+    text = "x" * 295 + " scanner works"
+    result = list(ch.splitText(criteria=300)([text]))
+    assert result == ["x" * 295 + " ", "scanner works"]
+    assert "".join(result) == text
+
+
+def test_splitText_int_hard_cuts_long_tokens():
+    """A run of non-whitespace longer than the limit is still cut at the limit."""
+    text = "a" * 25
+    result = list(ch.splitText(criteria=10)([text]))
+    assert result == ["a" * 10, "a" * 10, "a" * 5]
+
+    # A long token after a word: the word is emitted alone, then the hard cuts.
+    text = "hi " + "b" * 25
+    result = list(ch.splitText(criteria=10)([text]))
+    assert result == ["hi ", "b" * 10, "b" * 10, "b" * 5]
+    assert "".join(result) == text
+
+
+def test_splitText_int_empty_text():
+    assert list(ch.splitText(criteria=10)([""])) == []
 
     items = [
         {"text": "Hello world! This is a test.", "id": 1},
