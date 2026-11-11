@@ -45,7 +45,7 @@ These providers ship with TalkPipe (they are registered in `talkpipe.llm.config`
 | [model2vec](model2vec-embeddings.md) | `model2vec` | — | — | ✓ | `talkpipe[model2vec]` | Nothing: runs inside your Python process. The first use of a model downloads it from Hugging Face; later runs use the local cache. |
 | Eliza | `eliza` | scripted | scripted | — | (base install) | Nothing. **Not an LLM**: a local, deterministic script for trying out pipeline syntax and multi-turn flow (it replies to the text of a turn and ignores any image). |
 
-`pip install talkpipe[all]` installs every provider integration at once (plus PDF and image support), so you can switch or mix providers without installing anything else. Extras combine: `pip install "talkpipe[anthropic,model2vec]"`.
+`pip install "talkpipe[all]"` installs every provider integration at once (plus PDF and image support), so you can switch or mix providers without installing anything else. Extras combine: `pip install "talkpipe[anthropic,model2vec]"`.
 
 Because Anthropic has no embeddings API, a pipeline that uses Anthropic for chat and also needs embeddings (RAG, vector search) pairs it with `openai`, `ollama`, or `model2vec` for the embedding step.
 

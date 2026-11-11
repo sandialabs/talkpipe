@@ -115,7 +115,7 @@ class OllamaEmbedderAdapter(AbstractEmbeddingAdapter):
             import ollama
         except ImportError as e:
             raise ImportError(
-                "Ollama is not installed. Please install it with: pip install talkpipe[ollama]"
+                'Ollama is not installed. Please install it with: pip install "talkpipe[ollama]"'
             ) from e
         return ollama
 

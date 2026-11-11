@@ -60,8 +60,21 @@ def resolve_source_and_model(source: str | None, model: str | None) -> tuple[str
         source = source or cfg.get(TALKPIPE_SOURCE, None)
         model = model or cfg.get(TALKPIPE_MODEL_NAME, None)
     if source is None or model is None:
+        missing = []
+        if model is None:
+            missing.append(
+                f"the model name (model=..., or {TALKPIPE_MODEL_NAME} in "
+                f"~/.talkpipe.toml / TALKPIPE_{TALKPIPE_MODEL_NAME} in the environment)"
+            )
+        if source is None:
+            missing.append(
+                f'the source, i.e. the provider (source="ollama", "openai", ..., or '
+                f"{TALKPIPE_SOURCE} in ~/.talkpipe.toml / "
+                f"TALKPIPE_{TALKPIPE_SOURCE} in the environment)"
+            )
         raise ValueError(
             "Model name and source must be provided, specified in the configuration file, or in environment variables."
+            f" Missing: {' and '.join(missing)}."
         )
     return source, model
 

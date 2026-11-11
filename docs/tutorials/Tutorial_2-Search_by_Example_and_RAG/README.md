@@ -28,7 +28,7 @@ Keyword search breaks when users ask "find documents similar to this" or "show m
 ## Prerequisites
 
 - **Stories from Tutorial 1**: `stories.json` must exist at `../Tutorial_1-Document_Indexing/stories.json`. A pre-generated copy ships with the repository, so you can start here without running Tutorial 1.
-- **TalkPipe** installed: See [Getting Started](../../quickstart.md). For this tutorial: `pip install talkpipe[ollama]`, or `pip install talkpipe[all]` to include every LLM provider integration (see [Using a Different LLM Provider](#using-a-different-llm-provider) below). Model and source defaults are explained in [Model and source configuration](../../guides/model-and-source-configuration.md).
+- **TalkPipe** installed: See [Getting Started](../../quickstart.md). For this tutorial: `pip install "talkpipe[ollama]"`, or `pip install "talkpipe[all]"` to include every LLM provider integration (see [Using a Different LLM Provider](#using-a-different-llm-provider) below). Model and source defaults are explained in [Model and source configuration](../../guides/model-and-source-configuration.md).
 - **An LLM provider.** As written, the scripts use **[Ollama](https://ollama.com/download)** with these models, either installed locally or on a remote server you point TalkPipe at with `export TALKPIPE_OLLAMA_SERVER_URL=http://your-ollama-host:11434` — substitute your server's address (the models must be pulled on that server):
   - `mxbai-embed-large` (embeddings): `ollama pull mxbai-embed-large`
   - `llama3.2` (Step 3 only): `ollama pull llama3.2`
@@ -39,12 +39,12 @@ Keyword search breaks when users ask "find documents similar to this" or "show m
 
 ## Using a Different LLM Provider
 
-The scripts in this tutorial specify `source="ollama"`, but nothing in the pipelines is tied to Ollama: switching is a parameter change on the LLM segments, not a rewrite. Each segment takes its own `source`/`model`, so different parts of a pipeline can even use different providers (e.g. Ollama for embeddings and OpenAI for generation). `pip install talkpipe[all]` brings in every provider integration (Ollama, OpenAI, Anthropic) up front, so you can switch or mix providers without installing anything else; otherwise install the provider's own extra. To use OpenAI, for example (`pip install talkpipe[openai]`, with `OPENAI_API_KEY` set in your environment), edit the `.script` files:
+The scripts in this tutorial specify `source="ollama"`, but nothing in the pipelines is tied to Ollama: switching is a parameter change on the LLM segments, not a rewrite. Each segment takes its own `source`/`model`, so different parts of a pipeline can even use different providers (e.g. Ollama for embeddings and OpenAI for generation). `pip install "talkpipe[all]"` brings in every provider integration (Ollama, OpenAI, Anthropic) up front, so you can switch or mix providers without installing anything else; otherwise install the provider's own extra. To use OpenAI, for example (`pip install "talkpipe[openai]"`, with `OPENAI_API_KEY` set in your environment), edit the `.script` files:
 
 - `llmEmbed[..., source="openai", model="text-embedding-3-small", ...]` (Steps 1 and 2)
 - `llmPrompt[source="openai", model="gpt-4o"]` (Step 3)
 
-Anthropic works the same way for the generation step (`pip install talkpipe[anthropic]`, set `ANTHROPIC_API_KEY`, and use e.g. `source="anthropic", model="claude-haiku-4-5"`), but it has no embeddings API, so keep `llmEmbed` on Ollama or OpenAI, or switch it to in-process model2vec embeddings, which need no server or API key: `llmEmbed[..., source="model2vec", model="minishlab/potion-base-8M", ...]` (`pip install talkpipe[model2vec]`; see [Model2vec embeddings](../../guides/model2vec-embeddings.md)).
+Anthropic works the same way for the generation step (`pip install "talkpipe[anthropic]"`, set `ANTHROPIC_API_KEY`, and use e.g. `source="anthropic", model="claude-haiku-4-5"`), but it has no embeddings API, so keep `llmEmbed` on Ollama or OpenAI, or switch it to in-process model2vec embeddings, which need no server or API key: `llmEmbed[..., source="model2vec", model="minishlab/potion-base-8M", ...]` (`pip install "talkpipe[model2vec]"`; see [Model2vec embeddings](../../guides/model2vec-embeddings.md)).
 
 If you change the embedding `source` or `model`, re-run Step 1 before searching: the vectors stored in the index must come from the same embedding model used for queries. See [LLM providers](../../guides/model-and-source-configuration.md#llm-providers) for the full list of supported providers, what each needs, and how to set defaults so scripts can omit `model`/`source` entirely.
 
@@ -253,4 +253,4 @@ The `--load-module step_3_extras.py` flag registers this segment so the script c
 
 ---
 
-*Last reviewed: 20260219*
+*Last reviewed: 20261111*

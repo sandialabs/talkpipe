@@ -48,7 +48,7 @@ def _require_pillow() -> None:
         from PIL import Image  # noqa: F401
     except ImportError as exc:
         raise ImportError(
-            "Pillow is not installed. Please install it with: pip install talkpipe[pillow]"
+            'Pillow is not installed. Please install it with: pip install "talkpipe[pillow]"'
         ) from exc
 
 

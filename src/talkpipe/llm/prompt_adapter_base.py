@@ -144,7 +144,7 @@ class AbstractLLMPromptAdapter(PromptAdapterMemoryMixin, ABC):
         except ModuleNotFoundError as exc:
             if exc.name == module_name:
                 raise ImportError(
-                    f"{display_name} is not installed. Please install it with: pip install talkpipe[{extra_name}]"
+                    f'{display_name} is not installed. Please install it with: pip install "talkpipe[{extra_name}]"'
                 ) from exc
             raise ImportError(
                 f"{display_name} is installed but failed to import (package found but failed to load: {exc}). "

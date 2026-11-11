@@ -423,7 +423,7 @@ def extract_pdf(file_path: str | Path) -> Iterator[ExtractionResult]:
     """
     Extract text from a PDF file.
 
-    Requires the pypdf package. Install with: pip install talkpipe[pypdf]
+    Requires the pypdf package. Install with: pip install "talkpipe[pypdf]"
 
     Args:
         file_path: Path to the PDF file.
@@ -439,7 +439,7 @@ def extract_pdf(file_path: str | Path) -> Iterator[ExtractionResult]:
         from pypdf import PdfReader
     except ImportError:
         raise ImportError(
-            "PDF extraction requires pypdf. Install it with: pip install talkpipe[pypdf]"
+            'PDF extraction requires pypdf. Install it with: pip install "talkpipe[pypdf]"'
         ) from None
 
     p = _resolve_readable_file(file_path)
@@ -599,7 +599,7 @@ def readpdf(
 ) -> Iterator[ExtractionResult]:
     """Read and extract text from PDF files.
 
-    Requires the pypdf package. Install with: pip install talkpipe[pypdf]
+    Requires the pypdf package. Install with: pip install "talkpipe[pypdf]"
 
     Yields:
         ExtractionResult: Result containing content, source path, id, and title.

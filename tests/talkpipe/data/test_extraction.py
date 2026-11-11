@@ -764,7 +764,7 @@ def test_extract_pdf_requires_pypdf(tmp_path):
         with pytest.raises(ImportError) as exc_info:
             list(extract_pdf(pdf_path))
         assert "pypdf" in str(exc_info.value)
-        assert "pip install talkpipe[pypdf]" in str(exc_info.value)
+        assert 'pip install "talkpipe[pypdf]"' in str(exc_info.value)
 
 
 def test_extract_pdf_file_not_found():

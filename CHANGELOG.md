@@ -2,6 +2,41 @@
 
 ## Unreleased
 
+- **Documentation: a shorter path to a first working pipeline.** The README
+  now opens with a one-minute, no-LLM example run from the command line, and
+  it and the getting-started guide explain the pieces every example relies on
+  but that were only defined in the architecture and contributor pages: what
+  a source, a segment and a pipeline are, what `.as_function()`, `single_in`
+  and `single_out` do, why some scripts start with `|` and others with
+  `INPUT FROM`, and what `toDict[field_list="_:text"]` means. The Eliza
+  examples show their expected output, the README's ChatterLang example shows
+  the command that runs it and says why `hello` is dropped, the documentation
+  table and "Next Steps" point at `chatterlang_reference_browser` /
+  `chatterlang_reference_generator` for the list of sources and segments, and
+  the getting-started guide says that `"docs/*.md"` in the RAG commands is a
+  placeholder. Every `pip install "talkpipe[...]"` in the guides and tutorials
+  is now quoted, as the README already advised for zsh.
+
+- The `toDict` reference entry describes the `field_list` format
+  (`field:name` pairs, `_` for the whole item, dotted paths) with examples.
+
+- **Clearer errors for a missing provider package or model setting.** The
+  "is not installed" errors for the optional extras (`ollama`, `openai`,
+  `anthropic`, `model2vec`, `pypdf`, `pillow`) and the workbench's suggestion
+  hint now print the install command with the extra quoted
+  (`pip install "talkpipe[ollama]"`), so it can be pasted into zsh. The
+  "Model name and source must be provided..." error keeps that sentence and
+  now adds which of the two is missing and the parameter, `~/.talkpipe.toml`
+  key and environment variable that supply it.
+
+- `chatterlang_serve` (and so `serverag`) flushes its startup banner, so the
+  user-interface and API URLs appear immediately when output goes to a pipe or
+  a log file rather than a terminal.
+
+- `run_doc_examples --help` prints a usage description and exits; it used to
+  ignore the flag and start extracting and running every example under the
+  current directory.
+
 - **Fixed `processDocuments` splitting words at chunk boundaries.**
   `splitText` with an integer criteria cut the text at fixed character
   offsets and `ProcessDocumentsSegment` joined the pieces with a space, so a

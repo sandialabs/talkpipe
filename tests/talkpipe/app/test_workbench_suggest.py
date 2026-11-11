@@ -301,7 +301,7 @@ def test_resolved_reason_surfaces_missing_dependency(with_fake_llm, monkeypatch)
     assert resolved["available"] is False
     # The hint is rebuilt from the configured source, never echoed from the
     # exception (information exposure through an exception).
-    assert "pip install talkpipe[ollama]" in resolved["reason"]
+    assert 'pip install "talkpipe[ollama]"' in resolved["reason"]
     assert ".venv" not in resolved["reason"]
     assert "not reachable" not in resolved["reason"]
     assert "TALKPIPE_OLLAMA_SERVER_URL" not in resolved["reason"]

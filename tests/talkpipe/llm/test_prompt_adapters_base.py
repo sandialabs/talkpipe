@@ -69,7 +69,7 @@ def test_require_dependency_raises_helpful_error_for_missing_package():
     module = adapter._require_dependency("json", "JSON", "json")
     assert module is not None
 
-    with pytest.raises(ImportError, match=r"pip install talkpipe\[fake-extra\]"):
+    with pytest.raises(ImportError, match=r'pip install "talkpipe\[fake-extra\]"'):
         adapter._require_dependency(
             "missing_module_for_talkpipe_tests", "Missing", "fake-extra"
         )

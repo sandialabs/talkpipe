@@ -1,6 +1,6 @@
 # Getting Started with TalkPipe
 
-This guide gets you up and running with TalkPipe's dual-language architecture for building data processing pipelines. You can start with **no LLM**—examples below work with the base install—then add LLM support when you're ready.
+This guide takes you from installation to a working pipeline. You can start with **no LLM**—the first examples work with the base install—then add LLM support when you're ready.
 
 ## Installation
 
@@ -44,12 +44,19 @@ Which provider needs what (servers, API keys) and how to select one is summarize
 
 ## Basic Concepts
 
-TalkPipe provides two ways to build pipelines:
+A **pipeline** is a chain of components joined with `|`, through which items flow one at a time:
 
-- **Pipe API (Internal DSL)**: Pure Python using the `|` operator
-- **ChatterLang (External DSL)**: Concise text-based syntax
+- A **source** starts the pipeline by producing items (`echo` emits the values you give it; others read files, feeds, or prompts).
+- A **segment** receives the items from the step before it, transforms, filters, or acts on them, and passes the results on (`cast`, `print`, `llmPrompt`, …).
+
+TalkPipe provides two ways to write the same pipeline:
+
+- **Pipe API**: pure Python, using the `|` operator on component objects (the docs also call this the *internal DSL*, a mini-language embedded in Python)
+- **ChatterLang**: a concise text syntax you can keep in a string or a file (the *external DSL*, a small language of its own)
 
 Both use the same components and can be mixed.
+
+> **One word, two meanings:** a pipeline *source* is the component that starts a pipeline. The `source="..."` *parameter* on LLM segments is unrelated: it names the model provider (`"ollama"`, `"openai"`, `"anthropic"`).
 
 ## Your First Pipeline (No LLM Required)
 
@@ -65,6 +72,15 @@ result = pipeline()
 # Prints: hello, world, test (each on its own line)
 # Returns: ['hello', 'world', 'test']
 ```
+
+`compiler.compile(script)` builds the pipeline and `.as_function()` turns it into an ordinary Python function. Pipelines work on streams of items, so by default that function accepts an iterable of items and returns a list of results. Two flags adapt it to single values, and you will see them throughout the docs:
+
+| Flag | Meaning |
+|------|---------|
+| `single_in=True` | The argument is **one item**, not an iterable of items. Use it when you pass one string or one dict — without it a string is treated as a stream of characters. |
+| `single_out=True` | Return the **one result itself** instead of a one-element list. Raises `ValueError` if the pipeline did not produce exactly one result. |
+
+This script begins with `INPUT FROM echo[...]`, so it supplies its own input and the function is called with no argument. A script that begins with `|` (as in the chat examples below) has no source: its input is the argument you pass to the function.
 
 ### Pipe API
 
@@ -108,6 +124,13 @@ chat("Hello, my name is Alice.")
 chat("What's my name?")
 ```
 
+Expected output (Eliza's replies are scripted, so they are the same on every run):
+
+```
+I am Dr. Eliza. Hi there. What question keeps returning for you?
+Earlier you said your name is Alice. Is that still how you introduce yourself?
+```
+
 ## Your First Pipeline (With LLM)
 
 Any supported provider works; the provider is the `source` parameter on the LLM segment. The examples below use Ollama, which requires `talkpipe[ollama]` and Ollama running with a model (e.g. `ollama pull llama3.2`). If you point TalkPipe at a remote Ollama server via `TALKPIPE_OLLAMA_SERVER_URL`, the model must already be pulled on that server (run `ollama pull llama3.2` there, or `OLLAMA_HOST=http://your-ollama-host:11434 ollama pull llama3.2` from your machine, substituting your server's address).
@@ -116,8 +139,8 @@ To use a hosted provider instead, no Ollama needed:
 
 | Provider | Install | Credentials | Segment parameters |
 |----------|---------|-------------|--------------------|
-| OpenAI | `pip install talkpipe[openai]` | `export OPENAI_API_KEY=...` | `source="openai", model="gpt-4o-mini"` |
-| Anthropic | `pip install talkpipe[anthropic]` | `export ANTHROPIC_API_KEY=...` | `source="anthropic", model="claude-haiku-4-5"` |
+| OpenAI | `pip install "talkpipe[openai]"` | `export OPENAI_API_KEY=...` | `source="openai", model="gpt-4o-mini"` |
+| Anthropic | `pip install "talkpipe[anthropic]"` | `export ANTHROPIC_API_KEY=...` | `source="anthropic", model="claude-haiku-4-5"` |
 
 ### ChatterLang
 
@@ -160,7 +183,7 @@ Use `--display-property` so the stream UI shows the input field value instead of
 chatterlang_serve --port 2025 --display-property prompt --script '| formatItem[field_list="prompt:You entered"] | print'
 ```
 
-Open http://localhost:2025/stream. Type in the form and submit; the pipeline echoes your input as formatted text.
+Open http://localhost:2025/stream. Type in the form and submit; the pipeline echoes your input as formatted text. The same pipeline is also a JSON API (`POST http://localhost:2025/process`). Stop the server with Ctrl+C.
 
 ### With LLM
 
@@ -179,7 +202,7 @@ makevectordatabase "docs/*.md" --path ./mydb --embedding_source ollama --embeddi
 serverag --path ./mydb --embedding_source ollama --embedding_model nomic-embed-text --completion_source ollama --completion_model llama3.2
 ```
 
-`serverag` needs both the embedding flags (to search the database) and the completion flags (to generate the answer) — these are required unless you set defaults in `~/.talkpipe.toml`. The example above needs Ollama running with both models pulled (`ollama pull nomic-embed-text` and `ollama pull llama3.2`). Then open http://localhost:2026/stream. See [makevectordatabase and serverag](guides/makevectordatabase-and-serverag.md) for full options.
+`"docs/*.md"` is a placeholder for your own files: point it at any folder of Markdown, text, or PDF documents (keep the quotes so the shell passes the pattern through unexpanded). `serverag` needs both the embedding flags (to search the database) and the completion flags (to generate the answer) — these are required unless you set defaults in `~/.talkpipe.toml`. The example above needs Ollama running with both models pulled (`ollama pull nomic-embed-text` and `ollama pull llama3.2`). Then open http://localhost:2026/stream. See [makevectordatabase and serverag](guides/makevectordatabase-and-serverag.md) for full options.
 
 The embedding and completion providers are independent, and neither has to be Ollama. For example, in-process model2vec embeddings with Anthropic answers (`pip install "talkpipe[model2vec,anthropic]"`, `ANTHROPIC_API_KEY` set):
 
@@ -199,6 +222,15 @@ so a configuration mistake shows up immediately rather than on the first query.
 - **[chatterlang_serve](api-reference/chatterlang-server.md)** - Web APIs and forms
 - **[chatterlang_workbench](api-reference/chatterlang-workbench.md)** - Interactive development
 - **[chatterlang_script](api-reference/chatterlang-script.md)** - Run scripts from files
+
+### Find More Sources and Segments
+
+```bash
+chatterlang_reference_browser      # interactive: list, search <term>, show <name>
+chatterlang_reference_generator    # writes chatterlang_ref.html and chatterlang_ref.txt
+```
+
+Both list every source and segment installed, with its description and parameters; see [reference tools](api-reference/talkpipe-ref.md). The [ChatterLang reference](architecture/chatterlang.md) covers the language itself (variables, constants, loops).
 
 ### Explore Tutorials
 

@@ -88,7 +88,15 @@ class Cast(AbstractSegment[Any, Any]):
 
 @registry.register_segment(name="toDict")
 class ToDict(AbstractSegment[Any, Any]):
-    """Creates a dictionary from the input data."""
+    """Creates a dictionary from each input item.
+
+    field_list is a comma-separated list of field:name pairs: field is what to
+    read from the item and name is the key to store it under (name defaults to
+    field). An underscore (_) stands for the whole item, and a dotted path
+    reaches into nested data. For example "_:text" wraps each item as
+    {"text": item}, and "title,meta.author:author" keeps title and stores
+    item["meta"]["author"] as author.
+    """
 
     def __init__(
         self,

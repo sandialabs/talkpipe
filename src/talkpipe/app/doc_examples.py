@@ -273,6 +273,17 @@ def generate_runner_script(
 
 def main() -> int:
     """Extract examples, generate runner script, and run all examples. Returns exit code."""
+    if any(arg in ("-h", "--help") for arg in sys.argv[1:]):
+        print(
+            "usage: run_doc_examples\n\n"
+            "Extract every Python example from the Markdown files under the "
+            "current directory into ./extracted_examples.py and run them in "
+            "order, stopping at the first failure (run again to resume from "
+            "it). Takes no arguments; run it from the root of the "
+            "documentation tree you want to check. Examples tagged as needing "
+            "an LLM provider call that provider."
+        )
+        return 0
     root = Path.cwd()
     output_path = root / "extracted_examples.py"
 

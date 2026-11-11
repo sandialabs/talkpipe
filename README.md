@@ -16,6 +16,23 @@ TalkPipe is a Python toolkit for creating, testing, and deploying workflows that
 
 This README is a high-level overview. Use the **[documentation map](#documentation)** below or the [documentation hub](docs/README.md) for depth.
 
+## Try It in a Minute
+
+No LLM, API key, or server needed (Python 3.11+):
+
+```bash
+pip install talkpipe
+chatterlang_script --script 'INPUT FROM echo[data="3,1,2"] | cast[cast_type="int"] | scale[multiplier=10] | print'
+```
+
+```
+30
+10
+20
+```
+
+That one line is a complete **pipeline** written in ChatterLang: a **source** (`echo`, which starts the stream — here with three items) followed by **segments** (`cast`, `scale`, `print`), each of which transforms the items flowing past and hands them to the next through `|`. Every TalkPipe feature — LLM calls, document loading, vector search — is another source or segment you drop into the same chain. The **[Quick Start](#quick-start)** below runs the same kind of pipeline from Python and adds an LLM; **[Getting started](docs/quickstart.md)** is the step-by-step version.
+
 ## What Can You Do With TalkPipe?
 
 - **Chat with LLMs** - Create multi-turn conversations with OpenAI, Ollama, or Anthropic models in just a few lines of code
@@ -31,7 +48,7 @@ This README is a high-level overview. Use the **[documentation map](#documentati
 
 Three layers; use any mix of them in one project:
 
-- **Pipe and ChatterLang** — Chain **sources**, **segments**, and sinks with `|` in Python, or write **ChatterLang** scripts for the same concepts (easy to drive from env vars and CI).
+- **Pipe and ChatterLang** — Chain **sources** (which produce items), **segments** (which transform them), and sinks (segments such as `print` that write items somewhere) with `|` in Python, or write **ChatterLang** scripts for the same concepts (easy to drive from env vars and CI). One word does double duty: a pipeline *source* starts a pipeline, while the `source="ollama"` *parameter* on LLM segments names the model provider.
 - **AI and data primitives** — LLMs, full-text search, and vector databases behind one style of component.
 - **Pipelines and applications** — Higher-level RAG-style pieces plus CLIs and web apps.
 
@@ -115,6 +132,21 @@ chat("Hello, my name is Alice.")
 chat("What's my name?")
 ```
 
+It prints each message followed by the scripted reply:
+
+```
+Hello, my name is Alice.
+I am Dr. Eliza. Hi there. What question keeps returning for you?
+What's my name?
+Earlier you said your name is Alice. Is that still how you introduce yourself?
+```
+
+**Reading the example** — the same three ideas recur in every example below:
+
+- **A script that starts with `|` has no source**: its input is whatever you pass to the function. A script that starts with `INPUT FROM <source>` supplies its own input and is called with no argument.
+- **`.as_function()`** turns a compiled pipeline into an ordinary Python function. Pipelines work on *streams*, so by default that function takes an iterable of items and returns a list of results.
+- **`single_in=True`** means "the argument is one item" (without it, a string argument would be treated as a stream of characters); **`single_out=True`** means "return the one result itself rather than a one-element list" (it raises if the pipeline produced any other number of results). Leave both off when you pass a list and want a list back.
+
 > **Tip:** `from talkpipe.chatterlang import compile` is equivalent to the `compiler.compile(...)` style above — both styles work throughout the docs.
 
 Multi-turn chat (requires an LLM provider):
@@ -136,7 +168,7 @@ response = chat("What's my name?")  # Will remember context
 
 ### RAG at a glance
 
-Index a list of strings, then ask questions against that vector store (expand with options in [Example 5](#example-5-rag-pipeline-with-vector-database)). `tmp://my_kb` is an in-process store that lives only as long as the interpreter — both halves below must run in the same process; use a directory path (as [Example 5](#example-5-rag-pipeline-with-vector-database) does) to keep the index:
+Index a list of strings, then ask questions against that vector store (expand with options in [Example 5](#example-5-rag-pipeline-with-vector-database)). `tmp://my_kb` is an in-process store that lives only as long as the interpreter — both halves below must run in the same process; use a directory path (as [Example 5](#example-5-rag-pipeline-with-vector-database) does) to keep the index. `toDict[field_list="_:text"]` wraps each incoming string as `{"text": <the string>}`, the dictionary shape the RAG segments expect — in a `field_list`, `_` means "the whole item" and `a:b` means "read `a`, store it as `b`":
 
 <!-- doc-example: requires-ollama -->
 ```python
@@ -214,9 +246,11 @@ result = pipeline.as_function(single_out=False)()
 
 ChatterLang provides a Unix-like syntax for building pipelines, perfect for rapid prototyping and experimentation. Run a script from the command line with `chatterlang_script --script '<script>'`, or compile it in Python with `compiler.compile('<script>')` as shown in the examples below:
 
+```bash
+chatterlang_script --script 'INPUT FROM echo[data="1,2,hello,3"] | cast[cast_type="int"] | print'
 ```
-INPUT FROM echo[data="1,2,hello,3"] | cast[cast_type="int"] | print
-```
+
+This prints `1`, `2`, and `3` on separate lines: `echo` splits its `data` on commas, and `cast` skips `hello`, which cannot be converted to an integer.
 
 ### Registering Custom Components for ChatterLang
 
@@ -252,6 +286,8 @@ The `@registry.register_segment()` decorator makes your component discoverable b
 - **Constants**: Define reusable values with `CONST name = "value"`
 - **Loops**: Repeat operations with `LOOP n TIMES { ... }`
 - **Multiple Pipelines**: Chain workflows with `;` or newlines
+
+The full language reference is in [ChatterLang](docs/architecture/chatterlang.md).
 
 # Detailed Examples
 
@@ -498,7 +534,11 @@ For comprehensive documentation and examples, see the **[docs/](docs/)** directo
 | Goal | Start here |
 |------|------------|
 | Install and first pipeline | [Getting started](docs/quickstart.md) |
-| Commands and components | [API reference](docs/api-reference/) |
+| Command-line tools | [API reference](docs/api-reference/) |
+| List every source and segment, with parameters | Run `chatterlang_reference_browser` (interactive: `list`, `search <term>`, `show <name>`), or `chatterlang_reference_generator` for an HTML/text catalogue — see [reference tools](docs/api-reference/talkpipe-ref.md) |
+| ChatterLang syntax (variables, loops, constants) | [ChatterLang](docs/architecture/chatterlang.md) |
+| Choose or switch LLM providers and set defaults | [Model and source configuration](docs/guides/model-and-source-configuration.md) |
+| Write your own source or segment | [Extending TalkPipe](docs/architecture/extending-talkpipe.md) |
 | Walkthroughs | [Tutorials](docs/tutorials/) |
 | Design and extending TalkPipe | [Architecture](docs/architecture/) |
 | Official container images (GHCR, multi-arch releases) | [Container images](docs/guides/container-images.md) |
@@ -710,4 +750,4 @@ server. Details in [Security and trust model](docs/architecture/security.md).
 TalkPipe is licensed under the Apache License 2.0. See LICENSE file for details.
 
 ---
-Last reviewed: 2026-07-24
+Last reviewed: 2026-11-11

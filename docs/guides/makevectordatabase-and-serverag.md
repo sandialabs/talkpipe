@@ -17,7 +17,7 @@ The `makevectordatabase` and `serverag` commands provide a streamlined workflow 
 
 ## Prerequisites
 
-- **TalkPipe** with the extras for the providers you use: for example `pip install talkpipe[ollama]`, `pip install "talkpipe[openai]"`, `pip install "talkpipe[model2vec,anthropic]"`, or `pip install talkpipe[all]` for all of them
+- **TalkPipe** with the extras for the providers you use: for example `pip install "talkpipe[ollama]"`, `pip install "talkpipe[openai]"`, `pip install "talkpipe[model2vec,anthropic]"`, or `pip install "talkpipe[all]"` for all of them
 - **Embedding model** from any embedding provider: Ollama (e.g. `ollama pull mxbai-embed-large`), OpenAI (e.g. `text-embedding-3-small`, with `OPENAI_API_KEY` set), or in-process model2vec with no server or key (see [Model2vec embeddings](model2vec-embeddings.md); `embedding_source=model2vec`, included in `talkpipe[all]`)
 - **Completion model** (for serverag) from any chat provider: Ollama (e.g. `ollama pull llama3.2`), OpenAI (with `OPENAI_API_KEY` set), or Anthropic (with `ANTHROPIC_API_KEY` set)
 - **Configuration**: Set `default_embedding_model_name`, `default_embedding_model_source`, `default_model_name`, and `default_model_source` in `~/.talkpipe.toml` or pass them on the command line
@@ -82,7 +82,7 @@ makevectordatabase "content/**/*.md" --path ./vault \
   --overwrite
 ```
 
-Supported file types include Markdown, text, and PDF (with `pip install talkpipe[pypdf]`).
+Supported file types include Markdown, text, and PDF (with `pip install "talkpipe[pypdf]"`).
 
 ---
 

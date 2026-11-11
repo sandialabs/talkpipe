@@ -111,7 +111,7 @@ def unreachable_reason(source: str, model: str) -> str:
     if isinstance(cause, ImportError):
         return (
             f"the '{source}' provider's package is not installed in the "
-            f"workbench environment — try: pip install talkpipe[{source}] "
+            f'workbench environment — try: pip install "talkpipe[{source}]" '
             "(the exact import error is in the workbench server log)"
         )
     if source == "ollama":

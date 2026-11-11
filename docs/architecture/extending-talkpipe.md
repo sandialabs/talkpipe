@@ -34,6 +34,8 @@ fn = compile('INPUT FROM echo[data="1,2,3"] | doubleEach[factor=10]')
 print(list(fn()))
 ```
 
+Calling a pipeline (`pipeline()`) or a compiled script (`fn()`) directly returns a lazy generator, which is why both calls above are wrapped in `list(...)`. The README examples use `.as_function()` instead, which wraps the same call in a plain function that returns a list (or a single value with `single_out=True`).
+
 **Why this pattern fits many workflows**
 
 - **Notebooks and ad hoc scripts**: Define the function in a cell or file and run it. Decorators run at import time, so the segment is registered in that interpreter session. Use the pipe API (`source | segment() | …`) immediately, or call `compile(...)` on ChatterLang text in the same process.

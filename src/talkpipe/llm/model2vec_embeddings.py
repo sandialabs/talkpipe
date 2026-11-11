@@ -18,7 +18,7 @@ def _require_model2vec() -> Any:
         from model2vec import StaticModel
     except ImportError as exc:
         raise ImportError(
-            "Model2Vec is not installed. Install with: pip install talkpipe[model2vec]"
+            'Model2Vec is not installed. Install with: pip install "talkpipe[model2vec]"'
         ) from exc
     return StaticModel
 

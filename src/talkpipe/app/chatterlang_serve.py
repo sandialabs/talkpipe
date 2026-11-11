@@ -770,7 +770,9 @@ class ChatterlangServer:
         print(f"API Documentation:  http://{self.host}:{self.port}/docs")
         if self.require_auth:
             print("Authentication:     ENABLED (API key required)")
-        print(f"{'=' * 60}\n")
+        # Flushed so the URLs show up at once when stdout is a pipe or a log
+        # file (nohup, tee, a service manager), not only on a terminal.
+        print(f"{'=' * 60}\n", flush=True)
 
         # Also log for debugging purposes
         logger.info(f"Starting JSON Data Receiver on http://{self.host}:{self.port}")

@@ -8,6 +8,7 @@ import pytest
 from talkpipe.app.doc_examples import (
     extract_all_examples_with_requirements,
     extract_python_blocks_with_requirements,
+    main,
     run_example,
 )
 
@@ -86,6 +87,16 @@ def pytest_generate_tests(metafunc: pytest.Metafunc) -> None:
             for path, line_num, code, requirements in examples
         ]
         metafunc.parametrize("path,line_num,code,requirements", params)
+
+
+def test_help_prints_usage_without_scanning(tmp_path, monkeypatch, capsys) -> None:
+    """``--help`` describes the command instead of running every example."""
+    (tmp_path / "doc.md").write_text("```python\nraise SystemExit(3)\n```\n")
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr("sys.argv", ["run_doc_examples", "--help"])
+    assert main() == 0
+    assert "usage: run_doc_examples" in capsys.readouterr().out
+    assert [p.name for p in tmp_path.iterdir()] == ["doc.md"]
 
 
 def test_directive_parsing() -> None:

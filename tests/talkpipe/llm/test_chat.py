@@ -344,22 +344,26 @@ def test_resolve_source_and_model_fills_missing_from_config(
 
 
 @pytest.mark.parametrize(
-    ("source", "model", "configured"),
+    ("source", "model", "configured", "missing"),
     [
-        (None, None, {}),
-        (None, "gpt-4o", {}),
-        ("openai", None, {}),
-        (None, None, {"default_model_source": "ollama"}),
-        (None, None, {"default_model_name": "llama3.2"}),
+        (None, None, {}, ("default_model_name", "default_model_source")),
+        (None, "gpt-4o", {}, ("default_model_source",)),
+        ("openai", None, {}, ("default_model_name",)),
+        (None, None, {"default_model_source": "ollama"}, ("default_model_name",)),
+        (None, None, {"default_model_name": "llama3.2"}, ("default_model_source",)),
     ],
 )
 def test_resolve_source_and_model_raises_when_still_missing(
-    monkeypatch, source, model, configured
+    monkeypatch, source, model, configured, missing
 ):
+    """The message keeps its original sentence and names only what is missing."""
     _configured(monkeypatch, **configured)
     with pytest.raises(ValueError) as excinfo:
         resolve_source_and_model(source, model)
-    assert str(excinfo.value) == MISSING_MODEL_OR_SOURCE
+    message = str(excinfo.value)
+    assert message.startswith(MISSING_MODEL_OR_SOURCE + " Missing: ")
+    for key in ("default_model_name", "default_model_source"):
+        assert (f"TALKPIPE_{key}" in message) == (key in missing)
 
 
 def test_resolve_source_and_model_does_not_validate_source(monkeypatch):
@@ -375,10 +379,10 @@ def test_segments_unconfigured_raise_missing_model_message(
     monkeypatched_env({})
     with pytest.raises(ValueError) as excinfo:
         LLMPrompt()
-    assert str(excinfo.value) == MISSING_MODEL_OR_SOURCE
+    assert str(excinfo.value).startswith(MISSING_MODEL_OR_SOURCE)
     with pytest.raises(ValueError) as excinfo:
         LLMVisionPrompt(image_field="image")
-    assert str(excinfo.value) == MISSING_MODEL_OR_SOURCE
+    assert str(excinfo.value).startswith(MISSING_MODEL_OR_SOURCE)
 
 
 def test_role_map_in_llmprompt_segment():

@@ -12,7 +12,7 @@ def _require_openai() -> Any:
         import openai
     except ImportError as exc:
         raise ImportError(
-            "OpenAI is not installed. Please install it with: pip install talkpipe[openai]"
+            'OpenAI is not installed. Please install it with: pip install "talkpipe[openai]"'
         ) from exc
     return openai
 

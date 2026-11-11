@@ -65,4 +65,4 @@ For document Q&A without writing scripts, use [makevectordatabase and serverag](
 - See [Extending TalkPipe](../architecture/extending-talkpipe.md) for custom segments and plugins
 
 ---
-Last Reviewed: 20260219
+Last Reviewed: 20261111

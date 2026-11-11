@@ -17,8 +17,8 @@ or `source="openai"` instead.
 ## Install
 
 ```bash
-pip install talkpipe[model2vec]
-# Or: pip install talkpipe[all]   # includes model2vec
+pip install "talkpipe[model2vec]"
+# Or: pip install "talkpipe[all]"   # includes model2vec
 ```
 
 The base `model2vec` package depends mainly on numpy and tokenizers — no PyTorch at inference
