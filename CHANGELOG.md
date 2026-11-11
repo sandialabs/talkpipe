@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 1.3.0 (2026-11-11)
+
 - **Documentation: a shorter path to a first working pipeline.** The README
   now opens with a one-minute, no-LLM example run from the command line, and
   it and the getting-started guide explain the pieces every example relies on
