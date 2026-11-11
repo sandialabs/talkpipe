@@ -116,7 +116,13 @@ See **[LLM providers](docs/guides/model-and-source-configuration.md#llm-provider
 
 > **Any provider works in any example.** The examples in this README mostly show `source="ollama"`, but that is just a per-segment parameter: swap in `source="openai"` or `source="anthropic"` (with a matching `model`) on any LLM segment — the RAG helpers take the same choice as `embedding_source`/`completion_source`. Different segments in one pipeline can even use different providers. Installing `talkpipe[all]` includes all provider integrations, so switching or mixing needs no further installs.
 
-Provider API keys are read from the environment by the providers' own SDKs (`OPENAI_API_KEY`, `ANTHROPIC_API_KEY`), not from `~/.talkpipe.toml`. If TalkPipe runs on a different machine than your Ollama server, set `TALKPIPE_OLLAMA_SERVER_URL` to that host, e.g. `export TALKPIPE_OLLAMA_SERVER_URL="http://<ollama host ip>:11434"` (a bare host/IP with no scheme or port, like `"myollamahost"`, also works). The model must already be pulled **on that server** — run `ollama pull llama3.2` there, or `OLLAMA_HOST=http://<ollama host ip>:11434 ollama pull llama3.2` from your machine. See **[Configuration](docs/architecture/configuration.md)** for details and ChatterLang `$var` substitution.
+What each provider needs before its examples run:
+
+- **OpenAI / Anthropic:** an API key in the environment (`OPENAI_API_KEY`, `ANTHROPIC_API_KEY`). The providers' own SDKs read it; it does not go in `~/.talkpipe.toml`.
+- **Ollama on this machine:** Ollama running, with the model pulled (`ollama pull llama3.2`).
+- **Ollama on another machine:** also set `TALKPIPE_OLLAMA_SERVER_URL`, e.g. `export TALKPIPE_OLLAMA_SERVER_URL="http://<ollama host ip>:11434"` (a bare host/IP with no scheme or port, like `"myollamahost"`, also works). The model must be pulled **on that server** — run `ollama pull llama3.2` there, or `OLLAMA_HOST=http://<ollama host ip>:11434 ollama pull llama3.2` from your machine.
+
+None of this is needed for the hello world below. See **[Configuration](docs/architecture/configuration.md)** for the details and for `$key` substitution in ChatterLang scripts.
 
 Hello world (no LLM server required):
 
@@ -174,7 +180,10 @@ Index a list of strings, then ask questions against that vector store (expand wi
 ```python
 from talkpipe.chatterlang import compiler
 
-docs = ["TalkPipe builds AI pipelines with Python or ChatterLang."]
+docs = [
+    "TalkPipe is a Python toolkit for building AI pipelines.",
+    "TalkPipe pipelines are written in Python or in ChatterLang.",
+]
 indexer = compiler.compile(
     '| toDict[field_list="_:text"] | makeVectorDatabase[path="tmp://my_kb", embedding_model="nomic-embed-text", embedding_source="ollama", embedding_field="text", overwrite=True]'
 ).as_function(single_in=False)
@@ -186,27 +195,17 @@ rag = compiler.compile(
 rag("What is TalkPipe?")
 ```
 
+It prints the model's answer, along the lines of `TalkPipe is a Python toolkit for building AI pipelines.` (wording varies by model). If you see `No relevant information found.` instead, the pipeline ran but the model judged that the retrieved text does not answer the question — that reply is what `ragToText`'s default prompt asks for in that case.
+
 > **No Ollama server?** Swap `embedding_source="model2vec"` and `embedding_model="minishlab/potion-base-8M"` for offline embeddings (included in `talkpipe[all]`). The first run downloads that model from Hugging Face (a few files, tens of MB); after that it's cached and needs no network — see [Precache for offline use](docs/guides/model2vec-embeddings.md#precache-for-offline-use) to pre-download for air-gapped environments. The `ragToText` completion step still needs a chat provider: set `completion_source="openai"` or `completion_source="anthropic"` with a matching `completion_model`. (OpenAI embeddings work too: `embedding_source="openai"`, `embedding_model="text-embedding-3-small"`.) See the [model2vec guide](docs/guides/model2vec-embeddings.md).
 
-> **Indexing large collections inside a container?** Building a vector
-> database over thousands of documents (`makevectordatabase`,
-> `build_rag_database`) peaks around 1.5–2 GB of memory. On macOS and
-> Windows, containers run inside the podman machine VM, whose default
-> allocation (often 2 GB) is too tight for that — the ingestion is killed
-> silently (exit code 137; `podman inspect` shows `oom=true`). Give the VM
-> more room first:
->
-> ```bash
-> podman machine stop
-> podman machine set --memory 4096    # MiB; use 8192 for very large collections
-> podman machine start
-> ```
+> **Indexing a large collection inside a container?** Give the container VM enough memory first — see [Memory for large indexing jobs](docs/guides/container-images.md#memory-for-large-indexing-jobs).
 
 # Core Components
 
 ## 1. The Pipe API (Internal DSL)
 
-TalkPipe's Pipe API is a Pythonic way to build data pipelines using the `|` operator to chain components:
+TalkPipe's Pipe API is a Pythonic way to build data pipelines using the `|` operator to chain components. It is an *internal DSL*: a small pipeline language made of ordinary Python objects, so it lives inside your Python code:
 
 <!-- doc-example: requires-ollama -->
 ```python
@@ -244,7 +243,7 @@ result = pipeline.as_function(single_out=False)()
 
 ## 2. ChatterLang (External DSL)
 
-ChatterLang provides a Unix-like syntax for building pipelines, perfect for rapid prototyping and experimentation. Run a script from the command line with `chatterlang_script --script '<script>'`, or compile it in Python with `compiler.compile('<script>')` as shown in the examples below:
+ChatterLang is the *external DSL*: a small language of its own, kept in a string or a file, with a Unix-like syntax for the same pipelines — perfect for rapid prototyping and experimentation. Run a script from the command line with `chatterlang_script --script '<script>'`, or compile it in Python with `compiler.compile('<script>')` as shown in the examples below:
 
 ```bash
 chatterlang_script --script 'INPUT FROM echo[data="1,2,hello,3"] | cast[cast_type="int"] | print'
@@ -285,9 +284,10 @@ The `@registry.register_segment()` decorator makes your component discoverable b
 - **Variables**: Store intermediate results with `@variable_name`
 - **Constants**: Define reusable values with `CONST name = "value"`
 - **Loops**: Repeat operations with `LOOP n TIMES { ... }`
-- **Multiple Pipelines**: Chain workflows with `;` or newlines
+- **Multiple Pipelines**: Separate pipelines (and `CONST` definitions and `LOOP` blocks) with `;` — a newline alone does not end a statement, which is what lets one pipeline span several lines
+- **Configuration values**: Read a setting or command-line value with `$name`
 
-The full language reference is in [ChatterLang](docs/architecture/chatterlang.md).
+The language reference, starting with a one-page [language at a glance](docs/architecture/chatterlang.md#the-language-at-a-glance), is in [ChatterLang](docs/architecture/chatterlang.md).
 
 # Detailed Examples
 

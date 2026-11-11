@@ -111,6 +111,12 @@ def fill_null(
 
 @register_segment("makeLists")
 class MakeLists(AbstractSegment[Any, Any]):
+    """Collect items (or one field of each item) into lists.
+
+    With ``num_items`` unset, everything is emitted as one list at the end of
+    the stream; otherwise a list is emitted every ``num_items`` items.
+    """
+
     def __init__(
         self,
         num_items: Annotated[

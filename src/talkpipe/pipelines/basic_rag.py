@@ -74,6 +74,13 @@ def construct_background(
 
 @register_segment("constructRagPrompt")
 class ConstructRAGPrompt(AbstractSegment[Any, Any]):
+    """Build a RAG prompt from each item's content and its retrieved background.
+
+    The prompt is the background items (search results or strings), then the
+    prompt directive, then the content. It is emitted as the item itself, or
+    stored on the item under ``set_as`` when that is given.
+    """
+
     def __init__(
         self,
         content_field: Annotated[Any, "Field to evaluate relevance on"],

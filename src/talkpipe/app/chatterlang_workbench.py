@@ -251,12 +251,12 @@ EXAMPLE_SCRIPTS = {
         {
             "name": "Agent Conversation",
             "description": "Two agents debating a topic",
-            "code": 'CONST economist_prompt = "You are an economist debating a proposition. Reply in one sentence.";\nCONST theologian_prompt="You are a reformed theologian debating a proposition. Reply in one sentence.";\nINPUT FROM echo[data="The US should give free puppies to all children."] | @next_utterance | accum[variable=@conv] | print;\nLOOP 3 TIMES {\n    INPUT FROM @next_utterance | llmPrompt[system_prompt=economist_prompt] | @next_utterance | accum[variable=@conv] | print;\n    INPUT FROM @next_utterance | llmPrompt[system_prompt=theologian_prompt] | @next_utterance | accum[variable=@conv] | print;\n};\nINPUT FROM @conv',
+            "code": '# Uses your default model (default_model_name / default_model_source in\n# ~/.talkpipe.toml). No default set? Add e.g. model="llama3.2", source="ollama"\n# inside llmPrompt[...].\nCONST economist_prompt = "You are an economist debating a proposition. Reply in one sentence.";\nCONST theologian_prompt="You are a reformed theologian debating a proposition. Reply in one sentence.";\nINPUT FROM echo[data="The US should give free puppies to all children."] | @next_utterance | accum[variable=@conv] | print;\nLOOP 3 TIMES {\n    INPUT FROM @next_utterance | llmPrompt[system_prompt=economist_prompt] | @next_utterance | accum[variable=@conv] | print;\n    INPUT FROM @next_utterance | llmPrompt[system_prompt=theologian_prompt] | @next_utterance | accum[variable=@conv] | print;\n};\nINPUT FROM @conv',
         },
         {
             "name": "Web Page Summarizer",
             "description": "Download and summarize a web page",
-            "code": '| downloadURL | htmlToText | llmPrompt[system_prompt="Summarize the following text in 3-5 sentences:"]',
+            "code": '# Uses your default model (default_model_name / default_model_source in\n# ~/.talkpipe.toml). No default set? Add e.g. model="llama3.2", source="ollama"\n# inside llmPrompt[...].\n| downloadURL | htmlToText | llmPrompt[system_prompt="Summarize the following text in 3-5 sentences:"]',
         },
     ],
     "Image Examples": [
@@ -275,7 +275,7 @@ EXAMPLE_SCRIPTS = {
         {
             "name": "Document Evaluation",
             "description": "Score a document on relevance to a topic",
-            "code": 'CONST scorePrompt = "On a scale of 1 to 10, rate how relevant the following text is to artificial intelligence. Provide a score and brief explanation.";\n| llmScore[system_prompt=scorePrompt] | print',
+            "code": '# Uses your default model (default_model_name / default_model_source in\n# ~/.talkpipe.toml). No default set? Add e.g. model="llama3.2", source="ollama"\n# inside llmScore[...].\nCONST scorePrompt = "On a scale of 1 to 10, rate how relevant the following text is to artificial intelligence. Provide a score and brief explanation.";\n| llmScore[system_prompt=scorePrompt] | print',
         },
         {
             "name": "RAG Pipeline with Vector Database",

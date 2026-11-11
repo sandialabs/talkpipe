@@ -18,6 +18,7 @@ from talkpipe.pipe.core import (
     AbstractSegment,
     AbstractSource,
     Pipeline,
+    _reject_uncalled,
     field_segment,
     segment,
     source,
@@ -76,6 +77,7 @@ class ErrorResilientPromptPipeline(Pipeline):
         self, other: AbstractSource[Any] | AbstractSegment[Any, Any]
     ) -> "ErrorResilientPromptPipeline":
         """Support chaining additional operations to the error-resilient pipeline."""
+        _reject_uncalled(other)
         # Add the new operation to our operations list
         return ErrorResilientPromptPipeline(
             self.prompt_source, *self.operations[1:], other
@@ -198,6 +200,7 @@ class Prompt(AbstractSource[str]):
 
     def __or__(self, other: AbstractSegment[Any, Any]) -> Pipeline:
         """Override to add error handling when chaining with other segments."""
+        _reject_uncalled(other)
         if self.error_resilient:
             # Register the downstream relationship
             self.registerDownstream(other)

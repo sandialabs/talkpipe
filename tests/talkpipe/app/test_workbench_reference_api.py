@@ -90,6 +90,16 @@ def test_lint_unquoted_string_hint(client):
     assert "quoted" in diagnostics[0]["message"]
 
 
+def test_lint_unknown_config_key_is_a_diagnostic(client):
+    script = 'INPUT FROM echo[data="a"] | print;\nINPUT FROM echo[data=$no_such_key]'
+    for mode in ("parse", "full"):
+        response = client.post("/api/lint", json={"script": script, "mode": mode})
+        diagnostics = response.json()["diagnostics"]
+        assert len(diagnostics) == 1
+        assert "$key" in diagnostics[0]["message"]
+        assert (diagnostics[0]["line"], diagnostics[0]["column"]) == (2, 22)
+
+
 def test_lint_unknown_segment_did_you_mean(client):
     response = client.post(
         "/api/lint", json={"script": 'INPUT FROM echo[data="x"] | prnt'}

@@ -175,7 +175,7 @@ pipeline_func()  # Prompts for input interactively
 
 ## Web Interface
 
-Use `--display-property` so the stream UI shows the input field value instead of raw JSON. Use `formatItem` to format output for readable display.
+`chatterlang_serve` turns a script into a small web application: a form in the browser and a JSON API, both feeding whatever is submitted into your pipeline. The form's one default field is named `prompt`, which is why the scripts below read `prompt`. Two details make the page pleasant to use: `--display-property prompt` shows the submitted text in the chat view instead of raw JSON, and `formatItem` formats the output for display.
 
 ### Without LLM (Echo / Transform)
 

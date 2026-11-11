@@ -182,7 +182,32 @@ identifier = regex(r"[a-zA-Z][a-zA-Z0-9_]*").map(lambda s: Identifier(name=s))
 """A parser for identifiers.  Identifiers are used for operation names, variable names, etc."""
 variable = (string("@") >> identifier).map(lambda x: VariableName(name=x.name))
 """A parser for variable names.  Variables are used to store and retrieve data in the pipeline."""
-environmentVariable = (string("$") >> identifier).map(lambda x: get_config()[x.name])
+
+
+class UnknownConfigKeyError(KeyError):
+    """A script referred to a ``$key`` that is not a configuration value.
+
+    A ``KeyError`` (what the lookup always raised), carrying a message that
+    names the key and the places it can be set.
+    """
+
+    def __str__(self) -> str:
+        return str(self.args[0]) if self.args else ""
+
+
+def _config_value(key: Identifier) -> Any:
+    try:
+        return get_config()[key.name]
+    except KeyError:
+        raise UnknownConfigKeyError(
+            f"Unknown configuration value '${key.name}'. Set it with "
+            f"--{key.name} <value> on the command line, as "
+            f"TALKPIPE_{key.name} in the environment, or as "
+            f"{key.name} = ... in ~/.talkpipe.toml."
+        ) from None
+
+
+environmentVariable = (string("$") >> identifier).map(_config_value)
 # quoted_string supports both double and single quotes with escaping
 quoted_string = regex(r'"(?:[^"]|"")*"').map(
     lambda s: s[1:-1].replace('""', '"')

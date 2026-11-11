@@ -244,8 +244,8 @@ For `llmPrompt`, `llmVisionPrompt`, and `llmEmbed`, only **`model`** and **`sour
 Required (directly or via config): `model`, `source`.
 
 ```chatterlang
-INPUT FROM prompt[data="Summarize this:"]
-| llmPrompt[model="llama3.2", source="ollama", field="data"]
+INPUT FROM echo[data="Summarize this: TalkPipe chains sources and segments into pipelines."]
+| llmPrompt[model="llama3.2", source="ollama"]
 | print
 ```
 
@@ -265,7 +265,8 @@ Required (directly or via config): `model`, `source`. Required as a segment para
 There is no vision-specific default: `llmVisionPrompt` shares the chat defaults, so override `model` (and usually `source`) on the segment when the chat default is text-only — see [Segment defaults](#segment-defaults-default_).
 
 ```chatterlang
-INPUT FROM loadImage[path="/path/to/diagram.png", set_as="image"]
+INPUT FROM echo[data="/path/to/diagram.png"]
+| toDict[field_list="_:image"]
 | llmVisionPrompt[image_field="image", model="llava", source="ollama"]
 | print
 ```
@@ -323,7 +324,8 @@ items when per-item fallback runs after a batch failure.
 
 ```chatterlang
 INPUT FROM echo[data="Hello world"]
-| llmEmbed[model="mxbai-embed-large", source="ollama", set_as="vector"]
+| toDict[field_list="_:text"]
+| llmEmbed[model="mxbai-embed-large", source="ollama", field="text", set_as="vector"]
 | print
 ```
 
@@ -354,7 +356,7 @@ Not a segment parameter by default. Set `OLLAMA_SERVER_URL` in config or `TALKPI
 ### 1. Explicit model and source (per call)
 
 ```chatterlang
-INPUT FROM prompt[data="Hello"]
+INPUT FROM echo[data="Hello"]
 | llmPrompt[model="llama3.2", source="ollama"]
 | print
 ```
@@ -364,7 +366,7 @@ INPUT FROM prompt[data="Hello"]
 `eliza` is a local adapter. Set `model` to the name Eliza should use when referring to itself.
 
 ```chatterlang
-INPUT FROM prompt[data="I'm feeling stuck on a bug."]
+INPUT FROM echo[data="I'm feeling stuck on a bug."]
 | llmPrompt[model="Dr. Eliza", source="eliza", multi_turn=True]
 | print
 ```
@@ -374,7 +376,7 @@ INPUT FROM prompt[data="I'm feeling stuck on a bug."]
 With `default_model_name` and `default_model_source` set in `~/.talkpipe.toml`:
 
 ```chatterlang
-INPUT FROM prompt[data="Hello"]
+INPUT FROM echo[data="Hello"]
 | llmPrompt
 | print
 ```
@@ -386,7 +388,7 @@ export TALKPIPE_default_model_name=llama3.2
 export TALKPIPE_default_model_source=ollama
 export TALKPIPE_default_embedding_model_name=mxbai-embed-large
 export TALKPIPE_default_embedding_model_source=ollama
-chatterlang_script --script 'INPUT FROM prompt[data="Hi"] | llmPrompt | print'
+chatterlang_script --script 'INPUT FROM echo[data="Hi"] | llmPrompt | print'
 ```
 
 Because `TALKPIPE_*` variables override the TOML file (see [Precedence](#precedence-highest-first)), this pattern is convenient for building a single generic TalkPipe container image that does not bake in any particular model or backend. The base image ships pipelines that omit `model` / `source`, and derived images — or runtime `docker run -e ...` / Kubernetes env — parameterize the deployment by setting `TALKPIPE_default_model_name`, `TALKPIPE_default_model_source`, and the embedding equivalents (plus `OPENAI_API_KEY` / `ANTHROPIC_API_KEY` / `TALKPIPE_OLLAMA_SERVER_URL` as needed). For example, two derived images can target different backends from the same base:
@@ -413,7 +415,7 @@ ENV TALKPIPE_default_model_name=gpt-4o \
 ### 5. ChatterLang `$key` and CLI overrides
 
 ```bash
-chatterlang_script --script 'INPUT FROM prompt[data="Hi"] | llmPrompt[model=$default_model_name, source=$default_model_source] | print' \
+chatterlang_script --script 'INPUT FROM echo[data="Hi"] | llmPrompt[model=$default_model_name, source=$default_model_source] | print' \
   --default_model_name llama3.2 \
   --default_model_source ollama
 ```

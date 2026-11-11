@@ -555,6 +555,43 @@ def test_parse_error_hints_unquoted_string_value():
     assert "Hint: string parameter values must be quoted" in str(excinfo.value)
 
 
+@pytest.mark.parametrize(
+    "script",
+    [
+        'INPUT FROM echo[data="1"] | print\nINPUT FROM echo[data="2"] | print',
+        'CONST a = 5\nSET b = "x";\nINPUT FROM echo[data=b] | print',
+        'INPUT FROM echo[data="1"]\nINPUT FROM echo[data="2"] | print',
+        (
+            "INPUT FROM range[lower=0, upper=2] | @d;\n"
+            "LOOP 2 TIMES {\n    INPUT FROM @d | @d\n}\nINPUT FROM @d | print"
+        ),
+    ],
+)
+def test_parse_error_hints_missing_statement_separator(script):
+    """A statement starting where a `;` was expected gets a `;` hint."""
+    with pytest.raises(compiler.CompileError) as excinfo:
+        compiler.compile(script)
+    msg = str(excinfo.value)
+    assert msg.startswith("Syntax error in ChatterLang script at line")
+    assert "separated by `;`" in msg
+
+
+def test_parse_error_without_missing_separator_has_no_separator_hint():
+    with pytest.raises(compiler.CompileError) as excinfo:
+        compiler.compile('INPUT FROM echo[data="1"] | print print')
+    assert "separated by `;`" not in str(excinfo.value)
+
+
+def test_unknown_config_key_is_a_clear_compile_error():
+    """An unset $key names the key and how to set it; it is still a KeyError."""
+    with pytest.raises(compiler.CompileError) as excinfo:
+        compiler.compile("INPUT FROM echo[data=$no_such_config_key] | print")
+    assert isinstance(excinfo.value, KeyError)
+    msg = str(excinfo.value)
+    assert msg.startswith("Unknown configuration value '$no_such_config_key'")
+    assert "TALKPIPE_no_such_config_key" in msg
+
+
 def test_compile_error_invalid_parameter_lists_valid_params():
     """An unknown keyword argument reports the segment's valid parameters."""
     with pytest.raises(compiler.CompileError) as excinfo:

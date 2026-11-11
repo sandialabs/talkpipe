@@ -17,6 +17,47 @@
   placeholder. Every `pip install "talkpipe[...]"` in the guides and tutorials
   is now quoted, as the README already advised for zsh.
 
+- **Documentation: the ChatterLang reference and the provider guide now run
+  as written.** The ChatterLang page opens with a "language at a glance"
+  section (one runnable script, its output, and a table of the rules:
+  statements end with `;`, sources, segments, variables, constants, `$key`,
+  loops, forks), and its variable, constant, loop and fork snippets are
+  complete scripts — the fork example showed a syntax the parser does not
+  accept and a segment that does not exist. The README no longer says newlines
+  separate pipelines (only `;` does). In the model-and-source guide the
+  examples that started with `prompt[data=...]` use `echo`, and the `llmEmbed`
+  and `llmVisionPrompt` examples build the dictionary item they need. The
+  `chatterlang_serve` reference shows a request that matches its first script,
+  with the response, names the provider in the examples that relied on a
+  configured default, and notes that an unchecked checkbox is left out of the
+  submitted JSON. The configuration page's script example runs, the two
+  spellings `--require-auth` (`chatterlang_serve`) and `--require_auth`
+  (`serverag`) are both given, and the debugging section prints the resolved
+  configuration instead of describing log output that never appeared. The
+  README's short RAG example now retrieves an answer and says what a
+  `No relevant information found.` reply means, its provider prerequisites
+  are a list, and the container memory note lives in the container guide.
+
+- **`$key` that is not configured is a one-line error.** A ChatterLang script
+  that used an unset `$key` failed with a bare `KeyError` under a long parser
+  traceback. Compiling it now raises `UnknownConfigValueError` — a
+  `CompileError` that is also a `KeyError`, so existing handlers still catch
+  it — whose message names the key and the three places to set it; the
+  command-line tools print it as their usual `Error: ...` line, and the
+  workbench editor marks the script instead of failing the lint request.
+
+- **Hints for two common first mistakes.** A syntax error caused by a missing
+  `;` between statements keeps its message and adds a hint that statements
+  are separated by `;`, not by newlines. Piping into a segment or source that
+  was not called (`echo(...) | uppercase` instead of `uppercase()`) raises a
+  `TypeError` that says to call it, in place of one about
+  `registerUpstream()` missing an argument.
+
+- The workbench's "Agent Conversation", "Web Page Summarizer" and "Document
+  Evaluation" examples say in a comment that they use the configured default
+  model and how to name one inline; `constructRagPrompt` and `makeLists` have
+  descriptions of their own in the component reference.
+
 - The `toDict` reference entry describes the `field_list` format
   (`field:name` pairs, `_` for the whole item, dotted paths) with examples.
 

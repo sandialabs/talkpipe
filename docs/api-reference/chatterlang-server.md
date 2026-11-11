@@ -34,6 +34,20 @@ chatterlang_serve --script '| lambda[expression="item.upper()", field="prompt"]'
 chatterlang_serve --form-config config.yaml
 ```
 
+Without `--form-config`, the web form has a single text field named `prompt`, so a script reads the submitted text with `field="prompt"` and an API client posts `{"prompt": "..."}`. With the `lambda` script above running:
+
+```bash
+curl -X POST http://localhost:2025/process \
+  -H "Content-Type: application/json" \
+  -d '{"prompt": "Hello world"}'
+```
+
+```json
+{"status":"success","message":"Data processed successfully","data":{"input":{"prompt":"Hello world"},"output":["HELLO WORLD"],"count":1},"timestamp":"..."}
+```
+
+The same form is at `http://localhost:2025/stream` in a browser.
+
 ## Configuration Options
 
 ### Command Line Arguments
@@ -123,6 +137,8 @@ fields:
   label: "Enable feature"
   default: true
 ```
+
+An unchecked checkbox is left out of the submitted JSON rather than sent as `false`, so treat a missing field as "off" in your script.
 
 **Other Input Types:**
 - `email` - Email input with validation
@@ -257,11 +273,11 @@ curl -s -c jar.txt -b jar.txt 'http://localhost:2025/history?limit=5'
 
 ### curl Examples
 
-**Basic POST request:**
+**Basic POST request** (the JSON keys are your form's field names — `prompt` for the default form; a script that reads a field the request does not contain receives `None` for it):
 ```bash
 curl -X POST http://localhost:2025/process \
   -H "Content-Type: application/json" \
-  -d '{"message": "Hello world", "value": 42}'
+  -d '{"prompt": "Hello world"}'
 ```
 
 **With API key authentication:**
@@ -292,7 +308,7 @@ Navigate to `http://localhost:2025/` in your browser to access the main interfac
 
 ### 2. Configure Authentication (if enabled)
 
-If authentication is required, enter your API key in the provided field in the form.
+If authentication is required, enter your API key in the provided field in the form. On the `/stream` page the status indicator stays at "Connection error" while authentication is on — the page's status stream cannot send the key — but submissions and their results work normally.
 
 ### 3. Fill Out the Form
 
@@ -357,7 +373,7 @@ Use `--display-property` to control what appears as user input in the stream int
 ```bash
 # Show only the 'prompt' field value in the chat interface
 chatterlang_serve --display-property "prompt" \
-  --script "| llmPrompt[field=\"prompt\"]"
+  --script '| llmPrompt[source="ollama", model="llama3.2", field="prompt"]'
 ```
 
 The chat history then shows just the prompt text rather than the full JSON object.
@@ -376,7 +392,9 @@ chatterlang_serve --load-module ./my_segments.py \
 Store scripts and configs in `~/.talkpipe.toml`:
 
 ```toml
-my_script = "| llmPrompt[system_prompt=\"You are a helpful assistant\"]"
+my_script = "| llmPrompt[system_prompt=\"You are a helpful assistant\", field=\"prompt\"]"
+default_model_name = "llama3.2"
+default_model_source = "ollama"
 ```
 
 Then reference them:
@@ -385,13 +403,15 @@ Then reference them:
 chatterlang_serve --script my_script
 ```
 
+This script names no `model` or `source`, so it uses the `default_model_*` values next to it; without them the server refuses to start and says which one is missing. See [Model and source configuration](../guides/model-and-source-configuration.md).
+
 ### Dynamic Configuration Values
 
 Pass configuration values directly from the command line. These become accessible in your script using the `$key` syntax:
 
 ```bash
 chatterlang_serve \
-  --script '| llmPrompt[model=$model_name, system_prompt=$prompt, field="prompt"]' \
+  --script '| llmPrompt[source="ollama", model=$model_name, system_prompt=$prompt, field="prompt"]' \
   --model_name "llama3.2" \
   --prompt "You are a helpful assistant"
 ```
@@ -449,4 +469,4 @@ chatterlang_serve --script "| print"
 - **Concurrency**: FastAPI handles multiple concurrent requests automatically
 
 ---
-Last Reviewed: 20251128
+Last Reviewed: 20261111

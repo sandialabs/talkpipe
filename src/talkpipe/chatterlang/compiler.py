@@ -26,6 +26,7 @@ from talkpipe.chatterlang.parsers import (
     ParsedPipeline,
     ParsedScript,
     SegmentNode,
+    UnknownConfigKeyError,
     VariableName,
     script_parser,
 )
@@ -67,6 +68,17 @@ class CompileError(Exception):
         self.column = column
         self.kind = kind
         self.bad_name = bad_name
+
+
+class UnknownConfigValueError(CompileError, KeyError):
+    """A script referred to a ``$key`` that is not a configuration value.
+
+    Also a ``KeyError``, which is what compiling such a script raised before
+    this error existed, so callers that caught that keep working.
+    """
+
+    def __str__(self) -> str:
+        return str(self.args[0]) if self.args else ""
 
 
 def _valid_param_names(component: Any) -> list[str]:
@@ -265,6 +277,19 @@ def _format_parse_error(script: str, error: ParseError) -> str:
     if re.search(r"\w+\s*=\s*[A-Za-z_][\w]*$", before):
         hint = (
             '\n    Hint: string parameter values must be quoted, e.g. model="llama3.2".'
+        )
+    # A new statement starting where a `;` was expected: the previous
+    # statement was not terminated. Newlines do not separate statements.
+    if (
+        expected
+        and ";" in {str(e) for e in expected}
+        and before[:line_start].strip()
+        and re.fullmatch(r"\s*((INPUT|NEW|CONST|SET|LOOP)\s+)?", before[line_start:])
+        and re.match(r"\s*(INPUT|NEW|CONST|SET|LOOP)\b", line_text)
+    ):
+        hint = (
+            "\n    Hint: statements (pipelines, CONST definitions, LOOP blocks) are "
+            "separated by `;`, not by newlines. Add a `;` after the previous statement."
         )
     return (
         f"Syntax error in ChatterLang script at line {line_no}, column {col_no}.{exp}\n"
@@ -716,6 +741,8 @@ def _(
             column=column,
             kind="syntax",
         ) from None
+    except UnknownConfigKeyError as e:
+        raise UnknownConfigValueError(str(e)) from None
     return compile(parsed, runtime)
 
 

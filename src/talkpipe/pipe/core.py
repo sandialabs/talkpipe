@@ -180,6 +180,22 @@ def filter_out_metadata(input_iter: Iterable[Any]) -> Iterable[Any]:
     yield from (item for item in input_iter if not is_metadata(item))
 
 
+def _reject_uncalled(other: Any) -> None:
+    """Raise a clear TypeError when ``|`` is given a class instead of an instance.
+
+    ``echo(...) | uppercase`` (parentheses forgotten) otherwise fails inside
+    ``registerUpstream`` with a message about a missing argument.
+    """
+    if isinstance(other, type):
+        # Decorator-made classes are named after their function elsewhere.
+        func = getattr(other, "_original_func", None)
+        name = getattr(func, "__name__", other.__name__)
+        raise TypeError(
+            f"Cannot pipe into '{name}' itself: call it to create the source "
+            f"or segment first, e.g. `... | {name}()`."
+        )
+
+
 class AbstractSegment(ABC, HasRuntimeComponent, Generic[T, U]):
     """Abstract base class for all segments in the TalkPipe framework.
 
@@ -281,6 +297,7 @@ class AbstractSegment(ABC, HasRuntimeComponent, Generic[T, U]):
 
     def __or__(self, other: "AbstractSegment[U, Any]") -> "Pipeline":
         """Allows chaining operations using the | (or) operator."""
+        _reject_uncalled(other)
         self.registerDownstream(other)
         other.registerUpstream(self)
         return Pipeline(self, other)
@@ -421,6 +438,7 @@ class AbstractSource(ABC, HasRuntimeComponent, Generic[U]):
 
     def __or__(self, other: "AbstractSegment[U, Any]") -> "Pipeline":
         """Allows chaining operations using the | (or) operator."""
+        _reject_uncalled(other)
         self.registerDownstream(other)
         other.registerUpstream(self)
         return Pipeline(self, other)
@@ -958,6 +976,7 @@ class Pipeline(AbstractSegment[Any, Any]):
         Returns:
             A new Pipeline with the additional operation appended
         """
+        _reject_uncalled(other)
         return Pipeline(*self.operations, other)
 
 

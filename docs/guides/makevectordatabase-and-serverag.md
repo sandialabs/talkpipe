@@ -38,6 +38,8 @@ Use `makevectordatabase` to process documents and build a LanceDB index.
 makevectordatabase "docs/*.md" --path ./mydb
 ```
 
+This short form relies on the embedding defaults from [Configuration](#configuration) below. With nothing configured, name the provider and model on the command line instead — `makevectordatabase "docs/*.md" --path ./mydb --embedding_source ollama --embedding_model nomic-embed-text` — and give `serverag` the same two flags plus `--completion_source` / `--completion_model`.
+
 - **First argument**: File path or glob pattern (e.g. `"docs/*.md"`, `"data/*.pdf"`, `"/path/to/file.txt"`)
 - **`--path`**: Directory where the LanceDB database will be created (required)
 
@@ -276,7 +278,8 @@ These examples use Ollama for both steps; any other provider works the same way,
 | OpenAI / Anthropic authentication error | API key not set | Export `OPENAI_API_KEY` or `ANTHROPIC_API_KEY` in the environment the command runs in |
 | Port already in use | Another process on port | Use `--port 8080` (or another port) |
 | No relevant information found | Query not in documents | Try rephrasing or increasing `--limit` |
+| No relevant information found for *every* question | `serverag` is using a different embedding model from the one `makevectordatabase` built the database with | Pass the same `--embedding_model` / `--embedding_source` to both commands (the summary line `makevectordatabase` prints names them) |
 
 ---
 
-*Last reviewed: 20260307*
+*Last reviewed: 20261111*

@@ -38,6 +38,7 @@ from talkpipe.chatterlang.parsers import (
     ParsedPipeline,
     ParsedScript,
     SegmentNode,
+    UnknownConfigKeyError,
     script_parser,
 )
 
@@ -312,6 +313,19 @@ def _parse_mode_diagnostics(script: str) -> list[dict[str, Any]]:
         parsed = script_parser.parse(preprocessed)
     except ParseError as e:
         return [_syntax_error_diagnostic(preprocessed, e)]
+    except UnknownConfigKeyError:
+        before = preprocessed[: max(preprocessed.find("$"), 0)]
+        return [
+            _diag(
+                before.count("\n") + 1,
+                len(before) - (before.rfind("\n") + 1) + 1,
+                "error",
+                "A `$key` in this script is not a configuration value. Set it "
+                "in ~/.talkpipe.toml or as TALKPIPE_<key> in the environment "
+                "and restart the workbench; running the script names the key.",
+                "syntax",
+            )
+        ]
 
     diagnostics = [
         {

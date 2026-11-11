@@ -8,13 +8,14 @@
 # This particular script generates a set of fictitious stories that we'll use
 # to test the document indexing and search.
 # The pipeline is:
-# 1. Loop 50 times
-# 2. "INPUT FROM..." issues a prompt to the LLM to generate a five-sentence story 
-#    about technology development in an imaginary country.
-# 3. The output is processed to create a dictionary with the story content.
-# 4. A second LLM prompt generates a title for the story.
-# 5. The results are formatted as JSONL and printed to the console.
-# 6. The output is redirected to a file named "stories.json".
+# 1. "INPUT FROM echo[..., n=50]" emits the same prompt 50 times.
+# 2. The first llmPrompt answers each one with a five-sentence story about
+#    technology development in an imaginary country.
+# 3. toDict puts each story into a dictionary under "content".
+# 4. A second llmPrompt generates a title for the story and stores it as "title".
+# 5. progressTicks prints one dot per story so you can watch it work.
+# 6. dumpsJsonl formats each dictionary as a line of JSON and writeString
+#    writes those lines to "stories.json" (overwriting the included copy).
 ###################################################################################
 
 

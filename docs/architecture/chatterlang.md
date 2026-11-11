@@ -11,6 +11,45 @@ Ollama-specific: `source` and `model` are ordinary segment parameters, so
 
 While the Pipe API requires Python programming knowledge, ChatterLang enables data analysts, researchers, and non-programmers to create sophisticated pipelines through text-based scripts.
 
+## The language at a glance
+
+Everything the language has, in one script. Save it as `glance.script` and run it with `chatterlang_script --script glance.script --greeting hello` (or paste it into `chatterlang_workbench`, with `greeting = "hello"` in `~/.talkpipe.toml`):
+
+```chatterlang
+# A comment runs from `#` to the end of the line.
+CONST factor = 10;
+
+INPUT FROM echo[data="1,2,3"] | cast[cast_type="int"] | @numbers;
+
+LOOP 2 TIMES {
+    INPUT FROM @numbers | scale[multiplier=factor] | @numbers
+};
+
+INPUT FROM @numbers | print;
+INPUT FROM $greeting | print
+```
+
+```
+100
+200
+300
+hello
+```
+
+| Rule | Meaning |
+|------|---------|
+| **Statements end with `;`** | A script is a list of statements — `CONST` definitions, pipelines, and `LOOP` blocks — separated by `;`. A newline does **not** end a statement, which is why a pipeline can be spread over several lines. The last statement needs no `;`. |
+| **`INPUT FROM <source>`** | Starts a pipeline with a source. The source can be a registered one with parameters (`echo[data="1,2,3"]`), a quoted string (`INPUT FROM "Hello"` emits that one string), a variable (`@numbers`), or a configuration value (`$greeting`). `NEW FROM` is a synonym for `INPUT FROM`. |
+| **`\| segment[param=value, ...]`** | Each `\|` hands the items to the next segment. Parameters go in `[...]`; leave the brackets off when there are none (`\| print`). String values are quoted, numbers and `true`/`false` are not. |
+| **A pipeline that starts with `\|`** | Has no source: its input is supplied by whoever runs it — the argument of the Python function, a `chatterlang_serve` request, or the workbench's input box. |
+| **`@name`** | A variable. As a segment (`\| @numbers`) it stores every item that passes; as a source (`INPUT FROM @numbers`) it replays them. |
+| **`CONST name = value`** | A constant, used as a bare word in a parameter (`multiplier=factor`). `SET` is a synonym. Constants come first in a script. |
+| **`$name`** | A configuration value: `--name value` on the command line, a `TALKPIPE_`-prefixed environment variable, or `name = ...` in `~/.talkpipe.toml` (see [Configuration](configuration.md)). An unset `$name` is an error that names the key. |
+| **`LOOP n TIMES { ... }`** | Runs the statements in the braces `n` times. |
+| **`fork(a, b)` and `-> name`** | Send the stream down several branches; see [Forking](#forking) below. |
+
+To see which sources and segments exist and what parameters they take, run `chatterlang_reference_browser` (see [reference tools](../api-reference/talkpipe-ref.md)). The rest of this page explains how the language is implemented and covers a few features in more depth.
+
 ## Design Philosophy
 
 ### Human-Readable Syntax
@@ -18,8 +57,10 @@ While the Pipe API requires Python programming knowledge, ChatterLang enables da
 ChatterLang uses Unix-inspired syntax that makes data pipelines easier to read and write:
 
 ```chatterlang
-INPUT FROM echo[data="Hello, World!"] | print
+INPUT FROM echo[data="Hello World"] | print
 ```
+
+(`echo` splits its `data` on commas into separate items, so `data="Hello, World!"` would print two lines. To emit one string whole, use it as the source directly: `INPUT FROM "Hello, World!" | print`.)
 
 ### Declarative Pipeline Definition
 
@@ -48,7 +89,7 @@ The parser converts ChatterLang text into an Abstract Syntax Tree (AST) using th
 
 #### Grammar Elements
 
-**Sources**: Define where data comes from
+**Sources**: Define where data comes from (three alternatives; each one starts a pipeline of its own)
 ```chatterlang
 INPUT FROM echo[data="Hello"]
 NEW FROM range[lower=0, upper=10]
@@ -142,30 +183,49 @@ fills; `timeout` only fails the pipeline, while `max_tokens` bounds the item.
 
 **Variables**: Store intermediate results
 ```chatterlang
-| @my_variable    # Store results in variable
-INPUT FROM @my_variable  # Use stored results as input
+INPUT FROM echo[data="1,2"] | @my_variable;    # Store results in variable
+INPUT FROM @my_variable | print                # Use stored results as input
 ```
 
-**Constants**: Define reusable values (the following are equivalent)
+**Constants**: Define reusable values (`CONST` and `SET` are equivalent)
 ```chatterlang
-CONST multiplier = 5
-SET api_key = "sk-123456"
+CONST multiplier = 5;
+SET greeting = "hello";
+INPUT FROM echo[data=greeting] | print
 ```
 
 **Loops**: Repeat operations multiple times
 ```chatterlang
+INPUT FROM range[lower=0, upper=3] | @data;
 LOOP 3 TIMES {
     INPUT FROM @data | scale[multiplier=2] | @data
-}
+};
+INPUT FROM @data | print
 ```
 
-**Forking**: Parallel processing branches
+This prints `0`, `8`, and `16`. Note the `;` after the closing brace: a loop is a statement like any other.
+
+#### Forking
+
+`fork(...)` sends every item down each of its branches and merges what the branches emit back into one stream. Branches are separated by commas and written **without** a leading `|`; a branch can itself be a chain of segments:
+
 ```chatterlang
-| fork(
-    | scale[multiplier=2] | print,
-    | toUpperCase | print
-)
+INPUT FROM range[lower=1, upper=3]
+| fork(scale[multiplier=10], scale[multiplier=100] | scale[multiplier=2])
+| print
 ```
+
+This prints `10`, `20`, `200`, and `400`. The branches run concurrently, so the order in which their results interleave is not guaranteed.
+
+A *named* fork joins separate pipelines instead: `-> name` at the end of a pipeline feeds a fork, and `name ->` at the start of another reads from it.
+
+```chatterlang
+INPUT FROM range[lower=0, upper=2] -> nums;
+INPUT FROM range[lower=10, upper=12] -> nums;
+nums -> print
+```
+
+This prints `0`, `1`, `10`, and `11` (again in no guaranteed order).
 
 ### 2. Compiler Layer
 
@@ -279,13 +339,11 @@ class ExampleAccum(AbstractSegment):
 
 ## Advanced Features
 
-### 1. Script Composition
-
-### 2. Comment Processing
+### 1. Comment Processing
 
 The compiler preprocesses scripts to remove comments (text after `#` on a line) while preserving string literals.
 
-### 3. Parameter Resolution
+### 2. Parameter Resolution
 
 The compiler resolves segment and source parameters from constants and runtime variables before passing them to the underlying Pipe API components.
 
@@ -414,7 +472,7 @@ class MyTransform(AbstractSegment):
             yield f"{self.param1}: {item}"
 ```
 
-### 3. Error Propagation
+### 2. Error Propagation
 
 Compilation and runtime errors are properly handled and reported:
 
@@ -444,4 +502,4 @@ integration with web applications, command-line tools, and interactive
 environments lets TalkPipe's data processing reach a wide range of use cases.
 
 ---
-Last Reviewed: 20250817
+Last Reviewed: 20261111

@@ -31,7 +31,7 @@ default_model_name = "llama3.2"
 default_model_source = "ollama"
 OLLAMA_SERVER_URL = "http://localhost:11434"
 
-# HTTP servers (chatterlang_serve, serverag): key checked when --require_auth is set
+# HTTP servers: key checked when chatterlang_serve --require-auth / serverag --require_auth is set
 API_KEY = "change-me"
 
 # chatterlang_workbench
@@ -72,7 +72,7 @@ export TALKPIPE_DEFAULT_MODEL_NAME="llama3.2"
 export TALKPIPE_DEFAULT_MODEL_SOURCE="ollama"
 export TALKPIPE_OLLAMA_SERVER_URL="http://localhost:11434"
 
-# HTTP server API key (chatterlang_serve / serverag with --require_auth)
+# HTTP server API key (chatterlang_serve --require-auth / serverag --require_auth)
 export TALKPIPE_API_KEY="change-me"
 ```
 
@@ -124,18 +124,24 @@ The `parse_unknown_args` function automatically infers types:
 
 #### Using Constants in Scripts
 
-Constants are available directly by name in ChatterLang scripts:
+Every configuration value — from the command line, the environment, or the config file — is read in a ChatterLang script as `$key`:
 
 ```chatterlang
-# All configuration values use $key syntax
-# From command line: --debug true --base_url "https://example.com"
-INPUT FROM echo[data=$debug] | print
-INPUT FROM echo[data=$base_url] | downloadURL | print
-
-# From config file or environment variables
-INPUT FROM echo[data=$api_key] | print
-INPUT FROM echo[data=$ollama_base_url] | downloadURL | print
+# Run with: chatterlang_script --script my_script.tp --count 3 --base_url "https://example.com"
+INPUT FROM range[lower=0, upper=$count] | print;
+INPUT FROM echo[data=$base_url] | print
 ```
+
+```
+0
+1
+2
+https://example.com
+```
+
+`--count 3` arrives as the integer `3` (see the type inference rules above), so it can be used where a number is expected.
+
+Separate the pipelines with `;` (a newline alone does not end a statement). A `$key` that is not set anywhere stops the script with a one-line `Error: Unknown configuration value '$key'...` that names the key and the three places it can be set (the command line, a `TALKPIPE_`-prefixed environment variable, `~/.talkpipe.toml`).
 
 ## Configuration Precedence Rules
 
@@ -329,18 +335,13 @@ EOF
 
 ### Configuration Debugging
 
-Enable debug logging to see configuration loading:
+To see the configuration TalkPipe actually resolved — the config file merged with the `TALKPIPE_*` environment variables, with secrets such as `API_KEY` masked — print it:
 
 ```bash
-export TALKPIPE_LOGGER_LEVELS="talkpipe.util.config:DEBUG"
-python -m talkpipe.app.chatterlang_script --script "test.tp"
+python -c "from talkpipe.util.config import get_config, redact; print(redact(get_config()))"
 ```
 
-This will show detailed information about:
-- Configuration file discovery and loading
-- Environment variable processing
-- Argument parsing and constant extraction
-- Final merged configuration values
+(The configuration is loaded before logging is set up — the logging levels are themselves configuration values — so setting `logger_levels` does not show the loading step.)
 
 ## Recognized Configuration Keys
 
@@ -357,7 +358,7 @@ case-insensitively; set any of them as `key = ...` in `~/.talkpipe.toml` or as
 | `MODEL2VEC_REVISION`, `MODEL2VEC_CACHE_DIR` | `source="model2vec"` embeddings |
 | `llm_timeout`, `email_timeout`, `mongo_timeout` | network timeouts (seconds) for LLM, SMTP/IMAP, and MongoDB clients |
 | `logger_levels`, `logger_files` | `configureLogger` / `configure_logger` |
-| `API_KEY` | `chatterlang_serve` and `serverag` when `--require_auth` is set |
+| `API_KEY` | `chatterlang_serve` when `--require-auth` is set, and `serverag` when `--require_auth` is set (the two commands spell the flag differently) |
 | `TALKPIPE_ALLOWED_ORIGINS` (environment only) | extra CORS origins for `chatterlang_serve` |
 | `user_agent` | `downloadURL` and other HTTP fetches |
 | `rss_url` | the `rss` source |
@@ -421,4 +422,4 @@ replaces the handlers on the loggers it names. talkpipe itself installs only a
 touches the root logger unless you call this function.
 
 ---
-Last Reviewed: 20250820
+Last Reviewed: 20261111

@@ -1,5 +1,6 @@
 from collections.abc import Iterable
 
+import pytest
 from numpy import random
 
 import talkpipe.pipe.core as core
@@ -49,6 +50,13 @@ def test_ordering():
     assert list(composed0([1])) == [12]
     assert list(composed2([1])) == [12]
     assert list(composed1([1])) == [12]
+
+
+def test_piping_into_an_uncalled_segment_says_to_call_it():
+    """`a() | b` (parentheses forgotten) names the fix, not registerUpstream."""
+    for build in (lambda: add_one() | double, lambda: add_one() | double() | Print):
+        with pytest.raises(TypeError, match=r"call it to create .*\| \w+\(\)"):
+            build()
 
 
 def test_direct_call():

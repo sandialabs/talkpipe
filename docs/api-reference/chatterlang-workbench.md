@@ -133,7 +133,7 @@ The suggestion LLM is resolved in this order:
 
 ### Built-in Examples
 
-The **Examples** menu provides categorized example scripts (basic data flows, LLM chat and agent conversations, image/vision, loops, scoring, and RAG). Loading an example replaces the editor content as an unsaved scratch buffer — use **Save As…** to keep your own copy.
+The **Examples** menu provides categorized example scripts (basic data flows, LLM chat and agent conversations, image/vision, loops, scoring, and RAG). Loading an example replaces the editor content as an unsaved scratch buffer — use **Save As…** to keep your own copy. The LLM examples either name a model and provider (`model="llama3.2", source="ollama"`) or, where a comment at the top says so, use your [default model](../guides/model-and-source-configuration.md); with no default configured those report which setting is missing until you add `model=` / `source=` to the segment.
 
 ### Built-in Documentation
 

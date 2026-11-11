@@ -1,6 +1,6 @@
 # Extending TalkPipe
 
-This guide explains how to add custom **sources** (pipeline starters) and **segments** (stream processors), register them for the ChatterLang DSL, and ship them in packages. Read the [Data Protocol](protocol.md) first so stream conventions (especially dictionary-shaped data in higher-level pipelines) stay consistent.
+This guide explains how to add custom **sources** (pipeline starters) and **segments** (stream processors), register them for the ChatterLang DSL, and ship them in packages. The first example below needs no background; once your components pass dictionaries around or join the higher-level pipelines, read the [Data Protocol](protocol.md) so stream conventions stay consistent.
 
 ## A minimal registered segment
 
@@ -33,6 +33,10 @@ print(list(pipeline()))
 fn = compile('INPUT FROM echo[data="1,2,3"] | doubleEach[factor=10]')
 print(list(fn()))
 ```
+
+Both `print` calls show `[10, 20, 30]`.
+
+To use a one-file segment like this from the command-line tools without packaging it, save the definition (the imports and the decorated function) as, say, `my_segments.py` and pass `--load-module my_segments.py` to `chatterlang_script`, `chatterlang_serve`, or `chatterlang_workbench`; the file is imported first, so `doubleEach` is registered before the script compiles.
 
 Calling a pipeline (`pipeline()`) or a compiled script (`fn()`) directly returns a lazy generator, which is why both calls above are wrapped in `list(...)`. The README examples use `.as_function()` instead, which wraps the same call in a plain function that returns a list (or a single value with `single_out=True`).
 
@@ -531,4 +535,4 @@ class TestDoubleSegment(unittest.TestCase):
 
 ---
 
-Last reviewed: 2026-04-15
+Last reviewed: 2026-11-11
