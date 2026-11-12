@@ -2,7 +2,17 @@
 
 ## Unreleased
 
-## 1.3.0 (2026-11-11)
+## 1.3.1 (2026-11-12)
+
+- **Security: raised the `pypdf` floor** in the `pypdf` extra (and so in
+  `all`) to `pypdf>=6.21.4`, clearing seven advisories published on
+  2026-10-30 against earlier releases (crafted PDFs causing infinite loops,
+  long runtimes or large memory use while parsing cross-reference tables
+  and streams, page trees, page labels, encrypted files and strict-mode
+  errors). `uv.lock` moves `pypdf` to 7.0.1; pypdf 7.0 removed only APIs
+  that TalkPipe does not use (it reads PDFs with `PdfReader`, `pages` and
+  `extract_text()`), so the floor stays on the 6.x line rather than forcing
+  a major upgrade on installs that already have a fixed 6.x.
 
 - **Documentation: a shorter path to a first working pipeline.** The README
   now opens with a one-minute, no-LLM example run from the command line, and
