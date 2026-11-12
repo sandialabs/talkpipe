@@ -96,7 +96,7 @@ anthropic = [
     'anthropic>=0.87.0'
 ]
 pypdf = [
-    'pypdf>=6.21.2'  # security floor: <6.21.2 has several crafted-PDF runtime and memory exhaustion advisories
+    'pypdf>=6.21.4'  # security floor: <6.21.4 has several crafted-PDF runtime and memory exhaustion advisories
 ]
 pillow = [
     'Pillow>=13.0.0'  # security floor: <13.0.0 has six known advisories
